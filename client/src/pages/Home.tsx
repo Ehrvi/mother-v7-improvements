@@ -1,25 +1,24 @@
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
-import { Streamdown } from 'streamdown';
+import { MotherProvider } from '@/contexts/MotherContext';
+import Header from '@/components/Header';
+import ChatInterface from '@/components/ChatInterface';
+import ChatInput from '@/components/ChatInput';
+import ApolloPanel from '@/components/ApolloPanel';
 
-/**
- * All content in this page are only for example, replace with your own feature implementation
- * When building pages, remember your instructions in Frontend Best Practices, Design Guide and Common Pitfalls
- */
 export default function Home() {
-  // If theme is switchable in App.tsx, we can implement theme toggling like this:
-  // const { theme, toggleTheme } = useTheme();
-
   return (
-    <div className="min-h-screen flex flex-col">
-      <main>
-        {/* Example: lucide-react for icons */}
-        <Loader2 className="animate-spin" />
-        Example Page
-        {/* Example: Streamdown for markdown rendering */}
-        <Streamdown>Any **markdown** content</Streamdown>
-        <Button variant="default">Example Button</Button>
-      </main>
-    </div>
+    <MotherProvider>
+      <div className="min-h-screen flex flex-col bg-background">
+        <Header />
+        <div className="flex-1 flex overflow-hidden">
+          {/* Main Chat Area */}
+          <div className="flex-1 flex flex-col">
+            <ChatInterface />
+            <ChatInput />
+          </div>
+          {/* Apollo Panel */}
+          <ApolloPanel />
+        </div>
+      </div>
+    </MotherProvider>
   );
 }
