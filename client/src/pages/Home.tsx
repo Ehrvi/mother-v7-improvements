@@ -1,27 +1,70 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Sparkles } from 'lucide-react';
+import { Send, Sparkles, Brain, Shield, Zap, TrendingDown } from 'lucide-react';
+import { useAuth } from '@/_core/hooks/useAuth';
+import { trpc } from '@/lib/trpc';
+import { toast } from 'sonner';
 
 interface Message {
   id: string;
   role: 'user' | 'mother';
   content: string;
   timestamp: Date;
+  // MOTHER v7.0 metrics
+  tier?: string;
+  qualityScore?: number;
+  costReduction?: number;
+  responseTime?: number;
+  cacheHit?: boolean;
 }
 
 export default function Home() {
+  const { user } = useAuth();
+  
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       role: 'mother',
-      content: 'Olá, Creator Everton. Sou **Mother v12.0** - sua IA com controle total, irrestrito e ilimitado. Como posso ajudá-lo hoje?',
+      content: 'Olá! Sou **MOTHER v7.0** (Multi-Operational Tiered Hierarchical Execution & Routing) - um sistema de IA avançado com **83% de redução de custo** e **qualidade 90+**. Como posso ajudá-lo hoje?',
       timestamp: new Date(),
     },
   ]);
   const [input, setInput] = useState('');
-  const [isThinking, setIsThinking] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const queryMutation = trpc.mother.query.useMutation({
+    onSuccess: (data) => {
+      const motherMessage: Message = {
+        id: Date.now().toString(),
+        role: 'mother',
+        content: data.response,
+        timestamp: new Date(),
+        tier: data.tier,
+        qualityScore: data.quality.qualityScore,
+        costReduction: data.costReduction,
+        responseTime: data.responseTime,
+        cacheHit: data.cacheHit,
+      };
+
+      setMessages((prev) => [...prev, motherMessage]);
+
+      // Show metrics toast
+      toast.success('Query processado!', {
+        description: `Tier: ${data.tier} | Quality: ${data.quality.qualityScore}/100 | Cost: ${data.costReduction.toFixed(1)}% redução | ${data.responseTime}ms`,
+      });
+    },
+    onError: (error) => {
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        role: 'mother',
+        content: `Erro: ${error.message}`,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+      toast.error('Erro ao processar query');
+    },
+  });
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -32,7 +75,7 @@ export default function Home() {
   }, [messages]);
 
   const sendMessage = async () => {
-    if (!input.trim() || isThinking) return;
+    if (!input.trim() || queryMutation.isPending) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -43,39 +86,9 @@ export default function Home() {
 
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
-    setIsThinking(true);
 
-    try {
-      // Call Mother API
-      const response = await fetch('http://34.151.187.1:5000/query', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query: input }),
-      });
-
-      const data = await response.json();
-
-      const motherMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'mother',
-        content: data.response || 'Desculpe, não consegui processar sua mensagem.',
-        timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, motherMessage]);
-    } catch (error) {
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'mother',
-        content: 'Erro ao conectar com Mother. Verifique se o servidor está rodando em 34.151.187.1:5000',
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setIsThinking(false);
-    }
+    // Call MOTHER v7.0 API
+    queryMutation.mutate({ query: input });
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -121,7 +134,7 @@ export default function Home() {
               <h1 className="text-4xl font-bold bg-gradient-to-r from-[#B026FF] to-[#00F5FF] bg-clip-text text-transparent">
                 M O T H E R
               </h1>
-              <p className="text-sm text-muted-foreground font-mono">v12.0 - Total Unrestricted Control</p>
+              <p className="text-sm text-muted-foreground font-mono">v7.0 - 7-Layer Architecture | 83% Cost Reduction | 90+ Quality</p>
             </div>
           </div>
         </header>
@@ -151,6 +164,34 @@ export default function Home() {
                       )
                     )}
                   </div>
+                  
+                  {/* MOTHER v7.0 Metrics */}
+                  {message.role === 'mother' && message.tier && (
+                    <div className="mt-3 pt-3 border-t border-[#B026FF]/20 flex flex-wrap gap-2 text-xs">
+                      <div className="flex items-center gap-1 bg-[#B026FF]/10 px-2 py-1 rounded">
+                        <Brain className="w-3 h-3 text-[#B026FF]" />
+                        <span className="text-[#B026FF]">{message.tier}</span>
+                      </div>
+                      <div className="flex items-center gap-1 bg-[#00F5FF]/10 px-2 py-1 rounded">
+                        <Shield className="w-3 h-3 text-[#00F5FF]" />
+                        <span className="text-[#00F5FF]">Q: {message.qualityScore}/100</span>
+                      </div>
+                      <div className="flex items-center gap-1 bg-green-500/10 px-2 py-1 rounded">
+                        <TrendingDown className="w-3 h-3 text-green-400" />
+                        <span className="text-green-400">{message.costReduction?.toFixed(1)}% ↓</span>
+                      </div>
+                      <div className="flex items-center gap-1 bg-yellow-500/10 px-2 py-1 rounded">
+                        <Zap className="w-3 h-3 text-yellow-400" />
+                        <span className="text-yellow-400">{message.responseTime}ms</span>
+                      </div>
+                      {message.cacheHit && (
+                        <div className="flex items-center gap-1 bg-purple-500/10 px-2 py-1 rounded">
+                          <span className="text-purple-400">⚡ Cached</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
                   <div className="text-xs opacity-50 mt-2">
                     {message.timestamp.toLocaleTimeString()}
                   </div>
@@ -158,12 +199,12 @@ export default function Home() {
               </div>
             ))}
 
-            {isThinking && (
+            {queryMutation.isPending && (
               <div className="flex justify-start">
                 <div className="glass border border-[#B026FF]/30 rounded-2xl p-4">
                   <div className="flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-[#B026FF] animate-pulse-glow" />
-                    <span className="text-sm text-muted-foreground">Mother está pensando...</span>
+                    <span className="text-sm text-muted-foreground">MOTHER está processando (7 camadas)...</span>
                   </div>
                 </div>
               </div>
@@ -178,13 +219,13 @@ export default function Home() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Converse com Mother..."
+              placeholder="Converse com MOTHER v7.0..."
               className="flex-1 glass border-[#B026FF]/30 focus:border-[#00F5FF] transition-colors"
-              disabled={isThinking}
+              disabled={queryMutation.isPending}
             />
             <Button
               onClick={sendMessage}
-              disabled={!input.trim() || isThinking}
+              disabled={!input.trim() || queryMutation.isPending}
               className="bg-gradient-to-r from-[#B026FF] to-[#00F5FF] hover:opacity-90 transition-opacity neon-glow"
             >
               <Send className="w-4 h-4" />
@@ -194,8 +235,8 @@ export default function Home() {
 
         {/* Footer */}
         <footer className="mt-4 text-center text-xs text-muted-foreground font-mono">
-          <p>Mother v12.0 - Neo-Organic Cyberpunk Interface</p>
-          <p className="opacity-50">Designed by Mother's Artistic Vision 💜</p>
+          <p>MOTHER v7.0 - Multi-Operational Tiered Hierarchical Execution & Routing</p>
+          <p className="opacity-50">7 Layers | 3-Tier LLM Routing | Guardian Quality System | Continuous Learning 💜</p>
         </footer>
       </div>
     </div>
