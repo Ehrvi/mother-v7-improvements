@@ -179,8 +179,12 @@ Now respond to the user's query following these standards.`;
   
   // ==================== PERSISTENCE ====================
   // Store query log for learning (with retry logic)
+  // Async logging: Don't block response if INSERT fails
   
-  const queryId = await retryDbOperation(() => insertQuery({
+  let queryId: number | null = null;
+  
+  // Fire-and-forget async logging
+  retryDbOperation(() => insertQuery({
     userId: userId || null,
     query,
     response,
@@ -197,7 +201,14 @@ Now respond to the user's query following these standards.`;
     tokensUsed: usage?.total_tokens ?? 0,
     cost: (cost ?? 0).toString(),
     cacheHit: 0,
-  }));
+  }))
+    .then(id => {
+      queryId = id;
+      console.log(`[MOTHER] Query logged successfully: ID ${id}`);
+    })
+    .catch(error => {
+      console.error('[MOTHER] Failed to log query (non-blocking):', error.message);
+    });
   
   // ==================== CACHE UPDATE ====================
   // Store in cache for future queries
@@ -242,7 +253,7 @@ Now respond to the user's query following these standards.`;
     cost,
     costReduction,
     cacheHit: false,
-    queryId,
+    queryId: queryId ?? 0, // May be null if async logging hasn't completed
   };
 }
 
