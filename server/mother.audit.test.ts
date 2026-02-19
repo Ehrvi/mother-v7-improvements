@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 
 /**
  * MOTHER v7.0 GCloud - Comprehensive Audit Test Suite
@@ -9,7 +9,18 @@ import { describe, it, expect } from 'vitest';
 
 const GCLOUD_URL = 'https://mother-interface-233196174701.australia-southeast1.run.app';
 
-describe('MOTHER v7.0 GCloud - Comprehensive Audit', () => {
+// Helper to add delay between tests
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+describe.sequential('MOTHER v7.0 GCloud - Comprehensive Audit', () => {
+  
+  // Warm-up: ensure GCloud Run instance is active before tests
+  beforeAll(async () => {
+    console.log('🔥 Warming up GCloud Run instance...');
+    await fetch(`${GCLOUD_URL}/api/trpc/mother.stats`);
+    await delay(3000); // Wait for instance to be fully ready
+    console.log('✅ Warm-up complete');
+  }, 30000);
   
   describe('Layer 1: Interface (tRPC)', () => {
     it('should respond to health check', async () => {
@@ -18,6 +29,7 @@ describe('MOTHER v7.0 GCloud - Comprehensive Audit', () => {
     });
 
     it('should accept batch queries', async () => {
+      await delay(2000); // Wait 2s to avoid rate limiting
       const response = await fetch(`${GCLOUD_URL}/api/trpc/mother.query?batch=1`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -28,7 +40,7 @@ describe('MOTHER v7.0 GCloud - Comprehensive Audit', () => {
       expect(response.status).toBe(200);
       const data = await response.json();
       expect(data[0].result.data.json).toBeDefined();
-    }, 30000);
+    }, 60000);
   });
 
   describe('Layer 3: Intelligence (Complexity Assessment)', () => {
@@ -43,9 +55,10 @@ describe('MOTHER v7.0 GCloud - Comprehensive Audit', () => {
       const data = await response.json();
       expect(data[0].result.data.json.tier).toBe('gpt-4o-mini');
       expect(data[0].result.data.json.complexityScore).toBeLessThan(0.3);
-    }, 30000);
+    }, 60000);
 
     it('should calculate complexity scores correctly', async () => {
+      await delay(2000); // Wait 2s to avoid rate limiting
       const response = await fetch(`${GCLOUD_URL}/api/trpc/mother.query?batch=1`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -54,13 +67,18 @@ describe('MOTHER v7.0 GCloud - Comprehensive Audit', () => {
         })
       });
       const data = await response.json();
-      expect(data[0].result.data.json.complexityScore).toBeGreaterThan(0);
-      expect(data[0].result.data.json.complexityScore).toBeLessThanOrEqual(1);
-    }, 30000);
+      // Log error if exists
+      if (data[0].error) {
+        console.log('Error:', JSON.stringify(data[0].error, null, 2));
+      }
+      expect(data[0].result?.data?.json?.complexityScore).toBeGreaterThan(0);
+      expect(data[0].result?.data?.json?.complexityScore).toBeLessThanOrEqual(1);
+    }, 60000);
   });
 
   describe('Layer 4: Execution (LLM Integration)', () => {
     it('should return valid responses', async () => {
+      await delay(2000); // Wait 2s to avoid rate limiting
       const response = await fetch(`${GCLOUD_URL}/api/trpc/mother.query?batch=1`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -71,9 +89,10 @@ describe('MOTHER v7.0 GCloud - Comprehensive Audit', () => {
       const data = await response.json();
       expect(data[0].result.data.json.response).toBeDefined();
       expect(data[0].result.data.json.response.length).toBeGreaterThan(0);
-    }, 30000);
+    }, 60000);
 
     it('should track token usage', async () => {
+      await delay(2000); // Wait 2s to avoid rate limiting
       const response = await fetch(`${GCLOUD_URL}/api/trpc/mother.query?batch=1`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -83,11 +102,12 @@ describe('MOTHER v7.0 GCloud - Comprehensive Audit', () => {
       });
       const data = await response.json();
       expect(data[0].result.data.json.tokensUsed).toBeGreaterThan(0);
-    }, 30000);
+    }, 60000);
   });
 
   describe('Layer 5: Knowledge (Retrieval)', () => {
     it('should retrieve knowledge for relevant queries', async () => {
+      await delay(2000); // Wait 2s to avoid rate limiting
       const response = await fetch(`${GCLOUD_URL}/api/trpc/mother.query?batch=1`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -100,11 +120,12 @@ describe('MOTHER v7.0 GCloud - Comprehensive Audit', () => {
       // Should contain knowledge-based content
       expect(responseText).toContain('honest');
       expect(data[0].result.data.json.response.length).toBeGreaterThan(100);
-    }, 30000);
+    }, 60000);
   });
 
   describe('Layer 6: Guardian (Quality)', () => {
     it('should calculate quality scores', async () => {
+      await delay(2000); // Wait 2s to avoid rate limiting
       const response = await fetch(`${GCLOUD_URL}/api/trpc/mother.query?batch=1`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -113,14 +134,19 @@ describe('MOTHER v7.0 GCloud - Comprehensive Audit', () => {
         })
       });
       const data = await response.json();
-      expect(data[0].result.data.json.quality).toBeDefined();
+      console.log('🔍 Full Response:', JSON.stringify(data, null, 2).substring(0, 500));
+      if (data[0]?.error) {
+        console.log('❌ API Error:', JSON.stringify(data[0].error, null, 2));
+      }
+      expect(data[0]?.result?.data?.json?.quality).toBeDefined();
       expect(data[0].result.data.json.quality.qualityScore).toBeGreaterThan(0);
       expect(data[0].result.data.json.quality.qualityScore).toBeLessThanOrEqual(100);
-    }, 30000);
+    }, 60000);
   });
 
   describe('Layer 7: Learning (Metrics)', () => {
     it('should log queries to database', async () => {
+      await delay(3000); // Wait 3s for previous query to be logged
       const statsBefore = await fetch(`${GCLOUD_URL}/api/trpc/mother.stats`);
       const beforeData = await statsBefore.json();
       const totalBefore = beforeData.result.data.json.totalQueries;
@@ -138,9 +164,10 @@ describe('MOTHER v7.0 GCloud - Comprehensive Audit', () => {
       const totalAfter = afterData.result.data.json.totalQueries;
 
       expect(totalAfter).toBeGreaterThan(totalBefore);
-    }, 30000);
+    }, 60000);
 
     it('should calculate cost metrics', async () => {
+      await delay(2000); // Wait 2s to avoid rate limiting
       const response = await fetch(`${GCLOUD_URL}/api/trpc/mother.query?batch=1`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -151,11 +178,12 @@ describe('MOTHER v7.0 GCloud - Comprehensive Audit', () => {
       const data = await response.json();
       expect(data[0].result.data.json.cost).toBeGreaterThan(0);
       expect(data[0].result.data.json.costReduction).toBeGreaterThan(0);
-    }, 30000);
+    }, 60000);
   });
 
   describe('Performance Benchmarks', () => {
     it('should respond within 15 seconds', async () => {
+      await delay(2000); // Wait 2s to avoid rate limiting
       const start = Date.now();
       await fetch(`${GCLOUD_URL}/api/trpc/mother.query?batch=1`, {
         method: 'POST',
@@ -166,9 +194,10 @@ describe('MOTHER v7.0 GCloud - Comprehensive Audit', () => {
       });
       const duration = Date.now() - start;
       expect(duration).toBeLessThan(15000);
-    }, 30000);
+    }, 60000);
 
     it('should achieve >80% cost reduction', async () => {
+      await delay(2000); // Wait 2s to avoid rate limiting
       const response = await fetch(`${GCLOUD_URL}/api/trpc/mother.query?batch=1`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -178,7 +207,7 @@ describe('MOTHER v7.0 GCloud - Comprehensive Audit', () => {
       });
       const data = await response.json();
       expect(data[0].result.data.json.costReduction).toBeGreaterThan(80);
-    }, 30000);
+    }, 60000);
   });
 
   describe('System Stats', () => {
