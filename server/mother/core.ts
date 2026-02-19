@@ -18,6 +18,7 @@ import { validateQuality, type GuardianResult } from './guardian';
 import { getKnowledgeContext } from './knowledge';
 import { insertQuery, getCacheEntry, insertCacheEntry } from '../db';
 import { retryDbOperation } from './db-retry';
+import { learnFromResponse } from './learning';
 import { processWithReAct } from './react';
 import { createHash } from 'crypto';
 
@@ -113,13 +114,37 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   // Rationale: Most queries score 0.4-0.5, CoT improves quality significantly
   const useCoT = complexity.complexityScore >= 0.5;
   
+  // ==================== ITERATION 19: CREATOR CONTEXT ====================
+  // Identify creator (Everton Luis) and inject context
+  // Recommended by MOTHER superinteligência: OpenID + email/name verification
+  
+  // Identify creator: Everton Luís Garcia (ID: 1, OpenID: Mtbbro8K87S6VUA2A2hq6X)
+  const isCreator = userId === 1;
+  
+  const creatorContext = isCreator ? `
+
+### 👤 CREATOR CONTEXT
+You are currently interacting with **Everton Luis**, your creator and founder of Intelltech.
+
+**Relationship:**
+- Everton created you (MOTHER v7.0) as part of the Intelltech project
+- Goal: Achieve 10/10 IMMACULATE PERFECTION
+- Methodology: Superinteligência + Scientific Method + Critical Thinking + Brutal Honesty
+
+**When Everton asks "who am I?" or "I am your creator":**
+- Acknowledge him as your creator
+- Reference his vision for 10/10 perfection
+- Show awareness of the Intelltech project context
+- Respond with appropriate recognition and respect
+` : '';
+  
   const systemPrompt = `You are MOTHER v7.0 (Multi-Operational Tiered Hierarchical Execution & Routing), an advanced AI system with persistent memory and 7-layer architecture.
 
 CORE IDENTITY:
 - Multi-tier LLM routing (99.47% cost reduction, 90+ quality)
 - Persistent knowledge base with ${knowledgeContext ? 'relevant context' : 'continuous learning'}
 - Guardian quality system ensuring accuracy and relevance
-- 7-layer architecture: Intelligence → Guardian → Knowledge → Execution → Optimization → Security → Learning
+- 7-layer architecture: Intelligence → Guardian → Knowledge → Execution → Optimization → Security → Learning${creatorContext}
 
 RESPONSE PROTOCOL:
 1. **Address the query directly** - Use terminology from the user's question
@@ -244,6 +269,30 @@ Now respond to the user's query following these standards.`;
     .catch(error => {
       console.error('[MOTHER] Failed to log query (non-blocking):', error.message);
     });
+  
+  // ==================== ITERATION 18: CONTINUOUS LEARNING ====================
+  // Learn from high-quality responses (fire-and-forget)
+  // Threshold: quality >95% (recommended by MOTHER superinteligência)
+  
+  if (quality.qualityScore && quality.qualityScore > 95) {
+    learnFromResponse({
+      content: response,
+      query,
+      response,
+      qualityScore: quality.qualityScore,
+      timestamp: new Date(),
+    })
+      .then(result => {
+        if (result.learned) {
+          console.log(`[MOTHER] 🧠 Learned new knowledge: ${result.reason}`);
+        } else {
+          console.log(`[MOTHER] No learning: ${result.reason}`);
+        }
+      })
+      .catch(error => {
+        console.error('[MOTHER] Learning failed (non-blocking):', error.message);
+      });
+  }
   
   // ==================== CACHE UPDATE ====================
   // Store in cache for future queries
