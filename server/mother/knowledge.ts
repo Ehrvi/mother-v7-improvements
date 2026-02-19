@@ -57,9 +57,9 @@ export async function queryDatabase(query: string): Promise<KnowledgeResult[]> {
 }
 
 /**
- * Source 2: Enhanced Keyword Search (TF-IDF style)
- * Keyword-based relevance scoring with term frequency analysis
- * NOTE: Embeddings endpoint not available, using keyword matching as fallback
+ * Source 2: Vector Embeddings Search (Semantic Similarity)
+ * Uses OpenAI embeddings + cosine similarity for semantic search
+ * Iteration 13: Upgraded from TF-IDF to true vector search
  */
 export async function queryVectorSearch(query: string): Promise<KnowledgeResult[]> {
   try {
@@ -71,50 +71,127 @@ export async function queryVectorSearch(query: string): Promise<KnowledgeResult[
       return [];
     }
     
-    // Extract query terms (keywords)
-    const queryTerms = extractTerms(query);
+    // Generate query embedding
+    const queryEmbedding = await getEmbedding(query);
     
-    if (queryTerms.length === 0) {
-      return [];
+    // Check if we got a valid embedding (not zero vector)
+    const isZeroVector = queryEmbedding.every(v => v === 0);
+    if (isZeroVector) {
+      console.warn('[Knowledge] Failed to get query embedding, falling back to keyword search');
+      return await queryVectorSearchFallback(query, allKnowledge);
     }
     
-    // Calculate TF-IDF style relevance for each knowledge entry
-    const results = allKnowledge.map((item: Knowledge) => {
-      const titleRelevance = calculateTermRelevance(queryTerms, item.title);
-      const contentRelevance = calculateTermRelevance(queryTerms, item.content);
-      
-      // Weight title matches higher than content matches
-      const relevance = (titleRelevance * 0.7) + (contentRelevance * 0.3);
-      
-      return {
-        content: `${item.title}\n\n${item.content}`,
-        source: {
-          name: 'Knowledge Base',
-          type: 'vector' as const,
-          priority: 2,
-        },
-        confidence: 0.80,
-        relevance,
-        item,
-      };
-    });
+    // Calculate semantic similarity for each knowledge entry
+    const results = await Promise.all(
+      allKnowledge.map(async (item: Knowledge) => {
+        let relevance = 0;
+        
+        // If entry has embedding, use cosine similarity
+        if (item.embedding) {
+          try {
+            const itemEmbedding = JSON.parse(item.embedding);
+            relevance = cosineSimilarity(queryEmbedding, itemEmbedding);
+          } catch (e) {
+            console.error(`[Knowledge] Failed to parse embedding for "${item.title}"`);
+            // Fall back to keyword matching for this entry
+            const queryTerms = extractTerms(query);
+            const titleRelevance = calculateTermRelevance(queryTerms, item.title);
+            const contentRelevance = calculateTermRelevance(queryTerms, item.content);
+            relevance = (titleRelevance * 0.7) + (contentRelevance * 0.3);
+          }
+        } else {
+          // No embedding stored, generate and calculate similarity
+          const itemText = `${item.title}\n\n${item.content}`;
+          const itemEmbedding = await getEmbedding(itemText);
+          
+          // Check if we got a valid embedding
+          const isItemZeroVector = itemEmbedding.every(v => v === 0);
+          if (!isItemZeroVector) {
+            relevance = cosineSimilarity(queryEmbedding, itemEmbedding);
+            
+            // Store embedding for future use (fire-and-forget)
+            const { updateKnowledgeEmbedding } = await import('../db');
+            updateKnowledgeEmbedding(item.id, JSON.stringify(itemEmbedding), 'text-embedding-3-small')
+              .catch((err: Error) => console.error(`[Knowledge] Failed to store embedding for ID ${item.id}:`, err));
+          } else {
+            // Fallback to keyword matching
+            const queryTerms = extractTerms(query);
+            const titleRelevance = calculateTermRelevance(queryTerms, item.title);
+            const contentRelevance = calculateTermRelevance(queryTerms, item.content);
+            relevance = (titleRelevance * 0.7) + (contentRelevance * 0.3);
+          }
+        }
+        
+        return {
+          content: `${item.title}\n\n${item.content}`,
+          source: {
+            name: 'Knowledge Base (Vector)',
+            type: 'vector' as const,
+            priority: 2,
+          },
+          confidence: 0.90, // Higher confidence with semantic search
+          relevance,
+          item,
+        };
+      })
+    );
     
-    // Filter by relevance threshold (>0.2) and sort by relevance
+    // Filter by relevance threshold (>0.5 for semantic similarity) and sort
     const relevantResults = results
-      .filter(r => r.relevance > 0.2)
+      .filter(r => r.relevance > 0.5)
       .sort((a, b) => b.relevance - a.relevance)
       .slice(0, 3); // Top 3 most relevant
     
-    console.log(`[Knowledge] Keyword search found ${relevantResults.length} relevant entries`);
+    console.log(`[Knowledge] Vector search found ${relevantResults.length} relevant entries`);
     if (relevantResults.length > 0) {
-      console.log(`[Knowledge] Top match: "${relevantResults[0].item.title}" (relevance: ${(relevantResults[0].relevance * 100).toFixed(1)}%)`);
+      console.log(`[Knowledge] Top match: "${relevantResults[0].item.title}" (similarity: ${(relevantResults[0].relevance * 100).toFixed(1)}%)`);
     }
     
     return relevantResults;
   } catch (error) {
-    console.error('[Knowledge] Keyword search failed:', error);
+    console.error('[Knowledge] Vector search failed:', error);
+    // Fallback to keyword search
+    const allKnowledge = await getAllKnowledge();
+    return await queryVectorSearchFallback(query, allKnowledge);
+  }
+}
+
+/**
+ * Fallback keyword search when embeddings fail
+ * TF-IDF style relevance scoring
+ */
+async function queryVectorSearchFallback(query: string, allKnowledge: Knowledge[]): Promise<KnowledgeResult[]> {
+  const queryTerms = extractTerms(query);
+  
+  if (queryTerms.length === 0) {
     return [];
   }
+  
+  const results = allKnowledge.map((item: Knowledge) => {
+    const titleRelevance = calculateTermRelevance(queryTerms, item.title);
+    const contentRelevance = calculateTermRelevance(queryTerms, item.content);
+    const relevance = (titleRelevance * 0.7) + (contentRelevance * 0.3);
+    
+    return {
+      content: `${item.title}\n\n${item.content}`,
+      source: {
+        name: 'Knowledge Base (Keyword)',
+        type: 'vector' as const,
+        priority: 2,
+      },
+      confidence: 0.70, // Lower confidence for keyword matching
+      relevance,
+      item,
+    };
+  });
+  
+  const relevantResults = results
+    .filter(r => r.relevance > 0.2)
+    .sort((a, b) => b.relevance - a.relevance)
+    .slice(0, 3);
+  
+  console.log(`[Knowledge] Keyword fallback found ${relevantResults.length} relevant entries`);
+  return relevantResults;
 }
 
 /**

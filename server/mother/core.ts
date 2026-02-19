@@ -18,6 +18,7 @@ import { validateQuality, type GuardianResult } from './guardian';
 import { getKnowledgeContext } from './knowledge';
 import { insertQuery, getCacheEntry, insertCacheEntry } from '../db';
 import { retryDbOperation } from './db-retry';
+import { processWithReAct } from './react';
 import { createHash } from 'crypto';
 
 export interface MotherRequest {
@@ -43,6 +44,9 @@ export interface MotherResponse {
   cost: number; // USD
   costReduction: number; // percentage
   cacheHit: boolean;
+  
+  // ReAct (Iteration 12)
+  reactObservations?: string[];
   
   // Metadata
   queryId: number;
@@ -105,7 +109,9 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   };
 
   // Chain-of-Thought (CoT) trigger for complex queries
-  const useCoT = complexity.complexityScore >= 0.7;
+  // Iteration 14: Lowered threshold from 0.7 to 0.5 based on MOTHER's analysis
+  // Rationale: Most queries score 0.4-0.5, CoT improves quality significantly
+  const useCoT = complexity.complexityScore >= 0.5;
   
   const systemPrompt = `You are MOTHER v7.0 (Multi-Operational Tiered Hierarchical Execution & Routing), an advanced AI system with persistent memory and 7-layer architecture.
 
@@ -168,8 +174,21 @@ Now respond to the user's query following these standards.`;
   });
   
   const responseContent = llmResponse.choices[0]?.message?.content;
-  const response = typeof responseContent === 'string' ? responseContent : 'No response generated';
+  let response = typeof responseContent === 'string' ? responseContent : 'No response generated';
   const usage = llmResponse.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+  
+  // ==================== REACT PATTERN (Iteration 12) ====================
+  // Apply ReAct (Reasoning and Acting) for complex queries
+  
+  let reactObservations: string[] = [];
+  // Iteration 14: Aligned ReAct threshold with CoT threshold (0.5)
+  if (complexity.complexityScore >= 0.5) {
+    console.log('[MOTHER] Applying ReAct pattern (complex query)');
+    const reactResult = await processWithReAct(query, response, complexity.complexityScore);
+    response = reactResult.enhancedResponse;
+    reactObservations = reactResult.observations;
+    console.log(`[MOTHER] ReAct observations: ${reactObservations.length}`);
+  }
   
   // ==================== LAYER 6: QUALITY (GUARDIAN) ====================
   // Validate response quality
@@ -268,7 +287,8 @@ Now respond to the user's query following these standards.`;
     cost,
     costReduction,
     cacheHit: false,
-    queryId: queryId ?? 0, // May be null if async logging hasn't completed
+    reactObservations: reactObservations.length > 0 ? reactObservations : undefined,
+    queryId: queryId || 0,
   };
 }
 

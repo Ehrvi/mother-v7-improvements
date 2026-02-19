@@ -36,7 +36,8 @@ export function assessComplexity(query: string): ComplexityAssessment {
   
   // Complexity scoring factors
   // Start with baseline complexity (all queries have some complexity)
-  let complexityScore = 0.15;
+  // Iteration 15: Increased baseline from 0.15 to 0.25 per MOTHER's analysis
+  let complexityScore = 0.25;
   let reasoning: string[] = ['Baseline complexity'];
   
   // Factor 1: Length (longer = more complex)
@@ -56,20 +57,24 @@ export function assessComplexity(query: string): ComplexityAssessment {
   // Very short queries (< 5 words) keep baseline only
   
   // Factor 2: Technical/specialized keywords
+  // Iteration 15: Expanded technical keywords list
   const technicalKeywords = [
     'algorithm', 'architecture', 'optimization', 'implementation',
     'analysis', 'synthesis', 'evaluation', 'comparison',
     'design', 'strategy', 'framework', 'methodology',
     'research', 'academic', 'scientific', 'technical',
-    'complex', 'advanced', 'sophisticated', 'comprehensive'
+    'complex', 'advanced', 'sophisticated', 'comprehensive',
+    'semantic', 'similarity', 'keyword', 'matching', 'retrieval',
+    'embedding', 'vector', 'database', 'api', 'server', 'client'
   ];
   
   const technicalCount = technicalKeywords.filter(kw => queryLower.includes(kw)).length;
+  // Iteration 15: Increased technical keyword weight
   if (technicalCount >= 3) {
-    complexityScore += 0.3;
+    complexityScore += 0.35; // Increased from 0.3
     reasoning.push(`High technical content (${technicalCount} keywords)`);
   } else if (technicalCount >= 1) {
-    complexityScore += 0.15;
+    complexityScore += 0.20; // Increased from 0.15
     reasoning.push(`Some technical content (${technicalCount} keywords)`);
   }
   
@@ -88,15 +93,16 @@ export function assessComplexity(query: string): ComplexityAssessment {
   }
   
   // Factor 4: Question complexity
+  // Iteration 15: Expanded complex question patterns and increased weight
   const complexQuestions = [
-    'how does', 'why does', 'what is the difference',
-    'compare and contrast', 'analyze', 'evaluate',
-    'design', 'create', 'develop', 'implement'
+    'how does', 'why does', 'what is the difference', 'difference between',
+    'compare and contrast', 'analyze', 'evaluate', 'explain',
+    'design', 'create', 'develop', 'implement', 'describe the'
   ];
   
   const hasComplexQuestion = complexQuestions.some(q => queryLower.includes(q));
   if (hasComplexQuestion) {
-    complexityScore += 0.15;
+    complexityScore += 0.20; // Increased from 0.15
     reasoning.push('Complex question type');
   }
   

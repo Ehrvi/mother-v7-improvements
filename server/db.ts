@@ -195,6 +195,24 @@ export async function getAllKnowledge(limit: number = 100): Promise<Knowledge[]>
   return await db.select().from(knowledge).orderBy(desc(knowledge.createdAt)).limit(limit);
 }
 
+export async function updateKnowledgeEmbedding(
+  id: number,
+  embedding: string,
+  model: string
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  await db
+    .update(knowledge)
+    .set({ 
+      embedding,
+      embeddingModel: model,
+      updatedAt: new Date()
+    })
+    .where(eq(knowledge.id, id));
+}
+
 // ==================== LEARNING PATTERNS OPERATIONS ====================
 
 export async function insertLearningPattern(pattern: InsertLearningPattern): Promise<number> {
