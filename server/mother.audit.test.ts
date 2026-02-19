@@ -84,18 +84,25 @@ describe.sequential('MOTHER v7.0 GCloud - Comprehensive Audit', () => {
 
   describe('Layer 4: Execution (LLM Integration)', () => {
     it('should return valid responses', async () => {
-      await delay(2000); // Wait 2s to avoid rate limiting
-      const response = await fetch(`${GCLOUD_URL}/api/trpc/mother.query?batch=1`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          "0": { "json": { "query": "Say hello", "useCache": false } }
-        })
-      });
-      const data = await response.json();
+      await delay(3000);
+      let data: any;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const response = await fetch(`${GCLOUD_URL}/api/trpc/mother.query?batch=1`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ "0": { "json": { "query": "Say hello", "useCache": false } } })
+          });
+          data = await response.json();
+          if (data[0]?.result?.data?.json?.response) break;
+        } catch (e) {
+          if (attempt === 3) throw e;
+          await delay(2000);
+        }
+      }
       expect(data[0].result.data.json.response).toBeDefined();
       expect(data[0].result.data.json.response.length).toBeGreaterThan(0);
-    }, 60000);
+    }, 120000);
 
     it('should track token usage', async () => {
       await delay(2000); // Wait 2s to avoid rate limiting
@@ -113,20 +120,26 @@ describe.sequential('MOTHER v7.0 GCloud - Comprehensive Audit', () => {
 
   describe('Layer 5: Knowledge (Retrieval)', () => {
     it('should retrieve knowledge for relevant queries', async () => {
-      await delay(2000); // Wait 2s to avoid rate limiting
-      const response = await fetch(`${GCLOUD_URL}/api/trpc/mother.query?batch=1`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          "0": { "json": { "query": "What is brutal honesty?", "useCache": false } }
-        })
-      });
-      const data = await response.json();
+      await delay(3000);
+      let data: any;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const response = await fetch(`${GCLOUD_URL}/api/trpc/mother.query?batch=1`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ "0": { "json": { "query": "What is brutal honesty?", "useCache": false } } })
+          });
+          data = await response.json();
+          if (data[0]?.result?.data?.json?.response) break;
+        } catch (e) {
+          if (attempt === 3) throw e;
+          await delay(2000);
+        }
+      }
       const responseText = data[0].result.data.json.response.toLowerCase();
-      // Should contain knowledge-based content
       expect(responseText).toContain('honest');
       expect(data[0].result.data.json.response.length).toBeGreaterThan(100);
-    }, 60000);
+    }, 120000);
   });
 
   describe('Layer 6: Guardian (Quality)', () => {
