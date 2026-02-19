@@ -17,6 +17,7 @@
 
 import { searchKnowledge, getAllKnowledge } from '../db';
 import type { Knowledge } from '../../drizzle/schema';
+import { getEmbedding, cosineSimilarity } from './embeddings';
 
 export interface KnowledgeSource {
   name: string;
@@ -56,18 +57,122 @@ export async function queryDatabase(query: string): Promise<KnowledgeResult[]> {
 }
 
 /**
- * Source 2: Vector Embeddings (Template-based)
- * Semantic similarity search
- * Phase 2: Full implementation with actual embeddings
+ * Source 2: Enhanced Keyword Search (TF-IDF style)
+ * Keyword-based relevance scoring with term frequency analysis
+ * NOTE: Embeddings endpoint not available, using keyword matching as fallback
  */
 export async function queryVectorSearch(query: string): Promise<KnowledgeResult[]> {
-  // Phase 1: Placeholder
-  // Phase 2: Implement actual vector similarity search
-  // using OpenAI embeddings + cosine similarity
-  
-  console.log('[Knowledge] Vector search not yet implemented (Phase 2)');
-  return [];
+  try {
+    // Get all knowledge entries from database
+    const allKnowledge = await getAllKnowledge();
+    
+    if (allKnowledge.length === 0) {
+      console.log('[Knowledge] No knowledge entries in database');
+      return [];
+    }
+    
+    // Extract query terms (keywords)
+    const queryTerms = extractTerms(query);
+    
+    if (queryTerms.length === 0) {
+      return [];
+    }
+    
+    // Calculate TF-IDF style relevance for each knowledge entry
+    const results = allKnowledge.map((item: Knowledge) => {
+      const titleRelevance = calculateTermRelevance(queryTerms, item.title);
+      const contentRelevance = calculateTermRelevance(queryTerms, item.content);
+      
+      // Weight title matches higher than content matches
+      const relevance = (titleRelevance * 0.7) + (contentRelevance * 0.3);
+      
+      return {
+        content: `${item.title}\n\n${item.content}`,
+        source: {
+          name: 'Knowledge Base',
+          type: 'vector' as const,
+          priority: 2,
+        },
+        confidence: 0.80,
+        relevance,
+        item,
+      };
+    });
+    
+    // Filter by relevance threshold (>0.2) and sort by relevance
+    const relevantResults = results
+      .filter(r => r.relevance > 0.2)
+      .sort((a, b) => b.relevance - a.relevance)
+      .slice(0, 3); // Top 3 most relevant
+    
+    console.log(`[Knowledge] Keyword search found ${relevantResults.length} relevant entries`);
+    if (relevantResults.length > 0) {
+      console.log(`[Knowledge] Top match: "${relevantResults[0].item.title}" (relevance: ${(relevantResults[0].relevance * 100).toFixed(1)}%)`);
+    }
+    
+    return relevantResults;
+  } catch (error) {
+    console.error('[Knowledge] Keyword search failed:', error);
+    return [];
+  }
 }
+
+/**
+ * Extract meaningful terms from text
+ * Removes stop words and short terms
+ */
+function extractTerms(text: string): string[] {
+  const stopWords = new Set([
+    'a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+    'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'be',
+    'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will',
+    'would', 'should', 'could', 'can', 'may', 'might', 'must', 'shall',
+    'what', 'when', 'where', 'who', 'which', 'why', 'how', 'this', 'that',
+    'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me',
+    'him', 'her', 'us', 'them', 'my', 'your', 'his', 'its', 'our', 'their'
+  ]);
+  
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s]/g, ' ')
+    .split(/\s+/)
+    .filter(term => term.length > 2 && !stopWords.has(term));
+}
+
+/**
+ * Calculate term-based relevance score
+ * Returns value between 0 and 1
+ */
+function calculateTermRelevance(queryTerms: string[], text: string): number {
+  const textLower = text.toLowerCase();
+  const textTerms = extractTerms(text);
+  
+  if (textTerms.length === 0) {
+    return 0;
+  }
+  
+  let matchScore = 0;
+  
+  for (const queryTerm of queryTerms) {
+    // Exact match in text
+    if (textLower.includes(queryTerm)) {
+      matchScore += 1.0;
+    }
+    
+    // Partial match (term contains query term or vice versa)
+    for (const textTerm of textTerms) {
+      if (textTerm.includes(queryTerm) || queryTerm.includes(textTerm)) {
+        matchScore += 0.5;
+        break;
+      }
+    }
+  }
+  
+  // Normalize by number of query terms
+  return Math.min(matchScore / queryTerms.length, 1.0);
+}
+
+
 
 /**
  * Source 3: Real-time APIs (Context-dependent)
