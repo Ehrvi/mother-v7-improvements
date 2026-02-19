@@ -178,9 +178,20 @@ describe.sequential('MOTHER v7.0 GCloud - Comprehensive Audit', () => {
         })
       });
 
-      const statsAfter = await fetch(`${GCLOUD_URL}/api/trpc/mother.stats`);
-      const afterData = await statsAfter.json();
-      const totalAfter = afterData.result.data.json.totalQueries;
+      // Iteration 17: Implement retry logic to handle async logging race condition
+      // Fire-and-forget logging means we need to poll until DB is updated
+      let totalAfter = totalBefore;
+      let attempts = 0;
+      const maxAttempts = 5;
+      
+      while (totalAfter <= totalBefore && attempts < maxAttempts) {
+        await delay(2000); // Wait 2s between attempts
+        const statsAfter = await fetch(`${GCLOUD_URL}/api/trpc/mother.stats`);
+        const afterData = await statsAfter.json();
+        totalAfter = afterData.result.data.json.totalQueries;
+        attempts++;
+        console.log(`[Test] Attempt ${attempts}: totalBefore=${totalBefore}, totalAfter=${totalAfter}`);
+      }
 
       expect(totalAfter).toBeGreaterThan(totalBefore);
     }, 60000);

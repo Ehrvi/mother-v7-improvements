@@ -192,8 +192,9 @@ Now respond to the user's query following these standards.`;
   
   // ==================== LAYER 6: QUALITY (GUARDIAN) ====================
   // Validate response quality
+  // Iteration 16: Activated Phase 2 (5 checks: Completeness, Accuracy, Relevance, Coherence, Safety)
   
-  const quality = await validateQuality(query, response, 1); // Phase 1: 3 checks
+  const quality = await validateQuality(query, response, 2); // Phase 2: 5 checks
   console.log(`[MOTHER] Quality Score: ${quality.qualityScore}/100 (${quality.passed ? 'PASSED' : 'FAILED'})`);
   
   if (!quality.passed) {
