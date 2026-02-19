@@ -11,11 +11,11 @@ import { ENV } from '../_core/env';
  */
 export async function getEmbedding(text: string): Promise<number[]> {
   try {
-    const apiUrl = ENV.forgeApiUrl?.replace(/\/$/, '') || '';
-    const response = await fetch(`${apiUrl}/v1/embeddings`, {
+    // Use OpenAI API directly (Forge API /v1/embeddings returns 404)
+    const response = await fetch('https://api.openai.com/v1/embeddings', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${ENV.forgeApiKey}`,
+        'Authorization': `Bearer ${ENV.openaiApiKey}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -25,14 +25,15 @@ export async function getEmbedding(text: string): Promise<number[]> {
     });
 
     if (!response.ok) {
-      throw new Error(`Embeddings API error: ${response.status}`);
+      const errorText = await response.text();
+      throw new Error(`OpenAI Embeddings API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
     return data.data[0].embedding;
   } catch (error) {
     console.error('[Embeddings] Error:', error);
-    // Fallback: return zero vector
+    // Fallback: return zero vector (TF-IDF will be used instead)
     return new Array(1536).fill(0);
   }
 }
