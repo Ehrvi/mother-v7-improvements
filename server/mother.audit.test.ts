@@ -53,6 +53,12 @@ describe.sequential('MOTHER v7.0 GCloud - Comprehensive Audit', () => {
         })
       });
       const data = await response.json();
+      if (data[0].error) {
+        console.log('❌ Test 1 Error:', JSON.stringify(data[0].error, null, 2));
+      }
+      if (!data[0].result) {
+        console.log('❌ Test 1 No Result:', JSON.stringify(data[0], null, 2).substring(0, 500));
+      }
       expect(data[0].result.data.json.tier).toBe('gpt-4o-mini');
       expect(data[0].result.data.json.complexityScore).toBeLessThan(0.3);
     }, 60000);
