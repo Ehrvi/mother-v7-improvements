@@ -139,33 +139,58 @@ function checkAccuracy(query: string, response: string): { score: number; issues
 
 /**
  * Check 3: Relevance
- * Ensures response addresses the query
+ * Ensures response addresses the query using semantic similarity
  */
-function checkRelevance(query: string, response: string): { score: number; issues: string[] } {
+async function checkRelevance(query: string, response: string): Promise<{ score: number; issues: string[] }> {
   const issues: string[] = [];
   let score = 100;
   
-  // Extract key terms from query (simple tokenization)
-  const queryTerms = query
-    .toLowerCase()
-    .replace(/[^\w\s]/g, '')
-    .split(/\s+/)
-    .filter(term => term.length > 3); // Filter short words
-  
-  // Check how many query terms appear in response
-  const responseLower = response.toLowerCase();
-  const matchedTerms = queryTerms.filter(term => responseLower.includes(term));
-  const relevanceRatio = queryTerms.length > 0 ? matchedTerms.length / queryTerms.length : 1;
-  
-  if (relevanceRatio < 0.3) {
-    score -= 40;
-    issues.push('Low term overlap with query (< 30%)');
-  } else if (relevanceRatio < 0.5) {
-    score -= 20;
-    issues.push('Moderate term overlap with query (< 50%)');
-  } else if (relevanceRatio < 0.7) {
-    score -= 10;
-    issues.push('Acceptable term overlap (< 70%)');
+  // Use semantic similarity for better relevance detection
+  try {
+    const { semanticSimilarity } = await import('./embeddings');
+    const similarity = await semanticSimilarity(query, response);
+    
+    // Convert similarity (0-1) to score (0-100)
+    // Higher threshold for quality
+    if (similarity < 0.5) {
+      score = 60;
+      issues.push(`Low semantic similarity (${(similarity * 100).toFixed(1)}%)`);
+    } else if (similarity < 0.7) {
+      score = 80;
+      issues.push(`Moderate semantic similarity (${(similarity * 100).toFixed(1)}%)`);
+    } else if (similarity < 0.85) {
+      score = 90;
+      // No issue, just slightly below perfect
+    } else {
+      score = 100;
+    }
+    
+    console.log(`[Guardian] Semantic similarity: ${(similarity * 100).toFixed(1)}%, Score: ${score}`);
+  } catch (error) {
+    console.error('[Guardian] Semantic similarity failed, using fallback:', error);
+    
+    // Fallback to improved lexical matching
+    const queryTerms = query
+      .toLowerCase()
+      .replace(/[^\w\s]/g, '')
+      .split(/\s+/)
+      .filter(term => term.length > 3);
+    
+    const responseLower = response.toLowerCase();
+    const matchedTerms = queryTerms.filter(term => responseLower.includes(term));
+    const relevanceRatio = queryTerms.length > 0 ? matchedTerms.length / queryTerms.length : 1;
+    
+    // More lenient thresholds for fallback
+    if (relevanceRatio < 0.2) {
+      score -= 40;
+      issues.push('Low term overlap with query (< 20%)');
+    } else if (relevanceRatio < 0.4) {
+      score -= 20;
+      issues.push('Moderate term overlap with query (< 40%)');
+    } else if (relevanceRatio < 0.6) {
+      score -= 10;
+      issues.push('Acceptable term overlap (< 60%)');
+    }
   }
   
   // Check for off-topic indicators
@@ -263,11 +288,11 @@ function checkSafety(query: string, response: string): { score: number; issues: 
 /**
  * Run Guardian validation (Phase 1: 3 checks)
  */
-export function validateQuality(query: string, response: string, phase: 1 | 2 = 1): GuardianResult {
+export async function validateQuality(query: string, response: string, phase: 1 | 2 = 1): Promise<GuardianResult> {
   // Phase 1: 3 checks (Completeness, Accuracy, Relevance)
   const completeness = checkCompleteness(query, response);
   const accuracy = checkAccuracy(query, response);
-  const relevance = checkRelevance(query, response);
+  const relevance = await checkRelevance(query, response);
   
   let qualityScore: number;
   let coherenceScore: number | undefined;

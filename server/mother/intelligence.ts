@@ -35,8 +35,9 @@ export function assessComplexity(query: string): ComplexityAssessment {
   const wordCount = query.split(/\s+/).length;
   
   // Complexity scoring factors
-  let complexityScore = 0;
-  let reasoning: string[] = [];
+  // Start with baseline complexity (all queries have some complexity)
+  let complexityScore = 0.15;
+  let reasoning: string[] = ['Baseline complexity'];
   
   // Factor 1: Length (longer = more complex)
   if (wordCount > 100) {
@@ -48,7 +49,11 @@ export function assessComplexity(query: string): ComplexityAssessment {
   } else if (wordCount > 20) {
     complexityScore += 0.1;
     reasoning.push('Short-medium query (20+ words)');
+  } else if (wordCount > 5) {
+    complexityScore += 0.05;
+    reasoning.push('Short query (5-20 words)');
   }
+  // Very short queries (< 5 words) keep baseline only
   
   // Factor 2: Technical/specialized keywords
   const technicalKeywords = [
