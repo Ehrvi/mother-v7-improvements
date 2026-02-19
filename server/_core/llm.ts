@@ -57,6 +57,7 @@ export type ToolChoice =
 
 export type InvokeParams = {
   messages: Message[];
+  model?: string;
   tools?: Tool[];
   toolChoice?: ToolChoice;
   tool_choice?: ToolChoice;
@@ -280,7 +281,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   } = params;
 
   const payload: Record<string, unknown> = {
-    model: "gemini-2.5-flash",
+    model: params.model || "gpt-4o",
     messages: messages.map(normalizeMessage),
   };
 
@@ -296,9 +297,25 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  payload.max_tokens = 32768
-  payload.thinking = {
-    "budget_tokens": 128
+  // Set max_tokens based on model limits
+  // gpt-4o/gpt-4o-mini: 16384 max completion tokens
+  // gpt-4: 8192 max completion tokens
+  const model = (params.model || "gpt-4o").toLowerCase();
+  if (model.includes('gpt-4o')) {
+    payload.max_tokens = 16384;
+  } else if (model.includes('gpt-4')) {
+    payload.max_tokens = 8192;
+  } else {
+    payload.max_tokens = 4096; // Safe default
+  }
+  
+  // Only add 'thinking' parameter for Gemini API
+  // OpenAI doesn't support this parameter
+  const apiUrl = resolveApiUrl();
+  if (apiUrl.includes('generativelanguage.googleapis.com') || apiUrl.includes('gemini')) {
+    payload.thinking = {
+      "budget_tokens": 128
+    };
   }
 
   const normalizedResponseFormat = normalizeResponseFormat({

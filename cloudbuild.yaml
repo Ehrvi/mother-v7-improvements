@@ -1,0 +1,45 @@
+steps:
+  # Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-interface:latest'
+      - '-t'
+      - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-interface:$BUILD_ID'
+      - '.'
+    timeout: 1200s
+
+  # Push the image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-interface:latest'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-interface:$BUILD_ID'
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'mother-interface'
+      - '--image=australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-interface:latest'
+      - '--region=australia-southeast1'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--port=8080'
+      - '--memory=512Mi'
+      - '--cpu=1'
+      - '--max-instances=10'
+      - '--timeout=300'
+
+images:
+  - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-interface:latest'
+  - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-interface:$BUILD_ID'
+
+timeout: 1800s
