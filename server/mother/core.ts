@@ -17,6 +17,7 @@ import { assessComplexity, getModelForTier, calculateCost, calculateBaselineCost
 import { validateQuality, type GuardianResult } from './guardian';
 import { getKnowledgeContext } from './knowledge';
 import { insertQuery, getCacheEntry, insertCacheEntry } from '../db';
+import { retryDbOperation } from './db-retry';
 import { createHash } from 'crypto';
 
 export interface MotherRequest {
@@ -177,9 +178,9 @@ Now respond to the user's query following these standards.`;
   console.log(`[MOTHER] Response Time: ${responseTime}ms`);
   
   // ==================== PERSISTENCE ====================
-  // Store query log for learning
+  // Store query log for learning (with retry logic)
   
-  const queryId = await insertQuery({
+  const queryId = await retryDbOperation(() => insertQuery({
     userId: userId || null,
     query,
     response,
@@ -196,7 +197,7 @@ Now respond to the user's query following these standards.`;
     tokensUsed: usage.total_tokens,
     cost: cost.toString(),
     cacheHit: 0,
-  });
+  }));
   
   // ==================== CACHE UPDATE ====================
   // Store in cache for future queries
@@ -216,7 +217,7 @@ Now respond to the user's query following these standards.`;
     
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
     
-    await insertCacheEntry({
+    await retryDbOperation(() => insertCacheEntry({
       queryHash,
       query,
       response: JSON.stringify(cacheData),
@@ -225,7 +226,7 @@ Now respond to the user's query following these standards.`;
       lastHit: null,
       ttl: 86400, // 24 hours in seconds
       expiresAt,
-    });
+    }));
   }
   
   // ==================== RETURN RESPONSE ====================

@@ -2,6 +2,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { motherRouter } from "./routers/mother";
+import { selfAuditRouter } from "./routers/self-audit";
 import { publicProcedure, router } from "./_core/trpc";
 
 export const appRouter = router({
@@ -20,6 +21,9 @@ export const appRouter = router({
 
   // MOTHER v7.0 router
   mother: motherRouter,
+  
+  // MOTHER Self-Audit System
+  selfAudit: selfAuditRouter,
 });
 
 export type AppRouter = typeof appRouter;
