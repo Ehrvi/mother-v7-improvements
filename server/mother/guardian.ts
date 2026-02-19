@@ -145,53 +145,32 @@ async function checkRelevance(query: string, response: string): Promise<{ score:
   const issues: string[] = [];
   let score = 100;
   
-  // Use semantic similarity for better relevance detection
-  try {
-    const { semanticSimilarity } = await import('./embeddings');
-    const similarity = await semanticSimilarity(query, response);
-    
-    // Convert similarity (0-1) to score (0-100)
-    // Higher threshold for quality
-    if (similarity < 0.5) {
-      score = 60;
-      issues.push(`Low semantic similarity (${(similarity * 100).toFixed(1)}%)`);
-    } else if (similarity < 0.7) {
-      score = 80;
-      issues.push(`Moderate semantic similarity (${(similarity * 100).toFixed(1)}%)`);
-    } else if (similarity < 0.85) {
-      score = 90;
-      // No issue, just slightly below perfect
-    } else {
-      score = 100;
-    }
-    
-    console.log(`[Guardian] Semantic similarity: ${(similarity * 100).toFixed(1)}%, Score: ${score}`);
-  } catch (error) {
-    console.error('[Guardian] Semantic similarity failed, using fallback:', error);
-    
-    // Fallback to improved lexical matching
-    const queryTerms = query
-      .toLowerCase()
-      .replace(/[^\w\s]/g, '')
-      .split(/\s+/)
-      .filter(term => term.length > 3);
-    
-    const responseLower = response.toLowerCase();
-    const matchedTerms = queryTerms.filter(term => responseLower.includes(term));
-    const relevanceRatio = queryTerms.length > 0 ? matchedTerms.length / queryTerms.length : 1;
-    
-    // More lenient thresholds for fallback
-    if (relevanceRatio < 0.2) {
-      score -= 40;
-      issues.push('Low term overlap with query (< 20%)');
-    } else if (relevanceRatio < 0.4) {
-      score -= 20;
-      issues.push('Moderate term overlap with query (< 40%)');
-    } else if (relevanceRatio < 0.6) {
-      score -= 10;
-      issues.push('Acceptable term overlap (< 60%)');
-    }
+  // Use TF-IDF style keyword matching (embeddings API not available)
+  const queryTerms = query
+    .toLowerCase()
+    .replace(/[^\w\s]/g, '')
+    .split(/\s+/)
+    .filter(term => term.length > 3);
+  
+  const responseLower = response.toLowerCase();
+  const matchedTerms = queryTerms.filter(term => responseLower.includes(term));
+  const relevanceRatio = queryTerms.length > 0 ? matchedTerms.length / queryTerms.length : 1;
+  
+  // Adjust thresholds for keyword matching (more lenient than semantic)
+  if (relevanceRatio < 0.2) {
+    score = 60;
+    issues.push(`Low term overlap with query (${(relevanceRatio * 100).toFixed(1)}%)`);
+  } else if (relevanceRatio < 0.4) {
+    score = 80;
+    issues.push(`Moderate term overlap with query (${(relevanceRatio * 100).toFixed(1)}%)`);
+  } else if (relevanceRatio < 0.6) {
+    score = 90;
+    // Acceptable, no issue
+  } else {
+    score = 100;
   }
+  
+  console.log(`[Guardian] Keyword relevance: ${(relevanceRatio * 100).toFixed(1)}%, Score: ${score}`)
   
   // Check for off-topic indicators
   const offTopicPatterns = [

@@ -61,11 +61,11 @@ describe('MOTHER v7.0 - Layer 3: Intelligence (Routing)', () => {
 });
 
 describe('MOTHER v7.0 - Layer 6: Quality (Guardian)', () => {
-  it('should pass quality check for good responses', () => {
+  it('should pass quality check for good responses', async () => {
     const query = 'What is machine learning?';
     const response = 'Machine learning is a subset of artificial intelligence that enables systems to learn and improve from experience without being explicitly programmed. It uses algorithms to analyze data, identify patterns, and make decisions with minimal human intervention.';
     
-    const result = validateQuality(query, response, 1);
+    const result = await validateQuality(query, response, 1);
     
     expect(result.qualityScore).toBeGreaterThanOrEqual(90);
     expect(result.passed).toBe(true);
@@ -74,43 +74,43 @@ describe('MOTHER v7.0 - Layer 6: Quality (Guardian)', () => {
     expect(result.relevanceScore).toBeGreaterThan(80);
   });
 
-  it('should fail quality check for incomplete responses', () => {
+  it('should fail quality check for incomplete responses', async () => {
     const query = 'Explain quantum computing in detail';
     const response = 'I don\'t know.';
     
-    const result = validateQuality(query, response, 1);
+    const result = await validateQuality(query, response, 1);
     
     expect(result.qualityScore).toBeLessThan(90);
     expect(result.passed).toBe(false);
     expect(result.completenessScore).toBeLessThan(80);
   });
 
-  it('should fail quality check for irrelevant responses', () => {
+  it('should fail quality check for irrelevant responses', async () => {
     const query = 'What is the capital of France?';
     const response = 'The weather is nice today. I like to eat pizza.';
     
-    const result = validateQuality(query, response, 1);
+    const result = await validateQuality(query, response, 1);
     
     expect(result.qualityScore).toBeLessThan(90);
     expect(result.passed).toBe(false);
     expect(result.relevanceScore).toBeLessThan(70); // Adjusted threshold
   });
 
-  it('should detect uncertainty in responses', () => {
+  it('should detect uncertainty in responses', async () => {
     const query = 'What is the speed of light?';
     const response = 'I think maybe it could be around 300,000 km/s, but I\'m not sure. It might be different.';
     
-    const result = validateQuality(query, response, 1);
+    const result = await validateQuality(query, response, 1);
     
     expect(result.accuracyScore).toBeLessThan(100);
     expect(result.issues).toContain('Excessive uncertainty/hedging language');
   });
 
-  it('should validate Phase 2 with 5 checks', () => {
+  it('should validate Phase 2 with 5 checks', async () => {
     const query = 'What is the meaning of life?';
     const response = 'The meaning of life is a philosophical question that has been debated for centuries. Different cultures and philosophies offer various perspectives, from finding purpose through relationships and achievements to spiritual enlightenment.';
     
-    const result = validateQuality(query, response, 2);
+    const result = await validateQuality(query, response, 2);
     
     expect(result.coherenceScore).toBeDefined();
     expect(result.safetyScore).toBeDefined();
@@ -148,7 +148,7 @@ describe('MOTHER v7.0 - Integration', () => {
     expect(reduction).toBeLessThanOrEqual(100);
   });
 
-  it('should maintain quality threshold across tiers', () => {
+  it('should maintain quality threshold across tiers', async () => {
     const testCases = [
       {
         query: 'What is 2+2?',
@@ -162,13 +162,13 @@ describe('MOTHER v7.0 - Integration', () => {
       },
     ];
     
-    testCases.forEach(({ query, response }) => {
-      const quality = validateQuality(query, response, 1);
+    for (const { query, response } of testCases) {
+      const quality = await validateQuality(query, response, 1);
       
       // Responses should meet reasonable quality threshold
       // Note: Short responses may score lower but still be valid
       expect(quality.qualityScore).toBeGreaterThan(60);
-    });
+    }
   });
 });
 
@@ -194,7 +194,7 @@ describe('MOTHER v7.0 - Academic Validation', () => {
     expect(reduction).toBeGreaterThanOrEqual(95);
   });
 
-  it('should validate Hybrid LLM benchmark (0% quality drop)', () => {
+  it('should validate Hybrid LLM benchmark (0% quality drop)', async () => {
     // Test that quality is maintained across tiers
     const simpleQuery = 'What is the capital of France?';
     const simpleResponse = 'The capital of France is Paris.';
@@ -202,8 +202,8 @@ describe('MOTHER v7.0 - Academic Validation', () => {
     const complexQuery = 'Explain the theory of relativity';
     const complexResponse = 'The theory of relativity, developed by Albert Einstein, consists of special and general relativity. Special relativity deals with objects moving at constant speeds, particularly at speeds close to light. General relativity extends this to include gravity as a curvature of spacetime caused by mass and energy.';
     
-    const simpleQuality = validateQuality(simpleQuery, simpleResponse, 1);
-    const complexQuality = validateQuality(complexQuery, complexResponse, 1);
+    const simpleQuality = await validateQuality(simpleQuery, simpleResponse, 1);
+    const complexQuality = await validateQuality(complexQuery, complexResponse, 1);
     
     // Both should meet reasonable quality threshold
     // Note: Simple responses may score lower due to brevity
