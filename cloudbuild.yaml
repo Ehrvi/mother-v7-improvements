@@ -42,4 +42,10 @@ images:
   - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-interface:latest'
   - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-interface:$BUILD_ID'
 
+# Build options - CRITICAL: Use CLOUD_LOGGING_ONLY to fix service account error
+options:
+  machineType: 'N1_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY  # FIX: Required when using service account
+  substitutionOption: 'ALLOW_LOOSE'
+
 timeout: 1800s
