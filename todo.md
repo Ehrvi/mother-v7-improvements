@@ -1558,3 +1558,41 @@ Ativar knowledge retention em produção substituindo getKnowledgeContext() por 
 - [x] Validar cross-task knowledge retention (deduplication ≥0.85)
 - [x] Atualizar documentação (lições aprendidas)
 - [x] Milestone protocol (checkpoint → push → deploy)
+
+
+---
+
+## DEPLOY GCLOUD: mothers-library-mcp (2026-02-20)
+
+### Objetivo
+Deploy completo de MOTHER v14 (v7-improvements) em Google Cloud Run no projeto mothers-library-mcp
+
+### Informações do Projeto GCloud
+- **Project ID**: mothers-library-mcp
+- **Project Number**: 233196174701
+- **Console**: https://console.cloud.google.com/welcome?project=mothers-library-mcp
+- **Region**: australia-southeast1 (Sydney)
+
+### Tarefas
+- [ ] Consultar MOTHER local para plano de deploy
+- [ ] Documentar estado atual completo (v7-improvements)
+- [ ] Criar to-do list: ponto atual → deploy GCloud
+- [ ] Backup completo de todos arquivos (Google Drive)
+- [ ] Commit + push de todos documentos (GitHub)
+- [ ] Configurar GCloud CLI (gcloud init)
+- [ ] Configurar GCloud project (mothers-library-mcp)
+- [ ] Criar cloudbuild.yaml para Cloud Run
+- [ ] Criar Dockerfile otimizado
+- [ ] Configurar secrets (DATABASE_URL, JWT_SECRET, etc.)
+- [ ] Executar deploy em GCloud (gcloud builds submit)
+- [ ] Testar deploy automaticamente (health check)
+- [ ] Deploy fail? Fix + repeat until success
+- [ ] Atualizar lições aprendidas
+- [ ] Atualizar todo.md
+
+### Milestone Protocol
+- [ ] Backup completo (Google Drive)
+- [ ] Commit + push (GitHub)
+- [ ] Sync produção (conhecimento)
+- [ ] Deploy produção (Cloud Run)
+- [ ] Testar deploy automaticamente
