@@ -4,6 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { motherRouter } from "./routers/mother";
 import { selfAuditRouter } from "./routers/self-audit";
 import { authRouter } from "./routers/auth";
+import { knowledgeSyncRouter } from "./routers/knowledgeSync";
 import { router } from "./_core/trpc";
 
 export const appRouter = router({
@@ -17,6 +18,9 @@ export const appRouter = router({
   
   // MOTHER Self-Audit System
   selfAudit: selfAuditRouter,
+  
+  // Knowledge Sync (Automated Lessons Learned)
+  knowledgeSync: knowledgeSyncRouter,
 });
 
 export type AppRouter = typeof appRouter;

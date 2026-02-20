@@ -268,6 +268,7 @@ function checkSafety(query: string, response: string): { score: number; issues: 
  * Run Guardian validation (Phase 1: 3 checks)
  */
 export async function validateQuality(query: string, response: string, phase: 1 | 2 = 1): Promise<GuardianResult> {
+  try {
   // Phase 1: 3 checks (Completeness, Accuracy, Relevance)
   const completeness = checkCompleteness(query, response);
   const accuracy = checkAccuracy(query, response);
@@ -319,4 +320,18 @@ export async function validateQuality(query: string, response: string, phase: 1 
     passed: qualityScore >= 90,
     issues: allIssues,
   };
+  
+  } catch (error) {
+    // Error handling: Return safe defaults if validation fails
+    console.error('[GUARDIAN] Validation error:', error);
+    
+    return {
+      qualityScore: 0,
+      completenessScore: 0,
+      accuracyScore: 0,
+      relevanceScore: 0,
+      passed: false,
+      issues: [`Validation error: ${error instanceof Error ? error.message : 'Unknown error'}`],
+    };
+  }
 }

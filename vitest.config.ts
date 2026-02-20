@@ -13,6 +13,8 @@ export default defineConfig({
     },
   },
   test: {
+    timeout: 60000, // 60 seconds for GCloud Run cold starts
+    hookTimeout: 60000,
     environment: "node",
     include: ["server/**/*.test.ts", "server/**/*.spec.ts"],
   },

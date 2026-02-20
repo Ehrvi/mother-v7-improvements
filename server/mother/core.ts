@@ -60,6 +60,8 @@ export interface MotherResponse {
 export async function processQuery(request: MotherRequest): Promise<MotherResponse> {
   const startTime = Date.now();
   
+  try {
+  
   // ==================== LAYER 2: ORCHESTRATION ====================
   // Request routing and preprocessing
   
@@ -340,6 +342,34 @@ Now respond to the user's query following these standards.`;
     reactObservations: reactObservations.length > 0 ? reactObservations : undefined,
     queryId: queryId || 0,
   };
+  
+  } catch (error) {
+    // Error handling: Return safe defaults if processing fails
+    console.error('[MOTHER] Processing error:', error);
+    
+    const responseTime = Date.now() - startTime;
+    
+    return {
+      response: `I apologize, but I encountered an error processing your query. Please try again. Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      tier: 'tier-1' as LLMTier,
+      complexityScore: 0,
+      confidenceScore: 0,
+      quality: {
+        qualityScore: 0,
+        passed: false,
+        completenessScore: 0,
+        accuracyScore: 0,
+        relevanceScore: 0,
+        issues: [`Processing error: ${error instanceof Error ? error.message : 'Unknown error'}`],
+      },
+      responseTime,
+      tokensUsed: 0,
+      cost: 0,
+      costReduction: 0,
+      cacheHit: false,
+      queryId: 0,
+    };
+  }
 }
 
 /**
