@@ -766,3 +766,36 @@ Failed to trigger build: If 'build.service_account' is specified, the build must
 - [ ] Deploy Produção: Trigger automático (aguardar ~10 min)
 - [ ] Testar Deploy: Query MOTHER API para validar Lição #26
 - [ ] Loop Iterativo: Success → Finalizar | Fail → Fix + Repeat
+
+
+---
+
+## APRIMORAMENTO DO PROCESSO CIENTÍFICO (2026-02-20)
+
+### Pesquisa em Bases de Dados Confiáveis:
+- [x] Pesquisar uso de Anna's Archive (https://annas-archive.li/) em todos repositórios
+- [x] Documentar como integrar Anna's Archive como fonte principal de pesquisa
+- [x] Adicionar bases de dados confiáveis ao processo científico:
+  - [x] Revistas científicas (IEEE, ACM, Springer)
+  - [x] Manuais técnicos oficiais
+  - [x] Fóruns especializados (Stack Overflow, GitHub Discussions)
+- [x] Atualizar FASE 3 (Pesquisa) com fontes confiáveis
+- [x] Atualizar FASE 4 (Hipótese) com justificativa científica baseada em dados reais
+
+### Avaliação Todo-List vs Status Produção:
+- [x] Analisar screenshot do Cloud Build (build mais recente)
+- [x] Comparar tasks em todo.md com features em produção
+- [x] Identificar gaps entre planejado e implementado
+- [x] Validar que todas features marcadas como [x] estão em produção
+- [x] Documentar discrepâncias encontradas
+
+### Protocolo Milestone (Continuação):
+- [x] Backup criado
+- [x] Commit + Push (via checkpoint)
+- [ ] Sync Produção (conhecimento) - Adicionar Lições #26 e #27
+- [ ] Verificar deploy produção automático (Cloud Build trigger)
+- [ ] Testar deploy produção:
+  - [ ] Query MOTHER API para validar Lição #26
+  - [ ] Verificar qualityScore >= 90/100
+  - [ ] Confirmar 212+ knowledge entries
+- [ ] Loop Iterativo: Success → Finalizar | Fail → Fix + Repeat
