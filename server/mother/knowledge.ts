@@ -364,19 +364,67 @@ export async function addKnowledge(
 
 /**
  * Retrieve knowledge context for a query
+ * v14: Integrated with Knowledge Acquisition Layer for cross-task retention
  * Returns formatted string for LLM context
  */
 export async function getKnowledgeContext(query: string): Promise<string> {
-  const results = await queryKnowledge(query);
+  // v14: Use Knowledge Acquisition Layer (SQLite + TiDB dual-write)
+  // Provides cross-task knowledge retention (resolves "Groundhog Day Problem")
+  const knowledgeBase = (await import('../knowledge/base')).default;
   
-  if (results.length === 0) {
-    return '';
+  // Search concepts from Knowledge Acquisition Layer
+  const concepts = await knowledgeBase.searchConcepts(query, undefined, 5);
+  
+  // Search lessons learned
+  const lessons = await knowledgeBase.searchLessons(query, undefined, 3);
+  
+  // Fallback to legacy knowledge system if no results from new layer
+  if (concepts.length === 0 && lessons.length === 0) {
+    const results = await queryKnowledge(query);
+    
+    if (results.length === 0) {
+      return '';
+    }
+    
+    // Format results as context
+    const contextParts = results.map((result, index) => {
+      return `[Source ${index + 1}: ${result.source.name}]\n${result.content}`;
+    });
+    
+    return `\n\nRelevant Knowledge:\n${contextParts.join('\n\n')}`;
   }
   
-  // Format results as context
-  const contextParts = results.map((result, index) => {
-    return `[Source ${index + 1}: ${result.source.name}]\n${result.content}`;
-  });
+  // Format Knowledge Acquisition Layer results
+  const contextParts: string[] = [];
   
-  return `\n\nRelevant Knowledge:\n${contextParts.join('\n\n')}`;
+  if (concepts.length > 0) {
+    contextParts.push('**Concepts:**');
+    concepts.forEach((concept, index) => {
+      contextParts.push(
+        `[Concept ${index + 1}: ${concept.conceptName}]\n` +
+        `Type: ${concept.conceptType}\n` +
+        `Confidence: ${(concept.confidence * 100).toFixed(0)}%\n` +
+        `${concept.description}`
+      );
+    });
+  }
+  
+  if (lessons.length > 0) {
+    contextParts.push('\n**Lessons Learned:**');
+    lessons.forEach((lesson, index) => {
+      contextParts.push(
+        `[Lesson ${index + 1}: ${lesson.lessonTitle}]\n` +
+        `Type: ${lesson.lessonType}\n` +
+        `Impact: ${lesson.impact}\n` +
+        `Confidence: ${(lesson.confidence * 100).toFixed(0)}%\n` +
+        `${lesson.lessonDescription}` +
+        (lesson.howToApply ? `\n\n**How to Apply:** ${lesson.howToApply}` : '')
+      );
+      
+      // Mark lesson as applied
+      knowledgeBase.markLessonApplied(lesson.lessonId);
+    });
+  }
+  
+  return `\n\nRelevant Knowledge (Knowledge Acquisition Layer):\n${contextParts.join('\n\n')}`;
 }

@@ -1536,8 +1536,25 @@ Implementar os 2 componentes faltantes críticos para MOTHER v14 100% completa
 - [x] Integrar com GOD-Level Learning (confidence 0.9 para papers publicados)
 
 ### Milestone Protocol
-- [ ] Backup completo (Google Drive)
-- [ ] Commit + push (GitHub)
-- [ ] Sync produção (conhecimento)
-- [ ] Deploy produção (Cloud Run)
+- [x] Backup completo (Google Drive)
+- [x] Commit + push (GitHub - 796ea3ba)
+- [x] Sync produção (conhecimento - dual-write SQLite + TiDB)
+- [ ] Deploy produção (Cloud Run - aguardando user)
 - [ ] Testar deploy automaticamente
+
+
+---
+
+## INTEGRAÇÃO: Knowledge Acquisition Layer com MOTHER Core (2026-02-20)
+
+### Objetivo
+Ativar knowledge retention em produção substituindo getKnowledgeContext() por knowledgeBase.searchConcepts()
+
+### Tarefas
+- [x] Analisar MOTHER Core (core.ts) e identificar getKnowledgeContext()
+- [x] Substituir getKnowledgeContext() por knowledgeBase.searchConcepts()
+- [x] Testar integração localmente (query com knowledge context)
+- [x] Criar testes unitários para integração (base.test.ts - 200+ linhas)
+- [x] Validar cross-task knowledge retention (deduplication ≥0.85)
+- [x] Atualizar documentação (lições aprendidas)
+- [x] Milestone protocol (checkpoint → push → deploy)

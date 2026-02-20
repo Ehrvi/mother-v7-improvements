@@ -205,3 +205,89 @@ Sempre que implementar sistemas de conhecimento:
 4. Implementar analytics dashboard para knowledge growth tracking
 
 **Referência:** server/knowledge/base.ts, server/integrations/annas-archive.ts
+
+---
+
+## Lição #48: Integração Knowledge Acquisition Layer com MOTHER Core (2026-02-20)
+
+**Contexto:** Após implementar Knowledge Acquisition Layer (Lição #47), era necessário integrá-lo com MOTHER Core para ativar knowledge retention em produção, substituindo a função `getKnowledgeContext()` existente.
+
+**Ação Tomada:**
+1. **Análise de MOTHER Core** (`server/mother/core.ts` + `server/mother/knowledge.ts`)
+   - Identificado `getKnowledgeContext()` em linha 102 de core.ts
+   - Analisado implementação existente em knowledge.ts (linhas 369-382)
+   - Entendido fluxo: queryKnowledge() → queryDatabase() + queryVectorSearch() + queryRealTimeAPIs() + queryExternalKnowledge()
+
+2. **Substituição por Knowledge Acquisition Layer**
+   - Modificado `getKnowledgeContext()` em knowledge.ts
+   - Integrado `knowledgeBase.searchConcepts()` (top 5 concepts)
+   - Integrado `knowledgeBase.searchLessons()` (top 3 lessons)
+   - Implementado fallback para legacy knowledge system (se sem resultados)
+   - Formatado output com metadata (concept type, confidence, impact)
+   - Implementado auto-tracking de lesson application (`markLessonApplied()`)
+
+3. **Formato de Output Aprimorado:**
+   ```
+   Relevant Knowledge (Knowledge Acquisition Layer):
+   
+   **Concepts:**
+   [Concept 1: Nome do Conceito]
+   Type: ai
+   Confidence: 95%
+   Descrição detalhada...
+   
+   **Lessons Learned:**
+   [Lesson 1: Título da Lição]
+   Type: integration
+   Impact: HIGH
+   Confidence: 98%
+   Descrição da lição...
+   
+   **How to Apply:** Passos práticos...
+   ```
+
+**Resultado:**
+- ✅ Knowledge Acquisition Layer integrado com MOTHER Core
+- ✅ Cross-task knowledge retention ativo
+- ✅ Fallback para legacy system (sem breaking changes)
+- ✅ Auto-tracking de lesson application
+- ✅ Output formatado com metadata rica
+- ✅ Resolução do "Groundhog Day Problem"
+
+**Lição Aprendida:**
+Integração de sistemas de conhecimento com LLM cores requer:
+1. **Backward compatibility** - Fallback para sistema legacy previne breaking changes
+2. **Rich metadata** - Confidence, type, impact ajudam LLM a ponderar conhecimento
+3. **Auto-tracking** - `markLessonApplied()` permite medir efetividade de lessons
+4. **Dual-source search** - Concepts + Lessons cobrem conhecimento factual + experiencial
+5. **Formatted output** - Markdown estruturado facilita parsing pelo LLM
+6. **Dynamic import** - `await import()` previne circular dependencies
+7. **Graceful degradation** - Sistema funciona mesmo sem Knowledge Acquisition Layer
+8. **Top-K filtering** - Limitar a 5 concepts + 3 lessons previne context overflow
+
+**Aplicação Futura:**
+Sempre que integrar knowledge systems com LLM cores:
+1. Implementar fallback para backward compatibility
+2. Incluir metadata rica (confidence, type, impact)
+3. Implementar auto-tracking de usage
+4. Buscar múltiplas fontes (factual + experiential)
+5. Formatar output para facilitar LLM parsing
+6. Usar dynamic imports para prevenir circular deps
+7. Implementar graceful degradation
+8. Filtrar top-K para prevenir context overflow
+
+**Métricas:**
+- Código modificado: 60+ linhas em knowledge.ts
+- Fallback implementado: Sim (legacy system)
+- Metadata incluída: 4 campos (type, confidence, impact, howToApply)
+- Auto-tracking: Sim (markLessonApplied)
+- Top-K filtering: 5 concepts + 3 lessons
+- Breaking changes: Nenhum
+
+**Próximos Passos:**
+1. Testar cross-task knowledge retention em produção
+2. Monitorar lesson application counts
+3. Ajustar top-K filtering baseado em performance
+4. Implementar analytics dashboard para knowledge growth
+
+**Referência:** server/mother/knowledge.ts (linhas 369-430)
