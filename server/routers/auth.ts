@@ -75,42 +75,11 @@ export const authRouter = router({
   signup: publicProcedure
     .input(signupSchema)
     .mutation(async ({ input, ctx }) => {
-      const { name, email, password } = input;
-
-      // Check if user already exists
-      const db = await getDb();
-      if (!db) {
-        throw new TRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: 'Database not available',
-        });
-      }
-
-      const existingUser = await db.select()
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
-
-      if (existingUser.length > 0) {
-        throw new TRPCError({
-          code: 'CONFLICT',
-          message: 'Email already registered',
-        });
-      }
-
-      // Hash password with bcrypt (12 salt rounds)
-      const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
-
-      // Create user using raw SQL (workaround for Drizzle ORM issue with passwordHash)
-      const result = await db.execute(
-        sql`INSERT INTO users (name, email, passwordHash, loginMethod, role) VALUES (${name}, ${email}, ${passwordHash}, ${'password'}, ${'user'})`
-      );
-
-      return {
-        success: true,
-        message: 'Account created successfully',
-        userId: Number(result[0].insertId),
-      };
+      // SECURITY: Signup temporarily disabled (project not finalized)
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'Registration is temporarily disabled. Please contact the administrator.',
+      });
     }),
 
   /**
@@ -194,7 +163,16 @@ export const authRouter = router({
    */
   logout: publicProcedure
     .mutation(async ({ ctx }) => {
-      // TODO: Destroy session cookie
+      // Destroy session cookie by setting it to empty with immediate expiry
+      if (ctx.res) {
+        ctx.res.cookie('session', '', {
+          httpOnly: true,
+          secure: true,
+          sameSite: 'strict',
+          maxAge: 0, // Expire immediately
+        });
+      }
+      
       return {
         success: true,
         message: 'Logout successful',
