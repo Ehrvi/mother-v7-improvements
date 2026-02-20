@@ -47,8 +47,10 @@
     "@trpc/react-query": "^11.10.0",
     "@trpc/server": "^11.10.0",
     "@types/bcrypt": "^6.0.0",
-    "axios": "^1.12.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "axios": "^1.12.2",
     "bcrypt": "^6.0.0",
+    "better-sqlite3": "^12.6.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -66,6 +68,7 @@
     "mysql2": "^3.15.0",
     "nanoid": "^5.1.5",
     "next-themes": "^0.4.6",
+    "pdf-parse": "^2.4.5",
     "playwright": "^1.58.2",
     "react": "^19.2.1",
     "react-day-picker": "^9.11.1",
@@ -116,7 +119,8 @@
       "tailwindcss>nanoid": "3.3.7"
     },
     "onlyBuiltDependencies": [
-      "bcrypt"
+      "bcrypt",
+      "better-sqlite3"
     ]
   }
 }
