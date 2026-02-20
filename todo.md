@@ -490,3 +490,81 @@
 - [ ] Verificar URL de produção funcionando
 - [ ] Testar login em produção
 - [ ] Validar Creator Context em produção
+
+
+---
+
+## 🚨 CURRENT SESSION TASKS (2026-02-20)
+
+### Lições Aprendidas
+- [x] Add Lição #21: GCloud deployment priority (MÁXIMA PRIORIDADE)
+- [x] Document that production deploy MUST use gcloud CLI, NOT Manus UI
+
+### Deploy to Production
+- [x] Deploy to australia-southeast1 via gcloud CLI (revision 00049-5fl)
+- [x] Set all environment variables explicitly (DATABASE_URL, OPENAI_API_KEY, JWT_SECRET, etc.)
+- [x] Verify deployment successful (revision 00049-5fl)
+- [ ] Test signup blocking in production
+- [ ] Test login in production (elgarcia.eng@gmail.com)
+- [ ] Test Creator Context in production ("quem é seu criador?")
+
+### Validation
+- [ ] Execute 21-item validation checklist (INSTRUCOES-TESTE-E-DEPLOY-FINAL.md)
+- [ ] Verify all 7 layers working in production
+- [ ] Confirm 44 knowledge entries accessible
+- [ ] Validate Continuous Learning active
+- [ ] Check quality scores (100/100 target)
+
+### Documentation
+- [ ] Update deployment documentation with gcloud CLI commands
+- [ ] Document all env vars required for production
+- [ ] Create final validation report with evidence
+
+---
+
+**CRITICAL REMINDER:** Lição #21 - Deploy de produção SEMPRE via gcloud CLI, NUNCA via Manus UI Publish button.
+
+
+
+---
+
+## 🎓 GOD-LEVEL KNOWLEDGE ACQUISITION (2026-02-20)
+
+### Phase 1: Knowledge Acquisition (8 Areas)
+- [ ] Software Development Lifecycle (SDLC) - all methodologies (Waterfall, Agile, Scrum, Kanban, DevOps, etc.)
+- [ ] Software Architecture & Design Patterns (SOLID, DDD, Microservices, Event-Driven, etc.)
+- [ ] Project Management (PMI, PRINCE2, Agile PM, Risk Management, Stakeholder Management)
+- [ ] Information Management (Data Governance, Metadata, Knowledge Management, Information Architecture)
+- [ ] Electronic Document Management (EDMS, Records Management, Compliance, Retention Policies)
+- [ ] Version Control Systems (Git, SVN, Mercurial, branching strategies, CI/CD integration)
+- [ ] Software Maintenance (Corrective, Adaptive, Perfective, Preventive, Technical Debt)
+- [ ] Software Quality Assurance (Testing strategies, TDD, BDD, Code Review, Static Analysis)
+
+### Phase 2: Documentation
+- [ ] Create structured documentation for each area (Markdown format)
+- [ ] Include: Definitions, Best Practices, Tools, Frameworks, Standards, Case Studies
+- [ ] Add references to authoritative sources (ISO, IEEE, PMI, etc.)
+
+### Phase 3: Database Synchronization
+- [ ] Convert documentation to knowledge entries
+- [ ] Generate embeddings for semantic search
+- [ ] Insert into TiDB database
+- [ ] Verify entry count and accessibility
+
+### Phase 4: Lessons Learned Protocol
+- [ ] Review all new knowledge acquired
+- [ ] Extract actionable lessons learned
+- [ ] Add to LESSONS-LEARNED-UPDATED.md
+- [ ] Prioritize by impact and applicability
+
+### Phase 5: Production Deploy
+- [ ] Create checkpoint with all new knowledge
+- [ ] Deploy via gcloud CLI (Lição #21)
+- [ ] Verify deployment successful
+- [ ] Test knowledge retrieval in production
+
+### Phase 6: Final Validation
+- [ ] Execute validation tests
+- [ ] Document evidence of GOD-LEVEL knowledge
+- [ ] Deliver final report with metrics
+
