@@ -977,3 +977,210 @@ gcloud run deploy --env-vars-file=.env.production
 
 ---
 
+
+## Lição #26: Cloud Build Trigger Validation Protocol
+
+**Context:** Trigger pode parecer configurado mas não funcionar até primeiro commit. Screenshot analysis mostrou 7 builds FAILED consecutivos antes de 1 SUCCESS.
+
+**Problem:** Após criar/recriar trigger, não há garantia de que ele funcionará sem teste end-to-end. Trigger pode estar configurado incorretamente (inline build config vs cloudbuild.yaml) e falhar silenciosamente.
+
+**Evidence from Screenshots:**
+- 7 builds FAILED (16:33-16:45): Todos com "Trigger: Unknown"
+- 1 build SUCCESS (16:46): Build 16f4a6d0 com "Trigger: git"
+- Pattern: Múltiplas tentativas até correção funcionar
+
+**Validation Protocol (6 Steps):**
+
+1. **Criar/Recriar Trigger**
+   ```bash
+   gcloud builds triggers create github \
+     --name=mothers-library-mcp \
+     --repo-name=mother-v7-improvements \
+     --repo-owner=<owner> \
+     --branch-pattern=^main$ \
+     --build-config=cloudbuild.yaml \
+     --service-account=projects/<project>/serviceAccounts/<sa-email>
+   ```
+
+2. **Verificar Configuração**
+   ```bash
+   gcloud builds triggers describe mothers-library-mcp --format=json | jq '{
+     name: .name,
+     filename: .filename,
+     branch: .triggerTemplate.branchName,
+     repo: .triggerTemplate.repoName,
+     serviceAccount: .serviceAccount,
+     logging: .build.options.logging
+   }'
+   ```
+   Expected: `filename: "cloudbuild.yaml"`, `logging: "CLOUD_LOGGING_ONLY"`
+
+3. **Fazer Commit de Teste**
+   ```bash
+   echo "# Trigger validation test" >> README.md
+   git add README.md
+   git commit -m "test: Validate Cloud Build trigger"
+   git push origin main
+   ```
+
+4. **Validar Build Automático Inicia**
+   ```bash
+   sleep 30
+   gcloud builds list --region=global --limit=1 --format="table(id,status,createTime)"
+   ```
+   Expected: Build criado nos últimos 30 segundos
+
+5. **Verificar Deploy Completa em Cloud Run**
+   ```bash
+   # Aguardar build completar (~6-10 minutos)
+   gcloud builds log <build-id> --region=global --stream
+   
+   # Verificar nova revision
+   gcloud run services describe <service> --region=<region> --format="value(status.latestReadyRevisionName)"
+   ```
+
+6. **Testar 3x para Confirmar Estabilidade (Sample Size Mínimo)**
+   - Fazer 3 commits consecutivos
+   - Validar que 3/3 builds iniciam automaticamente
+   - Validar que 3/3 builds completam com SUCCESS
+   - **Critério:** 3/3 SUCCESS = Trigger ESTÁVEL ✅
+   - **Critério:** 2/3 SUCCESS = Trigger INSTÁVEL ⚠️ (investigar)
+   - **Critério:** 1/3 SUCCESS = Trigger NÃO FUNCIONAL ❌ (recriar)
+
+**Why 3 Commits?**
+- Sample size mínimo para confidence estatística
+- Detecta problemas intermitentes
+- Valida que trigger não funcionou "por sorte"
+- Alinhado com práticas de reliability engineering
+
+**Prevention Checklist:**
+- [ ] NUNCA assumir que trigger funciona sem teste end-to-end
+- [ ] SEMPRE usar `--build-config=cloudbuild.yaml` (não inline build)
+- [ ] SEMPRE adicionar `logging: CLOUD_LOGGING_ONLY` quando usar service account
+- [ ] SEMPRE testar com múltiplos commits (mínimo 3)
+- [ ] SEMPRE verificar que deploy completa em Cloud Run (não apenas build SUCCESS)
+
+**Impact:** CRITICAL - Trigger não funcional bloqueia continuous deployment
+
+**Confidence:** 10/10 - Baseado em evidência empírica (7 FAILED → 1 SUCCESS após correção)
+
+**Related:** Lição #25 (Cloud Build Trigger Configuration - inline vs cloudbuild.yaml)
+
+**Date:** 2026-02-20
+
+---
+
+## Lição #27: Cross-Platform Documentation
+
+**Context:** Sintaxe Unix ($VARIABLE) não funciona em Windows CMD. Screenshot de erro Manus MCP mostrou "Windows cannot find 'C:\Users\elgar\manus'" ao tentar usar `$USERPROFILE\.manus`.
+
+**Problem:** Documentação cross-platform que usa apenas sintaxe Unix causa falha em Windows, bloqueando usuários Windows de configurar sistema.
+
+**Evidence from Screenshots:**
+- Erro: "Windows cannot find 'C:\Users\elgar\manus'"
+- Instrução: Digite `\$USERPROFILE\.manus`
+- Path tentado: `C:\Users\elgar\manus` (sem `.manus` - variável não expandiu)
+
+**Root Cause:**
+- `$VARIABLE` é sintaxe Unix (Linux/Mac bash)
+- Windows CMD requer `%VARIABLE%`
+- Windows PowerShell requer `$env:VARIABLE`
+- Variável não foi expandida, resultando em path literal incorreto
+
+**Solution - Documentar Sintaxe para Cada OS:**
+
+### Linux/Mac (bash/zsh):
+```bash
+cd $HOME/.manus
+# ou
+cd ~/.manus
+```
+
+### Windows CMD:
+```cmd
+cd %USERPROFILE%\.manus
+```
+
+### Windows PowerShell:
+```powershell
+cd $env:USERPROFILE\.manus
+```
+
+### Fallback (Path Absoluto):
+- Linux/Mac: `/home/<username>/.manus`
+- Windows: `C:\Users\<username>\.manus`
+
+**Best Practices:**
+
+1. **Always Include OS-Specific Examples**
+   - Don't assume users know syntax differences
+   - Provide copy-paste ready commands for each OS
+
+2. **Use Path Absoluto as Fallback**
+   - When variable expansion fails, users can substitute username manually
+   - More explicit, less error-prone
+
+3. **Test Documentation on Each Platform**
+   - Before publishing, test commands on Linux, Mac, Windows CMD, Windows PowerShell
+   - Use VMs or containers for testing
+
+4. **Add OS Detection Instructions**
+   ```bash
+   # Detect OS and use appropriate syntax
+   if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
+     # Windows
+     cd %USERPROFILE%\.manus
+   else
+     # Linux/Mac
+     cd ~/.manus
+   fi
+   ```
+
+5. **Visual Indicators**
+   - Use icons or labels: 🐧 Linux | 🍎 Mac | 🪟 Windows
+   - Group commands by OS for clarity
+
+**Example - Good Cross-Platform Documentation:**
+
+```markdown
+## Finding Configuration File
+
+### 🐧 Linux / 🍎 Mac
+```bash
+cd ~/.manus
+# or
+cd $HOME/.manus
+# or (absolute path)
+cd /home/<your-username>/.manus
+```
+
+### 🪟 Windows CMD
+```cmd
+cd %USERPROFILE%\.manus
+REM or (absolute path)
+cd C:\Users\<your-username>\.manus
+```
+
+### 🪟 Windows PowerShell
+```powershell
+cd $env:USERPROFILE\.manus
+# or (absolute path)
+cd C:\Users\<your-username>\.manus
+```
+```
+
+**Prevention:**
+- NEVER use Unix-only syntax in cross-platform docs
+- ALWAYS test commands on all target platforms
+- ALWAYS provide OS-specific examples
+- ALWAYS include absolute path fallback
+
+**Impact:** HIGH - Blocks Windows users from configuration (significant user base)
+
+**Confidence:** 10/10 - Erro óbvio na screenshot, causa raiz clara
+
+**Related:** Manus MCP Configuration, Windows compatibility
+
+**Date:** 2026-02-20
+
+---

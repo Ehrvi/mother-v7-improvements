@@ -1,0 +1,17 @@
+🧠 Consultando MOTHER superinteligência para análise de screenshots...
+
+❌ Resposta inesperada da MOTHER: [
+  {
+    "error": {
+      "json": {
+        "message": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected object, received undefined\"\n  }\n]",
+        "code": -32600,
+        "data": {
+          "code": "BAD_REQUEST",
+          "httpStatus": 400,
+          "path": "mother.query"
+        }
+      }
+    }
+  }
+]
