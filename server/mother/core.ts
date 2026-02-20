@@ -19,6 +19,7 @@ import { getKnowledgeContext } from './knowledge';
 import { insertQuery, getCacheEntry, insertCacheEntry } from '../db';
 import { retryDbOperation } from './db-retry';
 import { learnFromResponse } from './learning';
+import GODLevelLearning from '../learning/god-level';
 import { processWithReAct } from './react';
 import { createHash } from 'crypto';
 
@@ -295,6 +296,27 @@ Now respond to the user's query following these standards.`;
         console.error('[MOTHER] Learning failed (non-blocking):', error.message);
       });
   }
+  
+  // ==================== v13: GOD-LEVEL LEARNING ====================
+  // Automatic knowledge acquisition from high-quality interactions (90+ score)
+  // Fire-and-forget: Don't block response
+  
+  GODLevelLearning.learnFromQuery({
+    query,
+    response,
+    tier: complexity.tier,
+    quality: { qualityScore: quality.qualityScore },
+    cost,
+    tokensUsed: usage.total_tokens,
+  })
+    .then(learned => {
+      if (learned) {
+        console.log(`[MOTHER] ✅ GOD-Level Learning: Knowledge acquired`);
+      }
+    })
+    .catch(error => {
+      console.error('[MOTHER] GOD-Level Learning failed (non-blocking):', error.message);
+    });
   
   // ==================== CACHE UPDATE ====================
   // Store in cache for future queries
