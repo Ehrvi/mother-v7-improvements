@@ -359,3 +359,15 @@
 - [x] **DEPLOY:** Deploy para us-central1 com código 100% completo (revision 00006-xsg)
 - [ ] **VALIDAÇÃO:** Executar teste e provar 100% completude com evidência
 - [ ] **DOCUMENTAÇÃO:** Entregar relatório com prova objetiva de 100% parity
+
+
+---
+
+## CRITICAL FIX: Login UI Missing (Root Cause Found)
+- [x] Add login button to Home.tsx header (currently missing)
+- [x] Show user name when logged in
+- [x] Add logout button when authenticated
+- [x] Test login flow locally (HMR confirmed)
+- [x] Deploy with login UI to GCloud (revision 00048-s42)
+- [ ] Execute full test WITH LOGIN (21/21 checklist)
+- [ ] Capture evidence of 100% completude

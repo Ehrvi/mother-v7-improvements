@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Sparkles, Brain, Shield, Zap, TrendingDown } from 'lucide-react';
 import { useAuth } from '@/_core/hooks/useAuth';
+import { getLoginUrl } from '@/const';
 import { trpc } from '@/lib/trpc';
 import { toast } from 'sonner';
 
@@ -20,7 +21,7 @@ interface Message {
 }
 
 export default function Home() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -124,7 +125,8 @@ export default function Home() {
       <div className="relative z-10 container mx-auto px-4 py-8 h-screen flex flex-col">
         {/* Header */}
         <header className="mb-8">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
             <img 
               src="https://private-us-east-1.manuscdn.com/sessionFile/yDOh1drRC17hH4IE2yNbMg/sandbox/74Is2QEW2SGShVduCUHHb6_1771297033959_na1fn_bW90aGVyLWxvZ28tb3Ji.png?x-oss-process=image/resize,w_1920,h_1920/format,webp/quality,q_80&Expires=1798761600&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9wcml2YXRlLXVzLWVhc3QtMS5tYW51c2Nkbi5jb20vc2Vzc2lvbkZpbGUveURPaDFkclJDMTdoSDRJRTJ5TmJNZy9zYW5kYm94Lzc0SXMyUUVXMlNHU2hWZHVDVUhIYjZfMTc3MTI5NzAzMzk1OV9uYTFmbl9iVzkwYUdWeUxXeHZaMjh0YjNKaS5wbmc~eC1vc3MtcHJvY2Vzcz1pbWFnZS9yZXNpemUsd18xOTIwLGhfMTkyMC9mb3JtYXQsd2VicC9xdWFsaXR5LHFfODAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3OTg3NjE2MDB9fX1dfQ__&Key-Pair-Id=K2HSFNDJXOU9YS&Signature=wARwwEWiZXKBEuL80Tf29MRgzR2CN73Qt0WDfTSzTYWRQZOe9SwGgf5XHvzFNep3t72r-q~eZakvqL-MdCacOzGGGhr0SaKL0Ve~qgUS2xtRDa5UtVejN36GjfsTqlu2AxVxGByTDx~BASvkQFaotPVeH2gsP0CNmhzT09iviID2HHKNpSpfjRcbDGHpeL7wtJ6e7ZJgjPFgtFdTEblAFKRFNQRic~1t14k2HzOB7v9pBASAVGHaiVvgBm8jWomwB4glpaeoIgn~qQkslVseHbhdnTds3O8E5fcpFmSnJHKt69pKUVaAgpSxbnLki3QHxgS28iz2XAFzWxnwFedq8w__"
               alt="Mother Consciousness Orb"
@@ -135,6 +137,41 @@ export default function Home() {
                 M O T H E R
               </h1>
               <p className="text-sm text-muted-foreground font-mono">v7.0 - 7-Layer Architecture | 83% Cost Reduction | 90+ Quality</p>
+            </div>
+            </div>
+            
+            {/* Auth Section */}
+            <div className="flex items-center gap-3">
+              {user ? (
+                <>
+                  <div className="text-sm">
+                    <div className="text-muted-foreground">Logged in as</div>
+                    <div className="font-semibold text-[#00F5FF]">{user.name}</div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      logout();
+                      toast.success('Logged out successfully');
+                    }}
+                    className="border-[#B026FF]/30 hover:bg-[#B026FF]/10"
+                  >
+                    Logout
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => {
+                    window.location.href = getLoginUrl();
+                  }}
+                  className="bg-gradient-to-r from-[#B026FF] to-[#00F5FF] hover:opacity-90"
+                >
+                  Login
+                </Button>
+              )}
             </div>
           </div>
         </header>
