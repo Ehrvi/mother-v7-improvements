@@ -101,6 +101,43 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   
   const knowledgeContext = await getKnowledgeContext(query);
   
+  // ==================== v14: A/B TESTING - CRITICAL THINKING CENTRAL ====================
+  // Route 10% of traffic through Critical Thinking Central for A/B testing
+  // Check feature flag from database
+  
+  let useCriticalThinking = false;
+  let variant: 'control' | 'critical_thinking' = 'control';
+  
+  try {
+    const { getDb } = await import('../db');
+    const { systemConfig } = await import('../../drizzle/schema');
+    const { eq } = await import('drizzle-orm');
+    
+    const db = await getDb();
+    if (db) {
+      const config = await db.select()
+        .from(systemConfig)
+        .where(eq(systemConfig.key, 'critical_thinking_enabled'))
+        .limit(1);
+      
+      const ctEnabled = config[0]?.value === 'true';
+      
+      if (ctEnabled) {
+        // 10% traffic routing (deterministic based on query hash)
+        const hashValue = parseInt(queryHash.slice(0, 8), 16);
+        useCriticalThinking = (hashValue % 100) < 10; // 10% of queries
+        variant = useCriticalThinking ? 'critical_thinking' : 'control';
+        
+        if (useCriticalThinking) {
+          console.log('[MOTHER] 🧠 A/B Test: Using Critical Thinking Central (10% variant)');
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[MOTHER] Failed to check Critical Thinking flag:', error);
+    // Fall through to standard processing
+  }
+  
   // ==================== LAYER 4: EXECUTION ====================
   // Execute query with selected LLM tier
   
@@ -216,6 +253,25 @@ Now respond to the user's query following these standards.`;
     response = reactResult.enhancedResponse;
     reactObservations = reactResult.observations;
     console.log(`[MOTHER] ReAct observations: ${reactObservations.length}`);
+  }
+  
+  // ==================== v14: CRITICAL THINKING CENTRAL ====================
+  // Apply 8-phase meta-learning process for A/B test variant
+  
+  if (useCriticalThinking) {
+    try {
+      const { CriticalThinkingCentral } = await import('../learning/critical-thinking');
+      const ct = new CriticalThinkingCentral({ enabled: true });
+      const ctResult = await ct.execute(query, complexity.complexityScore * 100); // Convert 0-1 to 0-100
+      
+      if (ctResult) {
+        console.log(`[MOTHER] 🧠 Critical Thinking: Quality improved ${ctResult.baselineQuality} → ${ctResult.improvedQuality}`);
+        response = ctResult.improvedResponse;
+      }
+    } catch (error) {
+      console.error('[MOTHER] Critical Thinking failed (non-blocking):', error);
+      // Fall back to baseline response
+    }
   }
   
   // ==================== LAYER 6: QUALITY (GUARDIAN) ====================

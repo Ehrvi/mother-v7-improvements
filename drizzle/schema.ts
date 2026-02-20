@@ -197,3 +197,36 @@ export const systemMetrics = mysqlTable("system_metrics", {
 
 export type SystemMetric = typeof systemMetrics.$inferSelect;
 export type InsertSystemMetric = typeof systemMetrics.$inferInsert;
+
+/**
+ * MOTHER v14.0: System Configuration
+ * Stores system-wide configuration and feature flags
+ */
+export const systemConfig = mysqlTable("system_config", {
+  id: int("id").autoincrement().primaryKey(),
+  key: varchar("key", { length: 255 }).notNull().unique(),
+  value: text("value").notNull(),
+  description: text("description"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SystemConfig = typeof systemConfig.$inferSelect;
+export type InsertSystemConfig = typeof systemConfig.$inferInsert;
+
+/**
+ * MOTHER v14.0: A/B Test Metrics
+ * Stores metrics for A/B testing Critical Thinking Central
+ */
+export const abTestMetrics = mysqlTable("ab_test_metrics", {
+  id: int("id").autoincrement().primaryKey(),
+  queryId: int("queryId").references(() => queries.id),
+  variant: mysqlEnum("variant", ["control", "critical_thinking"]).notNull(),
+  qualityScore: int("qualityScore").notNull(),
+  latencyMs: int("latencyMs").notNull(),
+  costUsd: varchar("costUsd", { length: 20 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AbTestMetric = typeof abTestMetrics.$inferSelect;
+export type InsertAbTestMetric = typeof abTestMetrics.$inferInsert;
