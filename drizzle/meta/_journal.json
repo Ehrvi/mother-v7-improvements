@@ -15,6 +15,13 @@
       "when": 1771429410613,
       "tag": "0001_deep_bastion",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1771550851839,
+      "tag": "0002_breezy_wrecker",
+      "breakpoints": true
     }
   ]
 }

@@ -2,8 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Sparkles, Brain, Shield, Zap, TrendingDown } from 'lucide-react';
-import { useAuth } from '@/_core/hooks/useAuth';
-import { getLoginUrl } from '@/const';
+import { Link } from 'wouter';
 import { trpc } from '@/lib/trpc';
 import { toast } from 'sonner';
 
@@ -21,7 +20,13 @@ interface Message {
 }
 
 export default function Home() {
-  const { user, logout } = useAuth();
+  // Authentication state from tRPC
+  const { data: user } = trpc.auth.me.useQuery();
+  const logoutMutation = trpc.auth.logout.useMutation({
+    onSuccess: () => {
+      window.location.reload();
+    },
+  });
   
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -152,25 +157,36 @@ export default function Home() {
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      logout();
+                      logoutMutation.mutate();
                       toast.success('Logged out successfully');
                     }}
+                    disabled={logoutMutation.isPending}
                     className="border-[#B026FF]/30 hover:bg-[#B026FF]/10"
                   >
-                    Logout
+                    {logoutMutation.isPending ? 'Logging out...' : 'Logout'}
                   </Button>
                 </>
               ) : (
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => {
-                    window.location.href = getLoginUrl();
-                  }}
-                  className="bg-gradient-to-r from-[#B026FF] to-[#00F5FF] hover:opacity-90"
-                >
-                  Login
-                </Button>
+                <div className="flex gap-2">
+                  <Link href="/login">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="bg-gradient-to-r from-[#B026FF] to-[#00F5FF] hover:opacity-90"
+                    >
+                      Login
+                    </Button>
+                  </Link>
+                  <Link href="/signup">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-[#B026FF]/30 hover:bg-[#B026FF]/10"
+                    >
+                      Sign Up
+                    </Button>
+                  </Link>
+                </div>
               )}
             </div>
           </div>
