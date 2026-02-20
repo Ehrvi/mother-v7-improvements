@@ -714,3 +714,24 @@
 - [x] Lição #24: API Key Management in Production (CRÍTICA)
 
 **Confidence:** 10/10 (all phases complete with objective evidence)
+
+
+---
+
+## 🔧 CLOUD BUILD TRIGGER FIX (2026-02-20)
+
+### Issue: Service Account Logging Error
+```
+Failed to trigger build: If 'build.service_account' is specified, the build must either (a) specify build.logs_bucket, (b) use the REGIONAL_USER_OWNED_BUCKET build.options.default_logs_bucket_behavior option, or (c) use either CLOUD_LOGGING_ONLY / NONE logging options.
+```
+
+### Tasks
+- [ ] Create Dockerfile optimized for MOTHER v7.0 production
+- [ ] Create cloudbuild.yaml with CLOUD_LOGGING_ONLY option
+- [ ] Configure service account permissions
+- [ ] Test Docker build locally
+- [ ] Commit Dockerfile + cloudbuild.yaml to GitHub
+- [ ] Push to main branch
+- [ ] Test Cloud Build trigger manually
+- [ ] Verify automatic trigger on push
+- [ ] Validate deployment to Cloud Run
