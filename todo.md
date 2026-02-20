@@ -371,3 +371,21 @@
 - [x] Deploy with login UI to GCloud (revision 00048-s42)
 - [ ] Execute full test WITH LOGIN (21/21 checklist)
 - [ ] Capture evidence of 100% completude
+
+
+---
+
+## CRITICAL: OAuth DNS Error + New Requirements (User Order)
+- [ ] **FIX OAUTH:** portal.manus.im DNS error - cannot resolve domain
+- [ ] **FIX OAUTH:** Investigate VITE_OAUTH_PORTAL_URL env variable
+- [ ] **FIX OAUTH:** Implement alternative authentication or fix OAuth URL
+- [x] **KNOWLEDGE:** Add god-level cybersecurity knowledge (OWASP, penetration testing, secure coding)
+- [x] **KNOWLEDGE:** Add ISO certification knowledge (ISO 27001, 27002, 9001)
+- [x] **KNOWLEDGE:** Add hacking/hacker protection knowledge (MITRE ATT&CK, defense strategies)
+- [x] **KNOWLEDGE:** Add stress testing/load testing knowledge (JMeter, k6, best practices)
+- [x] **KNOWLEDGE:** Add production software best practices (CI/CD, monitoring, incident response)
+- [x] **LESSONS:** Review all learned lessons, add new ones, delete duplicates (20 lessons)
+- [x] **SYNC:** Sync ALL Local knowledge to GCloud (36 entries inserted, 2 skipped)
+- [ ] **SECURITY:** Implement secure login system (password hashing, rate limiting, CSRF protection)
+- [ ] **SECURITY:** Implement secure signup system (email verification, strong password requirements)
+- [ ] **VALIDATION:** Test and verify MOTHER GCloud is 100% perfect
