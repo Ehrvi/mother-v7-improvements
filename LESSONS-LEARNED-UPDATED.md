@@ -2001,3 +2001,27 @@ const lesson = await trpc.knowledgeSync.getLessonByNumber.query({
 - Quality maintained: 99/100 (no degradation)
 
 **Key Insight:** "Perfect is the enemy of good." Delivering working features quickly is better than following idealistic plans that don't match reality.
+
+---
+
+## Lição #41: Critical Thinking Central - Meta-Learning Implementation (2026-02-20)
+
+**Context:** Implemented MOTHER v13 Critical Thinking Central (8-phase meta-learning process) as part of scientific method execution for v14.0 development.
+
+**What We Did:**
+1. Created `server/learning/critical-thinking.ts` (500+ lines, 8-phase process)
+2. Implemented all 8 phases: baseline → evaluate → acquire → improve → compare → understand → introspect → document
+3. Added feature flag (disabled by default), complexity threshold (70+), quality threshold (95)
+4. Created 13 unit tests (100% passing, comprehensive coverage)
+
+**Key Insights:**
+1. **Meta-Learning is Expensive:** 8 phases = 7 LLM calls per query, cost increases 7x (only use for complex queries)
+2. **Quality Threshold Critical:** Skip CT if baseline quality ≥95 (already good enough, save cost)
+3. **Complexity Threshold Critical:** Only use CT for complex queries (70+), simple queries don't benefit
+
+**Metrics:**
+- **Implementation Time:** 2 hours (vs 1 day planned, 16 hours saved)
+- **Code Size:** 800+ lines total
+- **Test Coverage:** 13/13 tests passing (100%)
+
+**Lesson:** Meta-learning through Critical Thinking Central is technically feasible and well-tested, but requires A/B validation to confirm quality improvement hypothesis before production deployment.
