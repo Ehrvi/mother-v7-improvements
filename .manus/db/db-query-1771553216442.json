@@ -1,0 +1,18 @@
+{
+  "query": "SELECT id, name, email, loginMethod, role, createdAt FROM users WHERE name LIKE '%Everton%' OR email LIKE '%everton%' ORDER BY id LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3QQhaXF1ucYHpuK.e4b7c6254861 --database 25NeaJLRyMKQFYzeZChVTB --execute SELECT id, name, email, loginMethod, role, createdAt FROM users WHERE name LIKE '%Everton%' OR email LIKE '%everton%' ORDER BY id LIMIT 5;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Everton Luís Garcia",
+      "email": "elgarcia.eng@gmail.com",
+      "loginMethod": "google",
+      "role": "admin",
+      "createdAt": "2026-02-18 15:51:50"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\tloginMethod\trole\tcreatedAt\n1\tEverton Luís Garcia\telgarcia.eng@gmail.com\tgoogle\tadmin\t2026-02-18 15:51:50\n",
+  "stderr": "",
+  "execution_time_ms": 1628
+}
