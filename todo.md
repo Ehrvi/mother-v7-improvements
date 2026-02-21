@@ -1969,13 +1969,13 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 - [x] #7: Graceful shutdown ✅ SIGTERM/SIGINT
 
 ### Fase 2: High Priority Stability (7 correções)
-- [ ] #8: Logging framework (Winston)
-- [ ] #9: Secrets rotation
-- [ ] #10: Backup automatizado
-- [ ] #11: Health checks
-- [ ] #12: Monitoring (Prometheus)
-- [ ] #13: Circuit breaker
-- [ ] #14: Error handling global
+- [x] #8: Logging framework (Winston) ✅ JSON logs + daily rotation
+- [⏭] #9: Secrets rotation ⏭ SKIPPED (requires external secrets manager)
+- [x] #10: Backup automatizado ✅ Script created (cron ready)
+- [x] #11: Health checks ✅ Simple + detailed endpoints
+- [⏭] #12: Monitoring (Prometheus) ⏭ DEFERRED (Phase 3)
+- [⏭] #13: Circuit breaker ⏭ DEFERRED (Phase 3)
+- [x] #14: Error handling global ✅ TRPCError + async wrapper
 
 ### Fase 3: Performance (7 correções)
 - [ ] #15: Redis caching

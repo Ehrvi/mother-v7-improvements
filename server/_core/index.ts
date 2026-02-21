@@ -9,6 +9,8 @@ import { createContext } from "./context";
 import { globalLimiter, motherLimiter } from "../middleware/rate-limit";
 import helmet from "helmet";
 import { closePool } from "../db-pool";
+import { logger, logInfo, logError, httpLogger } from "../lib/logger";
+import { errorHandler, notFoundHandler } from "../middleware/error-handler";
 // Vite imports moved to dynamic imports to avoid bundling in production
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -62,6 +64,9 @@ async function startServer() {
     xssFilter: true, // X-XSS-Protection: 1; mode=block
   }));
   
+  // HTTP request logging (#8: Logging framework)
+  app.use(httpLogger);
+  
   // Apply global rate limiting
   app.use(globalLimiter);
   
@@ -96,40 +101,45 @@ async function startServer() {
   }
 
   server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+    logInfo(`Server running on http://localhost:${port}/`);
+    logInfo(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    logInfo(`Logging to: ${process.cwd()}/logs/`);
   });
   
   // Graceful shutdown (#7)
   const shutdown = async (signal: string) => {
-    console.log(`\n${signal} received. Starting graceful shutdown...`);
+    logInfo(`${signal} received. Starting graceful shutdown...`);
     
     // Stop accepting new connections
     server.close(() => {
-      console.log('HTTP server closed');
+      logInfo('HTTP server closed');
     });
     
     // Give ongoing requests 10 seconds to complete
     setTimeout(() => {
-      console.error('Forced shutdown after timeout');
+      logError('Forced shutdown after timeout');
       process.exit(1);
     }, 10000);
     
     try {
       // Close database connection pool (#3: Database pooling)
-      console.log('Closing database connections...');
+      logInfo('Closing database connections...');
       await closePool();
       
-      console.log('Graceful shutdown complete');
+      logInfo('Graceful shutdown complete');
       process.exit(0);
     } catch (error) {
-      console.error('Error during shutdown:', error);
+      logError('Error during shutdown', error);
       process.exit(1);
-    }
-  };
+    }};
   
   // Handle shutdown signals
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
+  
+  // Global error handlers (#14: Error handling global) - MUST be last
+  app.use(notFoundHandler);
+  app.use(errorHandler);
 }
 
 startServer().catch(console.error);

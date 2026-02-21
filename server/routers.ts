@@ -5,6 +5,7 @@ import { motherRouter } from "./routers/mother";
 import { selfAuditRouter } from "./routers/self-audit";
 import { authRouter } from "./routers/auth";
 import { knowledgeSyncRouter } from "./routers/knowledgeSync";
+import { healthRouter } from "./routers/health";
 import { router } from "./_core/trpc";
 
 export const appRouter = router({
@@ -21,6 +22,9 @@ export const appRouter = router({
   
   // Knowledge Sync (Automated Lessons Learned)
   knowledgeSync: knowledgeSyncRouter,
+  
+  // Health check (#11: Health checks)
+  health: healthRouter,
 });
 
 export type AppRouter = typeof appRouter;
