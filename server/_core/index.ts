@@ -14,6 +14,8 @@ import { errorHandler, notFoundHandler } from "../middleware/error-handler";
 import { startWorker, closeQueue } from "../lib/queue";
 import { closeRedis } from "../lib/redis";
 import cors from "cors";
+import swaggerUi from "swagger-ui-express";
+import { generateOpenAPISpec } from "../lib/openapi";
 // Vite imports moved to dynamic imports to avoid bundling in production
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -95,6 +97,18 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "10mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+  
+  // OpenAPI/Swagger documentation (#23: OpenAPI Documentation)
+  const openApiSpec = generateOpenAPISpec();
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openApiSpec, {
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: 'MOTHER API Documentation',
+  }));
+  
+  // OpenAPI spec JSON endpoint
+  app.get('/api/openapi.json', (req, res) => {
+    res.json(openApiSpec);
+  });
   
   // Cache-Control headers for CDN optimization (#18)
   app.use((req, res, next) => {

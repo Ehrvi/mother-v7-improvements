@@ -2128,11 +2128,18 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 - [ ] Test preflight requests with curl
 
 ### #23: OpenAPI Documentation (4h)
-- [ ] Install OpenAPI/Swagger dependencies
-- [ ] Generate OpenAPI 3.0 spec from tRPC routers
-- [ ] Add request/response examples
-- [ ] Add authentication documentation
-- [ ] Host Swagger UI at /api/docs
+- [x] Install OpenAPI/Swagger dependencies (swagger-ui-express, openapi3-ts)
+- [x] Generate OpenAPI 3.0 spec from tRPC routers (server/lib/openapi.ts)
+- [x] Add request/response examples for all endpoints
+- [x] Add authentication documentation (OAuth flow, rate limits)
+- [x] Host Swagger UI at /api/docs
+- [x] Add /api/openapi.json endpoint for raw spec
+- [x] Document all 13 endpoints:
+  * Authentication: 4 endpoints (login, callback, me, logout)
+  * MOTHER: 2 endpoints (query sync, query async)
+  * Health: 3 endpoints (check, detailed, cache)
+  * Queue: 2 endpoints (stats, job status)
+  * Backup: 2 endpoints (trigger, status)
 - [ ] Test with Postman/Insomnia
 
 ### #24: JavaScript SDK (5h)
