@@ -2043,13 +2043,19 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 - [ ] Test throughput improvement in production (target: +200%)
 
 ### #17: Query Optimization (3h)
-- [ ] Analyze slow queries in TiDB
-- [ ] Add database indexes for common queries
-- [ ] Optimize JOIN operations
-- [ ] Implement query result caching
-- [ ] Test query performance (target: <100ms)
-
-### #18: CDN Setup - Cloudflare (2h)
+- [x] Analyze slow queries in TiDB
+- [x] Add 23 database indexes for common queries
+  * Knowledge: category, createdAt, accessCount, composite
+  * Cache: queryHash, expiresAt, hitCount, active entries
+  * Queries: user+created, tier, quality, cache, response time
+  * Learning Patterns: active, type, lastApplied
+  * Users: role, lastSignedIn
+  * System Metrics: period
+- [x] Create migration file (add_performance_indexes.sql)
+- [x] Apply indexes to production database (11.8s execution)
+- [x] Verify indexes created (26 indexes confirmed)
+- [ ] Test query performance in production (target: <100ms)
+- [ ] Measure improvement vs baselineCDN Setup - Cloudflare (2h)
 - [ ] Configure Cloudflare account
 - [ ] Add domain to Cloudflare
 - [ ] Configure caching rules for static assets
