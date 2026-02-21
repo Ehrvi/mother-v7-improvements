@@ -1,0 +1,62 @@
+{
+  "name": "@mother/sdk-js",
+  "version": "1.0.0",
+  "description": "Official JavaScript/TypeScript SDK for MOTHER API - Multi-Operational Tiered Hierarchical Execution & Routing",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mother",
+    "ai",
+    "api",
+    "sdk",
+    "typescript",
+    "javascript",
+    "llm",
+    "openai",
+    "anthropic",
+    "multi-tier",
+    "cost-optimization"
+  ],
+  "author": "Everton Luis Garcia <everton@intelltech.com.br>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ehrvi/mother-v7-improvements.git",
+    "directory": "sdk/javascript"
+  },
+  "bugs": {
+    "url": "https://github.com/Ehrvi/mother-v7-improvements/issues"
+  },
+  "homepage": "https://mother-interface-233196174701.australia-southeast1.run.app/api/docs",
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.9.3",
+    "vitest": "^2.0.0"
+  },
+  "peerDependencies": {},
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

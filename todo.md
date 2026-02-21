@@ -2141,15 +2141,36 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
   * Queue: 2 endpoints (stats, job status)
   * Backup: 2 endpoints (trigger, status)
 - [ ] Test with Postman/Insomnia
-
 ### #24: JavaScript SDK (5h)
-- [ ] Create @mother/sdk-js package structure
-- [ ] Implement TypeScript client
-- [ ] Add authentication helpers
-- [ ] Add query/mutation methods
-- [ ] Add error handling
-- [ ] Write usage examples and README
-- [ ] Publish to npm
+- [x] Create @mother/sdk-js package structure
+- [x] Implement TypeScript client with full API coverage:
+  * MotherClient class with all methods
+  * query() - Synchronous queries
+  * queryAsync() - Asynchronous queries with BullMQ
+  * getJobStatus() - Track async job progress
+  * getCurrentUser() - Auth state
+  * logout() - Session management
+  * getHealth() - System health
+  * getCacheStats() - Cache monitoring
+  * getQueueStats() - Queue monitoring
+- [x] Add authentication helpers (getLoginUrl, setSessionCookie)
+- [x] Add comprehensive README with examples:
+  * Quick start guide
+  * Authentication flow
+  * Tier selection guide
+  * Async query polling
+  * Monitoring examples
+  * React integration
+  * Node.js scripts
+  * Error handling
+  * Rate limits
+- [x] Full TypeScript support (4.36 KB .d.ts)
+- [x] Dual package (ESM 5.07 KB + CJS 6.10 KB)
+- [x] Zero dependencies
+- [x] Build successfully (1.3s)
+- [x] Copy to sdk/javascript/ in repository
+- [ ] Publish to npm (requires npm account)
+- [ ] Test integration in production
 
 ### #25: Python SDK (5h)
 - [ ] Create mother-sdk Python package structure
