@@ -2186,13 +2186,32 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 - [ ] Test integration in production
 
 ### #26: Webhook Support (4h)
-- [ ] Add webhooks table to database schema
-- [ ] Create webhook registration endpoint
-- [ ] Implement webhook delivery system
-- [ ] Add retry logic (3 attempts, exponential backoff)
-- [ ] Add webhook verification (HMAC)
-- [ ] Create webhook testing UI
-- [ ] Document webhook events
+- [x] Add webhooks table to database schema (webhooks + webhook_deliveries)
+- [x] Create webhook registration endpoints (7 endpoints):
+  * register - Register webhook with HMAC secret
+  * list - List user webhooks
+  * get - Get webhook details + delivery stats
+  * update - Update webhook configuration
+  * delete - Delete webhook
+  * regenerateSecret - Regenerate HMAC secret
+  * deliveries - Get delivery history
+- [x] Implement webhook delivery system (server/lib/webhookDelivery.ts)
+- [x] Add retry logic (3 attempts, exponential backoff: 1min, 2min, 4min)
+- [x] Add webhook verification (HMAC SHA-256 signature)
+- [x] Add supported events (7 events):
+  * query.completed
+  * query.failed
+  * knowledge.created
+  * knowledge.updated
+  * pattern.learned
+  * cache.hit
+  * system.alert
+- [x] Integrate with MOTHER core (auto-trigger on query completion/failure)
+- [x] Add delivery tracking (success/failed/pending)
+- [x] Add webhook stats (totalDeliveries, successfulDeliveries, failedDeliveries)
+- [ ] Create webhook testing UI (frontend)
+- [ ] Test webhook delivery in production
+- [ ] Measure engagement increase (target: +40%)
 
 ### #27: Rate Limit Headers (2h)
 - [ ] Add X-RateLimit-Limit header to all responses

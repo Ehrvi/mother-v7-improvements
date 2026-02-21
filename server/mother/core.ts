@@ -16,7 +16,8 @@ import { invokeLLM } from '../_core/llm';
 import { assessComplexity, getModelForTier, calculateCost, calculateBaselineCost, calculateCostReduction, type LLMTier } from './intelligence';
 import { validateQuality, type GuardianResult } from './guardian';
 import { getKnowledgeContext } from './knowledge';
-import { getCachedQuery, setCachedQuery } from '../lib/cache';
+import { setCachedQuery, getCachedQuery } from '../lib/cache';
+import { triggerWebhookEvent } from '../lib/webhookDelivery';
 import { insertQuery } from '../db';
 import { retryDbOperation } from './db-retry';
 import { learnFromResponse } from './learning';
@@ -400,6 +401,20 @@ Now respond to the user's query following these standards.`;
     await setCachedQuery(queryHash, query, cacheData);
   }
   
+  // ==================== WEBHOOKS ====================
+  // Trigger webhook event for query completion (fire-and-forget)
+  triggerWebhookEvent('query.completed', {
+    queryId: queryId || 0,
+    query,
+    response: response.slice(0, 500), // First 500 chars
+    tier: complexity.tier,
+    qualityScore: quality.qualityScore,
+    responseTime,
+    cost,
+  }).catch(error => {
+    console.error('[MOTHER] Webhook trigger failed (non-blocking):', error.message);
+  });
+  
   // ==================== RETURN RESPONSE ====================
   
   return {
@@ -422,6 +437,15 @@ Now respond to the user's query following these standards.`;
     console.error('[MOTHER] Processing error:', error);
     
     const responseTime = Date.now() - startTime;
+    
+    // Trigger webhook for query failure
+    triggerWebhookEvent('query.failed', {
+      query: request.query,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      responseTime: responseTime,
+    }).catch(err => {
+      console.error('[MOTHER] Webhook trigger failed:', err.message);
+    });
     
     return {
       response: `I apologize, but I encountered an error processing your query. Please try again. Error: ${error instanceof Error ? error.message : 'Unknown error'}`,

@@ -8,6 +8,7 @@ import { knowledgeSyncRouter } from "./routers/knowledgeSync";
 import { healthRouter } from "./routers/health";
 import { backupRouter } from "./routers/backup";
 import { queueRouter } from "./routers/queue";
+import { webhooksRouter } from "./routers/webhooks";
 import { router } from "./_core/trpc";
 
 export const appRouter = router({
@@ -33,6 +34,9 @@ export const appRouter = router({
   
   // Queue monitoring (#16: Message Queue - BullMQ)
   queue: queueRouter,
+  
+  // Webhooks (#26: Webhook Support)
+  webhooks: webhooksRouter,
 });
 
 export type AppRouter = typeof appRouter;

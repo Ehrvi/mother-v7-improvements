@@ -230,3 +230,64 @@ export const abTestMetrics = mysqlTable("ab_test_metrics", {
 
 export type AbTestMetric = typeof abTestMetrics.$inferSelect;
 export type InsertAbTestMetric = typeof abTestMetrics.$inferInsert;
+
+/**
+ * MOTHER v14.0: Webhooks
+ * Stores webhook registrations for real-time event notifications
+ */
+export const webhooks = mysqlTable("webhooks", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").references(() => users.id).notNull(),
+  
+  // Webhook configuration
+  url: varchar("url", { length: 2048 }).notNull(),
+  events: text("events").notNull(), // JSON array of event types
+  secret: varchar("secret", { length: 64 }).notNull(), // HMAC secret
+  
+  // Status
+  isActive: int("isActive").default(1).notNull(), // 0 or 1
+  
+  // Delivery metrics
+  totalDeliveries: int("totalDeliveries").default(0),
+  successfulDeliveries: int("successfulDeliveries").default(0),
+  failedDeliveries: int("failedDeliveries").default(0),
+  lastDeliveryAt: timestamp("lastDeliveryAt"),
+  lastDeliveryStatus: mysqlEnum("lastDeliveryStatus", ["success", "failed", "pending"]),
+  
+  // Metadata
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Webhook = typeof webhooks.$inferSelect;
+export type InsertWebhook = typeof webhooks.$inferInsert;
+
+/**
+ * MOTHER v14.0: Webhook Deliveries
+ * Stores webhook delivery attempts for debugging and retry logic
+ */
+export const webhookDeliveries = mysqlTable("webhook_deliveries", {
+  id: int("id").autoincrement().primaryKey(),
+  webhookId: int("webhookId").references(() => webhooks.id).notNull(),
+  
+  // Event data
+  event: varchar("event", { length: 100 }).notNull(),
+  payload: text("payload").notNull(), // JSON
+  
+  // Delivery status
+  status: mysqlEnum("status", ["pending", "success", "failed"]).default("pending").notNull(),
+  statusCode: int("statusCode"),
+  responseBody: text("responseBody"),
+  errorMessage: text("errorMessage"),
+  
+  // Retry logic
+  attempts: int("attempts").default(0),
+  nextRetryAt: timestamp("nextRetryAt"),
+  
+  // Metadata
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  deliveredAt: timestamp("deliveredAt"),
+});
+
+export type WebhookDelivery = typeof webhookDeliveries.$inferSelect;
+export type InsertWebhookDelivery = typeof webhookDeliveries.$inferInsert;
