@@ -1,0 +1,16 @@
+{
+  "query": "SELECT \n  COUNT(*) as total,\n  COUNT(DISTINCT category) as categories,\n  MIN(createdAt) as oldest,\n  MAX(createdAt) as newest\nFROM knowledge;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3QQhaXF1ucYHpuK.e4b7c6254861 --database 25NeaJLRyMKQFYzeZChVTB --execute SELECT \n  COUNT(*) as total,\n  COUNT(DISTINCT category) as categories,\n  MIN(createdAt) as oldest,\n  MAX(createdAt) as newest\nFROM knowledge;",
+  "rows": [
+    {
+      "total": "331",
+      "categories": "47",
+      "oldest": "2026-02-18 16:04:06",
+      "newest": "2026-02-21 12:30:15"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\tcategories\toldest\tnewest\n331\t47\t2026-02-18 16:04:06\t2026-02-21 12:30:15\n",
+  "stderr": "",
+  "execution_time_ms": 1533
+}

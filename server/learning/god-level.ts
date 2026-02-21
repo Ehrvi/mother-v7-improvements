@@ -35,7 +35,7 @@ interface QueryResult {
  */
 export const GOD_LEVEL_CONFIG = {
   /** Minimum quality score to trigger learning (0-100) */
-  MIN_QUALITY_SCORE: 90,
+  MIN_QUALITY_SCORE: 85,
   
   /** Maximum entries to check for deduplication */
   MAX_DEDUP_CHECK: 100,
@@ -83,22 +83,28 @@ export class GODLevelLearning {
    * @returns true if learning occurred, false otherwise
    */
   static async learnFromQuery(result: QueryResult): Promise<boolean> {
+    logger.info(`[GOD-Level DEBUG] learnFromQuery called with quality: ${result.quality.qualityScore}`);
     try {
       // Step 1: Quality filtering (only learn from 90+ score)
+      logger.info(`[GOD-Level DEBUG] Quality check: ${result.quality.qualityScore} vs threshold: ${GOD_LEVEL_CONFIG.MIN_QUALITY_SCORE}`);
       if (result.quality.qualityScore < GOD_LEVEL_CONFIG.MIN_QUALITY_SCORE) {
         logger.info(`[GOD-Level] Skipping learning: quality ${result.quality.qualityScore} < ${GOD_LEVEL_CONFIG.MIN_QUALITY_SCORE}`);
         return false;
       }
 
       // Step 2: Check for duplicates (prevent redundant entries)
+      logger.info('[GOD-Level DEBUG] Checking for duplicates...');
       const isDuplicate = await this.checkDuplicate(result.response);
+      logger.info(`[GOD-Level DEBUG] Duplicate check result: ${isDuplicate}`);
       if (isDuplicate) {
         logger.info(`[GOD-Level] Skipping learning: duplicate content detected`);
         return false;
       }
 
       // Step 3: Auto-categorize the knowledge
+      logger.info('[GOD-Level DEBUG] Categorizing knowledge...');
       const category = await this.categorizeKnowledge(result.query, result.response);
+      logger.info(`[GOD-Level DEBUG] Category: ${category}`);
 
       // Step 4: Generate embedding for semantic search
       const embedding = await this.generateEmbedding(result.response);
@@ -118,11 +124,14 @@ export class GODLevelLearning {
         },
       };
 
+      logger.info('[GOD-Level DEBUG] Saving knowledge to database...');
       await this.saveKnowledge(entry, embedding);
+      logger.info('[GOD-Level DEBUG] ✅ Knowledge saved successfully!');
 
       logger.info(`[GOD-Level] ✅ Learned from query: category=${category}, quality=${result.quality.qualityScore}`);
       return true;
     } catch (error) {
+      logger.error('[GOD-Level DEBUG] ❌ EXCEPTION:', error);
       logger.error(`[GOD-Level] ❌ Learning failed:`, error);
       return false;
     }

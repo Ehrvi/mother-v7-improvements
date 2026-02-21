@@ -1,0 +1,16 @@
+{
+  "query": "SELECT COUNT(*) as total_knowledge, \n  SUM(CASE WHEN sourceType = 'learning' THEN 1 ELSE 0 END) as from_learning,\n  SUM(CASE WHEN sourceType = 'user' THEN 1 ELSE 0 END) as from_user,\n  MAX(createdAt) as last_created\nFROM knowledge;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3QQhaXF1ucYHpuK.e4b7c6254861 --database 25NeaJLRyMKQFYzeZChVTB --execute SELECT COUNT(*) as total_knowledge, \n  SUM(CASE WHEN sourceType = 'learning' THEN 1 ELSE 0 END) as from_learning,\n  SUM(CASE WHEN sourceType = 'user' THEN 1 ELSE 0 END) as from_user,\n  MAX(createdAt) as last_created\nFROM knowledge;",
+  "rows": [
+    {
+      "total_knowledge": "277",
+      "from_learning": "112",
+      "from_user": "158",
+      "last_created": "2026-02-21 12:27:27"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_knowledge\tfrom_learning\tfrom_user\tlast_created\n277\t112\t158\t2026-02-21 12:27:27\n",
+  "stderr": "",
+  "execution_time_ms": 1529
+}

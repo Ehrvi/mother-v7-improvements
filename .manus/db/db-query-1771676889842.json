@@ -1,0 +1,18 @@
+{
+  "query": "SELECT \n  COUNT(*) as total_queries,\n  SUM(CASE WHEN qualityScore >= 90 THEN 1 ELSE 0 END) as high_quality_count,\n  SUM(CASE WHEN qualityScore >= 90 THEN 1 ELSE 0 END) * 100.0 / COUNT(*) as high_quality_percentage,\n  AVG(qualityScore) as avg_quality,\n  MIN(qualityScore) as min_quality,\n  MAX(qualityScore) as max_quality\nFROM queries\nWHERE qualityScore IS NOT NULL;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3QQhaXF1ucYHpuK.e4b7c6254861 --database 25NeaJLRyMKQFYzeZChVTB --execute SELECT \n  COUNT(*) as total_queries,\n  SUM(CASE WHEN qualityScore >= 90 THEN 1 ELSE 0 END) as high_quality_count,\n  SUM(CASE WHEN qualityScore >= 90 THEN 1 ELSE 0 END) * 100.0 / COUNT(*) as high_quality_percentage,\n  AVG(qualityScore) as avg_quality,\n  MIN(qualityScore) as min_quality,\n  MAX(qualityScore) as max_quality\nFROM queries\nWHERE qualityScore IS NOT NULL;",
+  "rows": [
+    {
+      "total_queries": "299",
+      "high_quality_count": "195",
+      "high_quality_percentage": "65.21739",
+      "avg_quality": "91.33110367892976",
+      "min_quality": "100",
+      "max_quality": "99"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_queries\thigh_quality_count\thigh_quality_percentage\tavg_quality\tmin_quality\tmax_quality\n299\t195\t65.21739\t91.33110367892976\t100\t99\n",
+  "stderr": "",
+  "execution_time_ms": 1515
+}

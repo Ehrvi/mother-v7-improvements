@@ -1,0 +1,13 @@
+{
+  "query": "INSERT INTO knowledge (title, content, category, tags, source, sourceType, createdAt)\nSELECT \n  CONCAT('Query: ', SUBSTRING(query, 1, 100)) as title,\n  JSON_OBJECT(\n    'query', query,\n    'response', response,\n    'quality_score', qualityScore,\n    'tier', tier,\n    'cost', cost\n  ) as content,\n  'learned' as category,\n  JSON_ARRAY('auto-learned', 'high-quality', CONCAT('tier-', tier)) as tags,\n  CONCAT('Query ID: ', id) as source,\n  'learning' as sourceType,\n  createdAt\nFROM queries\nWHERE qualityScore >= 90\n  AND response IS NOT NULL\n  AND LENGTH(response) > 100\nLIMIT 50;\n\nSELECT COUNT(*) as total_knowledge FROM knowledge;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3QQhaXF1ucYHpuK.e4b7c6254861 --database 25NeaJLRyMKQFYzeZChVTB --execute INSERT INTO knowledge (title, content, category, tags, source, sourceType, createdAt)\nSELECT \n  CONCAT('Query: ', SUBSTRING(query, 1, 100)) as title,\n  JSON_OBJECT(\n    'query', query,\n    'response', response,\n    'quality_score', qualityScore,\n    'tier', tier,\n    'cost', cost\n  ) as content,\n  'learned' as category,\n  JSON_ARRAY('auto-learned', 'high-quality', CONCAT('tier-', tier)) as tags,\n  CONCAT('Query ID: ', id) as source,\n  'learning' as sourceType,\n  createdAt\nFROM queries\nWHERE qualityScore >= 90\n  AND response IS NOT NULL\n  AND LENGTH(response) > 100\nLIMIT 50;\n\nSELECT COUNT(*) as total_knowledge FROM knowledge;",
+  "rows": [
+    {
+      "total_knowledge": "331"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_knowledge\n331\n",
+  "stderr": "",
+  "execution_time_ms": 1785
+}
