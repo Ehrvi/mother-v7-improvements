@@ -19,7 +19,12 @@ export type FileContent = {
   type: "file_url";
   file_url: {
     url: string;
-    mime_type?: "audio/mpeg" | "audio/wav" | "application/pdf" | "audio/mp4" | "video/mp4" ;
+    mime_type?:
+      | "audio/mpeg"
+      | "audio/wav"
+      | "application/pdf"
+      | "audio/mp4"
+      | "video/mp4";
   };
 };
 
@@ -301,20 +306,23 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   // gpt-4o/gpt-4o-mini: 16384 max completion tokens
   // gpt-4: 8192 max completion tokens
   const model = (params.model || "gpt-4o").toLowerCase();
-  if (model.includes('gpt-4o')) {
+  if (model.includes("gpt-4o")) {
     payload.max_tokens = 16384;
-  } else if (model.includes('gpt-4')) {
+  } else if (model.includes("gpt-4")) {
     payload.max_tokens = 8192;
   } else {
     payload.max_tokens = 4096; // Safe default
   }
-  
+
   // Only add 'thinking' parameter for Gemini API
   // OpenAI doesn't support this parameter
   const apiUrl = resolveApiUrl();
-  if (apiUrl.includes('generativelanguage.googleapis.com') || apiUrl.includes('gemini')) {
+  if (
+    apiUrl.includes("generativelanguage.googleapis.com") ||
+    apiUrl.includes("gemini")
+  ) {
     payload.thinking = {
-      "budget_tokens": 128
+      budget_tokens: 128,
     };
   }
 

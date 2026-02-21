@@ -2,7 +2,7 @@
  * MOTHER v14 - Knowledge Acquisition Layer
  * Implements persistent knowledge storage with SQLite + TiDB dual-write
  * Resolves "Groundhog Day Problem" with cross-task knowledge retention
- * 
+ *
  * Features:
  * - SQLite local persistence (50% latency reduction)
  * - TiDB cloud sync (cross-instance knowledge sharing)
@@ -12,17 +12,17 @@
  * - Semantic search (embeddings-based)
  */
 
-import Database from 'better-sqlite3';
-import { createHash } from 'crypto';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { writeFile, mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
-import { getEmbedding, cosineSimilarity } from '../mother/embeddings';
-import { getDb } from '../db';
-import { knowledge as knowledgeTable } from '../../drizzle/schema';
-import { eq } from 'drizzle-orm';
-import { logger } from '../lib/logger';
+import Database from "better-sqlite3";
+import { createHash } from "crypto";
+import { exec } from "child_process";
+import { promisify } from "util";
+import { writeFile, mkdir } from "fs/promises";
+import { existsSync } from "fs";
+import { getEmbedding, cosineSimilarity } from "../mother/embeddings";
+import { getDb } from "../db";
+import { knowledge as knowledgeTable } from "../../drizzle/schema";
+import { eq } from "drizzle-orm";
+import { logger } from "../lib/logger";
 
 const execAsync = promisify(exec);
 
@@ -46,7 +46,7 @@ export interface Lesson {
   lessonTitle: string;
   lessonDescription: string;
   evidence?: string;
-  impact: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  impact: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   howToApply?: string;
   confidence: number;
   learnedAt?: Date;
@@ -73,26 +73,26 @@ class KnowledgeAcquisitionLayer {
   constructor(dbPath?: string) {
     // Use /tmp in Cloud Run (only writable directory), fallback to project directory
     const isCloudRun = process.env.K_SERVICE !== undefined;
-    const defaultPath = isCloudRun 
-      ? '/tmp/.mother/knowledge.db' 
-      : '/home/ubuntu/.mother/knowledge.db';
-    
+    const defaultPath = isCloudRun
+      ? "/tmp/.mother/knowledge.db"
+      : "/home/ubuntu/.mother/knowledge.db";
+
     this.dbPath = dbPath || defaultPath;
-    this.googleDriveEnabled = existsSync('/home/ubuntu/.gdrive-rclone.ini');
-    this.githubEnabled = existsSync('/home/ubuntu/mother-knowledge/.git');
+    this.googleDriveEnabled = existsSync("/home/ubuntu/.gdrive-rclone.ini");
+    this.githubEnabled = existsSync("/home/ubuntu/mother-knowledge/.git");
 
     this._initDatabase();
   }
 
   private _initDatabase(): void {
     // Ensure directory exists (synchronously to avoid race condition)
-    const dir = this.dbPath.substring(0, this.dbPath.lastIndexOf('/'));
+    const dir = this.dbPath.substring(0, this.dbPath.lastIndexOf("/"));
     if (!existsSync(dir)) {
       try {
         // Use sync mkdir to ensure directory exists before creating database
-        require('fs').mkdirSync(dir, { recursive: true });
+        require("fs").mkdirSync(dir, { recursive: true });
       } catch (error) {
-        console.error('Failed to create knowledge database directory:', error);
+        console.error("Failed to create knowledge database directory:", error);
         throw error;
       }
     }
@@ -104,7 +104,7 @@ class KnowledgeAcquisitionLayer {
       console.error(`Failed to open database at ${this.dbPath}:`, error);
       throw error;
     }
-    this.sqlite.pragma('journal_mode = WAL'); // Write-Ahead Logging for better concurrency
+    this.sqlite.pragma("journal_mode = WAL"); // Write-Ahead Logging for better concurrency
 
     // Create tables
     this.sqlite.exec(`
@@ -170,7 +170,10 @@ class KnowledgeAcquisitionLayer {
     metadata?: Record<string, any>
   ): Promise<string> {
     // Generate concept ID from name (MD5 hash)
-    const conceptId = createHash('md5').update(conceptName).digest('hex').substring(0, 16);
+    const conceptId = createHash("md5")
+      .update(conceptName)
+      .digest("hex")
+      .substring(0, 16);
 
     // 1. Generate embeddings
     const embedding = await getEmbedding(description);
@@ -178,7 +181,9 @@ class KnowledgeAcquisitionLayer {
     // 2. Check for duplicates (SQLite first for speed)
     const isDuplicate = await this._checkDuplicate(embedding);
     if (isDuplicate) {
-      logger.warn('[KnowledgeAcquisitionLayer] Duplicate concept detected, skipping');
+      logger.warn(
+        "[KnowledgeAcquisitionLayer] Duplicate concept detected, skipping"
+      );
       return conceptId;
     }
 
@@ -210,25 +215,49 @@ class KnowledgeAcquisitionLayer {
       VALUES (?, ?, ?)
     `);
 
-    embStmt.run(conceptId, JSON.stringify(embedding), 'text-embedding-3-small');
+    embStmt.run(conceptId, JSON.stringify(embedding), "text-embedding-3-small");
 
     // 5. Sync to TiDB (async, non-blocking)
-    this._syncToTiDB(conceptId, conceptName, conceptType, description, source, confidence, embedding).catch(err => {
-      logger.error('[KnowledgeAcquisitionLayer] TiDB sync failed:', err);
+    this._syncToTiDB(
+      conceptId,
+      conceptName,
+      conceptType,
+      description,
+      source,
+      confidence,
+      embedding
+    ).catch(err => {
+      logger.error("[KnowledgeAcquisitionLayer] TiDB sync failed:", err);
     });
 
     // 6. Backup to Google Drive (async, non-blocking)
     if (this.googleDriveEnabled) {
-      this._syncToGoogleDrive({ conceptId, conceptName, conceptType, description, source, confidence, metadata }).catch(err => {
-        logger.error('[KnowledgeAcquisitionLayer] Google Drive sync failed:', err);
+      this._syncToGoogleDrive({
+        conceptId,
+        conceptName,
+        conceptType,
+        description,
+        source,
+        confidence,
+        metadata,
+      }).catch(err => {
+        logger.error(
+          "[KnowledgeAcquisitionLayer] Google Drive sync failed:",
+          err
+        );
       });
     }
 
     // 7. Commit to GitHub (async, non-blocking)
     if (this.githubEnabled) {
-      this._commitToGitHub({ conceptId, conceptName, description }).catch(err => {
-        logger.error('[KnowledgeAcquisitionLayer] GitHub commit failed:', err);
-      });
+      this._commitToGitHub({ conceptId, conceptName, description }).catch(
+        err => {
+          logger.error(
+            "[KnowledgeAcquisitionLayer] GitHub commit failed:",
+            err
+          );
+        }
+      );
     }
 
     return conceptId;
@@ -242,13 +271,16 @@ class KnowledgeAcquisitionLayer {
     lessonType: string,
     lessonDescription: string,
     evidence?: string,
-    impact: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' = 'MEDIUM',
+    impact: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" = "MEDIUM",
     howToApply?: string,
     confidence: number = 0.8,
     metadata?: Record<string, any>
   ): Promise<string> {
     // Generate lesson ID from title (MD5 hash)
-    const lessonId = createHash('md5').update(lessonTitle).digest('hex').substring(0, 16);
+    const lessonId = createHash("md5")
+      .update(lessonTitle)
+      .digest("hex")
+      .substring(0, 16);
 
     // Insert into SQLite
     const stmt = this.sqlite.prepare(`
@@ -281,27 +313,40 @@ class KnowledgeAcquisitionLayer {
   /**
    * Search concepts (semantic search using embeddings)
    */
-  async searchConcepts(query: string, conceptType?: string, topK: number = 5): Promise<Concept[]> {
+  async searchConcepts(
+    query: string,
+    conceptType?: string,
+    topK: number = 5
+  ): Promise<Concept[]> {
     // Log search
-    const logStmt = this.sqlite.prepare('INSERT INTO search_history (query) VALUES (?)');
+    const logStmt = this.sqlite.prepare(
+      "INSERT INTO search_history (query) VALUES (?)"
+    );
     const searchId = logStmt.run(query).lastInsertRowid;
 
     // 1. Generate query embedding
     const queryEmbedding = await getEmbedding(query);
 
     // 2. Get all embeddings from SQLite
-    const allEmbeddings = this.sqlite.prepare(`
+    const allEmbeddings = this.sqlite
+      .prepare(
+        `
       SELECT k.*, e.embedding_json
       FROM knowledge k
       INNER JOIN embeddings e ON k.concept_id = e.concept_id
-      ${conceptType ? 'WHERE k.concept_type = ?' : ''}
-    `).all(conceptType ? [conceptType] : []) as any[];
+      ${conceptType ? "WHERE k.concept_type = ?" : ""}
+    `
+      )
+      .all(conceptType ? [conceptType] : []) as any[];
 
     // 3. Calculate cosine similarity
     const similarities = allEmbeddings.map(row => ({
       ...row,
       embedding: JSON.parse(row.embedding_json),
-      similarity: cosineSimilarity(queryEmbedding, JSON.parse(row.embedding_json))
+      similarity: cosineSimilarity(
+        queryEmbedding,
+        JSON.parse(row.embedding_json)
+      ),
     }));
 
     // 4. Filter by threshold (≥0.85) and sort
@@ -318,11 +363,13 @@ class KnowledgeAcquisitionLayer {
         confidence: r.confidence,
         learnedAt: new Date(r.learned_at),
         updatedAt: new Date(r.updated_at),
-        metadata: r.metadata ? JSON.parse(r.metadata) : undefined
+        metadata: r.metadata ? JSON.parse(r.metadata) : undefined,
       }));
 
     // Update search history with results count
-    const updateStmt = this.sqlite.prepare('UPDATE search_history SET results_count = ? WHERE id = ?');
+    const updateStmt = this.sqlite.prepare(
+      "UPDATE search_history SET results_count = ? WHERE id = ?"
+    );
     updateStmt.run(results.length, searchId);
 
     return results;
@@ -331,12 +378,16 @@ class KnowledgeAcquisitionLayer {
   /**
    * Search lessons learned
    */
-  async searchLessons(query: string, lessonType?: string, topK: number = 5): Promise<Lesson[]> {
+  async searchLessons(
+    query: string,
+    lessonType?: string,
+    topK: number = 5
+  ): Promise<Lesson[]> {
     const stmt = this.sqlite.prepare(`
       SELECT *
       FROM lessons
       WHERE (lesson_description LIKE ? OR lesson_title LIKE ?)
-      ${lessonType ? 'AND lesson_type = ?' : ''}
+      ${lessonType ? "AND lesson_type = ?" : ""}
       ORDER BY confidence DESC, learned_at DESC
       LIMIT ?
     `);
@@ -358,7 +409,7 @@ class KnowledgeAcquisitionLayer {
       confidence: r.confidence,
       learnedAt: new Date(r.learned_at),
       appliedCount: r.applied_count,
-      metadata: r.metadata ? JSON.parse(r.metadata) : undefined
+      metadata: r.metadata ? JSON.parse(r.metadata) : undefined,
     }));
   }
 
@@ -369,7 +420,7 @@ class KnowledgeAcquisitionLayer {
     const stmt = this.sqlite.prepare(`
       SELECT *
       FROM lessons
-      ${lessonType ? 'WHERE lesson_type = ?' : ''}
+      ${lessonType ? "WHERE lesson_type = ?" : ""}
       ORDER BY confidence DESC, learned_at DESC
     `);
 
@@ -386,7 +437,7 @@ class KnowledgeAcquisitionLayer {
       confidence: r.confidence,
       learnedAt: new Date(r.learned_at),
       appliedCount: r.applied_count,
-      metadata: r.metadata ? JSON.parse(r.metadata) : undefined
+      metadata: r.metadata ? JSON.parse(r.metadata) : undefined,
     }));
   }
 
@@ -394,7 +445,9 @@ class KnowledgeAcquisitionLayer {
    * Mark lesson as applied (increment counter)
    */
   markLessonApplied(lessonId: string): void {
-    const stmt = this.sqlite.prepare('UPDATE lessons SET applied_count = applied_count + 1 WHERE lesson_id = ?');
+    const stmt = this.sqlite.prepare(
+      "UPDATE lessons SET applied_count = applied_count + 1 WHERE lesson_id = ?"
+    );
     stmt.run(lessonId);
   }
 
@@ -402,14 +455,32 @@ class KnowledgeAcquisitionLayer {
    * Get knowledge base statistics
    */
   getStats(): KnowledgeStats {
-    const totalConcepts = this.sqlite.prepare('SELECT COUNT(*) as count FROM knowledge').get() as { count: number };
-    const totalLessons = this.sqlite.prepare('SELECT COUNT(*) as count FROM lessons').get() as { count: number };
-    const totalEmbeddings = this.sqlite.prepare('SELECT COUNT(*) as count FROM embeddings').get() as { count: number };
-    const totalSearches = this.sqlite.prepare('SELECT COUNT(*) as count FROM search_history').get() as { count: number };
-    const avgConfidence = this.sqlite.prepare('SELECT AVG(confidence) as avg FROM knowledge').get() as { avg: number };
+    const totalConcepts = this.sqlite
+      .prepare("SELECT COUNT(*) as count FROM knowledge")
+      .get() as { count: number };
+    const totalLessons = this.sqlite
+      .prepare("SELECT COUNT(*) as count FROM lessons")
+      .get() as { count: number };
+    const totalEmbeddings = this.sqlite
+      .prepare("SELECT COUNT(*) as count FROM embeddings")
+      .get() as { count: number };
+    const totalSearches = this.sqlite
+      .prepare("SELECT COUNT(*) as count FROM search_history")
+      .get() as { count: number };
+    const avgConfidence = this.sqlite
+      .prepare("SELECT AVG(confidence) as avg FROM knowledge")
+      .get() as { avg: number };
 
-    const conceptsByType = this.sqlite.prepare('SELECT concept_type, COUNT(*) as count FROM knowledge GROUP BY concept_type').all() as any[];
-    const lessonsByType = this.sqlite.prepare('SELECT lesson_type, COUNT(*) as count FROM lessons GROUP BY lesson_type').all() as any[];
+    const conceptsByType = this.sqlite
+      .prepare(
+        "SELECT concept_type, COUNT(*) as count FROM knowledge GROUP BY concept_type"
+      )
+      .all() as any[];
+    const lessonsByType = this.sqlite
+      .prepare(
+        "SELECT lesson_type, COUNT(*) as count FROM lessons GROUP BY lesson_type"
+      )
+      .all() as any[];
 
     return {
       totalConcepts: totalConcepts.count,
@@ -417,8 +488,12 @@ class KnowledgeAcquisitionLayer {
       totalEmbeddings: totalEmbeddings.count,
       totalSearches: totalSearches.count,
       avgConfidence: avgConfidence.avg || 0,
-      conceptsByType: Object.fromEntries(conceptsByType.map(r => [r.concept_type, r.count])),
-      lessonsByType: Object.fromEntries(lessonsByType.map(r => [r.lesson_type, r.count]))
+      conceptsByType: Object.fromEntries(
+        conceptsByType.map(r => [r.concept_type, r.count])
+      ),
+      lessonsByType: Object.fromEntries(
+        lessonsByType.map(r => [r.lesson_type, r.count])
+      ),
     };
   }
 
@@ -426,7 +501,9 @@ class KnowledgeAcquisitionLayer {
    * Check for duplicate (similarity ≥0.85)
    */
   private async _checkDuplicate(embedding: number[]): Promise<boolean> {
-    const allEmbeddings = this.sqlite.prepare('SELECT embedding_json FROM embeddings').all() as any[];
+    const allEmbeddings = this.sqlite
+      .prepare("SELECT embedding_json FROM embeddings")
+      .all() as any[];
 
     for (const row of allEmbeddings) {
       const existingEmbedding = JSON.parse(row.embedding_json);
@@ -455,21 +532,30 @@ class KnowledgeAcquisitionLayer {
     if (!db) return;
 
     // Insert into knowledge table
-    await db.insert(knowledgeTable).values({
-      title: conceptName,
-      content: description,
-      category: conceptType,
-      source: source || 'Knowledge Acquisition Layer'
-    }).onDuplicateKeyUpdate({
-      set: {
+    await db
+      .insert(knowledgeTable)
+      .values({
+        title: conceptName,
         content: description,
         category: conceptType,
-        source: source || 'Knowledge Acquisition Layer'
-      }
-    });
+        source: source || "Knowledge Acquisition Layer",
+      })
+      .onDuplicateKeyUpdate({
+        set: {
+          content: description,
+          category: conceptType,
+          source: source || "Knowledge Acquisition Layer",
+        },
+      });
 
     // Get knowledge ID
-    const knowledgeId = (await db.select().from(knowledgeTable).where(eq(knowledgeTable.title, conceptName)).limit(1))[0]?.id;
+    const knowledgeId = (
+      await db
+        .select()
+        .from(knowledgeTable)
+        .where(eq(knowledgeTable.title, conceptName))
+        .limit(1)
+    )[0]?.id;
 
     // Note: Embeddings are stored in SQLite only (not TiDB)
     // TiDB knowledge table doesn't have embeddings column
@@ -484,14 +570,16 @@ class KnowledgeAcquisitionLayer {
     const tmpPath = `/tmp/${filename}`;
 
     await writeFile(tmpPath, content);
-    await execAsync(`rclone copy ${tmpPath} manus_google_drive:MOTHER-Knowledge/ --config /home/ubuntu/.gdrive-rclone.ini`);
+    await execAsync(
+      `rclone copy ${tmpPath} manus_google_drive:MOTHER-Knowledge/ --config /home/ubuntu/.gdrive-rclone.ini`
+    );
   }
 
   /**
    * Commit to GitHub (version control)
    */
   private async _commitToGitHub(concept: Partial<Concept>): Promise<void> {
-    const repoPath = '/home/ubuntu/mother-knowledge';
+    const repoPath = "/home/ubuntu/mother-knowledge";
     const filename = `knowledge/${concept.conceptId}.md`;
     const content = `# ${concept.conceptName}\n\n${concept.description}`;
 
@@ -502,7 +590,9 @@ class KnowledgeAcquisitionLayer {
     await writeFile(`${repoPath}/${filename}`, content);
 
     // Git add, commit, push
-    await execAsync(`cd ${repoPath} && git add ${filename} && git commit -m "Add knowledge: ${concept.conceptName}" && git push`);
+    await execAsync(
+      `cd ${repoPath} && git add ${filename} && git commit -m "Add knowledge: ${concept.conceptName}" && git push`
+    );
   }
 
   /**

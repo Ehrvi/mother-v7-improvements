@@ -22,18 +22,18 @@ export const analyticsRouter = router({
     )
     .query(async ({ ctx, input }) => {
       // Check if user is admin
-      if (ctx.user.role !== 'admin') {
+      if (ctx.user.role !== "admin") {
         throw new TRPCError({
-          code: 'FORBIDDEN',
-          message: 'Admin access required for analytics',
+          code: "FORBIDDEN",
+          message: "Admin access required for analytics",
         });
       }
 
       const pool = getPool();
       if (!pool) {
         throw new TRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: 'Database connection not available',
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database connection not available",
         });
       }
 
@@ -75,7 +75,7 @@ export const analyticsRouter = router({
         // Calculate tier percentages
         const totalQueries = Number(costQuality.totalQueries) || 0;
         const tierCounts: Record<string, number> = {};
-        
+
         tierRows.forEach((row: any) => {
           tierCounts[row.tier] = Number(row.count);
         });
@@ -85,24 +85,33 @@ export const analyticsRouter = router({
         // gpt-4o → direct (medium cost, medium queries)
         // gpt-4 → parallel (most expensive, fewest queries)
         const tierDistribution = {
-          guardian: totalQueries > 0 ? ((tierCounts['gpt-4o-mini'] || 0) / totalQueries) * 100 : 0,
-          direct: totalQueries > 0 ? ((tierCounts['gpt-4o'] || 0) / totalQueries) * 100 : 0,
-          parallel: totalQueries > 0 ? ((tierCounts['gpt-4'] || 0) / totalQueries) * 100 : 0,
+          guardian:
+            totalQueries > 0
+              ? ((tierCounts["gpt-4o-mini"] || 0) / totalQueries) * 100
+              : 0,
+          direct:
+            totalQueries > 0
+              ? ((tierCounts["gpt-4o"] || 0) / totalQueries) * 100
+              : 0,
+          parallel:
+            totalQueries > 0
+              ? ((tierCounts["gpt-4"] || 0) / totalQueries) * 100
+              : 0,
         };
 
         // Calculate cache hit rate
-        const cacheHitRate = totalQueries > 0 
-          ? (Number(costQuality.cacheHits) / totalQueries) * 100 
-          : 0;
+        const cacheHitRate =
+          totalQueries > 0
+            ? (Number(costQuality.cacheHits) / totalQueries) * 100
+            : 0;
 
         // Calculate cost reduction
         // Baseline: $0.0145 per query (GPT-4 average)
         // Actual: avgCost from database
         const baselineCost = 0.0145;
         const avgCost = Number(costQuality.avgCost) || 0;
-        const avgCostReduction = avgCost > 0 
-          ? ((baselineCost - avgCost) / baselineCost) * 100 
-          : 0;
+        const avgCostReduction =
+          avgCost > 0 ? ((baselineCost - avgCost) / baselineCost) * 100 : 0;
 
         return {
           totalQueries,
@@ -117,12 +126,12 @@ export const analyticsRouter = router({
           },
         };
       } catch (error: any) {
-        console.error('[Analytics] Error fetching summary:', error);
-        
+        console.error("[Analytics] Error fetching summary:", error);
+
         // Return empty data instead of throwing error (graceful degradation)
         const fallbackStartDate = new Date();
         fallbackStartDate.setDate(fallbackStartDate.getDate() - input.days);
-        
+
         return {
           totalQueries: 0,
           avgCost: 0,

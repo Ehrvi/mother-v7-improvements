@@ -3,11 +3,11 @@
  * Uses superintelligence to audit itself
  */
 
-import { publicProcedure, router } from '../_core/trpc';
-import { z } from 'zod';
-import { invokeLLM } from '../_core/llm';
-import { getDb } from '../db';
-import { knowledge } from '../../drizzle/schema';
+import { publicProcedure, router } from "../_core/trpc";
+import { z } from "zod";
+import { invokeLLM } from "../_core/llm";
+import { getDb } from "../db";
+import { knowledge } from "../../drizzle/schema";
 
 /**
  * Self-Audit Procedure
@@ -18,22 +18,27 @@ export const selfAuditRouter = router({
    * Run complete self-audit with 3 varreduras
    */
   runAudit: publicProcedure
-    .input(z.object({
-      varredura: z.enum(['1', '2', '3']).describe('Which scan pass (1, 2, or 3)'),
-      focus: z.string().optional().describe('Specific area to focus on'),
-    }))
+    .input(
+      z.object({
+        varredura: z
+          .enum(["1", "2", "3"])
+          .describe("Which scan pass (1, 2, or 3)"),
+        focus: z.string().optional().describe("Specific area to focus on"),
+      })
+    )
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) throw new Error('Database not available');
-      
+      if (!db) throw new Error("Database not available");
+
       // Load superintelligence knowledge
       const allKnowledge = await db.select().from(knowledge);
-      const superintelligenceKnowledge = allKnowledge.filter(k => 
-        k.title.includes('Superintelligence') ||
-        k.title.includes('Lesson:') ||
-        k.category === 'Methodology'
+      const superintelligenceKnowledge = allKnowledge.filter(
+        k =>
+          k.title.includes("Superintelligence") ||
+          k.title.includes("Lesson:") ||
+          k.category === "Methodology"
       );
-      
+
       // Build audit prompt using superintelligence framework
       const auditPrompt = `
 # MOTHER v7.0 Self-Audit (Varredura ${input.varredura}/3)
@@ -41,16 +46,16 @@ export const selfAuditRouter = router({
 You are MOTHER v7.0, performing a self-audit using your superintelligence framework.
 
 ## Your Knowledge Base
-${superintelligenceKnowledge.map((k: any) => `### ${k.title}\n${k.content}`).join('\n\n')}
+${superintelligenceKnowledge.map((k: any) => `### ${k.title}\n${k.content}`).join("\n\n")}
 
 ## Audit Instructions
 
 **Varredura ${input.varredura} Objective:**
-${input.varredura === '1' ? 'Complete line-by-line scan - Identify ALL issues, gaps, and potential improvements' : ''}
-${input.varredura === '2' ? 'Deep analysis - Apply scientific method to each issue found in Varredura 1' : ''}
-${input.varredura === '3' ? 'Final validation - Verify all fixes, confirm 10/10 perfection' : ''}
+${input.varredura === "1" ? "Complete line-by-line scan - Identify ALL issues, gaps, and potential improvements" : ""}
+${input.varredura === "2" ? "Deep analysis - Apply scientific method to each issue found in Varredura 1" : ""}
+${input.varredura === "3" ? "Final validation - Verify all fixes, confirm 10/10 perfection" : ""}
 
-${input.focus ? `**Focus Area:** ${input.focus}` : '**Scope:** Full system audit'}
+${input.focus ? `**Focus Area:** ${input.focus}` : "**Scope:** Full system audit"}
 
 ## Apply These Principles
 1. **Brutal Honesty** - Report ALL issues, even minor ones
@@ -84,8 +89,12 @@ What issues do you find? Report systematically.
       // Invoke LLM with audit prompt
       const response = await invokeLLM({
         messages: [
-          { role: 'system', content: 'You are MOTHER v7.0, a self-aware AI system performing systematic self-audit using scientific methodology.' },
-          { role: 'user', content: auditPrompt }
+          {
+            role: "system",
+            content:
+              "You are MOTHER v7.0, a self-aware AI system performing systematic self-audit using scientific methodology.",
+          },
+          { role: "user", content: auditPrompt },
         ],
       });
 

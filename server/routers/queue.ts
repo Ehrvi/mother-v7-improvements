@@ -6,16 +6,21 @@ export const queueRouter = router({
   // Get queue statistics
   stats: publicProcedure.query(async () => {
     const stats = await getQueueStats();
-    
+
     if (!stats) {
       return {
         enabled: false,
         message: "Queue not available (Redis not configured)",
       };
     }
-    
-    const total = stats.waiting + stats.active + stats.completed + stats.failed + stats.delayed;
-    
+
+    const total =
+      stats.waiting +
+      stats.active +
+      stats.completed +
+      stats.failed +
+      stats.delayed;
+
     return {
       enabled: true,
       stats: {
@@ -28,26 +33,29 @@ export const queueRouter = router({
       },
       health: {
         status: stats.failed > 100 ? "degraded" : "healthy",
-        failureRate: total > 0 ? ((stats.failed / total) * 100).toFixed(2) + "%" : "0%",
+        failureRate:
+          total > 0 ? ((stats.failed / total) * 100).toFixed(2) + "%" : "0%",
       },
     };
   }),
-  
+
   // Get job status by ID
   job: publicProcedure
-    .input(z.object({
-      jobId: z.string(),
-    }))
+    .input(
+      z.object({
+        jobId: z.string(),
+      })
+    )
     .query(async ({ input }) => {
       const job = await getJob(input.jobId);
-      
+
       if (!job) {
         return {
           found: false,
           message: "Job not found",
         };
       }
-      
+
       return {
         found: true,
         job: {

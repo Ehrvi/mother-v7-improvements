@@ -7,7 +7,7 @@ import { SignJWT, jwtVerify } from "jose";
 import type { User } from "../../drizzle/schema";
 import * as db from "../db";
 import { ENV } from "./env";
-import { logger } from '../lib/logger';
+import { logger } from "../lib/logger";
 import type {
   ExchangeTokenRequest,
   ExchangeTokenResponse,

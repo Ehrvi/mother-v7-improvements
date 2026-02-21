@@ -1,4 +1,4 @@
-import { logger } from '../lib/logger';
+import { logger } from "../lib/logger";
 /**
  * ReAct (Reasoning and Acting) Implementation
  * Based on MOTHER superintelligence guidance - Iteration 12
@@ -20,7 +20,7 @@ export const toolRegistry: Tool[] = [
   {
     name: "calculate",
     description: "Performs arithmetic operations on mathematical expressions",
-    handler: async (input) => {
+    handler: async input => {
       try {
         // Safe evaluation using Function constructor (better than eval)
         const result = new Function(`return ${input.expression}`)();
@@ -33,7 +33,7 @@ export const toolRegistry: Tool[] = [
   {
     name: "search_knowledge",
     description: "Searches the knowledge base for relevant information",
-    handler: async (input) => {
+    handler: async input => {
       // Import knowledge search function
       const { queryVectorSearch } = await import("./knowledge");
       const results = await queryVectorSearch(input.query);
@@ -43,7 +43,7 @@ export const toolRegistry: Tool[] = [
   {
     name: "analyze_quality",
     description: "Analyzes the quality of a given text response",
-    handler: async (input) => {
+    handler: async input => {
       const { validateQuality } = await import("./guardian");
       const quality = await validateQuality(input.query, input.response, 1);
       return { success: true, quality };
@@ -57,7 +57,7 @@ export const toolRegistry: Tool[] = [
  */
 export function parseAction(thought: string): Action | null {
   // Try multiple formats
-  
+
   // Format 1: action: toolName, params: {...}
   const match1 = thought.match(/action:\s*(\w+),\s*params:\s*\{([^}]*)\}/i);
   if (match1) {
@@ -92,8 +92,8 @@ export function parseAction(thought: string): Action | null {
       const params: any = {};
       const paramStr = match3[2];
       const pairs = paramStr.split(",");
-      pairs.forEach((pair) => {
-        const [key, value] = pair.split("=").map((s) => s.trim());
+      pairs.forEach(pair => {
+        const [key, value] = pair.split("=").map(s => s.trim());
         if (key && value) {
           // Remove quotes if present
           params[key] = value.replace(/['"]/g, "");
@@ -115,16 +115,19 @@ export function parseAction(thought: string): Action | null {
  * Execute tool action and return observation
  */
 export async function executeAction(action: Action): Promise<string> {
-  const tool = toolRegistry.find((t) => t.name === action.toolName);
+  const tool = toolRegistry.find(t => t.name === action.toolName);
 
   if (!tool) {
-    return `ERROR: Tool '${action.toolName}' not found in registry. Available tools: ${toolRegistry.map((t) => t.name).join(", ")}`;
+    return `ERROR: Tool '${action.toolName}' not found in registry. Available tools: ${toolRegistry.map(t => t.name).join(", ")}`;
   }
 
   try {
-    logger.info(`[ReAct] Executing tool: ${action.toolName}`, action.parameters);
+    logger.info(
+      `[ReAct] Executing tool: ${action.toolName}`,
+      action.parameters
+    );
     const result = await tool.handler(action.parameters);
-    
+
     if (result.success === false) {
       return `ERROR: ${result.error}`;
     }
@@ -170,8 +173,10 @@ export function extractThoughts(response: string): string[] {
   if (thinkingMatch) {
     const thinkingContent = thinkingMatch[1];
     // Split by numbered lines (1., 2., etc.)
-    const numberedThoughts = thinkingContent.split(/\d+\.\s+/).filter((t) => t.trim());
-    thoughts.push(...numberedThoughts.map((t) => t.trim()));
+    const numberedThoughts = thinkingContent
+      .split(/\d+\.\s+/)
+      .filter(t => t.trim());
+    thoughts.push(...numberedThoughts.map(t => t.trim()));
   }
 
   // Also look for explicit [THOUGHT] or [ACTION] markers

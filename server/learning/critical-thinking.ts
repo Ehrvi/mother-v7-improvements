@@ -1,8 +1,8 @@
 /**
  * Critical Thinking Central - MOTHER v13 8-Phase Meta-Learning Process
- * 
+ *
  * Purpose: Enable MOTHER to improve response quality through self-reflection and meta-learning
- * 
+ *
  * 8-Phase Process:
  * 1. Respond WITHOUT GOD knowledge (baseline)
  * 2. Self-evaluate quality (identify gaps)
@@ -12,7 +12,7 @@
  * 6. Understand quality checking (Guardian analysis)
  * 7. Self-understand nanoscale (system introspection)
  * 8. Document as Critical Thinking Central
- * 
+ *
  * Based on: mother-v13-learning/docs/critical_thinking/CRITICAL_THINKING_CENTRAL.md
  */
 
@@ -20,7 +20,7 @@ import { invokeLLM } from "../_core/llm";
 import { getDb } from "../db";
 import { knowledge } from "../../drizzle/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
-import { logger } from '../lib/logger';
+import { logger } from "../lib/logger";
 
 export interface CriticalThinkingConfig {
   enabled: boolean;
@@ -58,7 +58,10 @@ export class CriticalThinkingCentral {
   /**
    * Execute Critical Thinking Central 8-phase process
    */
-  async execute(query: string, complexityScore: number): Promise<CriticalThinkingResult | null> {
+  async execute(
+    query: string,
+    complexityScore: number
+  ): Promise<CriticalThinkingResult | null> {
     if (!this.config.enabled) {
       return null; // CT disabled
     }
@@ -72,7 +75,10 @@ export class CriticalThinkingCentral {
       const baselineResponse = await this.phase1_baseline(query);
 
       // Phase 2: Self-evaluate quality (identify gaps)
-      const { quality: baselineQuality, gaps } = await this.phase2_evaluate(query, baselineResponse);
+      const { quality: baselineQuality, gaps } = await this.phase2_evaluate(
+        query,
+        baselineResponse
+      );
 
       if (baselineQuality >= this.config.qualityThreshold) {
         return null; // Quality already good enough, skip CT
@@ -82,17 +88,22 @@ export class CriticalThinkingCentral {
       const godKnowledge = await this.phase3_acquire(query, gaps);
 
       // Phase 4: Respond WITH GOD knowledge (improved)
-      const improvedResponse = await this.phase4_improve(query, baselineResponse, godKnowledge);
+      const improvedResponse = await this.phase4_improve(
+        query,
+        baselineResponse,
+        godKnowledge
+      );
 
       // Phase 5: Compare objectively (metrics)
-      const { quality: improvedQuality, improvement } = await this.phase5_compare(
+      const { quality: improvedQuality, improvement } =
+        await this.phase5_compare(query, baselineResponse, improvedResponse);
+
+      // Phase 6: Understand quality checking (Guardian analysis)
+      const guardianInsights = await this.phase6_understand(
         query,
         baselineResponse,
         improvedResponse
       );
-
-      // Phase 6: Understand quality checking (Guardian analysis)
-      const guardianInsights = await this.phase6_understand(query, baselineResponse, improvedResponse);
 
       // Phase 7: Self-understand nanoscale (system introspection)
       const systemIntrospection = await this.phase7_introspect(
@@ -151,13 +162,18 @@ export class CriticalThinkingCentral {
       ],
     });
 
-    return typeof response.choices[0].message.content === "string" ? response.choices[0].message.content : "";
+    return typeof response.choices[0].message.content === "string"
+      ? response.choices[0].message.content
+      : "";
   }
 
   /**
    * Phase 2: Self-evaluate quality (identify gaps)
    */
-  private async phase2_evaluate(query: string, response: string): Promise<{ quality: number; gaps: string[] }> {
+  private async phase2_evaluate(
+    query: string,
+    response: string
+  ): Promise<{ quality: number; gaps: string[] }> {
     const evaluation = await invokeLLM({
       messages: [
         {
@@ -204,7 +220,11 @@ Quality criteria:
       },
     });
 
-    const result = JSON.parse(typeof evaluation.choices[0].message.content === "string" ? evaluation.choices[0].message.content : "{}");
+    const result = JSON.parse(
+      typeof evaluation.choices[0].message.content === "string"
+        ? evaluation.choices[0].message.content
+        : "{}"
+    );
     return {
       quality: result.quality || 0,
       gaps: result.gaps || [],
@@ -214,27 +234,30 @@ Quality criteria:
   /**
    * Phase 3: Acquire GOD knowledge (deep research)
    */
-  private async phase3_acquire(query: string, gaps: string[]): Promise<string[]> {
+  private async phase3_acquire(
+    query: string,
+    gaps: string[]
+  ): Promise<string[]> {
     const db = await getDb();
     const godKnowledge: string[] = [];
 
     // Search knowledge base for relevant entries
     if (!db) {
-      logger.warn('[Critical Thinking] Database not available');
+      logger.warn("[Critical Thinking] Database not available");
       // Continue with LLM-only research
     } else {
       try {
         const relevantKnowledge = await db
           .select()
-        .from(knowledge)
-        .where(sql`MATCH(content) AGAINST(${query} IN NATURAL LANGUAGE MODE)`)
-        .limit(5);
+          .from(knowledge)
+          .where(sql`MATCH(content) AGAINST(${query} IN NATURAL LANGUAGE MODE)`)
+          .limit(5);
 
-      for (const entry of relevantKnowledge) {
-        godKnowledge.push(entry.content);
-      }
-    } catch (error) {
-      logger.warn("[Critical Thinking] Knowledge search failed:", error);
+        for (const entry of relevantKnowledge) {
+          godKnowledge.push(entry.content);
+        }
+      } catch (error) {
+        logger.warn("[Critical Thinking] Knowledge search failed:", error);
       }
     }
 
@@ -277,7 +300,11 @@ Return JSON:
         },
       });
 
-      const result = JSON.parse(typeof research.choices[0].message.content === "string" ? research.choices[0].message.content : "{}");
+      const result = JSON.parse(
+        typeof research.choices[0].message.content === "string"
+          ? research.choices[0].message.content
+          : "{}"
+      );
       godKnowledge.push(...(result.knowledge || []));
     }
 
@@ -287,7 +314,11 @@ Return JSON:
   /**
    * Phase 4: Respond WITH GOD knowledge (improved)
    */
-  private async phase4_improve(query: string, baselineResponse: string, godKnowledge: string[]): Promise<string> {
+  private async phase4_improve(
+    query: string,
+    baselineResponse: string,
+    godKnowledge: string[]
+  ): Promise<string> {
     const response = await invokeLLM({
       messages: [
         {
@@ -309,7 +340,9 @@ Provide an improved response that incorporates this deep knowledge.`,
       ],
     });
 
-    return typeof response.choices[0].message.content === "string" ? response.choices[0].message.content : "";
+    return typeof response.choices[0].message.content === "string"
+      ? response.choices[0].message.content
+      : "";
   }
 
   /**
@@ -357,7 +390,11 @@ Return JSON:
       },
     });
 
-    const result = JSON.parse(typeof comparison.choices[0].message.content === "string" ? comparison.choices[0].message.content : "{}");
+    const result = JSON.parse(
+      typeof comparison.choices[0].message.content === "string"
+        ? comparison.choices[0].message.content
+        : "{}"
+    );
     return {
       quality: result.improved_quality || 0,
       improvement: result.improvement || 0,
@@ -408,7 +445,11 @@ Return JSON:
       },
     });
 
-    const result = JSON.parse(typeof analysis.choices[0].message.content === "string" ? analysis.choices[0].message.content : "{}");
+    const result = JSON.parse(
+      typeof analysis.choices[0].message.content === "string"
+        ? analysis.choices[0].message.content
+        : "{}"
+    );
     return result.insights || [];
   }
 
@@ -447,7 +488,9 @@ GOD Knowledge: ${godKnowledge.length} facts acquired`,
       ],
     });
 
-    return typeof introspection.choices[0].message.content === "string" ? introspection.choices[0].message.content : "";
+    return typeof introspection.choices[0].message.content === "string"
+      ? introspection.choices[0].message.content
+      : "";
   }
 
   /**

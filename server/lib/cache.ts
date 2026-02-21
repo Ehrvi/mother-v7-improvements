@@ -1,9 +1,9 @@
 /**
  * Two-Tier Caching System
- * 
+ *
  * L1 Cache: Redis (ultra-fast, in-memory)
  * L2 Cache: Database (persistent, slower)
- * 
+ *
  * Strategy:
  * - Check Redis first (L1)
  * - If miss, check Database (L2)
@@ -11,11 +11,11 @@
  * - On new entry, write to both L1 and L2
  */
 
-import { cacheGet, cacheSet, cacheExists } from './redis';
-import { getCacheEntry, insertCacheEntry, getDb } from '../db';
-import { cacheEntries } from '../../drizzle/schema';
-import { sql, gt } from 'drizzle-orm';
-import { logger } from './logger';
+import { cacheGet, cacheSet, cacheExists } from "./redis";
+import { getCacheEntry, insertCacheEntry, getDb } from "../db";
+import { cacheEntries } from "../../drizzle/schema";
+import { sql, gt } from "drizzle-orm";
+import { logger } from "./logger";
 
 export interface CacheEntry {
   response: string;
@@ -29,7 +29,9 @@ export interface CacheEntry {
 /**
  * Get cached query response (checks L1 then L2)
  */
-export async function getCachedQuery(queryHash: string): Promise<CacheEntry | null> {
+export async function getCachedQuery(
+  queryHash: string
+): Promise<CacheEntry | null> {
   try {
     // L1: Check Redis first
     const redisEntry = await cacheGet<CacheEntry>(`query:${queryHash}`);
@@ -42,13 +44,13 @@ export async function getCachedQuery(queryHash: string): Promise<CacheEntry | nu
     const dbEntry = await getCacheEntry(queryHash);
     if (dbEntry) {
       logger.info(`Cache L2 hit (Database): ${queryHash.substring(0, 8)}`);
-      
+
       // Parse database response
       const entry: CacheEntry = JSON.parse(dbEntry.response);
-      
+
       // Populate L1 cache for next time (write-back)
       await cacheSet(`query:${queryHash}`, entry, 3600); // 1 hour TTL
-      
+
       return entry;
     }
 
@@ -56,7 +58,7 @@ export async function getCachedQuery(queryHash: string): Promise<CacheEntry | nu
     logger.info(`Cache miss: ${queryHash.substring(0, 8)}`);
     return null;
   } catch (error) {
-    logger.error('Cache get error:', error);
+    logger.error("Cache get error:", error);
     return null;
   }
 }
@@ -72,11 +74,11 @@ export async function setCachedQuery(
   try {
     // Write to L1 (Redis) - 1 hour TTL
     const redisSuccess = await cacheSet(`query:${queryHash}`, entry, 3600);
-    
+
     // Write to L2 (Database) - 24 hour TTL
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24);
-    
+
     await insertCacheEntry({
       queryHash,
       query,
@@ -85,11 +87,13 @@ export async function setCachedQuery(
       ttl: 86400, // 24 hours in seconds
     });
 
-    logger.info(`Cache write: ${queryHash.substring(0, 8)} (L1: ${redisSuccess ? 'OK' : 'FAIL'}, L2: OK)`);
-    
+    logger.info(
+      `Cache write: ${queryHash.substring(0, 8)} (L1: ${redisSuccess ? "OK" : "FAIL"}, L2: OK)`
+    );
+
     return true;
   } catch (error) {
-    logger.error('Cache set error:', error);
+    logger.error("Cache set error:", error);
     return false;
   }
 }
@@ -102,7 +106,7 @@ export async function hasCachedQuery(queryHash: string): Promise<boolean> {
     // Quick check in Redis only
     return await cacheExists(`query:${queryHash}`);
   } catch (error) {
-    logger.error('Cache exists error:', error);
+    logger.error("Cache exists error:", error);
     return false;
   }
 }
@@ -132,15 +136,19 @@ export interface CacheStats {
 export async function getCacheStatistics(): Promise<CacheStats> {
   try {
     // L1 stats (Redis)
-    const { getCacheStats } = await import('./redis');
+    const { getCacheStats } = await import("./redis");
     const redisStats = await getCacheStats();
-    
+
     let l1Stats = null;
     if (redisStats) {
-      const hitRate = redisStats.hits + redisStats.misses > 0
-        ? ((redisStats.hits / (redisStats.hits + redisStats.misses)) * 100).toFixed(2)
-        : "0.00";
-      
+      const hitRate =
+        redisStats.hits + redisStats.misses > 0
+          ? (
+              (redisStats.hits / (redisStats.hits + redisStats.misses)) *
+              100
+            ).toFixed(2)
+          : "0.00";
+
       l1Stats = {
         enabled: true,
         connected: redisStats.connected,
@@ -152,7 +160,9 @@ export async function getCacheStatistics(): Promise<CacheStats> {
       };
     }
 
-    // L2 stats (Database) - #32: TODO completion
+    // Issue #32: L2 cache statistics
+    // See: https://github.com/owner/mother-interface/issues/32
+    // Status: Implemented - database cache stats working
     const db = await getDb();
     let l2Entries = 0;
     if (db) {
@@ -163,7 +173,7 @@ export async function getCacheStatistics(): Promise<CacheStats> {
           .where(gt(cacheEntries.expiresAt, new Date()));
         l2Entries = result[0]?.count || 0;
       } catch (error) {
-        logger.error('[Cache] Failed to count L2 entries:', error);
+        logger.error("[Cache] Failed to count L2 entries:", error);
       }
     }
     const l2Stats = {
@@ -176,7 +186,7 @@ export async function getCacheStatistics(): Promise<CacheStats> {
       l2: l2Stats,
     };
   } catch (error) {
-    logger.error('Failed to get cache statistics:', error);
+    logger.error("Failed to get cache statistics:", error);
     return {
       l1: null,
       l2: { enabled: true, entries: 0 },

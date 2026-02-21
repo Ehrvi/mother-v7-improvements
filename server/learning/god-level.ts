@@ -1,17 +1,17 @@
 /**
  * GOD-Level Learning System
- * 
+ *
  * Based on MOTHER v13 learning foundations:
  * - Automatic knowledge acquisition from high-quality interactions
  * - Quality filtering (only learn from 90+ score queries)
  * - Intelligent deduplication (prevent redundant entries)
  * - Auto-categorization (categorize new knowledge)
  * - Embedding generation (OpenAI embeddings for semantic search)
- * 
+ *
  * References:
  * - /home/ubuntu/mother-v13-learning/docs/knowledge_system/GOD_LEVEL_KNOWLEDGE_ACQUIRED.md
  * - /home/ubuntu/mother-v13-knowledge/LESSONS_LEARNED.md (Lesson 2: Documentation ≠ Learning Without Persistence)
- * 
+ *
  * @module server/learning/god-level
  */
 
@@ -19,7 +19,7 @@ import { getDb } from "../db";
 import { knowledge } from "../../drizzle/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
-import { logger } from '../lib/logger';
+import { logger } from "../lib/logger";
 // QueryResult type will be defined inline
 interface QueryResult {
   query: string;
@@ -36,13 +36,13 @@ interface QueryResult {
 export const GOD_LEVEL_CONFIG = {
   /** Minimum quality score to trigger learning (0-100) */
   MIN_QUALITY_SCORE: 85,
-  
+
   /** Maximum entries to check for deduplication */
   MAX_DEDUP_CHECK: 100,
-  
+
   /** Similarity threshold for deduplication (0-1) */
   SIMILARITY_THRESHOLD: 0.85,
-  
+
   /** Categories for auto-categorization */
   CATEGORIES: [
     "cybersecurity",
@@ -52,11 +52,11 @@ export const GOD_LEVEL_CONFIG = {
     "financial_management",
     "technical",
     "business",
-    "other"
+    "other",
   ] as const,
 };
 
-export type KnowledgeCategory = typeof GOD_LEVEL_CONFIG.CATEGORIES[number];
+export type KnowledgeCategory = (typeof GOD_LEVEL_CONFIG.CATEGORIES)[number];
 
 /**
  * Learning Entry to be saved
@@ -72,38 +72,49 @@ export interface LearningEntry {
 
 /**
  * GOD-Level Learning System
- * 
+ *
  * Automatically learns from high-quality interactions without manual intervention.
  */
 export class GODLevelLearning {
   /**
    * Learn from a query result if it meets quality criteria
-   * 
+   *
    * @param result - Query result from MOTHER core
    * @returns true if learning occurred, false otherwise
    */
   static async learnFromQuery(result: QueryResult): Promise<boolean> {
-    logger.info(`[GOD-Level DEBUG] learnFromQuery called with quality: ${result.quality.qualityScore}`);
+    logger.info(
+      `[GOD-Level DEBUG] learnFromQuery called with quality: ${result.quality.qualityScore}`
+    );
     try {
       // Step 1: Quality filtering (only learn from 90+ score)
-      logger.info(`[GOD-Level DEBUG] Quality check: ${result.quality.qualityScore} vs threshold: ${GOD_LEVEL_CONFIG.MIN_QUALITY_SCORE}`);
+      logger.info(
+        `[GOD-Level DEBUG] Quality check: ${result.quality.qualityScore} vs threshold: ${GOD_LEVEL_CONFIG.MIN_QUALITY_SCORE}`
+      );
       if (result.quality.qualityScore < GOD_LEVEL_CONFIG.MIN_QUALITY_SCORE) {
-        logger.info(`[GOD-Level] Skipping learning: quality ${result.quality.qualityScore} < ${GOD_LEVEL_CONFIG.MIN_QUALITY_SCORE}`);
+        logger.info(
+          `[GOD-Level] Skipping learning: quality ${result.quality.qualityScore} < ${GOD_LEVEL_CONFIG.MIN_QUALITY_SCORE}`
+        );
         return false;
       }
 
       // Step 2: Check for duplicates (prevent redundant entries)
-      logger.info('[GOD-Level DEBUG] Checking for duplicates...');
+      logger.info("[GOD-Level DEBUG] Checking for duplicates...");
       const isDuplicate = await this.checkDuplicate(result.response);
       logger.info(`[GOD-Level DEBUG] Duplicate check result: ${isDuplicate}`);
       if (isDuplicate) {
-        logger.info(`[GOD-Level] Skipping learning: duplicate content detected`);
+        logger.info(
+          `[GOD-Level] Skipping learning: duplicate content detected`
+        );
         return false;
       }
 
       // Step 3: Auto-categorize the knowledge
-      logger.info('[GOD-Level DEBUG] Categorizing knowledge...');
-      const category = await this.categorizeKnowledge(result.query, result.response);
+      logger.info("[GOD-Level DEBUG] Categorizing knowledge...");
+      const category = await this.categorizeKnowledge(
+        result.query,
+        result.response
+      );
       logger.info(`[GOD-Level DEBUG] Category: ${category}`);
 
       // Step 4: Generate embedding for semantic search
@@ -124,14 +135,16 @@ export class GODLevelLearning {
         },
       };
 
-      logger.info('[GOD-Level DEBUG] Saving knowledge to database...');
+      logger.info("[GOD-Level DEBUG] Saving knowledge to database...");
       await this.saveKnowledge(entry, embedding);
-      logger.info('[GOD-Level DEBUG] ✅ Knowledge saved successfully!');
+      logger.info("[GOD-Level DEBUG] ✅ Knowledge saved successfully!");
 
-      logger.info(`[GOD-Level] ✅ Learned from query: category=${category}, quality=${result.quality.qualityScore}`);
+      logger.info(
+        `[GOD-Level] ✅ Learned from query: category=${category}, quality=${result.quality.qualityScore}`
+      );
       return true;
     } catch (error) {
-      logger.error('[GOD-Level DEBUG] ❌ EXCEPTION:', error);
+      logger.error("[GOD-Level DEBUG] ❌ EXCEPTION:", error);
       logger.error(`[GOD-Level] ❌ Learning failed:`, error);
       return false;
     }
@@ -139,7 +152,7 @@ export class GODLevelLearning {
 
   /**
    * Check if content is duplicate (using semantic similarity)
-   * 
+   *
    * @param content - Content to check
    * @returns true if duplicate, false otherwise
    */
@@ -151,7 +164,7 @@ export class GODLevelLearning {
       // Get recent entries for comparison
       const db = await getDb();
       if (!db) throw new Error("Database not available");
-      
+
       const recentEntries = await db
         .select()
         .from(knowledge)
@@ -168,7 +181,9 @@ export class GODLevelLearning {
         );
 
         if (similarity >= GOD_LEVEL_CONFIG.SIMILARITY_THRESHOLD) {
-          logger.info(`[GOD-Level] Duplicate detected: similarity=${similarity.toFixed(3)}`);
+          logger.info(
+            `[GOD-Level] Duplicate detected: similarity=${similarity.toFixed(3)}`
+          );
           return true;
         }
       }
@@ -182,7 +197,7 @@ export class GODLevelLearning {
 
   /**
    * Auto-categorize knowledge using LLM
-   * 
+   *
    * @param query - User query
    * @param response - MOTHER response
    * @returns Category
@@ -201,20 +216,28 @@ Category (respond with ONLY the category name):`;
 
       const result = await invokeLLM({
         messages: [
-          { role: "system", content: "You are a knowledge categorization expert. Respond with ONLY the category name, nothing else." },
+          {
+            role: "system",
+            content:
+              "You are a knowledge categorization expert. Respond with ONLY the category name, nothing else.",
+          },
           { role: "user", content: prompt },
         ],
       });
 
       const content = result.choices[0].message.content;
-      const category = (typeof content === 'string' ? content.trim() : 'other').toLowerCase() as KnowledgeCategory;
+      const category = (
+        typeof content === "string" ? content.trim() : "other"
+      ).toLowerCase() as KnowledgeCategory;
 
       // Validate category
       if (GOD_LEVEL_CONFIG.CATEGORIES.includes(category)) {
         return category;
       }
 
-      logger.warn(`[GOD-Level] Invalid category "${category}", defaulting to "other"`);
+      logger.warn(
+        `[GOD-Level] Invalid category "${category}", defaulting to "other"`
+      );
       return "other";
     } catch (error) {
       logger.error(`[GOD-Level] Categorization failed:`, error);
@@ -224,7 +247,7 @@ Category (respond with ONLY the category name):`;
 
   /**
    * Generate embedding for semantic search
-   * 
+   *
    * @param text - Text to embed
    * @returns Embedding vector
    */
@@ -235,7 +258,7 @@ Category (respond with ONLY the category name):`;
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
           model: "text-embedding-3-small",
@@ -258,7 +281,7 @@ Category (respond with ONLY the category name):`;
 
   /**
    * Save knowledge to database
-   * 
+   *
    * @param entry - Learning entry
    * @param embedding - Embedding vector
    */
@@ -268,7 +291,7 @@ Category (respond with ONLY the category name):`;
   ): Promise<void> {
     const db = await getDb();
     if (!db) throw new Error("Database not available");
-    
+
     await db.insert(knowledge).values({
       title: entry.query.substring(0, 500), // Use query as title (truncated)
       content: JSON.stringify({
@@ -288,7 +311,7 @@ Category (respond with ONLY the category name):`;
 
   /**
    * Calculate cosine similarity between two vectors
-   * 
+   *
    * @param a - Vector A
    * @param b - Vector B
    * @returns Similarity score (0-1)
@@ -313,7 +336,7 @@ Category (respond with ONLY the category name):`;
 
   /**
    * Retrieve relevant knowledge using semantic search
-   * 
+   *
    * @param query - Search query
    * @param limit - Maximum number of results
    * @returns Relevant knowledge entries
@@ -329,7 +352,7 @@ Category (respond with ONLY the category name):`;
       // Get all knowledge entries
       const db = await getDb();
       if (!db) throw new Error("Database not available");
-      
+
       const entries = await db.select().from(knowledge);
 
       // Calculate similarity for each entry

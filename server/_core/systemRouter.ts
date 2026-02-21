@@ -36,33 +36,38 @@ export const systemRouter = router({
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
-      
-      const result = await db.select()
+
+      const result = await db
+        .select()
         .from(systemConfig)
         .where(eq(systemConfig.key, input.key))
         .limit(1);
-      
+
       return result[0] || null;
     }),
 
   setConfig: adminProcedure
-    .input(z.object({
-      key: z.string(),
-      value: z.string(),
-      description: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        key: z.string(),
+        value: z.string(),
+        description: z.string().optional(),
+      })
+    )
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
-      
+
       // Upsert: update if exists, insert if not
-      const existing = await db.select()
+      const existing = await db
+        .select()
         .from(systemConfig)
         .where(eq(systemConfig.key, input.key))
         .limit(1);
-      
+
       if (existing.length > 0) {
-        await db.update(systemConfig)
+        await db
+          .update(systemConfig)
           .set({ value: input.value, description: input.description })
           .where(eq(systemConfig.key, input.key));
       } else {
@@ -72,7 +77,7 @@ export const systemRouter = router({
           description: input.description,
         });
       }
-      
+
       return { success: true };
     }),
 
@@ -81,24 +86,27 @@ export const systemRouter = router({
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
-      
-      const existing = await db.select()
+
+      const existing = await db
+        .select()
         .from(systemConfig)
-        .where(eq(systemConfig.key, 'critical_thinking_enabled'))
+        .where(eq(systemConfig.key, "critical_thinking_enabled"))
         .limit(1);
-      
+
       if (existing.length > 0) {
-        await db.update(systemConfig)
+        await db
+          .update(systemConfig)
           .set({ value: input.enabled.toString() })
-          .where(eq(systemConfig.key, 'critical_thinking_enabled'));
+          .where(eq(systemConfig.key, "critical_thinking_enabled"));
       } else {
         await db.insert(systemConfig).values({
-          key: 'critical_thinking_enabled',
+          key: "critical_thinking_enabled",
           value: input.enabled.toString(),
-          description: 'Enable/disable Critical Thinking Central for A/B testing',
+          description:
+            "Enable/disable Critical Thinking Central for A/B testing",
         });
       }
-      
+
       return { success: true, enabled: input.enabled };
     }),
 });

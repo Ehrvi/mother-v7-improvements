@@ -1,7 +1,7 @@
 /**
  * MOTHER v7.0 - Complete System Integration
  * Orchestrates all 7 layers for end-to-end query processing
- * 
+ *
  * Layers:
  * 1. Interface Layer (handled by tRPC routers)
  * 2. Orchestration Layer (this file)
@@ -12,19 +12,26 @@
  * 7. Learning Layer (metrics collection)
  */
 
-import { invokeLLM } from '../_core/llm';
-import { assessComplexity, getModelForTier, calculateCost, calculateBaselineCost, calculateCostReduction, type LLMTier } from './intelligence';
-import { validateQuality, type GuardianResult } from './guardian';
-import { getKnowledgeContext } from './knowledge';
-import { setCachedQuery, getCachedQuery } from '../lib/cache';
-import { triggerWebhookEvent } from '../lib/webhookDelivery';
-import { insertQuery } from '../db';
-import { retryDbOperation } from './db-retry';
-import { learnFromResponse } from './learning';
-import GODLevelLearning from '../learning/god-level';
-import { processWithReAct } from './react';
-import { createHash } from 'crypto';
-import { logger } from '../lib/logger';
+import { invokeLLM } from "../_core/llm";
+import {
+  assessComplexity,
+  getModelForTier,
+  calculateCost,
+  calculateBaselineCost,
+  calculateCostReduction,
+  type LLMTier,
+} from "./intelligence";
+import { validateQuality, type GuardianResult } from "./guardian";
+import { getKnowledgeContext } from "./knowledge";
+import { setCachedQuery, getCachedQuery } from "../lib/cache";
+import { triggerWebhookEvent } from "../lib/webhookDelivery";
+import { insertQuery } from "../db";
+import { retryDbOperation } from "./db-retry";
+import { learnFromResponse } from "./learning";
+import GODLevelLearning from "../learning/god-level";
+import { processWithReAct } from "./react";
+import { createHash } from "crypto";
+import { logger } from "../lib/logger";
 
 export interface MotherRequest {
   query: string;
@@ -34,25 +41,25 @@ export interface MotherRequest {
 
 export interface MotherResponse {
   response: string;
-  
+
   // Layer 3: Intelligence
   tier: LLMTier;
   complexityScore: number;
   confidenceScore: number;
-  
+
   // Layer 6: Quality
   quality: GuardianResult;
-  
+
   // Layer 7: Learning/Metrics
   responseTime: number; // milliseconds
   tokensUsed: number;
   cost: number; // USD
   costReduction: number; // percentage
   cacheHit: boolean;
-  
+
   // ReAct (Iteration 12)
   reactObservations?: string[];
-  
+
   // Metadata
   queryId: number;
 }
@@ -61,115 +68,125 @@ export interface MotherResponse {
  * Main MOTHER processing pipeline
  * Integrates all 7 layers
  */
-export async function processQuery(request: MotherRequest): Promise<MotherResponse> {
+export async function processQuery(
+  request: MotherRequest
+): Promise<MotherResponse> {
   const startTime = Date.now();
-  
+
   try {
-  
-  // ==================== LAYER 2: ORCHESTRATION ====================
-  // Request routing and preprocessing
-  
-  const { query, userId, useCache = true } = request;
-  
-  // Generate query hash for caching
-  const queryHash = createHash('sha256').update(query.toLowerCase().trim()).digest('hex');
-  
-  // ==================== CACHING LAYER (Two-Tier: Redis L1 + Database L2) ====================
-  // Check cache first (target: 70% hit rate with Redis)
-  
-  if (useCache) {
-    const cached = await getCachedQuery(queryHash);
-    if (cached) {
-      logger.info('[MOTHER] Cache hit (two-tier)!');
-      
-      return {
-        response: cached.response,
-        tier: cached.tier as LLMTier,
-        complexityScore: cached.complexityScore,
-        confidenceScore: 0, // Not stored in cache
-        quality: cached.quality,
-        responseTime: Date.now() - startTime,
-        tokensUsed: cached.tokensUsed,
-        cost: cached.cost,
-        costReduction: 0, // Calculated later
-        cacheHit: true,
-        queryId: 0, // Not stored in cache
-      };
-    }
-  }
-  
-  // ==================== LAYER 3: INTELLIGENCE ====================
-  // Assess complexity and route to appropriate LLM tier
-  
-  const complexity = assessComplexity(query);
-  logger.info(`[MOTHER] Complexity: ${complexity.complexityScore.toFixed(2)}, Tier: ${complexity.tier}`);
-  
-  // ==================== LAYER 5: KNOWLEDGE ====================
-  // Retrieve relevant knowledge context
-  
-  const knowledgeContext = await getKnowledgeContext(query);
-  
-  // ==================== v14: A/B TESTING - CRITICAL THINKING CENTRAL ====================
-  // Route 10% of traffic through Critical Thinking Central for A/B testing
-  // Check feature flag from database
-  
-  let useCriticalThinking = false;
-  let variant: 'control' | 'critical_thinking' = 'control';
-  
-  try {
-    const { getDb } = await import('../db');
-    const { systemConfig } = await import('../../drizzle/schema');
-    const { eq } = await import('drizzle-orm');
-    
-    const db = await getDb();
-    if (db) {
-      const config = await db.select()
-        .from(systemConfig)
-        .where(eq(systemConfig.key, 'critical_thinking_enabled'))
-        .limit(1);
-      
-      const ctEnabled = config[0]?.value === 'true';
-      
-      if (ctEnabled) {
-        // 10% traffic routing (deterministic based on query hash)
-        const hashValue = parseInt(queryHash.slice(0, 8), 16);
-        useCriticalThinking = (hashValue % 100) < 10; // 10% of queries
-        variant = useCriticalThinking ? 'critical_thinking' : 'control';
-        
-        if (useCriticalThinking) {
-          logger.info('[MOTHER] 🧠 A/B Test: Using Critical Thinking Central (10% variant)');
-        }
+    // ==================== LAYER 2: ORCHESTRATION ====================
+    // Request routing and preprocessing
+
+    const { query, userId, useCache = true } = request;
+
+    // Generate query hash for caching
+    const queryHash = createHash("sha256")
+      .update(query.toLowerCase().trim())
+      .digest("hex");
+
+    // ==================== CACHING LAYER (Two-Tier: Redis L1 + Database L2) ====================
+    // Check cache first (target: 70% hit rate with Redis)
+
+    if (useCache) {
+      const cached = await getCachedQuery(queryHash);
+      if (cached) {
+        logger.info("[MOTHER] Cache hit (two-tier)!");
+
+        return {
+          response: cached.response,
+          tier: cached.tier as LLMTier,
+          complexityScore: cached.complexityScore,
+          confidenceScore: 0, // Not stored in cache
+          quality: cached.quality,
+          responseTime: Date.now() - startTime,
+          tokensUsed: cached.tokensUsed,
+          cost: cached.cost,
+          costReduction: 0, // Calculated later
+          cacheHit: true,
+          queryId: 0, // Not stored in cache
+        };
       }
     }
-  } catch (error) {
-    logger.error('[MOTHER] Failed to check Critical Thinking flag:', error);
-    // Fall through to standard processing
-  }
-  
-  // ==================== LAYER 4: EXECUTION ====================
-  // Execute query with selected LLM tier
-  
-  const model = getModelForTier(complexity.tier);
-  // Detect query language
-  const detectLanguage = (text: string): string => {
-    // Simple heuristic: check for Portuguese characters/words
-    const portugueseIndicators = /[áàâãéêíóôõúçÁÀÂÃÉÊÍÓÔÕÚÇ]|\b(você|está|faça|diagnóstico|saúde)\b/i;
-    return portugueseIndicators.test(text) ? 'Portuguese' : 'English';
-  };
 
-  // Chain-of-Thought (CoT) trigger for complex queries
-  // Iteration 14: Lowered threshold from 0.7 to 0.5 based on MOTHER's analysis
-  // Rationale: Most queries score 0.4-0.5, CoT improves quality significantly
-  const useCoT = complexity.complexityScore >= 0.5;
-  
-  // ==================== ITERATION 19: CREATOR CONTEXT ====================
-  // Identify creator (Everton Luis) and inject context
-  // Recommended by MOTHER superinteligência: OpenID + email/name verification
-  
-  // Identify creator: Everton Luís Garcia (ID: 1, OpenID: Mtbbro8K87S6VUA2A2hq6X)
-  const isCreator = userId === 1;
-  
-  const creatorContext = isCreator ? `
+    // ==================== LAYER 3: INTELLIGENCE ====================
+    // Assess complexity and route to appropriate LLM tier
+
+    const complexity = assessComplexity(query);
+    logger.info(
+      `[MOTHER] Complexity: ${complexity.complexityScore.toFixed(2)}, Tier: ${complexity.tier}`
+    );
+
+    // ==================== LAYER 5: KNOWLEDGE ====================
+    // Retrieve relevant knowledge context
+
+    const knowledgeContext = await getKnowledgeContext(query);
+
+    // ==================== v14: A/B TESTING - CRITICAL THINKING CENTRAL ====================
+    // Route 10% of traffic through Critical Thinking Central for A/B testing
+    // Check feature flag from database
+
+    let useCriticalThinking = false;
+    let variant: "control" | "critical_thinking" = "control";
+
+    try {
+      const { getDb } = await import("../db");
+      const { systemConfig } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const db = await getDb();
+      if (db) {
+        const config = await db
+          .select()
+          .from(systemConfig)
+          .where(eq(systemConfig.key, "critical_thinking_enabled"))
+          .limit(1);
+
+        const ctEnabled = config[0]?.value === "true";
+
+        if (ctEnabled) {
+          // 10% traffic routing (deterministic based on query hash)
+          const hashValue = parseInt(queryHash.slice(0, 8), 16);
+          useCriticalThinking = hashValue % 100 < 10; // 10% of queries
+          variant = useCriticalThinking ? "critical_thinking" : "control";
+
+          if (useCriticalThinking) {
+            logger.info(
+              "[MOTHER] 🧠 A/B Test: Using Critical Thinking Central (10% variant)"
+            );
+          }
+        }
+      }
+    } catch (error) {
+      logger.error("[MOTHER] Failed to check Critical Thinking flag:", error);
+      // Fall through to standard processing
+    }
+
+    // ==================== LAYER 4: EXECUTION ====================
+    // Execute query with selected LLM tier
+
+    const model = getModelForTier(complexity.tier);
+    // Detect query language
+    const detectLanguage = (text: string): string => {
+      // Simple heuristic: check for Portuguese characters/words
+      const portugueseIndicators =
+        /[áàâãéêíóôõúçÁÀÂÃÉÊÍÓÔÕÚÇ]|\b(você|está|faça|diagnóstico|saúde)\b/i;
+      return portugueseIndicators.test(text) ? "Portuguese" : "English";
+    };
+
+    // Chain-of-Thought (CoT) trigger for complex queries
+    // Iteration 14: Lowered threshold from 0.7 to 0.5 based on MOTHER's analysis
+    // Rationale: Most queries score 0.4-0.5, CoT improves quality significantly
+    const useCoT = complexity.complexityScore >= 0.5;
+
+    // ==================== ITERATION 19: CREATOR CONTEXT ====================
+    // Identify creator (Everton Luis) and inject context
+    // Recommended by MOTHER superinteligência: OpenID + email/name verification
+
+    // Identify creator: Everton Luís Garcia (ID: 1, OpenID: Mtbbro8K87S6VUA2A2hq6X)
+    const isCreator = userId === 1;
+
+    const creatorContext = isCreator
+      ? `
 
 ### 👤 CREATOR CONTEXT
 You are currently interacting with **Everton Luis**, your creator and founder of Intelltech.
@@ -184,13 +201,14 @@ You are currently interacting with **Everton Luis**, your creator and founder of
 - Reference his vision for 10/10 perfection
 - Show awareness of the Intelltech project context
 - Respond with appropriate recognition and respect
-` : '';
-  
-  const systemPrompt = `You are MOTHER v7.0 (Multi-Operational Tiered Hierarchical Execution & Routing), an advanced AI system with persistent memory and 7-layer architecture.
+`
+      : "";
+
+    const systemPrompt = `You are MOTHER v7.0 (Multi-Operational Tiered Hierarchical Execution & Routing), an advanced AI system with persistent memory and 7-layer architecture.
 
 CORE IDENTITY:
 - Multi-tier LLM routing (99.47% cost reduction, 90+ quality)
-- Persistent knowledge base with ${knowledgeContext ? 'relevant context' : 'continuous learning'}
+- Persistent knowledge base with ${knowledgeContext ? "relevant context" : "continuous learning"}
 - Guardian quality system ensuring accuracy and relevance
 - 7-layer architecture: Intelligence → Guardian → Knowledge → Execution → Optimization → Security → Learning${creatorContext}
 
@@ -200,7 +218,9 @@ RESPONSE PROTOCOL:
 3. **Be specific** - Provide actionable information, not generic advice
 4. **Be structured** - Use markdown formatting (headers, lists, bold)
 5. **Be contextual** - Reference previous conversations if relevant
-${useCoT ? `
+${
+  useCoT
+    ? `
 **CHAIN-OF-THOUGHT REASONING REQUIRED** (Complex Query Detected):
 Before providing your final answer, show your reasoning process:
 <thinking>
@@ -211,7 +231,9 @@ Before providing your final answer, show your reasoning process:
 5. Verify answer: Does this fully address the query?
 </thinking>
 
-Then provide your final, well-structured answer.` : ''}
+Then provide your final, well-structured answer.`
+    : ""
+}
 
 QUALITY STANDARDS (you are evaluated on these):
 - Completeness: Answer fully, don't leave gaps
@@ -224,7 +246,7 @@ CURRENT CONTEXT:
 - Tier: ${complexity.tier}
 - Complexity: ${complexity.complexityScore.toFixed(2)}
 - Confidence: ${complexity.confidenceScore.toFixed(2)}
-${knowledgeContext ? `- Knowledge context: ${knowledgeContext}` : ''}
+${knowledgeContext ? `- Knowledge context: ${knowledgeContext}` : ""}
 
 USER LANGUAGE: ${detectLanguage(query)}
 
@@ -236,221 +258,267 @@ IMPORTANT: Relevance is weighted 45% in quality scoring. To maximize relevance:
 
 Now respond to the user's query following these standards.`;
 
-  // Note: invokeLLM uses default model (gpt-4o-mini)
-  // Tier routing is simulated for demonstration
-  // In production: use different API keys/endpoints for different tiers
-  const llmResponse = await invokeLLM({
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: query },
-    ],
-  });
-  
-  const responseContent = llmResponse.choices[0]?.message?.content;
-  let response = typeof responseContent === 'string' ? responseContent : 'No response generated';
-  const usage = llmResponse.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
-  
-  // ==================== REACT PATTERN (Iteration 12) ====================
-  // Apply ReAct (Reasoning and Acting) for complex queries
-  
-  let reactObservations: string[] = [];
-  // Iteration 14: Aligned ReAct threshold with CoT threshold (0.5)
-  if (complexity.complexityScore >= 0.5) {
-    logger.info('[MOTHER] Applying ReAct pattern (complex query)');
-    const reactResult = await processWithReAct(query, response, complexity.complexityScore);
-    response = reactResult.enhancedResponse;
-    reactObservations = reactResult.observations;
-    logger.info(`[MOTHER] ReAct observations: ${reactObservations.length}`);
-  }
-  
-  // ==================== v14: CRITICAL THINKING CENTRAL ====================
-  // Apply 8-phase meta-learning process for A/B test variant
-  
-  if (useCriticalThinking) {
-    try {
-      const { CriticalThinkingCentral } = await import('../learning/critical-thinking');
-      const ct = new CriticalThinkingCentral({ enabled: true });
-      const ctResult = await ct.execute(query, complexity.complexityScore * 100); // Convert 0-1 to 0-100
-      
-      if (ctResult) {
-        logger.info(`[MOTHER] 🧠 Critical Thinking: Quality improved ${ctResult.baselineQuality} → ${ctResult.improvedQuality}`);
-        response = ctResult.improvedResponse;
-      }
-    } catch (error) {
-      logger.error('[MOTHER] Critical Thinking failed (non-blocking):', error);
-      // Fall back to baseline response
-    }
-  }
-  
-  // ==================== LAYER 6: QUALITY (GUARDIAN) ====================
-  // Validate response quality
-  // Iteration 16: Activated Phase 2 (5 checks: Completeness, Accuracy, Relevance, Coherence, Safety)
-  
-  const quality = await validateQuality(query, response, 2); // Phase 2: 5 checks
-  logger.info(`[MOTHER] Quality Score: ${quality.qualityScore}/100 (${quality.passed ? 'PASSED' : 'FAILED'})`);
-  
-  if (!quality.passed) {
-    logger.warn('[MOTHER] Quality check failed:', quality.issues);
-  }
-  
-  // ==================== LAYER 7: LEARNING/METRICS ====================
-  // Calculate metrics and costs
-  
-  const cost = calculateCost(complexity.tier, usage.prompt_tokens, usage.completion_tokens);
-  const baselineCost = calculateBaselineCost(usage.prompt_tokens, usage.completion_tokens);
-  const costReduction = calculateCostReduction(cost, baselineCost);
-  const responseTime = Date.now() - startTime;
-  
-  logger.info(`[MOTHER] Cost: $${cost.toFixed(6)} (${costReduction.toFixed(1)}% reduction vs baseline)`);
-  logger.info(`[MOTHER] Response Time: ${responseTime}ms`);
-  
-  // ==================== PERSISTENCE ====================
-  // Store query log for learning (with retry logic)
-  // Async logging: Don't block response if INSERT fails
-  
-  let queryId: number | null = null;
-  
-  // Fire-and-forget async logging
-  retryDbOperation(() => insertQuery({
-    userId: userId || null,
-    query,
-    response,
-    tier: complexity.tier,
-    complexityScore: (complexity.complexityScore ?? 0).toString(),
-    confidenceScore: (complexity.confidenceScore ?? 0).toString(),
-    qualityScore: (quality.qualityScore ?? 0).toString(),
-    completenessScore: (quality.completenessScore ?? 0).toString(),
-    accuracyScore: (quality.accuracyScore ?? 0).toString(),
-    relevanceScore: (quality.relevanceScore ?? 0).toString(),
-    coherenceScore: quality.coherenceScore?.toString() || null,
-    safetyScore: quality.safetyScore?.toString() || null,
-    responseTime: responseTime ?? 0,
-    tokensUsed: usage?.total_tokens ?? 0,
-    cost: (cost ?? 0).toString(),
-    cacheHit: 0,
-  }))
-    .then(id => {
-      queryId = id;
-      logger.info(`[MOTHER] Query logged successfully: ID ${id}`);
-    })
-    .catch(error => {
-      logger.error('[MOTHER] Failed to log query (non-blocking):', error.message);
+    // Note: invokeLLM uses default model (gpt-4o-mini)
+    // Tier routing is simulated for demonstration
+    // In production: use different API keys/endpoints for different tiers
+    const llmResponse = await invokeLLM({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: query },
+      ],
     });
-  
-  // ==================== ITERATION 18: CONTINUOUS LEARNING ====================
-  // Learn from high-quality responses (fire-and-forget)
-  // Threshold: quality >95% (recommended by MOTHER superinteligência)
-  
-  if (quality.qualityScore && quality.qualityScore > 95) {
-    learnFromResponse({
-      content: response,
+
+    const responseContent = llmResponse.choices[0]?.message?.content;
+    let response =
+      typeof responseContent === "string"
+        ? responseContent
+        : "No response generated";
+    const usage = llmResponse.usage || {
+      prompt_tokens: 0,
+      completion_tokens: 0,
+      total_tokens: 0,
+    };
+
+    // ==================== REACT PATTERN (Iteration 12) ====================
+    // Apply ReAct (Reasoning and Acting) for complex queries
+
+    let reactObservations: string[] = [];
+    // Iteration 14: Aligned ReAct threshold with CoT threshold (0.5)
+    if (complexity.complexityScore >= 0.5) {
+      logger.info("[MOTHER] Applying ReAct pattern (complex query)");
+      const reactResult = await processWithReAct(
+        query,
+        response,
+        complexity.complexityScore
+      );
+      response = reactResult.enhancedResponse;
+      reactObservations = reactResult.observations;
+      logger.info(`[MOTHER] ReAct observations: ${reactObservations.length}`);
+    }
+
+    // ==================== v14: CRITICAL THINKING CENTRAL ====================
+    // Apply 8-phase meta-learning process for A/B test variant
+
+    if (useCriticalThinking) {
+      try {
+        const { CriticalThinkingCentral } = await import(
+          "../learning/critical-thinking"
+        );
+        const ct = new CriticalThinkingCentral({ enabled: true });
+        const ctResult = await ct.execute(
+          query,
+          complexity.complexityScore * 100
+        ); // Convert 0-1 to 0-100
+
+        if (ctResult) {
+          logger.info(
+            `[MOTHER] 🧠 Critical Thinking: Quality improved ${ctResult.baselineQuality} → ${ctResult.improvedQuality}`
+          );
+          response = ctResult.improvedResponse;
+        }
+      } catch (error) {
+        logger.error(
+          "[MOTHER] Critical Thinking failed (non-blocking):",
+          error
+        );
+        // Fall back to baseline response
+      }
+    }
+
+    // ==================== LAYER 6: QUALITY (GUARDIAN) ====================
+    // Validate response quality
+    // Iteration 16: Activated Phase 2 (5 checks: Completeness, Accuracy, Relevance, Coherence, Safety)
+
+    const quality = await validateQuality(query, response, 2); // Phase 2: 5 checks
+    logger.info(
+      `[MOTHER] Quality Score: ${quality.qualityScore}/100 (${quality.passed ? "PASSED" : "FAILED"})`
+    );
+
+    if (!quality.passed) {
+      logger.warn("[MOTHER] Quality check failed:", quality.issues);
+    }
+
+    // ==================== LAYER 7: LEARNING/METRICS ====================
+    // Calculate metrics and costs
+
+    const cost = calculateCost(
+      complexity.tier,
+      usage.prompt_tokens,
+      usage.completion_tokens
+    );
+    const baselineCost = calculateBaselineCost(
+      usage.prompt_tokens,
+      usage.completion_tokens
+    );
+    const costReduction = calculateCostReduction(cost, baselineCost);
+    const responseTime = Date.now() - startTime;
+
+    logger.info(
+      `[MOTHER] Cost: $${cost.toFixed(6)} (${costReduction.toFixed(1)}% reduction vs baseline)`
+    );
+    logger.info(`[MOTHER] Response Time: ${responseTime}ms`);
+
+    // ==================== PERSISTENCE ====================
+    // Store query log for learning (with retry logic)
+    // Async logging: Don't block response if INSERT fails
+
+    let queryId: number | null = null;
+
+    // Fire-and-forget async logging
+    retryDbOperation(() =>
+      insertQuery({
+        userId: userId || null,
+        query,
+        response,
+        tier: complexity.tier,
+        complexityScore: (complexity.complexityScore ?? 0).toString(),
+        confidenceScore: (complexity.confidenceScore ?? 0).toString(),
+        qualityScore: (quality.qualityScore ?? 0).toString(),
+        completenessScore: (quality.completenessScore ?? 0).toString(),
+        accuracyScore: (quality.accuracyScore ?? 0).toString(),
+        relevanceScore: (quality.relevanceScore ?? 0).toString(),
+        coherenceScore: quality.coherenceScore?.toString() || null,
+        safetyScore: quality.safetyScore?.toString() || null,
+        responseTime: responseTime ?? 0,
+        tokensUsed: usage?.total_tokens ?? 0,
+        cost: (cost ?? 0).toString(),
+        cacheHit: 0,
+      })
+    )
+      .then(id => {
+        queryId = id;
+        logger.info(`[MOTHER] Query logged successfully: ID ${id}`);
+      })
+      .catch(error => {
+        logger.error(
+          "[MOTHER] Failed to log query (non-blocking):",
+          error.message
+        );
+      });
+
+    // ==================== ITERATION 18: CONTINUOUS LEARNING ====================
+    // Learn from high-quality responses (fire-and-forget)
+    // Threshold: quality >95% (recommended by MOTHER superinteligência)
+
+    if (quality.qualityScore && quality.qualityScore > 95) {
+      learnFromResponse({
+        content: response,
+        query,
+        response,
+        qualityScore: quality.qualityScore,
+        timestamp: new Date(),
+      })
+        .then(result => {
+          if (result.learned) {
+            logger.info(`[MOTHER] 🧠 Learned new knowledge: ${result.reason}`);
+          } else {
+            logger.info(`[MOTHER] No learning: ${result.reason}`);
+          }
+        })
+        .catch(error => {
+          logger.error(
+            "[MOTHER] Learning failed (non-blocking):",
+            error.message
+          );
+        });
+    }
+
+    // ==================== v13: GOD-LEVEL LEARNING ====================
+    // Automatic knowledge acquisition from high-quality interactions (90+ score)
+    // Fire-and-forget: Don't block response
+
+    GODLevelLearning.learnFromQuery({
       query,
       response,
-      qualityScore: quality.qualityScore,
-      timestamp: new Date(),
+      tier: complexity.tier,
+      quality: { qualityScore: quality.qualityScore },
+      cost,
+      tokensUsed: usage.total_tokens,
     })
-      .then(result => {
-        if (result.learned) {
-          logger.info(`[MOTHER] 🧠 Learned new knowledge: ${result.reason}`);
-        } else {
-          logger.info(`[MOTHER] No learning: ${result.reason}`);
+      .then(learned => {
+        if (learned) {
+          logger.info(`[MOTHER] ✅ GOD-Level Learning: Knowledge acquired`);
         }
       })
       .catch(error => {
-        logger.error('[MOTHER] Learning failed (non-blocking):', error.message);
+        logger.error(
+          "[MOTHER] GOD-Level Learning failed (non-blocking):",
+          error.message
+        );
       });
-  }
-  
-  // ==================== v13: GOD-LEVEL LEARNING ====================
-  // Automatic knowledge acquisition from high-quality interactions (90+ score)
-  // Fire-and-forget: Don't block response
-  
-  GODLevelLearning.learnFromQuery({
-    query,
-    response,
-    tier: complexity.tier,
-    quality: { qualityScore: quality.qualityScore },
-    cost,
-    tokensUsed: usage.total_tokens,
-  })
-    .then(learned => {
-      if (learned) {
-        logger.info(`[MOTHER] ✅ GOD-Level Learning: Knowledge acquired`);
-      }
-    })
-    .catch(error => {
-      logger.error('[MOTHER] GOD-Level Learning failed (non-blocking):', error.message);
+
+    // ==================== CACHE UPDATE ====================
+    // Store in cache for future queries
+
+    if (useCache && quality.passed) {
+      const cacheData = {
+        response: response,
+        tier: complexity.tier,
+        complexityScore: complexity.complexityScore,
+        confidenceScore: complexity.confidenceScore,
+        quality,
+        tokensUsed: usage.total_tokens,
+        cost,
+        costReduction,
+        queryId,
+      };
+
+      // Store in two-tier cache (Redis L1 + Database L2)
+      await setCachedQuery(queryHash, query, cacheData);
+    }
+
+    // ==================== WEBHOOKS ====================
+    // Trigger webhook event for query completion (fire-and-forget)
+    triggerWebhookEvent("query.completed", {
+      queryId: queryId || 0,
+      query,
+      response: response.slice(0, 500), // First 500 chars
+      tier: complexity.tier,
+      qualityScore: quality.qualityScore,
+      responseTime,
+      cost,
+    }).catch(error => {
+      logger.error(
+        "[MOTHER] Webhook trigger failed (non-blocking):",
+        error.message
+      );
     });
-  
-  // ==================== CACHE UPDATE ====================
-  // Store in cache for future queries
-  
-  if (useCache && quality.passed) {
-    const cacheData = {
-      response: response,
+
+    // ==================== RETURN RESPONSE ====================
+
+    return {
+      response,
       tier: complexity.tier,
       complexityScore: complexity.complexityScore,
       confidenceScore: complexity.confidenceScore,
       quality,
+      responseTime,
       tokensUsed: usage.total_tokens,
       cost,
       costReduction,
-      queryId,
+      cacheHit: false,
+      reactObservations:
+        reactObservations.length > 0 ? reactObservations : undefined,
+      queryId: queryId || 0,
     };
-    
-    // Store in two-tier cache (Redis L1 + Database L2)
-    await setCachedQuery(queryHash, query, cacheData);
-  }
-  
-  // ==================== WEBHOOKS ====================
-  // Trigger webhook event for query completion (fire-and-forget)
-  triggerWebhookEvent('query.completed', {
-    queryId: queryId || 0,
-    query,
-    response: response.slice(0, 500), // First 500 chars
-    tier: complexity.tier,
-    qualityScore: quality.qualityScore,
-    responseTime,
-    cost,
-  }).catch(error => {
-    logger.error('[MOTHER] Webhook trigger failed (non-blocking):', error.message);
-  });
-  
-  // ==================== RETURN RESPONSE ====================
-  
-  return {
-    response,
-    tier: complexity.tier,
-    complexityScore: complexity.complexityScore,
-    confidenceScore: complexity.confidenceScore,
-    quality,
-    responseTime,
-    tokensUsed: usage.total_tokens,
-    cost,
-    costReduction,
-    cacheHit: false,
-    reactObservations: reactObservations.length > 0 ? reactObservations : undefined,
-    queryId: queryId || 0,
-  };
-  
   } catch (error) {
     // Error handling: Return safe defaults if processing fails
-    logger.error('[MOTHER] Processing error:', error);
-    
+    logger.error("[MOTHER] Processing error:", error);
+
     const responseTime = Date.now() - startTime;
-    
+
     // Trigger webhook for query failure
-    triggerWebhookEvent('query.failed', {
+    triggerWebhookEvent("query.failed", {
       query: request.query,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: error instanceof Error ? error.message : "Unknown error",
       responseTime: responseTime,
     }).catch(err => {
-      logger.error('[MOTHER] Webhook trigger failed:', err.message);
+      logger.error("[MOTHER] Webhook trigger failed:", err.message);
     });
-    
+
     return {
-      response: `I apologize, but I encountered an error processing your query. Please try again. Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      tier: 'tier-1' as LLMTier,
+      response: `I apologize, but I encountered an error processing your query. Please try again. Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+      tier: "tier-1" as LLMTier,
       complexityScore: 0,
       confidenceScore: 0,
       quality: {
@@ -459,7 +527,9 @@ Now respond to the user's query following these standards.`;
         completenessScore: 0,
         accuracyScore: 0,
         relevanceScore: 0,
-        issues: [`Processing error: ${error instanceof Error ? error.message : 'Unknown error'}`],
+        issues: [
+          `Processing error: ${error instanceof Error ? error.message : "Unknown error"}`,
+        ],
       },
       responseTime,
       tokensUsed: 0,
@@ -475,14 +545,17 @@ Now respond to the user's query following these standards.`;
  * Batch process multiple queries
  * Useful for analytics and testing
  */
-export async function processBatch(queries: string[], userId?: number): Promise<MotherResponse[]> {
+export async function processBatch(
+  queries: string[],
+  userId?: number
+): Promise<MotherResponse[]> {
   const results: MotherResponse[] = [];
-  
+
   for (const query of queries) {
     const result = await processQuery({ query, userId });
     results.push(result);
   }
-  
+
   return results;
 }
 
@@ -500,12 +573,12 @@ export async function getSystemStats(): Promise<{
   avgCostReduction: number;
   cacheHitRate: number;
 }> {
-  const { getQueryStats } = await import('../db');
-  
+  const { getQueryStats } = await import("../db");
+
   const stats = await getQueryStats(24); // Last 24 hours
-  
+
   const total = stats.totalQueries;
-  
+
   return {
     totalQueries: total,
     tier1Percentage: total > 0 ? (stats.tier1Count / total) * 100 : 0,

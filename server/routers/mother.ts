@@ -3,15 +3,15 @@
  * tRPC router for MOTHER system
  */
 
-import { z } from 'zod';
-import { publicProcedure, protectedProcedure, router } from '../_core/trpc';
-import { processQuery, getSystemStats } from '../mother/core';
-import { addKnowledge } from '../mother/knowledge';
-import { getRecentQueries, getQueryStats, getAllKnowledge } from '../db';
-import { sanitizeAndValidate } from '../middleware/sanitize';
-import { enqueueQuery } from '../lib/queue';
-import { assessComplexity } from '../mother/intelligence';
-import { createHash } from 'crypto';
+import { z } from "zod";
+import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
+import { processQuery, getSystemStats } from "../mother/core";
+import { addKnowledge } from "../mother/knowledge";
+import { getRecentQueries, getQueryStats, getAllKnowledge } from "../db";
+import { sanitizeAndValidate } from "../middleware/sanitize";
+import { enqueueQuery } from "../lib/queue";
+import { assessComplexity } from "../mother/intelligence";
+import { createHash } from "crypto";
 
 export const motherRouter = router({
   /**
@@ -27,13 +27,15 @@ export const motherRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const sanitizedQuery = sanitizeAndValidate(input.query, 5000);
-      
+
       // Assess complexity to determine if we should queue
       const complexity = assessComplexity(sanitizedQuery);
-      const queryHash = createHash('sha256').update(sanitizedQuery.toLowerCase().trim()).digest('hex');
-      
+      const queryHash = createHash("sha256")
+        .update(sanitizedQuery.toLowerCase().trim())
+        .digest("hex");
+
       // Tier 3 (gpt-4) queries go to queue for async processing
-      if (complexity.tier === 'gpt-4') {
+      if (complexity.tier === "gpt-4") {
         const job = await enqueueQuery({
           query: sanitizedQuery,
           userId: ctx.user?.id,
@@ -41,32 +43,33 @@ export const motherRouter = router({
           queryHash,
           timestamp: Date.now(),
         });
-        
+
         if (job) {
           return {
             async: true,
             jobId: job.id,
             tier: complexity.tier,
-            message: 'Query queued for processing. Use /api/trpc/queue.job to check status.',
+            message:
+              "Query queued for processing. Use /api/trpc/queue.job to check status.",
           };
         }
-        
+
         // Fallback to sync processing if queue is not available
       }
-      
+
       // Tier 1-2 queries process synchronously (fast enough)
       const result = await processQuery({
         query: sanitizedQuery,
         userId: ctx.user?.id,
         useCache: input.useCache,
       });
-      
+
       return {
         async: false,
         result,
       };
     }),
-  
+
   /**
    * Main query endpoint (synchronous)
    * Processes a query through all 7 MOTHER layers
@@ -81,7 +84,7 @@ export const motherRouter = router({
     .mutation(async ({ input, ctx }) => {
       // Sanitize and validate input to prevent XSS/injection attacks
       const sanitizedQuery = sanitizeAndValidate(input.query, 5000);
-      
+
       const result = await processQuery({
         query: sanitizedQuery,
         userId: ctx.user?.id,
@@ -102,10 +105,10 @@ export const motherRouter = router({
     )
     .query(async ({ input, ctx }) => {
       const queries = await getRecentQueries(input.limit);
-      
+
       // Filter to current user's queries
       const userQueries = queries.filter(q => q.userId === ctx.user.id);
-      
+
       return userQueries;
     }),
 

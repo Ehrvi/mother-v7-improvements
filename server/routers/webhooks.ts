@@ -34,7 +34,7 @@ export const webhooksRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
-      
+
       // Generate HMAC secret for webhook verification
       const secret = crypto.randomBytes(32).toString("hex");
 
@@ -83,7 +83,7 @@ export const webhooksRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
-      
+
       const [webhook] = await db
         .select()
         .from(webhooks)
@@ -140,8 +140,7 @@ export const webhooksRouter = router({
 
       const updateData: any = {};
       if (updates.url) updateData.url = updates.url;
-      if (updates.events)
-        updateData.events = JSON.stringify(updates.events);
+      if (updates.events) updateData.events = JSON.stringify(updates.events);
       if (updates.isActive !== undefined)
         updateData.isActive = updates.isActive ? 1 : 0;
 
@@ -158,7 +157,7 @@ export const webhooksRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
-      
+
       // Verify ownership
       const [existing] = await db
         .select()
@@ -184,7 +183,7 @@ export const webhooksRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
-      
+
       // Verify ownership
       const [existing] = await db
         .select()
@@ -221,7 +220,7 @@ export const webhooksRouter = router({
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
-      
+
       // Verify ownership
       const [webhook] = await db
         .select()

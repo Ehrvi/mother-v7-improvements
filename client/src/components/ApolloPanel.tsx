@@ -1,9 +1,15 @@
-import { useMother } from '@/contexts/MotherContext';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Database, AlertCircle, TrendingUp, MapPin } from 'lucide-react';
-import { toast } from 'sonner';
+import { useMother } from "@/contexts/MotherContext";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Database, AlertCircle, TrendingUp, MapPin } from "lucide-react";
+import { toast } from "sonner";
 
 export default function ApolloPanel() {
   const { apolloStats } = useMother();
@@ -12,7 +18,7 @@ export default function ApolloPanel() {
 
   const handleAction = (action: string) => {
     toast.info(`${action} - Feature coming soon`, {
-      description: 'This action will be implemented in the next update.',
+      description: "This action will be implemented in the next update.",
     });
   };
 
@@ -25,8 +31,12 @@ export default function ApolloPanel() {
             <Database className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-foreground">Apollo Project</h2>
-            <p className="text-sm text-muted-foreground">APAC Market Intelligence</p>
+            <h2 className="text-lg font-bold text-foreground">
+              Apollo Project
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              APAC Market Intelligence
+            </p>
           </div>
         </div>
 
@@ -40,12 +50,20 @@ export default function ApolloPanel() {
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Total Companies</span>
-              <span className="text-lg font-bold text-foreground">{apolloStats.totalCompanies.toLocaleString()}</span>
+              <span className="text-sm text-muted-foreground">
+                Total Companies
+              </span>
+              <span className="text-lg font-bold text-foreground">
+                {apolloStats.totalCompanies.toLocaleString()}
+              </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Data Quality Issues</span>
-              <Badge variant="destructive">{apolloStats.dataQualityIssues}</Badge>
+              <span className="text-sm text-muted-foreground">
+                Data Quality Issues
+              </span>
+              <Badge variant="destructive">
+                {apolloStats.dataQualityIssues}
+              </Badge>
             </div>
           </CardContent>
         </Card>
@@ -68,10 +86,16 @@ export default function ApolloPanel() {
                 <MapPin className="w-4 h-4 text-muted-foreground" />
                 <div className="flex-1">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium text-foreground">{country.country}</span>
-                    <span className="text-sm font-bold text-blue-400">{country.score}</span>
+                    <span className="text-sm font-medium text-foreground">
+                      {country.country}
+                    </span>
+                    <span className="text-sm font-bold text-blue-400">
+                      {country.score}
+                    </span>
                   </div>
-                  <span className="text-xs text-muted-foreground">{country.companies.toLocaleString()} companies</span>
+                  <span className="text-xs text-muted-foreground">
+                    {country.companies.toLocaleString()} companies
+                  </span>
                 </div>
               </div>
             ))}
@@ -91,21 +115,21 @@ export default function ApolloPanel() {
             <Button
               variant="outline"
               className="w-full justify-start"
-              onClick={() => handleAction('Fix Industry Field')}
+              onClick={() => handleAction("Fix Industry Field")}
             >
               Fix Industry Field (99.8% empty)
             </Button>
             <Button
               variant="outline"
               className="w-full justify-start"
-              onClick={() => handleAction('Extract Contacts')}
+              onClick={() => handleAction("Extract Contacts")}
             >
               Extract Top 100 Contacts
             </Button>
             <Button
               variant="outline"
               className="w-full justify-start"
-              onClick={() => handleAction('Indonesia Deep Dive')}
+              onClick={() => handleAction("Indonesia Deep Dive")}
             >
               Indonesia Deep Dive
             </Button>

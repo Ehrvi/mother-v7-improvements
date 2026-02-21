@@ -3,8 +3,8 @@
  * Provides semantic similarity using OpenAI embeddings
  */
 
-import { ENV } from '../_core/env';
-import { logger } from '../lib/logger';
+import { ENV } from "../_core/env";
+import { logger } from "../lib/logger";
 
 /**
  * Get embedding vector for text
@@ -13,27 +13,29 @@ import { logger } from '../lib/logger';
 export async function getEmbedding(text: string): Promise<number[]> {
   try {
     // Use OpenAI API directly (Forge API /v1/embeddings returns 404)
-    const response = await fetch('https://api.openai.com/v1/embeddings', {
-      method: 'POST',
+    const response = await fetch("https://api.openai.com/v1/embeddings", {
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${ENV.openaiApiKey}`,
-        'Content-Type': 'application/json'
+        Authorization: `Bearer ${ENV.openaiApiKey}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: 'text-embedding-3-small',
-        input: text.slice(0, 8000) // Limit to ~8k chars to avoid token limits
-      })
+        model: "text-embedding-3-small",
+        input: text.slice(0, 8000), // Limit to ~8k chars to avoid token limits
+      }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`OpenAI Embeddings API error: ${response.status} - ${errorText}`);
+      throw new Error(
+        `OpenAI Embeddings API error: ${response.status} - ${errorText}`
+      );
     }
 
     const data = await response.json();
     return data.data[0].embedding;
   } catch (error) {
-    logger.error('[Embeddings] Error:', error);
+    logger.error("[Embeddings] Error:", error);
     // Fallback: return zero vector (TF-IDF will be used instead)
     return new Array(1536).fill(0);
   }
@@ -45,7 +47,7 @@ export async function getEmbedding(text: string): Promise<number[]> {
  */
 export function cosineSimilarity(a: number[], b: number[]): number {
   if (a.length !== b.length) {
-    throw new Error('Vectors must have same length');
+    throw new Error("Vectors must have same length");
   }
 
   let dotProduct = 0;
@@ -72,10 +74,13 @@ export function cosineSimilarity(a: number[], b: number[]): number {
  * Calculate semantic similarity between two texts
  * Returns similarity score 0-1
  */
-export async function semanticSimilarity(text1: string, text2: string): Promise<number> {
+export async function semanticSimilarity(
+  text1: string,
+  text2: string
+): Promise<number> {
   const [embedding1, embedding2] = await Promise.all([
     getEmbedding(text1),
-    getEmbedding(text2)
+    getEmbedding(text2),
   ]);
 
   return cosineSimilarity(embedding1, embedding2);

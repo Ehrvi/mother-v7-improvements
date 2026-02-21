@@ -13,11 +13,11 @@ export const healthRouter = router({
       uptime: Math.floor(process.uptime()),
     };
   }),
-  
+
   // Simple health check (includes database)
   check: publicProcedure.query(async () => {
     const dbHealthy = await testPoolConnection();
-    
+
     return {
       status: dbHealthy ? "healthy" : "degraded",
       timestamp: new Date().toISOString(),
@@ -30,22 +30,23 @@ export const healthRouter = router({
       database: dbHealthy ? "connected" : "disconnected",
     };
   }),
-  
+
   // Cache statistics
   cache: publicProcedure.query(async () => {
     const stats = await getCacheStats();
-    
+
     if (!stats) {
       return {
         enabled: false,
         message: "Redis not configured",
       };
     }
-    
-    const hitRate = stats.hits + stats.misses > 0
-      ? ((stats.hits / (stats.hits + stats.misses)) * 100).toFixed(2)
-      : "0.00";
-    
+
+    const hitRate =
+      stats.hits + stats.misses > 0
+        ? ((stats.hits / (stats.hits + stats.misses)) * 100).toFixed(2)
+        : "0.00";
+
     return {
       enabled: true,
       connected: stats.connected,
@@ -56,13 +57,13 @@ export const healthRouter = router({
       hitRate: `${hitRate}%`,
     };
   }),
-  
+
   // Detailed health check (for monitoring)
   detailed: publicProcedure.query(async () => {
     const startTime = Date.now();
     const dbHealthy = await testPoolConnection();
     const dbResponseTime = Date.now() - startTime;
-    
+
     return {
       status: dbHealthy ? "healthy" : "degraded",
       timestamp: new Date().toISOString(),
@@ -95,12 +96,12 @@ function formatUptime(seconds: number): string {
   const hours = Math.floor((seconds % 86400) / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
-  
+
   const parts = [];
   if (days > 0) parts.push(`${days}d`);
   if (hours > 0) parts.push(`${hours}h`);
   if (minutes > 0) parts.push(`${minutes}m`);
   parts.push(`${secs}s`);
-  
-  return parts.join(' ');
+
+  return parts.join(" ");
 }

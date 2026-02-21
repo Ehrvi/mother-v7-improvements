@@ -1,8 +1,21 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 import { Redirect } from "wouter";
-import { TrendingDown, TrendingUp, Activity, Database, Zap, Target } from "lucide-react";
+import {
+  TrendingDown,
+  TrendingUp,
+  Activity,
+  Database,
+  Zap,
+  Target,
+} from "lucide-react";
 
 /**
  * Analytics Dashboard - Admin Only
@@ -12,13 +25,13 @@ export default function Analytics() {
   const { user, loading } = useAuth();
 
   // Redirect non-admin users
-  if (!loading && (!user || user.role !== 'admin')) {
+  if (!loading && (!user || user.role !== "admin")) {
     return <Redirect to="/404" />;
   }
 
   // Fetch analytics data (last 7 days)
   const { data: stats, isLoading } = trpc.analytics.summary.useQuery({
-    days: 7
+    days: 7,
   });
 
   if (loading || isLoading) {
@@ -76,12 +89,15 @@ export default function Analytics() {
                 {costReduction.toFixed(2)}%
               </div>
               <p className="text-xs text-muted-foreground">
-                Target: {costTarget}% {costReduction >= costTarget ? '✅' : '⚠️'}
+                Target: {costTarget}%{" "}
+                {costReduction >= costTarget ? "✅" : "⚠️"}
               </p>
               <div className="mt-2 h-2 bg-purple-900/30 rounded-full overflow-hidden">
-                <div 
+                <div
                   className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all"
-                  style={{ width: `${Math.min(100, (costReduction / costTarget) * 100)}%` }}
+                  style={{
+                    width: `${Math.min(100, (costReduction / costTarget) * 100)}%`,
+                  }}
                 />
               </div>
             </CardContent>
@@ -100,10 +116,11 @@ export default function Analytics() {
                 {qualityScore.toFixed(1)}
               </div>
               <p className="text-xs text-muted-foreground">
-                Target: {qualityTarget}+ {qualityScore >= qualityTarget ? '✅' : '⚠️'}
+                Target: {qualityTarget}+{" "}
+                {qualityScore >= qualityTarget ? "✅" : "⚠️"}
               </p>
               <div className="mt-2 h-2 bg-purple-900/30 rounded-full overflow-hidden">
-                <div 
+                <div
                   className="h-full bg-gradient-to-r from-green-500 to-emerald-500 transition-all"
                   style={{ width: `${Math.min(100, qualityScore)}%` }}
                 />
@@ -124,12 +141,15 @@ export default function Analytics() {
                 {cacheHitRate.toFixed(1)}%
               </div>
               <p className="text-xs text-muted-foreground">
-                Target: {cacheTarget}% {cacheHitRate >= cacheTarget ? '✅' : '⏳'}
+                Target: {cacheTarget}%{" "}
+                {cacheHitRate >= cacheTarget ? "✅" : "⏳"}
               </p>
               <div className="mt-2 h-2 bg-purple-900/30 rounded-full overflow-hidden">
-                <div 
+                <div
                   className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all"
-                  style={{ width: `${Math.min(100, (cacheHitRate / cacheTarget) * 100)}%` }}
+                  style={{
+                    width: `${Math.min(100, (cacheHitRate / cacheTarget) * 100)}%`,
+                  }}
                 />
               </div>
             </CardContent>
@@ -147,9 +167,7 @@ export default function Analytics() {
               <div className="text-3xl font-bold text-white mb-1">
                 {totalQueries.toLocaleString()}
               </div>
-              <p className="text-xs text-muted-foreground">
-                Last 7 days
-              </p>
+              <p className="text-xs text-muted-foreground">Last 7 days</p>
               <div className="mt-2 flex items-center gap-2 text-xs text-green-400">
                 <TrendingUp className="h-3 w-3" />
                 Active system
@@ -166,7 +184,8 @@ export default function Analytics() {
               Tier Distribution
             </CardTitle>
             <CardDescription className="text-purple-300">
-              Query routing across Guardian, Direct, and Parallel tiers (Target: 60/30/10)
+              Query routing across Guardian, Direct, and Parallel tiers (Target:
+              60/30/10)
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -174,13 +193,16 @@ export default function Analytics() {
               {/* Guardian Tier */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-white">Guardian (3-tier routing)</span>
+                  <span className="text-sm font-medium text-white">
+                    Guardian (3-tier routing)
+                  </span>
                   <span className="text-sm text-purple-300">
-                    {guardianPct.toFixed(1)}% {guardianPct >= 50 && guardianPct <= 70 ? '✅' : '⚠️'}
+                    {guardianPct.toFixed(1)}%{" "}
+                    {guardianPct >= 50 && guardianPct <= 70 ? "✅" : "⚠️"}
                   </span>
                 </div>
                 <div className="h-3 bg-purple-900/30 rounded-full overflow-hidden">
-                  <div 
+                  <div
                     className="h-full bg-gradient-to-r from-purple-600 to-purple-400 transition-all"
                     style={{ width: `${guardianPct}%` }}
                   />
@@ -193,13 +215,16 @@ export default function Analytics() {
               {/* Direct Tier */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-white">Direct (single model)</span>
+                  <span className="text-sm font-medium text-white">
+                    Direct (single model)
+                  </span>
                   <span className="text-sm text-purple-300">
-                    {directPct.toFixed(1)}% {directPct >= 20 && directPct <= 40 ? '✅' : '⚠️'}
+                    {directPct.toFixed(1)}%{" "}
+                    {directPct >= 20 && directPct <= 40 ? "✅" : "⚠️"}
                   </span>
                 </div>
                 <div className="h-3 bg-purple-900/30 rounded-full overflow-hidden">
-                  <div 
+                  <div
                     className="h-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all"
                     style={{ width: `${directPct}%` }}
                   />
@@ -212,13 +237,16 @@ export default function Analytics() {
               {/* Parallel Tier */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-white">Parallel (multi-model)</span>
+                  <span className="text-sm font-medium text-white">
+                    Parallel (multi-model)
+                  </span>
                   <span className="text-sm text-purple-300">
-                    {parallelPct.toFixed(1)}% {parallelPct >= 5 && parallelPct <= 15 ? '✅' : '⚠️'}
+                    {parallelPct.toFixed(1)}%{" "}
+                    {parallelPct >= 5 && parallelPct <= 15 ? "✅" : "⚠️"}
                   </span>
                 </div>
                 <div className="h-3 bg-purple-900/30 rounded-full overflow-hidden">
-                  <div 
+                  <div
                     className="h-full bg-gradient-to-r from-pink-600 to-pink-400 transition-all"
                     style={{ width: `${parallelPct}%` }}
                   />
@@ -232,13 +260,15 @@ export default function Analytics() {
             {/* Summary */}
             <div className="mt-6 p-4 bg-purple-900/20 rounded-lg border border-purple-500/20">
               <p className="text-sm text-purple-200">
-                <strong>Distribution Analysis:</strong> {
-                  (guardianPct >= 50 && guardianPct <= 70) &&
-                  (directPct >= 20 && directPct <= 40) &&
-                  (parallelPct >= 5 && parallelPct <= 15)
-                    ? '✅ Within target ranges (60/30/10 ±tolerance)'
-                    : '⚠️ Outside target ranges - system may need calibration'
-                }
+                <strong>Distribution Analysis:</strong>{" "}
+                {guardianPct >= 50 &&
+                guardianPct <= 70 &&
+                directPct >= 20 &&
+                directPct <= 40 &&
+                parallelPct >= 5 &&
+                parallelPct <= 15
+                  ? "✅ Within target ranges (60/30/10 ±tolerance)"
+                  : "⚠️ Outside target ranges - system may need calibration"}
               </p>
             </div>
           </CardContent>
@@ -246,7 +276,8 @@ export default function Analytics() {
 
         {/* Footer Note */}
         <div className="mt-6 text-center text-sm text-purple-300/60">
-          Data refreshes automatically. Metrics calculated from production queries.
+          Data refreshes automatically. Metrics calculated from production
+          queries.
         </div>
       </div>
     </div>

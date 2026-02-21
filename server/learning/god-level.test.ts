@@ -1,41 +1,41 @@
 /**
  * Unit Tests for GOD-Level Learning System
- * 
+ *
  * Tests all core functionality:
  * - Quality filtering (90+ threshold)
  * - Deduplication (cosine similarity)
  * - Auto-categorization (LLM-based)
  * - Embedding generation (OpenAI)
  * - Knowledge retrieval (semantic search)
- * 
+ *
  * Target: 100% code coverage
- * 
+ *
  * @module server/learning/god-level.test
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import GODLevelLearning, { GOD_LEVEL_CONFIG } from './god-level';
-import type { KnowledgeCategory } from './god-level';
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import GODLevelLearning, { GOD_LEVEL_CONFIG } from "./god-level";
+import type { KnowledgeCategory } from "./god-level";
 
 // Mock dependencies
-vi.mock('../db', () => ({
+vi.mock("../db", () => ({
   getDb: vi.fn(),
 }));
 
-vi.mock('../_core/llm', () => ({
+vi.mock("../_core/llm", () => ({
   invokeLLM: vi.fn(),
 }));
 
-vi.mock('../../drizzle/schema', () => ({
+vi.mock("../../drizzle/schema", () => ({
   knowledge: {
-    createdAt: 'createdAt',
+    createdAt: "createdAt",
   },
 }));
 
-import { getDb } from '../db';
-import { invokeLLM } from '../_core/llm';
+import { getDb } from "../db";
+import { invokeLLM } from "../_core/llm";
 
-describe('GOD-Level Learning System', () => {
+describe("GOD-Level Learning System", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -44,24 +44,24 @@ describe('GOD-Level Learning System', () => {
     vi.restoreAllMocks();
   });
 
-  describe('Configuration', () => {
-    it('should have correct default configuration', () => {
+  describe("Configuration", () => {
+    it("should have correct default configuration", () => {
       expect(GOD_LEVEL_CONFIG.MIN_QUALITY_SCORE).toBe(90);
       expect(GOD_LEVEL_CONFIG.MAX_DEDUP_CHECK).toBe(100);
       expect(GOD_LEVEL_CONFIG.SIMILARITY_THRESHOLD).toBe(0.85);
       expect(GOD_LEVEL_CONFIG.CATEGORIES).toHaveLength(8);
     });
 
-    it('should include all expected categories', () => {
+    it("should include all expected categories", () => {
       const expectedCategories = [
-        'cybersecurity',
-        'sdlc',
-        'project_management',
-        'information_management',
-        'financial_management',
-        'technical',
-        'business',
-        'other',
+        "cybersecurity",
+        "sdlc",
+        "project_management",
+        "information_management",
+        "financial_management",
+        "technical",
+        "business",
+        "other",
       ];
 
       expectedCategories.forEach(category => {
@@ -70,12 +70,12 @@ describe('GOD-Level Learning System', () => {
     });
   });
 
-  describe('learnFromQuery', () => {
-    it('should skip learning when quality score is below threshold', async () => {
+  describe("learnFromQuery", () => {
+    it("should skip learning when quality score is below threshold", async () => {
       const result = {
-        query: 'Test query',
-        response: 'Test response',
-        tier: 'gpt-4o-mini' as const,
+        query: "Test query",
+        response: "Test response",
+        tier: "gpt-4o-mini" as const,
         quality: { qualityScore: 85 }, // Below 90 threshold
         cost: 0.001,
         tokensUsed: 100,
@@ -86,7 +86,7 @@ describe('GOD-Level Learning System', () => {
       expect(learned).toBe(false);
     });
 
-    it('should learn when quality score meets threshold', async () => {
+    it("should learn when quality score meets threshold", async () => {
       // Mock database
       const mockDb = {
         select: vi.fn().mockReturnThis(),
@@ -101,11 +101,13 @@ describe('GOD-Level Learning System', () => {
 
       // Mock LLM for categorization
       vi.mocked(invokeLLM).mockResolvedValue({
-        choices: [{
-          message: {
-            content: 'technical',
+        choices: [
+          {
+            message: {
+              content: "technical",
+            },
           },
-        }],
+        ],
       } as any);
 
       // Mock fetch for embeddings
@@ -117,9 +119,10 @@ describe('GOD-Level Learning System', () => {
       }) as any;
 
       const result = {
-        query: 'What is OWASP Top 10?',
-        response: 'OWASP Top 10 is a list of the most critical security risks...',
-        tier: 'gpt-4o' as const,
+        query: "What is OWASP Top 10?",
+        response:
+          "OWASP Top 10 is a list of the most critical security risks...",
+        tier: "gpt-4o" as const,
         quality: { qualityScore: 97 }, // Above 90 threshold
         cost: 0.01,
         tokensUsed: 500,
@@ -131,7 +134,7 @@ describe('GOD-Level Learning System', () => {
       expect(mockDb.insert).toHaveBeenCalled();
     });
 
-    it('should skip learning when duplicate is detected', async () => {
+    it("should skip learning when duplicate is detected", async () => {
       // Mock database with existing similar entry
       const mockDb = {
         select: vi.fn().mockReturnThis(),
@@ -139,7 +142,7 @@ describe('GOD-Level Learning System', () => {
         orderBy: vi.fn().mockReturnThis(),
         limit: vi.fn().mockResolvedValue([
           {
-            content: 'Similar content',
+            content: "Similar content",
             embedding: JSON.stringify(new Array(1536).fill(0.9)), // Very similar
           },
         ]),
@@ -156,9 +159,9 @@ describe('GOD-Level Learning System', () => {
       }) as any;
 
       const result = {
-        query: 'Similar query',
-        response: 'Similar content',
-        tier: 'gpt-4o-mini' as const,
+        query: "Similar query",
+        response: "Similar content",
+        tier: "gpt-4o-mini" as const,
         quality: { qualityScore: 95 },
         cost: 0.001,
         tokensUsed: 100,
@@ -169,14 +172,14 @@ describe('GOD-Level Learning System', () => {
       expect(learned).toBe(false);
     });
 
-    it('should handle errors gracefully', async () => {
+    it("should handle errors gracefully", async () => {
       // Mock database error
-      vi.mocked(getDb).mockRejectedValue(new Error('Database error'));
+      vi.mocked(getDb).mockRejectedValue(new Error("Database error"));
 
       const result = {
-        query: 'Test query',
-        response: 'Test response',
-        tier: 'gpt-4o-mini' as const,
+        query: "Test query",
+        response: "Test response",
+        tier: "gpt-4o-mini" as const,
         quality: { qualityScore: 95 },
         cost: 0.001,
         tokensUsed: 100,
@@ -188,23 +191,23 @@ describe('GOD-Level Learning System', () => {
     });
   });
 
-  describe('retrieveKnowledge', () => {
-    it('should retrieve relevant knowledge using semantic search', async () => {
+  describe("retrieveKnowledge", () => {
+    it("should retrieve relevant knowledge using semantic search", async () => {
       // Mock database with knowledge entries
       const mockDb = {
         select: vi.fn().mockReturnThis(),
         from: vi.fn().mockResolvedValue([
           {
             content: JSON.stringify({
-              query: 'What is OWASP?',
-              response: 'OWASP is Open Web Application Security Project',
+              query: "What is OWASP?",
+              response: "OWASP is Open Web Application Security Project",
             }),
             embedding: JSON.stringify(new Array(1536).fill(0.8)),
           },
           {
             content: JSON.stringify({
-              query: 'What is SQL injection?',
-              response: 'SQL injection is a code injection technique',
+              query: "What is SQL injection?",
+              response: "SQL injection is a code injection technique",
             }),
             embedding: JSON.stringify(new Array(1536).fill(0.3)),
           },
@@ -221,16 +224,22 @@ describe('GOD-Level Learning System', () => {
         }),
       }) as any;
 
-      const results = await GODLevelLearning.retrieveKnowledge('Tell me about OWASP', 5);
+      const results = await GODLevelLearning.retrieveKnowledge(
+        "Tell me about OWASP",
+        5
+      );
 
       expect(results).toHaveLength(2);
       expect(results[0].similarity).toBeGreaterThan(results[1].similarity); // Sorted by similarity
     });
 
-    it('should limit results to specified count', async () => {
+    it("should limit results to specified count", async () => {
       // Mock database with many entries
       const mockEntries = Array.from({ length: 10 }, (_, i) => ({
-        content: JSON.stringify({ query: `Query ${i}`, response: `Response ${i}` }),
+        content: JSON.stringify({
+          query: `Query ${i}`,
+          response: `Response ${i}`,
+        }),
         embedding: JSON.stringify(new Array(1536).fill(0.5)),
       }));
 
@@ -249,23 +258,23 @@ describe('GOD-Level Learning System', () => {
         }),
       }) as any;
 
-      const results = await GODLevelLearning.retrieveKnowledge('Test query', 3);
+      const results = await GODLevelLearning.retrieveKnowledge("Test query", 3);
 
       expect(results).toHaveLength(3); // Limited to 3
     });
 
-    it('should handle retrieval errors gracefully', async () => {
+    it("should handle retrieval errors gracefully", async () => {
       // Mock database error
-      vi.mocked(getDb).mockRejectedValue(new Error('Database error'));
+      vi.mocked(getDb).mockRejectedValue(new Error("Database error"));
 
-      const results = await GODLevelLearning.retrieveKnowledge('Test query', 5);
+      const results = await GODLevelLearning.retrieveKnowledge("Test query", 5);
 
       expect(results).toEqual([]); // Returns empty array on error
     });
   });
 
-  describe('Categorization', () => {
-    it('should categorize knowledge using LLM', async () => {
+  describe("Categorization", () => {
+    it("should categorize knowledge using LLM", async () => {
       // This is tested indirectly through learnFromQuery
       // Testing private method directly is not recommended
       expect(true).toBe(true);
@@ -286,11 +295,13 @@ describe('GOD-Level Learning System', () => {
 
       // Mock LLM returning invalid category
       vi.mocked(invokeLLM).mockResolvedValue({
-        choices: [{
-          message: {
-            content: 'invalid_category', // Not in CATEGORIES list
+        choices: [
+          {
+            message: {
+              content: "invalid_category", // Not in CATEGORIES list
+            },
           },
-        }],
+        ],
       } as any);
 
       // Mock fetch for embeddings
@@ -302,9 +313,9 @@ describe('GOD-Level Learning System', () => {
       }) as any;
 
       const result = {
-        query: 'Random query',
-        response: 'Random response',
-        tier: 'gpt-4o-mini' as const,
+        query: "Random query",
+        response: "Random response",
+        tier: "gpt-4o-mini" as const,
         quality: { qualityScore: 92 },
         cost: 0.001,
         tokensUsed: 100,
@@ -317,8 +328,8 @@ describe('GOD-Level Learning System', () => {
     });
   });
 
-  describe('Embedding Generation', () => {
-    it('should generate embeddings using OpenAI API', async () => {
+  describe("Embedding Generation", () => {
+    it("should generate embeddings using OpenAI API", async () => {
       // Mock successful embedding generation
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
@@ -340,17 +351,19 @@ describe('GOD-Level Learning System', () => {
       vi.mocked(getDb).mockResolvedValue(mockDb as any);
 
       vi.mocked(invokeLLM).mockResolvedValue({
-        choices: [{
-          message: {
-            content: 'technical',
+        choices: [
+          {
+            message: {
+              content: "technical",
+            },
           },
-        }],
+        ],
       } as any);
 
       const result = {
-        query: 'Test query',
-        response: 'Test response',
-        tier: 'gpt-4o-mini' as const,
+        query: "Test query",
+        response: "Test response",
+        tier: "gpt-4o-mini" as const,
         quality: { qualityScore: 95 },
         cost: 0.001,
         tokensUsed: 100,
@@ -362,11 +375,11 @@ describe('GOD-Level Learning System', () => {
       expect(global.fetch).toHaveBeenCalled();
     });
 
-    it('should handle embedding API errors gracefully', async () => {
+    it("should handle embedding API errors gracefully", async () => {
       // Mock failed embedding generation
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
-        statusText: 'API Error',
+        statusText: "API Error",
       }) as any;
 
       const mockDb = {
@@ -381,17 +394,19 @@ describe('GOD-Level Learning System', () => {
       vi.mocked(getDb).mockResolvedValue(mockDb as any);
 
       vi.mocked(invokeLLM).mockResolvedValue({
-        choices: [{
-          message: {
-            content: 'technical',
+        choices: [
+          {
+            message: {
+              content: "technical",
+            },
           },
-        }],
+        ],
       } as any);
 
       const result = {
-        query: 'Test query',
-        response: 'Test response',
-        tier: 'gpt-4o-mini' as const,
+        query: "Test query",
+        response: "Test response",
+        tier: "gpt-4o-mini" as const,
         quality: { qualityScore: 95 },
         cost: 0.001,
         tokensUsed: 100,
@@ -404,26 +419,26 @@ describe('GOD-Level Learning System', () => {
     });
   });
 
-  describe('Cosine Similarity', () => {
-    it('should calculate correct similarity for identical vectors', () => {
+  describe("Cosine Similarity", () => {
+    it("should calculate correct similarity for identical vectors", () => {
       // Test through deduplication (cosine similarity is private)
       // Identical vectors should have similarity = 1.0
       expect(true).toBe(true); // Tested indirectly through deduplication tests
     });
 
-    it('should calculate correct similarity for orthogonal vectors', () => {
+    it("should calculate correct similarity for orthogonal vectors", () => {
       // Orthogonal vectors should have similarity = 0.0
       expect(true).toBe(true); // Tested indirectly
     });
 
-    it('should calculate correct similarity for opposite vectors', () => {
+    it("should calculate correct similarity for opposite vectors", () => {
       // Opposite vectors should have similarity = -1.0
       expect(true).toBe(true); // Tested indirectly
     });
   });
 
-  describe('Integration Tests', () => {
-    it('should complete full learning cycle', async () => {
+  describe("Integration Tests", () => {
+    it("should complete full learning cycle", async () => {
       // Mock all dependencies
       const mockDb = {
         select: vi.fn().mockReturnThis(),
@@ -437,11 +452,13 @@ describe('GOD-Level Learning System', () => {
       vi.mocked(getDb).mockResolvedValue(mockDb as any);
 
       vi.mocked(invokeLLM).mockResolvedValue({
-        choices: [{
-          message: {
-            content: 'cybersecurity',
+        choices: [
+          {
+            message: {
+              content: "cybersecurity",
+            },
           },
-        }],
+        ],
       } as any);
 
       global.fetch = vi.fn().mockResolvedValue({
@@ -452,9 +469,10 @@ describe('GOD-Level Learning System', () => {
       }) as any;
 
       const result = {
-        query: 'Explain OWASP Top 10:2025',
-        response: 'OWASP Top 10:2025 is a comprehensive list of the most critical web application security risks...',
-        tier: 'gpt-4o' as const,
+        query: "Explain OWASP Top 10:2025",
+        response:
+          "OWASP Top 10:2025 is a comprehensive list of the most critical web application security risks...",
+        tier: "gpt-4o" as const,
         quality: { qualityScore: 99 },
         cost: 0.02,
         tokensUsed: 800,
@@ -468,11 +486,11 @@ describe('GOD-Level Learning System', () => {
         expect.objectContaining({
           title: expect.any(String),
           content: expect.any(String),
-          category: 'cybersecurity',
+          category: "cybersecurity",
           embedding: expect.any(String),
-          embeddingModel: 'text-embedding-3-small',
-          source: 'god_level_learning',
-          sourceType: 'learning',
+          embeddingModel: "text-embedding-3-small",
+          source: "god_level_learning",
+          sourceType: "learning",
         })
       );
     });

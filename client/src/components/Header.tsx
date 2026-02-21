@@ -1,21 +1,21 @@
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Bot, Settings, Trash2 } from 'lucide-react';
-import { useMother } from '@/contexts/MotherContext';
-import { toast } from 'sonner';
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Bot, Settings, Trash2 } from "lucide-react";
+import { useMother } from "@/contexts/MotherContext";
+import { toast } from "sonner";
 
 export default function Header() {
   const { clearMessages } = useMother();
 
   const handleClearChat = () => {
-    if (confirm('Are you sure you want to clear all messages?')) {
+    if (confirm("Are you sure you want to clear all messages?")) {
       clearMessages();
-      toast.success('Chat history cleared');
+      toast.success("Chat history cleared");
     }
   };
 
   const handleSettings = () => {
-    toast.info('Settings - Feature coming soon');
+    toast.info("Settings - Feature coming soon");
   };
 
   return (
@@ -29,10 +29,15 @@ export default function Header() {
           <div>
             <h1 className="text-xl font-bold text-foreground">Mother v12.0</h1>
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-xs border-green-500/50 text-green-400">
+              <Badge
+                variant="outline"
+                className="text-xs border-green-500/50 text-green-400"
+              >
                 ● Operational
               </Badge>
-              <span className="text-xs text-muted-foreground">Sydney, Australia</span>
+              <span className="text-xs text-muted-foreground">
+                Sydney, Australia
+              </span>
             </div>
           </div>
         </div>

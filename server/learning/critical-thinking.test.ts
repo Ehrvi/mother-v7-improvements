@@ -1,6 +1,6 @@
 /**
  * Unit Tests: Critical Thinking Central
- * 
+ *
  * Test Coverage:
  * - Configuration
  * - 8-Phase Process
@@ -77,11 +77,19 @@ describe("Critical Thinking Central", () => {
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
-        choices: [{ message: { content: JSON.stringify({ quality: 90, gaps: ["gap1"] }) } }],
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ quality: 90, gaps: ["gap1"] }),
+            },
+          },
+        ],
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
-        choices: [{ message: { content: JSON.stringify({ knowledge: ["fact1"] }) } }],
+        choices: [
+          { message: { content: JSON.stringify({ knowledge: ["fact1"] }) } },
+        ],
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
@@ -92,14 +100,20 @@ describe("Critical Thinking Central", () => {
         choices: [
           {
             message: {
-              content: JSON.stringify({ baseline_quality: 90, improved_quality: 98, improvement: 8.9 }),
+              content: JSON.stringify({
+                baseline_quality: 90,
+                improved_quality: 98,
+                improvement: 8.9,
+              }),
             },
           },
         ],
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
-        choices: [{ message: { content: JSON.stringify({ insights: ["insight1"] }) } }],
+        choices: [
+          { message: { content: JSON.stringify({ insights: ["insight1"] }) } },
+        ],
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
@@ -115,13 +129,19 @@ describe("Critical Thinking Central", () => {
 
   describe("Complexity Threshold", () => {
     it("should return null when complexity below threshold", async () => {
-      const ct = new CriticalThinkingCentral({ enabled: true, complexityThreshold: 70 });
+      const ct = new CriticalThinkingCentral({
+        enabled: true,
+        complexityThreshold: 70,
+      });
       const result = await ct.execute("simple query", 50);
       expect(result).toBeNull();
     });
 
     it("should execute when complexity above threshold", async () => {
-      const ct = new CriticalThinkingCentral({ enabled: true, complexityThreshold: 70 });
+      const ct = new CriticalThinkingCentral({
+        enabled: true,
+        complexityThreshold: 70,
+      });
 
       // Mock LLM responses (same as feature flag test)
       vi.mocked(invokeLLM).mockResolvedValueOnce({
@@ -129,11 +149,19 @@ describe("Critical Thinking Central", () => {
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
-        choices: [{ message: { content: JSON.stringify({ quality: 90, gaps: ["gap1"] }) } }],
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ quality: 90, gaps: ["gap1"] }),
+            },
+          },
+        ],
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
-        choices: [{ message: { content: JSON.stringify({ knowledge: ["fact1"] }) } }],
+        choices: [
+          { message: { content: JSON.stringify({ knowledge: ["fact1"] }) } },
+        ],
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
@@ -144,14 +172,20 @@ describe("Critical Thinking Central", () => {
         choices: [
           {
             message: {
-              content: JSON.stringify({ baseline_quality: 90, improved_quality: 98, improvement: 8.9 }),
+              content: JSON.stringify({
+                baseline_quality: 90,
+                improved_quality: 98,
+                improvement: 8.9,
+              }),
             },
           },
         ],
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
-        choices: [{ message: { content: JSON.stringify({ insights: ["insight1"] }) } }],
+        choices: [
+          { message: { content: JSON.stringify({ insights: ["insight1"] }) } },
+        ],
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
@@ -165,7 +199,10 @@ describe("Critical Thinking Central", () => {
 
   describe("Quality Threshold", () => {
     it("should return null when baseline quality above threshold", async () => {
-      const ct = new CriticalThinkingCentral({ enabled: true, qualityThreshold: 95 });
+      const ct = new CriticalThinkingCentral({
+        enabled: true,
+        qualityThreshold: 95,
+      });
 
       // Mock baseline response
       vi.mocked(invokeLLM).mockResolvedValueOnce({
@@ -174,7 +211,9 @@ describe("Critical Thinking Central", () => {
 
       // Mock quality evaluation (high quality)
       vi.mocked(invokeLLM).mockResolvedValueOnce({
-        choices: [{ message: { content: JSON.stringify({ quality: 98, gaps: [] }) } }],
+        choices: [
+          { message: { content: JSON.stringify({ quality: 98, gaps: [] }) } },
+        ],
       } as any);
 
       const result = await ct.execute("test query", 80);
@@ -182,7 +221,10 @@ describe("Critical Thinking Central", () => {
     });
 
     it("should execute when baseline quality below threshold", async () => {
-      const ct = new CriticalThinkingCentral({ enabled: true, qualityThreshold: 95 });
+      const ct = new CriticalThinkingCentral({
+        enabled: true,
+        qualityThreshold: 95,
+      });
 
       // Mock all 7 LLM calls
       vi.mocked(invokeLLM).mockResolvedValueOnce({
@@ -190,11 +232,19 @@ describe("Critical Thinking Central", () => {
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
-        choices: [{ message: { content: JSON.stringify({ quality: 90, gaps: ["gap1"] }) } }],
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ quality: 90, gaps: ["gap1"] }),
+            },
+          },
+        ],
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
-        choices: [{ message: { content: JSON.stringify({ knowledge: ["fact1"] }) } }],
+        choices: [
+          { message: { content: JSON.stringify({ knowledge: ["fact1"] }) } },
+        ],
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
@@ -205,14 +255,20 @@ describe("Critical Thinking Central", () => {
         choices: [
           {
             message: {
-              content: JSON.stringify({ baseline_quality: 90, improved_quality: 98, improvement: 8.9 }),
+              content: JSON.stringify({
+                baseline_quality: 90,
+                improved_quality: 98,
+                improvement: 8.9,
+              }),
             },
           },
         ],
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
-        choices: [{ message: { content: JSON.stringify({ insights: ["insight1"] }) } }],
+        choices: [
+          { message: { content: JSON.stringify({ insights: ["insight1"] }) } },
+        ],
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
@@ -236,22 +292,42 @@ describe("Critical Thinking Central", () => {
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
-        choices: [{ message: { content: JSON.stringify({ quality: 85, gaps: ["gap1", "gap2"] }) } }],
-      } as any);
-
-      vi.mocked(invokeLLM).mockResolvedValueOnce({
-        choices: [{ message: { content: JSON.stringify({ knowledge: ["fact1", "fact2", "fact3"] }) } }],
-      } as any);
-
-      vi.mocked(invokeLLM).mockResolvedValueOnce({
-        choices: [{ message: { content: "Improved response with GOD knowledge" } }],
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ quality: 85, gaps: ["gap1", "gap2"] }),
+            },
+          },
+        ],
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
         choices: [
           {
             message: {
-              content: JSON.stringify({ baseline_quality: 85, improved_quality: 97, improvement: 14.1 }),
+              content: JSON.stringify({
+                knowledge: ["fact1", "fact2", "fact3"],
+              }),
+            },
+          },
+        ],
+      } as any);
+
+      vi.mocked(invokeLLM).mockResolvedValueOnce({
+        choices: [
+          { message: { content: "Improved response with GOD knowledge" } },
+        ],
+      } as any);
+
+      vi.mocked(invokeLLM).mockResolvedValueOnce({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                baseline_quality: 85,
+                improved_quality: 97,
+                improvement: 14.1,
+              }),
             },
           },
         ],
@@ -268,21 +344,30 @@ describe("Critical Thinking Central", () => {
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
-        choices: [{ message: { content: "Deep introspection about learning process" } }],
+        choices: [
+          { message: { content: "Deep introspection about learning process" } },
+        ],
       } as any);
 
-      const result = await ct.execute("complex query requiring deep thought", 85);
+      const result = await ct.execute(
+        "complex query requiring deep thought",
+        85
+      );
 
       expect(result).not.toBeNull();
       expect(result?.baselineResponse).toBe("Baseline response");
       expect(result?.baselineQuality).toBe(85);
       expect(result?.gaps).toEqual(["gap1", "gap2"]);
       expect(result?.godKnowledge).toEqual(["fact1", "fact2", "fact3"]);
-      expect(result?.improvedResponse).toBe("Improved response with GOD knowledge");
+      expect(result?.improvedResponse).toBe(
+        "Improved response with GOD knowledge"
+      );
       expect(result?.improvedQuality).toBe(97);
       expect(result?.qualityImprovement).toBe(14.1);
       expect(result?.guardianInsights).toEqual(["insight1", "insight2"]);
-      expect(result?.systemIntrospection).toBe("Deep introspection about learning process");
+      expect(result?.systemIntrospection).toBe(
+        "Deep introspection about learning process"
+      );
       expect(result?.documentation).toContain("# Critical Thinking Central");
       expect(result?.iterations).toBe(1);
     });
@@ -296,11 +381,19 @@ describe("Critical Thinking Central", () => {
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
-        choices: [{ message: { content: JSON.stringify({ quality: 90, gaps: ["gap1"] }) } }],
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ quality: 90, gaps: ["gap1"] }),
+            },
+          },
+        ],
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
-        choices: [{ message: { content: JSON.stringify({ knowledge: ["fact1"] }) } }],
+        choices: [
+          { message: { content: JSON.stringify({ knowledge: ["fact1"] }) } },
+        ],
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
@@ -311,14 +404,20 @@ describe("Critical Thinking Central", () => {
         choices: [
           {
             message: {
-              content: JSON.stringify({ baseline_quality: 90, improved_quality: 98, improvement: 8.9 }),
+              content: JSON.stringify({
+                baseline_quality: 90,
+                improved_quality: 98,
+                improvement: 8.9,
+              }),
             },
           },
         ],
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
-        choices: [{ message: { content: JSON.stringify({ insights: ["insight1"] }) } }],
+        choices: [
+          { message: { content: JSON.stringify({ insights: ["insight1"] }) } },
+        ],
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
@@ -331,10 +430,14 @@ describe("Critical Thinking Central", () => {
       expect(result?.documentation).toContain("## Query");
       expect(result?.documentation).toContain("## Phase 1: Baseline Response");
       expect(result?.documentation).toContain("## Phase 2: Gaps Identified");
-      expect(result?.documentation).toContain("## Phase 3: GOD Knowledge Acquired");
+      expect(result?.documentation).toContain(
+        "## Phase 3: GOD Knowledge Acquired"
+      );
       expect(result?.documentation).toContain("## Phase 4: Improved Response");
       expect(result?.documentation).toContain("## Phase 6: Guardian Insights");
-      expect(result?.documentation).toContain("## Phase 7: System Introspection");
+      expect(result?.documentation).toContain(
+        "## Phase 7: System Introspection"
+      );
     });
   });
 
@@ -377,11 +480,19 @@ describe("Critical Thinking Central", () => {
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
-        choices: [{ message: { content: JSON.stringify({ quality: 90, gaps: ["gap1"] }) } }],
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ quality: 90, gaps: ["gap1"] }),
+            },
+          },
+        ],
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
-        choices: [{ message: { content: JSON.stringify({ knowledge: ["fact1"] }) } }],
+        choices: [
+          { message: { content: JSON.stringify({ knowledge: ["fact1"] }) } },
+        ],
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
@@ -392,14 +503,20 @@ describe("Critical Thinking Central", () => {
         choices: [
           {
             message: {
-              content: JSON.stringify({ baseline_quality: 90, improved_quality: 98, improvement: 8.9 }),
+              content: JSON.stringify({
+                baseline_quality: 90,
+                improved_quality: 98,
+                improvement: 8.9,
+              }),
             },
           },
         ],
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({
-        choices: [{ message: { content: JSON.stringify({ insights: ["insight1"] }) } }],
+        choices: [
+          { message: { content: JSON.stringify({ insights: ["insight1"] }) } },
+        ],
       } as any);
 
       vi.mocked(invokeLLM).mockResolvedValueOnce({

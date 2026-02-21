@@ -1,11 +1,22 @@
 import express, { type Express } from "express";
+/**
+ * Vite Development Server Integration
+ *
+ * NOTE: This file has an intentional circular dependency with vite.config.ts.
+ * This is necessary for:
+ * - vite.config.ts to define build configuration
+ * - vite.ts to import and use the configuration at runtime
+ *
+ * This pattern is standard in Vite applications and does not cause issues.
+ */
+
 import fs from "fs";
 import { type Server } from "http";
 import { nanoid } from "nanoid";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
-import { logger } from '../lib/logger';
+import { logger } from "../lib/logger";
 
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {

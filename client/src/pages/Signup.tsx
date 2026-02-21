@@ -1,6 +1,6 @@
 /**
  * MOTHER v7.0 - Secure Signup Page
- * 
+ *
  * Features:
  * - Strong password requirements (12+ chars, uppercase, lowercase, number, special)
  * - Real-time validation feedback
@@ -9,39 +9,45 @@
  * - Loading states
  */
 
-import { useState } from 'react';
-import { Link, useLocation } from 'wouter';
-import { trpc } from '@/lib/trpc';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { useState } from "react";
+import { Link, useLocation } from "wouter";
+import { trpc } from "@/lib/trpc";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 
 export default function Signup() {
   const [, setLocation] = useLocation();
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
   const signupMutation = trpc.auth.signup.useMutation({
     onSuccess: () => {
       setSuccess(true);
       setTimeout(() => {
-        setLocation('/login');
+        setLocation("/login");
       }, 2000);
     },
-    onError: (error) => {
+    onError: error => {
       setError(error.message);
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
     signupMutation.mutate({ name, email, password });
   };
 
@@ -80,18 +86,22 @@ export default function Signup() {
               {error && (
                 <Alert className="bg-red-500/20 border-red-500/50">
                   <XCircle className="h-4 w-4 text-red-400" />
-                  <AlertDescription className="text-red-300">{error}</AlertDescription>
+                  <AlertDescription className="text-red-300">
+                    {error}
+                  </AlertDescription>
                 </Alert>
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="name" className="text-gray-200">Name</Label>
+                <Label htmlFor="name" className="text-gray-200">
+                  Name
+                </Label>
                 <Input
                   id="name"
                   type="text"
                   placeholder="Your name"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={e => setName(e.target.value)}
                   required
                   minLength={2}
                   maxLength={100}
@@ -100,13 +110,15 @@ export default function Signup() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-gray-200">Email</Label>
+                <Label htmlFor="email" className="text-gray-200">
+                  Email
+                </Label>
                 <Input
                   id="email"
                   type="email"
                   placeholder="you@example.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={e => setEmail(e.target.value)}
                   required
                   maxLength={320}
                   className="bg-black/50 border-purple-500/30 text-white placeholder:text-gray-500"
@@ -114,20 +126,24 @@ export default function Signup() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-gray-200">Password</Label>
+                <Label htmlFor="password" className="text-gray-200">
+                  Password
+                </Label>
                 <Input
                   id="password"
                   type="password"
                   placeholder="••••••••••••"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={e => setPassword(e.target.value)}
                   required
                   className="bg-black/50 border-purple-500/30 text-white placeholder:text-gray-500"
                 />
-                
+
                 {password && (
                   <div className="space-y-2 mt-3 p-3 bg-black/30 rounded-lg border border-purple-500/20">
-                    <p className="text-xs text-gray-300 font-medium">Password Requirements:</p>
+                    <p className="text-xs text-gray-300 font-medium">
+                      Password Requirements:
+                    </p>
                     <div className="space-y-1">
                       <PasswordRequirement
                         met={passwordRequirements.length}
@@ -165,12 +181,12 @@ export default function Signup() {
                     Creating Account...
                   </>
                 ) : (
-                  'Create Account'
+                  "Create Account"
                 )}
               </Button>
 
               <p className="text-center text-sm text-gray-400">
-                Already have an account?{' '}
+                Already have an account?{" "}
                 <Link href="/login">
                   <a className="text-cyan-400 hover:text-cyan-300 font-medium">
                     Login here
@@ -193,7 +209,7 @@ function PasswordRequirement({ met, text }: { met: boolean; text: string }) {
       ) : (
         <XCircle className="h-3 w-3 text-gray-500 flex-shrink-0" />
       )}
-      <span className={met ? 'text-green-400' : 'text-gray-500'}>{text}</span>
+      <span className={met ? "text-green-400" : "text-gray-500"}>{text}</span>
     </div>
   );
 }

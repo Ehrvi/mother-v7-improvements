@@ -1,9 +1,9 @@
-import Redis from 'ioredis';
-import { logger } from './logger';
+import Redis from "ioredis";
+import { logger } from "./logger";
 
 /**
  * Redis Client for Caching
- * 
+ *
  * Features:
  * - Connection pooling
  * - Automatic reconnection
@@ -24,20 +24,20 @@ export function getRedisClient(): Redis | null {
   }
 
   // Check if Redis is explicitly disabled via environment variable
-  const redisEnabled = process.env.REDIS_ENABLED !== 'false';
+  const redisEnabled = process.env.REDIS_ENABLED !== "false";
   if (!redisEnabled) {
     redisDisabled = true;
-    logger.info('Redis explicitly disabled via REDIS_ENABLED=false');
+    logger.info("Redis explicitly disabled via REDIS_ENABLED=false");
     return null;
   }
 
   // If Redis is not configured, return null (graceful degradation)
   const redisHost = process.env.REDIS_HOST;
-  const redisPort = parseInt(process.env.REDIS_PORT || '6379');
-  
+  const redisPort = parseInt(process.env.REDIS_PORT || "6379");
+
   if (!redisHost) {
     redisDisabled = true;
-    logger.info('Redis not configured (REDIS_HOST missing) - caching disabled');
+    logger.info("Redis not configured (REDIS_HOST missing) - caching disabled");
     return null;
   }
 
@@ -56,7 +56,9 @@ export function getRedisClient(): Redis | null {
       retryStrategy(times) {
         // Limit retries to 3 attempts
         if (times > 3) {
-          logger.error('Redis connection failed after 3 attempts - disabling Redis');
+          logger.error(
+            "Redis connection failed after 3 attempts - disabling Redis"
+          );
           return null; // Stop retrying
         }
         const delay = Math.min(times * 50, 2000);
@@ -67,21 +69,21 @@ export function getRedisClient(): Redis | null {
       lazyConnect: true, // Don't connect immediately - connect on first use
     });
 
-    redisClient.on('connect', () => {
-      logger.info('Redis connected successfully');
+    redisClient.on("connect", () => {
+      logger.info("Redis connected successfully");
     });
 
-    redisClient.on('error', (err) => {
-      logger.error('Redis error:', err);
+    redisClient.on("error", err => {
+      logger.error("Redis error:", err);
     });
 
-    redisClient.on('close', () => {
-      logger.warn('Redis connection closed');
+    redisClient.on("close", () => {
+      logger.warn("Redis connection closed");
     });
 
     return redisClient;
   } catch (error) {
-    logger.error('Failed to create Redis client:', error);
+    logger.error("Failed to create Redis client:", error);
     return null;
   }
 }
@@ -89,7 +91,7 @@ export function getRedisClient(): Redis | null {
 /**
  * Cache key prefix for namespacing
  */
-const CACHE_PREFIX = 'mother:';
+const CACHE_PREFIX = "mother:";
 
 /**
  * Generate cache key with prefix
@@ -202,15 +204,15 @@ export async function getCacheStats(): Promise<{
   if (!client) return null;
 
   try {
-    const info = await client.info('stats');
-    const keyspace = await client.info('keyspace');
-    const memory = await client.info('memory');
+    const info = await client.info("stats");
+    const keyspace = await client.info("keyspace");
+    const memory = await client.info("memory");
 
     // Parse info strings
     const stats = {
-      connected: client.status === 'ready',
+      connected: client.status === "ready",
       keys: 0,
-      memory: '0',
+      memory: "0",
       hits: 0,
       misses: 0,
     };
@@ -230,13 +232,13 @@ export async function getCacheStats(): Promise<{
     // Extract stats
     const hitsMatch = info.match(/keyspace_hits:(\d+)/);
     const missesMatch = info.match(/keyspace_misses:(\d+)/);
-    
+
     if (hitsMatch) stats.hits = parseInt(hitsMatch[1]);
     if (missesMatch) stats.misses = parseInt(missesMatch[1]);
 
     return stats;
   } catch (error) {
-    logger.error('Failed to get cache stats:', error);
+    logger.error("Failed to get cache stats:", error);
     return null;
   }
 }
@@ -248,7 +250,7 @@ export async function closeRedis(): Promise<void> {
   if (redisClient) {
     await redisClient.quit();
     redisClient = null;
-    logger.info('Redis connection closed');
+    logger.info("Redis connection closed");
   }
 }
 
@@ -261,10 +263,10 @@ export async function cacheFlushAll(): Promise<boolean> {
 
   try {
     await client.flushdb();
-    logger.warn('Cache flushed - all keys deleted');
+    logger.warn("Cache flushed - all keys deleted");
     return true;
   } catch (error) {
-    logger.error('Cache flush error:', error);
+    logger.error("Cache flush error:", error);
     return false;
   }
 }

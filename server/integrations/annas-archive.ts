@@ -1,14 +1,14 @@
 /**
  * MOTHER v14 - Anna's Archive Integration
  * Automatic scientific knowledge acquisition from Anna's Archive (annas-archive.li)
- * 
+ *
  * Features:
  * - Search 63.6M books + 95.6M scientific papers
  * - Download PDFs automatically
  * - Extract text content (pdf-parse)
  * - Index into Knowledge Base with embeddings
  * - Integrated with GOD-Level Learning for continuous improvement
- * 
+ *
  * Sources:
  * - IEEE Xplore (engineering, computer science)
  * - ACM Digital Library (computing)
@@ -17,12 +17,12 @@
  * - PubMed (biomedical)
  */
 
-import axios from 'axios';
-const pdfParse = require('pdf-parse');
-import { writeFile, readFile, unlink } from 'fs/promises';
-import { existsSync } from 'fs';
-import knowledgeBase from '../knowledge/base';
-import { logger } from '../lib/logger';
+import axios from "axios";
+const pdfParse = require("pdf-parse");
+import { writeFile, readFile, unlink } from "fs/promises";
+import { existsSync } from "fs";
+import knowledgeBase from "../knowledge/base";
+import { logger } from "../lib/logger";
 
 export interface SearchResult {
   title: string;
@@ -43,13 +43,13 @@ export interface ResearchResult {
 }
 
 class AnnasArchiveIntegration {
-  private baseUrl = 'https://annas-archive.li';
-  private downloadDir = '/tmp/annas-archive';
+  private baseUrl = "https://annas-archive.li";
+  private downloadDir = "/tmp/annas-archive";
 
   constructor() {
     // Ensure download directory exists
     if (!existsSync(this.downloadDir)) {
-      require('fs').mkdirSync(this.downloadDir, { recursive: true });
+      require("fs").mkdirSync(this.downloadDir, { recursive: true });
     }
   }
 
@@ -69,13 +69,13 @@ class AnnasArchiveIntegration {
       const response = await axios.get(`${this.baseUrl}/search`, {
         params: {
           q: query,
-          ext: 'pdf',
-          lang: 'en',
-          content: 'sci_article',
-          sort: 'most_relevant',
-          limit
+          ext: "pdf",
+          lang: "en",
+          content: "sci_article",
+          sort: "most_relevant",
+          limit,
         },
-        timeout: 30000
+        timeout: 30000,
       });
 
       // Parse HTML response (Anna's Archive doesn't have official API)
@@ -83,7 +83,7 @@ class AnnasArchiveIntegration {
 
       return results.slice(0, limit);
     } catch (error) {
-      logger.error('[AnnasArchive] Search failed:', error);
+      logger.error("[AnnasArchive] Search failed:", error);
       return [];
     }
   }
@@ -99,8 +99,8 @@ class AnnasArchiveIntegration {
 
       // Download PDF
       const response = await axios.get(downloadUrl, {
-        responseType: 'arraybuffer',
-        timeout: 60000
+        responseType: "arraybuffer",
+        timeout: 60000,
       });
 
       // Save to file
@@ -108,7 +108,7 @@ class AnnasArchiveIntegration {
 
       return filepath;
     } catch (error) {
-      logger.error('[AnnasArchive] Download failed:', error);
+      logger.error("[AnnasArchive] Download failed:", error);
       throw new Error(`Failed to download: ${error}`);
     }
   }
@@ -124,8 +124,8 @@ class AnnasArchiveIntegration {
 
       return data.text;
     } catch (error) {
-      logger.error('[AnnasArchive] Text extraction failed:', error);
-      return '';
+      logger.error("[AnnasArchive] Text extraction failed:", error);
+      return "";
     }
   }
 
@@ -134,15 +134,18 @@ class AnnasArchiveIntegration {
    * @param paper Search result with paper metadata
    * @param content Extracted text content
    */
-  async addToKnowledgeBase(paper: SearchResult, content: string): Promise<string> {
+  async addToKnowledgeBase(
+    paper: SearchResult,
+    content: string
+  ): Promise<string> {
     const conceptName = `Paper: ${paper.title}`;
-    const conceptType = 'scientific_paper';
+    const conceptType = "scientific_paper";
     const description = `
 **Title:** ${paper.title}
-**Authors:** ${paper.authors.join(', ')}
+**Authors:** ${paper.authors.join(", ")}
 **Year:** ${paper.year}
 **Source:** ${paper.source}
-**DOI:** ${paper.doi || 'N/A'}
+**DOI:** ${paper.doi || "N/A"}
 
 **Abstract:**
 ${paper.abstract}
@@ -164,7 +167,7 @@ ${content.slice(0, 2000)}...
         source: paper.source,
         doi: paper.doi,
         isbn: paper.isbn,
-        downloadUrl: paper.downloadUrl
+        downloadUrl: paper.downloadUrl,
       }
     );
 
@@ -178,11 +181,14 @@ ${content.slice(0, 2000)}...
    * 3. Extract text
    * 4. Add to knowledge base
    * 5. Generate summary
-   * 
+   *
    * @param query Research query
    * @param maxPapers Maximum papers to process (default: 3)
    */
-  async research(query: string, maxPapers: number = 3): Promise<ResearchResult> {
+  async research(
+    query: string,
+    maxPapers: number = 3
+  ): Promise<ResearchResult> {
     logger.info(`[AnnasArchive] Starting research: "${query}"`);
 
     // 1. Search for papers
@@ -193,7 +199,7 @@ ${content.slice(0, 2000)}...
         query,
         papers: [],
         knowledgeAdded: 0,
-        summary: 'No papers found for this query.'
+        summary: "No papers found for this query.",
       };
     }
 
@@ -209,14 +215,16 @@ ${content.slice(0, 2000)}...
         }
 
         // Download PDF
-        const filename = `${paper.title.replace(/[^a-z0-9]/gi, '_')}.pdf`;
+        const filename = `${paper.title.replace(/[^a-z0-9]/gi, "_")}.pdf`;
         const filepath = await this.download(paper.downloadUrl, filename);
 
         // Extract text
         const content = await this.extractText(filepath);
 
         if (content.length < 100) {
-          logger.warn(`[AnnasArchive] Insufficient content extracted from: ${paper.title}`);
+          logger.warn(
+            `[AnnasArchive] Insufficient content extracted from: ${paper.title}`
+          );
           continue;
         }
 
@@ -241,45 +249,51 @@ ${content.slice(0, 2000)}...
       query,
       papers: processedPapers,
       knowledgeAdded,
-      summary
+      summary,
     };
   }
 
   /**
    * Parse HTML search results (unofficial API)
    */
-  private _parseSearchResults(html: string, sources?: string[]): SearchResult[] {
+  private _parseSearchResults(
+    html: string,
+    sources?: string[]
+  ): SearchResult[] {
     // Note: This is a simplified parser. In production, use a proper HTML parser like cheerio
     // For now, return mock data for testing
 
     const mockResults: SearchResult[] = [
       {
-        title: 'Deep Learning Optimization Techniques',
-        authors: ['John Doe', 'Jane Smith'],
+        title: "Deep Learning Optimization Techniques",
+        authors: ["John Doe", "Jane Smith"],
         year: 2023,
-        source: 'IEEE',
-        abstract: 'This paper presents novel optimization techniques for deep learning models...',
-        downloadUrl: 'https://example.com/paper1.pdf',
-        doi: '10.1109/EXAMPLE.2023.123456'
+        source: "IEEE",
+        abstract:
+          "This paper presents novel optimization techniques for deep learning models...",
+        downloadUrl: "https://example.com/paper1.pdf",
+        doi: "10.1109/EXAMPLE.2023.123456",
       },
       {
-        title: 'Machine Learning in Production Systems',
-        authors: ['Alice Johnson'],
+        title: "Machine Learning in Production Systems",
+        authors: ["Alice Johnson"],
         year: 2022,
-        source: 'ACM',
-        abstract: 'A comprehensive guide to deploying ML models in production environments...',
-        downloadUrl: 'https://example.com/paper2.pdf',
-        doi: '10.1145/EXAMPLE.2022.654321'
+        source: "ACM",
+        abstract:
+          "A comprehensive guide to deploying ML models in production environments...",
+        downloadUrl: "https://example.com/paper2.pdf",
+        doi: "10.1145/EXAMPLE.2022.654321",
       },
       {
-        title: 'Neural Architecture Search: A Survey',
-        authors: ['Bob Williams', 'Carol Davis'],
+        title: "Neural Architecture Search: A Survey",
+        authors: ["Bob Williams", "Carol Davis"],
         year: 2024,
-        source: 'Springer',
-        abstract: 'This survey covers recent advances in neural architecture search methods...',
-        downloadUrl: 'https://example.com/paper3.pdf',
-        doi: '10.1007/EXAMPLE-2024-001'
-      }
+        source: "Springer",
+        abstract:
+          "This survey covers recent advances in neural architecture search methods...",
+        downloadUrl: "https://example.com/paper3.pdf",
+        doi: "10.1007/EXAMPLE-2024-001",
+      },
     ];
 
     // Filter by sources if specified
@@ -295,10 +309,12 @@ ${content.slice(0, 2000)}...
    */
   private _generateSummary(papers: SearchResult[]): string {
     if (papers.length === 0) {
-      return 'No papers were successfully processed.';
+      return "No papers were successfully processed.";
     }
 
-    const titles = papers.map(p => `- ${p.title} (${p.source}, ${p.year})`).join('\n');
+    const titles = papers
+      .map(p => `- ${p.title} (${p.source}, ${p.year})`)
+      .join("\n");
 
     return `
 Successfully processed ${papers.length} scientific paper(s):

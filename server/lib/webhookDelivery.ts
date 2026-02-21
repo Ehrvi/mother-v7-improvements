@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { getDb } from "../db";
 import { webhooks, webhookDeliveries } from "../../drizzle/schema";
 import { eq, and, lte } from "drizzle-orm";
-import { logger } from '../lib/logger';
+import { logger } from "../lib/logger";
 
 /**
  * Webhook Delivery System
@@ -97,7 +97,7 @@ export async function triggerWebhookEvent(
     .from(webhooks)
     .where(eq(webhooks.isActive, 1));
 
-  const subscribedWebhooks = activeWebhooks.filter((webhook) => {
+  const subscribedWebhooks = activeWebhooks.filter(webhook => {
     const events = JSON.parse(webhook.events) as WebhookEvent[];
     return events.includes(event);
   });
@@ -156,16 +156,19 @@ export async function triggerWebhookEvent(
           totalDeliveries: (webhook.totalDeliveries || 0) + 1,
           successfulDeliveries: result.success
             ? (webhook.successfulDeliveries || 0) + 1
-            : (webhook.successfulDeliveries || 0),
+            : webhook.successfulDeliveries || 0,
           failedDeliveries: result.success
-            ? (webhook.failedDeliveries || 0)
+            ? webhook.failedDeliveries || 0
             : (webhook.failedDeliveries || 0) + 1,
           lastDeliveryAt: new Date(),
           lastDeliveryStatus: result.success ? "success" : "failed",
         })
         .where(eq(webhooks.id, webhook.id));
     } catch (error) {
-      logger.error(`[Webhooks] Failed to deliver webhook ${webhook.id}:`, error);
+      logger.error(
+        `[Webhooks] Failed to deliver webhook ${webhook.id}:`,
+        error
+      );
     }
   }
 }

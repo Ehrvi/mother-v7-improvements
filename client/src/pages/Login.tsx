@@ -1,6 +1,6 @@
 /**
  * MOTHER v7.0 - Secure Login Page
- * 
+ *
  * Features:
  * - Rate limiting protection (5 attempts/15min)
  * - Error handling with user-friendly messages
@@ -8,37 +8,43 @@
  * - Redirect to home after successful login
  */
 
-import { useState } from 'react';
-import { Link, useLocation } from 'wouter';
-import { trpc } from '@/lib/trpc';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { XCircle, Loader2 } from 'lucide-react';
+import { useState } from "react";
+import { Link, useLocation } from "wouter";
+import { trpc } from "@/lib/trpc";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { XCircle, Loader2 } from "lucide-react";
 
 export default function Login() {
   const [, setLocation] = useLocation();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
 
   const utils = trpc.useUtils();
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: () => {
       // Invalidate auth.me query to refresh user state
       utils.auth.me.invalidate();
-      setLocation('/');
+      setLocation("/");
     },
-    onError: (error) => {
+    onError: error => {
       setError(error.message);
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
     loginMutation.mutate({ email, password });
   };
 
@@ -58,31 +64,37 @@ export default function Login() {
             {error && (
               <Alert className="bg-red-500/20 border-red-500/50">
                 <XCircle className="h-4 w-4 text-red-400" />
-                <AlertDescription className="text-red-300">{error}</AlertDescription>
+                <AlertDescription className="text-red-300">
+                  {error}
+                </AlertDescription>
               </Alert>
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-gray-200">Email</Label>
+              <Label htmlFor="email" className="text-gray-200">
+                Email
+              </Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="you@example.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={e => setEmail(e.target.value)}
                 required
                 className="bg-black/50 border-purple-500/30 text-white placeholder:text-gray-500"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-gray-200">Password</Label>
+              <Label htmlFor="password" className="text-gray-200">
+                Password
+              </Label>
               <Input
                 id="password"
                 type="password"
                 placeholder="••••••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={e => setPassword(e.target.value)}
                 required
                 className="bg-black/50 border-purple-500/30 text-white placeholder:text-gray-500"
               />
@@ -99,12 +111,12 @@ export default function Login() {
                   Logging in...
                 </>
               ) : (
-                'Login'
+                "Login"
               )}
             </Button>
 
             <p className="text-center text-sm text-gray-400">
-              Don't have an account?{' '}
+              Don't have an account?{" "}
               <Link href="/signup">
                 <a className="text-cyan-400 hover:text-cyan-300 font-medium">
                   Sign up here

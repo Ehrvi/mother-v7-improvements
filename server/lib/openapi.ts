@@ -3,19 +3,21 @@
  * Generates interactive API documentation from tRPC routers
  */
 
-import type { OpenAPIObject } from 'openapi3-ts/oas31';
+import type { OpenAPIObject } from "openapi3-ts/oas31";
 
-const PRODUCTION_URL = 'https://mother-interface-233196174701.australia-southeast1.run.app';
-const DEV_URL = 'http://localhost:3000';
+const PRODUCTION_URL =
+  "https://mother-interface-233196174701.australia-southeast1.run.app";
+const DEV_URL = "http://localhost:3000";
 
 export function generateOpenAPISpec(): OpenAPIObject {
-  const baseUrl = process.env.NODE_ENV === 'production' ? PRODUCTION_URL : DEV_URL;
+  const baseUrl =
+    process.env.NODE_ENV === "production" ? PRODUCTION_URL : DEV_URL;
 
   return {
-    openapi: '3.0.3',
+    openapi: "3.0.3",
     info: {
-      title: 'MOTHER API',
-      version: '14.0.0',
+      title: "MOTHER API",
+      version: "14.0.0",
       description: `
 # MOTHER API Documentation
 
@@ -78,126 +80,135 @@ CORS is enabled for all origins. Include \`credentials: 'include'\` in requests 
 - **Python**: \`pip install mother-sdk\`
       `.trim(),
       contact: {
-        name: 'Everton Luis Garcia',
-        email: 'everton@intelltech.com.br',
+        name: "Everton Luis Garcia",
+        email: "everton@intelltech.com.br",
       },
       license: {
-        name: 'Proprietary',
+        name: "Proprietary",
       },
     },
     servers: [
       {
         url: baseUrl,
-        description: process.env.NODE_ENV === 'production' ? 'Production' : 'Development',
+        description:
+          process.env.NODE_ENV === "production" ? "Production" : "Development",
       },
     ],
     tags: [
       {
-        name: 'Authentication',
-        description: 'User authentication and session management',
+        name: "Authentication",
+        description: "User authentication and session management",
       },
       {
-        name: 'MOTHER',
-        description: 'Core MOTHER AI query endpoints',
+        name: "MOTHER",
+        description: "Core MOTHER AI query endpoints",
       },
       {
-        name: 'Health',
-        description: 'System health and monitoring',
+        name: "Health",
+        description: "System health and monitoring",
       },
       {
-        name: 'Queue',
-        description: 'Async job queue monitoring',
+        name: "Queue",
+        description: "Async job queue monitoring",
       },
       {
-        name: 'Backup',
-        description: 'Database backup operations',
+        name: "Backup",
+        description: "Database backup operations",
       },
     ],
     paths: {
-      '/api/oauth/login': {
+      "/api/oauth/login": {
         get: {
-          tags: ['Authentication'],
-          summary: 'Initiate OAuth login',
-          description: 'Redirects to Manus OAuth login page',
+          tags: ["Authentication"],
+          summary: "Initiate OAuth login",
+          description: "Redirects to Manus OAuth login page",
           parameters: [
             {
-              name: 'returnPath',
-              in: 'query',
-              description: 'Path to return to after login',
+              name: "returnPath",
+              in: "query",
+              description: "Path to return to after login",
               required: false,
               schema: {
-                type: 'string',
-                example: '/admin',
+                type: "string",
+                example: "/admin",
               },
             },
           ],
           responses: {
-            '302': {
-              description: 'Redirect to OAuth provider',
+            "302": {
+              description: "Redirect to OAuth provider",
             },
           },
         },
       },
-      '/api/oauth/callback': {
+      "/api/oauth/callback": {
         get: {
-          tags: ['Authentication'],
-          summary: 'OAuth callback',
-          description: 'Handles OAuth callback and sets session cookie',
+          tags: ["Authentication"],
+          summary: "OAuth callback",
+          description: "Handles OAuth callback and sets session cookie",
           parameters: [
             {
-              name: 'code',
-              in: 'query',
+              name: "code",
+              in: "query",
               required: true,
               schema: {
-                type: 'string',
+                type: "string",
               },
             },
             {
-              name: 'state',
-              in: 'query',
+              name: "state",
+              in: "query",
               required: true,
               schema: {
-                type: 'string',
+                type: "string",
               },
             },
           ],
           responses: {
-            '302': {
-              description: 'Redirect to return path with session cookie set',
+            "302": {
+              description: "Redirect to return path with session cookie set",
             },
-            '400': {
-              description: 'Invalid OAuth callback',
+            "400": {
+              description: "Invalid OAuth callback",
             },
           },
         },
       },
-      '/api/trpc/auth.me': {
+      "/api/trpc/auth.me": {
         get: {
-          tags: ['Authentication'],
-          summary: 'Get current user',
-          description: 'Returns the currently authenticated user',
+          tags: ["Authentication"],
+          summary: "Get current user",
+          description: "Returns the currently authenticated user",
           responses: {
-            '200': {
-              description: 'Current user',
+            "200": {
+              description: "Current user",
               content: {
-                'application/json': {
+                "application/json": {
                   schema: {
-                    type: 'object',
+                    type: "object",
                     properties: {
                       result: {
-                        type: 'object',
+                        type: "object",
                         properties: {
                           data: {
-                            type: 'object',
+                            type: "object",
                             properties: {
-                              id: { type: 'string' },
-                              openId: { type: 'string' },
-                              name: { type: 'string' },
-                              email: { type: 'string' },
-                              avatarUrl: { oneOf: [{ type: 'string' }, { type: 'null' }] },
-                              role: { type: 'string', enum: ['admin', 'user'] },
-                              createdAt: { type: 'string', format: 'date-time' },
-                              lastSignedInAt: { type: 'string', format: 'date-time' },
+                              id: { type: "string" },
+                              openId: { type: "string" },
+                              name: { type: "string" },
+                              email: { type: "string" },
+                              avatarUrl: {
+                                oneOf: [{ type: "string" }, { type: "null" }],
+                              },
+                              role: { type: "string", enum: ["admin", "user"] },
+                              createdAt: {
+                                type: "string",
+                                format: "date-time",
+                              },
+                              lastSignedInAt: {
+                                type: "string",
+                                format: "date-time",
+                              },
                             },
                           },
                         },
@@ -207,26 +218,26 @@ CORS is enabled for all origins. Include \`credentials: 'include'\` in requests 
                   example: {
                     result: {
                       data: {
-                        id: '1',
-                        openId: 'oauth_123',
-                        name: 'Everton Luis Garcia',
-                        email: 'everton@intelltech.com.br',
+                        id: "1",
+                        openId: "oauth_123",
+                        name: "Everton Luis Garcia",
+                        email: "everton@intelltech.com.br",
                         avatarUrl: null,
-                        role: 'admin',
-                        createdAt: '2026-02-21T00:00:00.000Z',
-                        lastSignedInAt: '2026-02-21T07:00:00.000Z',
+                        role: "admin",
+                        createdAt: "2026-02-21T00:00:00.000Z",
+                        lastSignedInAt: "2026-02-21T07:00:00.000Z",
                       },
                     },
                   },
                 },
               },
             },
-            '401': {
-              description: 'Not authenticated',
+            "401": {
+              description: "Not authenticated",
               content: {
-                'application/json': {
+                "application/json": {
                   schema: {
-                    $ref: '#/components/schemas/Error',
+                    $ref: "#/components/schemas/Error",
                   },
                 },
               },
@@ -234,26 +245,26 @@ CORS is enabled for all origins. Include \`credentials: 'include'\` in requests 
           },
         },
       },
-      '/api/trpc/auth.logout': {
+      "/api/trpc/auth.logout": {
         post: {
-          tags: ['Authentication'],
-          summary: 'Logout',
-          description: 'Clears session cookie and logs out user',
+          tags: ["Authentication"],
+          summary: "Logout",
+          description: "Clears session cookie and logs out user",
           responses: {
-            '200': {
-              description: 'Successfully logged out',
+            "200": {
+              description: "Successfully logged out",
               content: {
-                'application/json': {
+                "application/json": {
                   schema: {
-                    type: 'object',
+                    type: "object",
                     properties: {
                       result: {
-                        type: 'object',
+                        type: "object",
                         properties: {
                           data: {
-                            type: 'object',
+                            type: "object",
                             properties: {
-                              success: { type: 'boolean' },
+                              success: { type: "boolean" },
                             },
                           },
                         },
@@ -266,64 +277,66 @@ CORS is enabled for all origins. Include \`credentials: 'include'\` in requests 
           },
         },
       },
-      '/api/trpc/mother.query': {
+      "/api/trpc/mother.query": {
         post: {
-          tags: ['MOTHER'],
-          summary: 'Query MOTHER (Synchronous)',
-          description: 'Send a query to MOTHER AI. All tiers process synchronously.',
+          tags: ["MOTHER"],
+          summary: "Query MOTHER (Synchronous)",
+          description:
+            "Send a query to MOTHER AI. All tiers process synchronously.",
           requestBody: {
             required: true,
             content: {
-              'application/json': {
+              "application/json": {
                 schema: {
-                  type: 'object',
-                  required: ['query', 'tier'],
+                  type: "object",
+                  required: ["query", "tier"],
                   properties: {
                     query: {
-                      type: 'string',
-                      description: 'The question or prompt to send to MOTHER',
-                      example: 'What is the meaning of life?',
+                      type: "string",
+                      description: "The question or prompt to send to MOTHER",
+                      example: "What is the meaning of life?",
                     },
                     tier: {
-                      type: 'integer',
+                      type: "integer",
                       minimum: 1,
                       maximum: 3,
-                      description: 'AI tier to use (1=fast/cheap, 2=balanced, 3=best/expensive)',
+                      description:
+                        "AI tier to use (1=fast/cheap, 2=balanced, 3=best/expensive)",
                       example: 1,
                     },
                     context: {
-                      type: 'string',
-                      description: 'Optional context for the query',
-                      oneOf: [{ type: 'string' }, { type: 'null' }],
+                      type: "string",
+                      description: "Optional context for the query",
+                      oneOf: [{ type: "string" }, { type: "null" }],
                     },
                   },
                 },
                 example: {
-                  query: 'Explain quantum computing in simple terms',
+                  query: "Explain quantum computing in simple terms",
                   tier: 2,
-                  context: 'For a high school student',
+                  context: "For a high school student",
                 },
               },
             },
           },
           responses: {
-            '200': {
-              description: 'Query successful',
+            "200": {
+              description: "Query successful",
               content: {
-                'application/json': {
+                "application/json": {
                   schema: {
-                    type: 'object',
+                    type: "object",
                     properties: {
                       result: {
-                        type: 'object',
+                        type: "object",
                         properties: {
                           data: {
-                            type: 'object',
+                            type: "object",
                             properties: {
-                              response: { type: 'string' },
-                              tier: { type: 'integer' },
-                              cached: { type: 'boolean' },
-                              processingTime: { type: 'number' },
+                              response: { type: "string" },
+                              tier: { type: "integer" },
+                              cached: { type: "boolean" },
+                              processingTime: { type: "number" },
                             },
                           },
                         },
@@ -333,7 +346,8 @@ CORS is enabled for all origins. Include \`credentials: 'include'\` in requests 
                   example: {
                     result: {
                       data: {
-                        response: 'Quantum computing uses quantum mechanics principles...',
+                        response:
+                          "Quantum computing uses quantum mechanics principles...",
                         tier: 2,
                         cached: false,
                         processingTime: 1250,
@@ -343,40 +357,40 @@ CORS is enabled for all origins. Include \`credentials: 'include'\` in requests 
                 },
               },
             },
-            '400': {
-              description: 'Invalid request',
+            "400": {
+              description: "Invalid request",
               content: {
-                'application/json': {
+                "application/json": {
                   schema: {
-                    $ref: '#/components/schemas/Error',
+                    $ref: "#/components/schemas/Error",
                   },
                 },
               },
             },
-            '401': {
-              description: 'Not authenticated',
+            "401": {
+              description: "Not authenticated",
               content: {
-                'application/json': {
+                "application/json": {
                   schema: {
-                    $ref: '#/components/schemas/Error',
+                    $ref: "#/components/schemas/Error",
                   },
                 },
               },
             },
-            '429': {
-              description: 'Rate limit exceeded',
+            "429": {
+              description: "Rate limit exceeded",
               headers: {
-                'Retry-After': {
+                "Retry-After": {
                   schema: {
-                    type: 'integer',
+                    type: "integer",
                   },
-                  description: 'Seconds to wait before retrying',
+                  description: "Seconds to wait before retrying",
                 },
               },
               content: {
-                'application/json': {
+                "application/json": {
                   schema: {
-                    $ref: '#/components/schemas/Error',
+                    $ref: "#/components/schemas/Error",
                   },
                 },
               },
@@ -384,45 +398,52 @@ CORS is enabled for all origins. Include \`credentials: 'include'\` in requests 
           },
         },
       },
-      '/api/trpc/mother.queryAsync': {
+      "/api/trpc/mother.queryAsync": {
         post: {
-          tags: ['MOTHER'],
-          summary: 'Query MOTHER (Asynchronous)',
-          description: 'Send a query to MOTHER AI. Tier 3 queries are processed asynchronously via BullMQ.',
+          tags: ["MOTHER"],
+          summary: "Query MOTHER (Asynchronous)",
+          description:
+            "Send a query to MOTHER AI. Tier 3 queries are processed asynchronously via BullMQ.",
           requestBody: {
             required: true,
             content: {
-              'application/json': {
+              "application/json": {
                 schema: {
-                  type: 'object',
-                  required: ['query', 'tier'],
+                  type: "object",
+                  required: ["query", "tier"],
                   properties: {
-                    query: { type: 'string' },
-                    tier: { type: 'integer', minimum: 1, maximum: 3 },
-                    context: { oneOf: [{ type: 'string' }, { type: 'null' }] },
+                    query: { type: "string" },
+                    tier: { type: "integer", minimum: 1, maximum: 3 },
+                    context: { oneOf: [{ type: "string" }, { type: "null" }] },
                   },
                 },
               },
             },
           },
           responses: {
-            '200': {
-              description: 'Query accepted',
+            "200": {
+              description: "Query accepted",
               content: {
-                'application/json': {
+                "application/json": {
                   schema: {
-                    type: 'object',
+                    type: "object",
                     properties: {
                       result: {
-                        type: 'object',
+                        type: "object",
                         properties: {
                           data: {
-                            type: 'object',
+                            type: "object",
                             properties: {
-                              jobId: { type: 'string', description: 'Job ID for tier 3 queries' },
-                              response: { type: 'string', description: 'Immediate response for tier 1-2' },
-                              tier: { type: 'integer' },
-                              async: { type: 'boolean' },
+                              jobId: {
+                                type: "string",
+                                description: "Job ID for tier 3 queries",
+                              },
+                              response: {
+                                type: "string",
+                                description: "Immediate response for tier 1-2",
+                              },
+                              tier: { type: "integer" },
+                              async: { type: "boolean" },
                             },
                           },
                         },
@@ -432,7 +453,7 @@ CORS is enabled for all origins. Include \`credentials: 'include'\` in requests 
                   example: {
                     result: {
                       data: {
-                        jobId: 'job_abc123',
+                        jobId: "job_abc123",
                         tier: 3,
                         async: true,
                       },
@@ -444,27 +465,30 @@ CORS is enabled for all origins. Include \`credentials: 'include'\` in requests 
           },
         },
       },
-      '/api/trpc/health.check': {
+      "/api/trpc/health.check": {
         get: {
-          tags: ['Health'],
-          summary: 'Simple health check',
-          description: 'Returns OK if server is running',
+          tags: ["Health"],
+          summary: "Simple health check",
+          description: "Returns OK if server is running",
           responses: {
-            '200': {
-              description: 'Server is healthy',
+            "200": {
+              description: "Server is healthy",
               content: {
-                'application/json': {
+                "application/json": {
                   schema: {
-                    type: 'object',
+                    type: "object",
                     properties: {
                       result: {
-                        type: 'object',
+                        type: "object",
                         properties: {
                           data: {
-                            type: 'object',
+                            type: "object",
                             properties: {
-                              status: { type: 'string', example: 'ok' },
-                              timestamp: { type: 'string', format: 'date-time' },
+                              status: { type: "string", example: "ok" },
+                              timestamp: {
+                                type: "string",
+                                format: "date-time",
+                              },
                             },
                           },
                         },
@@ -477,46 +501,55 @@ CORS is enabled for all origins. Include \`credentials: 'include'\` in requests 
           },
         },
       },
-      '/api/trpc/health.detailed': {
+      "/api/trpc/health.detailed": {
         get: {
-          tags: ['Health'],
-          summary: 'Detailed health check',
-          description: 'Returns detailed system health information',
+          tags: ["Health"],
+          summary: "Detailed health check",
+          description: "Returns detailed system health information",
           responses: {
-            '200': {
-              description: 'Detailed health status',
+            "200": {
+              description: "Detailed health status",
               content: {
-                'application/json': {
+                "application/json": {
                   schema: {
-                    type: 'object',
+                    type: "object",
                     properties: {
                       result: {
-                        type: 'object',
+                        type: "object",
                         properties: {
                           data: {
-                            type: 'object',
+                            type: "object",
                             properties: {
-                              status: { type: 'string' },
-                              timestamp: { type: 'string', format: 'date-time' },
-                              uptime: { type: 'number', description: 'Server uptime in seconds' },
+                              status: { type: "string" },
+                              timestamp: {
+                                type: "string",
+                                format: "date-time",
+                              },
+                              uptime: {
+                                type: "number",
+                                description: "Server uptime in seconds",
+                              },
                               memory: {
-                                type: 'object',
+                                type: "object",
                                 properties: {
-                                  used: { type: 'number' },
-                                  total: { type: 'number' },
-                                  heapUsed: { type: 'number' },
-                                  heapTotal: { type: 'number' },
-                                  rss: { type: 'number' },
+                                  used: { type: "number" },
+                                  total: { type: "number" },
+                                  heapUsed: { type: "number" },
+                                  heapTotal: { type: "number" },
+                                  rss: { type: "number" },
                                 },
                               },
                               database: {
-                                type: 'object',
+                                type: "object",
                                 properties: {
-                                  connected: { type: 'boolean' },
-                                  responseTime: { type: 'number', description: 'DB response time in ms' },
+                                  connected: { type: "boolean" },
+                                  responseTime: {
+                                    type: "number",
+                                    description: "DB response time in ms",
+                                  },
                                 },
                               },
-                              environment: { type: 'string' },
+                              environment: { type: "string" },
                             },
                           },
                         },
@@ -529,29 +562,32 @@ CORS is enabled for all origins. Include \`credentials: 'include'\` in requests 
           },
         },
       },
-      '/api/trpc/health.cache': {
+      "/api/trpc/health.cache": {
         get: {
-          tags: ['Health'],
-          summary: 'Cache statistics',
-          description: 'Returns Redis cache statistics',
+          tags: ["Health"],
+          summary: "Cache statistics",
+          description: "Returns Redis cache statistics",
           responses: {
-            '200': {
-              description: 'Cache statistics',
+            "200": {
+              description: "Cache statistics",
               content: {
-                'application/json': {
+                "application/json": {
                   schema: {
-                    type: 'object',
+                    type: "object",
                     properties: {
                       result: {
-                        type: 'object',
+                        type: "object",
                         properties: {
                           data: {
-                            type: 'object',
+                            type: "object",
                             properties: {
-                              connected: { type: 'boolean' },
-                              keys: { type: 'number' },
-                              memory: { type: 'number' },
-                              hitRate: { type: 'number', description: 'Cache hit rate percentage' },
+                              connected: { type: "boolean" },
+                              keys: { type: "number" },
+                              memory: { type: "number" },
+                              hitRate: {
+                                type: "number",
+                                description: "Cache hit rate percentage",
+                              },
                             },
                           },
                         },
@@ -564,29 +600,29 @@ CORS is enabled for all origins. Include \`credentials: 'include'\` in requests 
           },
         },
       },
-      '/api/trpc/queue.stats': {
+      "/api/trpc/queue.stats": {
         get: {
-          tags: ['Queue'],
-          summary: 'Queue statistics',
-          description: 'Returns BullMQ queue statistics',
+          tags: ["Queue"],
+          summary: "Queue statistics",
+          description: "Returns BullMQ queue statistics",
           responses: {
-            '200': {
-              description: 'Queue statistics',
+            "200": {
+              description: "Queue statistics",
               content: {
-                'application/json': {
+                "application/json": {
                   schema: {
-                    type: 'object',
+                    type: "object",
                     properties: {
                       result: {
-                        type: 'object',
+                        type: "object",
                         properties: {
                           data: {
-                            type: 'object',
+                            type: "object",
                             properties: {
-                              waiting: { type: 'number' },
-                              active: { type: 'number' },
-                              completed: { type: 'number' },
-                              failed: { type: 'number' },
+                              waiting: { type: "number" },
+                              active: { type: "number" },
+                              completed: { type: "number" },
+                              failed: { type: "number" },
                             },
                           },
                         },
@@ -599,40 +635,52 @@ CORS is enabled for all origins. Include \`credentials: 'include'\` in requests 
           },
         },
       },
-      '/api/trpc/queue.job': {
+      "/api/trpc/queue.job": {
         get: {
-          tags: ['Queue'],
-          summary: 'Get job status',
-          description: 'Returns status of a specific job',
+          tags: ["Queue"],
+          summary: "Get job status",
+          description: "Returns status of a specific job",
           parameters: [
             {
-              name: 'jobId',
-              in: 'query',
+              name: "jobId",
+              in: "query",
               required: true,
               schema: {
-                type: 'string',
+                type: "string",
               },
             },
           ],
           responses: {
-            '200': {
-              description: 'Job status',
+            "200": {
+              description: "Job status",
               content: {
-                'application/json': {
+                "application/json": {
                   schema: {
-                    type: 'object',
+                    type: "object",
                     properties: {
                       result: {
-                        type: 'object',
+                        type: "object",
                         properties: {
                           data: {
-                            type: 'object',
+                            type: "object",
                             properties: {
-                              id: { type: 'string' },
-                              state: { type: 'string', enum: ['waiting', 'active', 'completed', 'failed'] },
-                              progress: { type: 'number' },
-                              result: { oneOf: [{ type: 'object' }, { type: 'null' }] },
-                              error: { oneOf: [{ type: 'string' }, { type: 'null' }] },
+                              id: { type: "string" },
+                              state: {
+                                type: "string",
+                                enum: [
+                                  "waiting",
+                                  "active",
+                                  "completed",
+                                  "failed",
+                                ],
+                              },
+                              progress: { type: "number" },
+                              result: {
+                                oneOf: [{ type: "object" }, { type: "null" }],
+                              },
+                              error: {
+                                oneOf: [{ type: "string" }, { type: "null" }],
+                              },
                             },
                           },
                         },
@@ -645,33 +693,37 @@ CORS is enabled for all origins. Include \`credentials: 'include'\` in requests 
           },
         },
       },
-      '/api/trpc/backup.trigger': {
+      "/api/trpc/backup.trigger": {
         post: {
-          tags: ['Backup'],
-          summary: 'Trigger database backup',
-          description: 'Manually trigger a database backup (requires BACKUP_TOKEN)',
+          tags: ["Backup"],
+          summary: "Trigger database backup",
+          description:
+            "Manually trigger a database backup (requires BACKUP_TOKEN)",
           security: [
             {
               bearerAuth: [],
             },
           ],
           responses: {
-            '200': {
-              description: 'Backup successful',
+            "200": {
+              description: "Backup successful",
               content: {
-                'application/json': {
+                "application/json": {
                   schema: {
-                    type: 'object',
+                    type: "object",
                     properties: {
                       result: {
-                        type: 'object',
+                        type: "object",
                         properties: {
                           data: {
-                            type: 'object',
+                            type: "object",
                             properties: {
-                              success: { type: 'boolean' },
-                              timestamp: { type: 'string', format: 'date-time' },
-                              filename: { type: 'string' },
+                              success: { type: "boolean" },
+                              timestamp: {
+                                type: "string",
+                                format: "date-time",
+                              },
+                              filename: { type: "string" },
                             },
                           },
                         },
@@ -681,34 +733,42 @@ CORS is enabled for all origins. Include \`credentials: 'include'\` in requests 
                 },
               },
             },
-            '401': {
-              description: 'Invalid or missing backup token',
+            "401": {
+              description: "Invalid or missing backup token",
             },
           },
         },
       },
-      '/api/trpc/backup.status': {
+      "/api/trpc/backup.status": {
         get: {
-          tags: ['Backup'],
-          summary: 'Get backup status',
-          description: 'Returns status of the last backup',
+          tags: ["Backup"],
+          summary: "Get backup status",
+          description: "Returns status of the last backup",
           responses: {
-            '200': {
-              description: 'Backup status',
+            "200": {
+              description: "Backup status",
               content: {
-                'application/json': {
+                "application/json": {
                   schema: {
-                    type: 'object',
+                    type: "object",
                     properties: {
                       result: {
-                        type: 'object',
+                        type: "object",
                         properties: {
                           data: {
-                            type: 'object',
+                            type: "object",
                             properties: {
-                              lastBackup: { oneOf: [{ type: 'string', format: 'date-time' }, { type: 'null' }] },
-                              nextBackup: { type: 'string', format: 'date-time' },
-                              status: { type: 'string' },
+                              lastBackup: {
+                                oneOf: [
+                                  { type: "string", format: "date-time" },
+                                  { type: "null" },
+                                ],
+                              },
+                              nextBackup: {
+                                type: "string",
+                                format: "date-time",
+                              },
+                              status: { type: "string" },
                             },
                           },
                         },
@@ -725,31 +785,31 @@ CORS is enabled for all origins. Include \`credentials: 'include'\` in requests 
     components: {
       schemas: {
         Error: {
-          type: 'object',
+          type: "object",
           properties: {
             error: {
-              type: 'object',
+              type: "object",
               properties: {
                 message: {
-                  type: 'string',
-                  description: 'Human-readable error message',
+                  type: "string",
+                  description: "Human-readable error message",
                 },
                 code: {
-                  type: 'string',
-                  description: 'Machine-readable error code',
+                  type: "string",
+                  description: "Machine-readable error code",
                 },
                 data: {
-                  type: 'object',
-                  description: 'Additional error details',
-                  oneOf: [{ type: 'object' }, { type: 'null' }],
+                  type: "object",
+                  description: "Additional error details",
+                  oneOf: [{ type: "object" }, { type: "null" }],
                 },
               },
             },
           },
           example: {
             error: {
-              message: 'Please login (10001)',
-              code: 'UNAUTHORIZED',
+              message: "Please login (10001)",
+              code: "UNAUTHORIZED",
               data: null,
             },
           },
@@ -757,15 +817,15 @@ CORS is enabled for all origins. Include \`credentials: 'include'\` in requests 
       },
       securitySchemes: {
         bearerAuth: {
-          type: 'http',
-          scheme: 'bearer',
-          description: 'Bearer token for backup operations (BACKUP_TOKEN)',
+          type: "http",
+          scheme: "bearer",
+          description: "Bearer token for backup operations (BACKUP_TOKEN)",
         },
         cookieAuth: {
-          type: 'apiKey',
-          in: 'cookie',
-          name: 'session',
-          description: 'Session cookie from OAuth login',
+          type: "apiKey",
+          in: "cookie",
+          name: "session",
+          description: "Session cookie from OAuth login",
         },
       },
     },

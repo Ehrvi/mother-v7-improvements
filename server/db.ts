@@ -1,9 +1,9 @@
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { 
-  InsertUser, 
-  users, 
-  queries, 
+import {
+  InsertUser,
+  users,
+  queries,
   InsertQuery,
   Query,
   knowledge,
@@ -17,10 +17,10 @@ import {
   CacheEntry,
   systemMetrics,
   InsertSystemMetric,
-  SystemMetric
+  SystemMetric,
 } from "../drizzle/schema";
-import { ENV } from './_core/env';
-import { logger } from './lib/logger';
+import { ENV } from "./_core/env";
+import { logger } from "./lib/logger";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -75,8 +75,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       values.role = user.role;
       updateSet.role = user.role;
     } else if (user.openId === ENV.ownerOpenId) {
-      values.role = 'admin';
-      updateSet.role = 'admin';
+      values.role = "admin";
+      updateSet.role = "admin";
     }
 
     if (!values.lastSignedIn) {
@@ -103,7 +103,11 @@ export async function getUserByOpenId(openId: string) {
     return undefined;
   }
 
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+  const result = await db
+    .select()
+    .from(users)
+    .where(eq(users.openId, openId))
+    .limit(1);
 
   return result.length > 0 ? result[0] : undefined;
 }
@@ -122,7 +126,11 @@ export async function getQueryById(id: number): Promise<Query | undefined> {
   const db = await getDb();
   if (!db) return undefined;
 
-  const result = await db.select().from(queries).where(eq(queries.id, id)).limit(1);
+  const result = await db
+    .select()
+    .from(queries)
+    .where(eq(queries.id, id))
+    .limit(1);
   return result[0];
 }
 
@@ -130,10 +138,17 @@ export async function getRecentQueries(limit: number = 100): Promise<Query[]> {
   const db = await getDb();
   if (!db) return [];
 
-  return await db.select().from(queries).orderBy(desc(queries.createdAt)).limit(limit);
+  return await db
+    .select()
+    .from(queries)
+    .orderBy(desc(queries.createdAt))
+    .limit(limit);
 }
 
-export async function getQueriesByUser(userId: number, limit: number = 50): Promise<Query[]> {
+export async function getQueriesByUser(
+  userId: number,
+  limit: number = 50
+): Promise<Query[]> {
   const db = await getDb();
   if (!db) return [];
 
@@ -155,27 +170,36 @@ export async function insertKnowledge(item: InsertKnowledge): Promise<number> {
   return Number(result[0].insertId);
 }
 
-export async function getKnowledgeById(id: number): Promise<Knowledge | undefined> {
+export async function getKnowledgeById(
+  id: number
+): Promise<Knowledge | undefined> {
   const db = await getDb();
   if (!db) return undefined;
 
-  const result = await db.select().from(knowledge).where(eq(knowledge.id, id)).limit(1);
-  
+  const result = await db
+    .select()
+    .from(knowledge)
+    .where(eq(knowledge.id, id))
+    .limit(1);
+
   if (result[0]) {
     // Update access count
     await db
       .update(knowledge)
-      .set({ 
+      .set({
         accessCount: sql`${knowledge.accessCount} + 1`,
-        lastAccessed: new Date()
+        lastAccessed: new Date(),
       })
       .where(eq(knowledge.id, id));
   }
-  
+
   return result[0];
 }
 
-export async function searchKnowledge(searchTerm: string, limit: number = 10): Promise<Knowledge[]> {
+export async function searchKnowledge(
+  searchTerm: string,
+  limit: number = 10
+): Promise<Knowledge[]> {
   const db = await getDb();
   if (!db) return [];
 
@@ -189,11 +213,17 @@ export async function searchKnowledge(searchTerm: string, limit: number = 10): P
     .limit(limit);
 }
 
-export async function getAllKnowledge(limit: number = 100): Promise<Knowledge[]> {
+export async function getAllKnowledge(
+  limit: number = 100
+): Promise<Knowledge[]> {
   const db = await getDb();
   if (!db) return [];
 
-  return await db.select().from(knowledge).orderBy(desc(knowledge.createdAt)).limit(limit);
+  return await db
+    .select()
+    .from(knowledge)
+    .orderBy(desc(knowledge.createdAt))
+    .limit(limit);
 }
 
 export async function updateKnowledgeEmbedding(
@@ -206,17 +236,19 @@ export async function updateKnowledgeEmbedding(
 
   await db
     .update(knowledge)
-    .set({ 
+    .set({
       embedding,
       embeddingModel: model,
-      updatedAt: new Date()
+      updatedAt: new Date(),
     })
     .where(eq(knowledge.id, id));
 }
 
 // ==================== LEARNING PATTERNS OPERATIONS ====================
 
-export async function insertLearningPattern(pattern: InsertLearningPattern): Promise<number> {
+export async function insertLearningPattern(
+  pattern: InsertLearningPattern
+): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
@@ -241,16 +273,18 @@ export async function updatePatternOccurrence(id: number): Promise<void> {
 
   await db
     .update(learningPatterns)
-    .set({ 
+    .set({
       occurrences: sql`${learningPatterns.occurrences} + 1`,
-      lastApplied: new Date()
+      lastApplied: new Date(),
     })
     .where(eq(learningPatterns.id, id));
 }
 
 // ==================== CACHE OPERATIONS ====================
 
-export async function getCacheEntry(queryHash: string): Promise<CacheEntry | undefined> {
+export async function getCacheEntry(
+  queryHash: string
+): Promise<CacheEntry | undefined> {
   const db = await getDb();
   if (!db) return undefined;
 
@@ -269,9 +303,9 @@ export async function getCacheEntry(queryHash: string): Promise<CacheEntry | und
     // Update hit count
     await db
       .update(cacheEntries)
-      .set({ 
+      .set({
         hitCount: sql`${cacheEntries.hitCount} + 1`,
-        lastHit: new Date()
+        lastHit: new Date(),
       })
       .where(eq(cacheEntries.id, result[0].id));
   }
@@ -279,7 +313,9 @@ export async function getCacheEntry(queryHash: string): Promise<CacheEntry | und
   return result[0];
 }
 
-export async function insertCacheEntry(entry: InsertCacheEntry): Promise<number> {
+export async function insertCacheEntry(
+  entry: InsertCacheEntry
+): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
@@ -300,7 +336,9 @@ export async function cleanExpiredCache(): Promise<number> {
 
 // ==================== SYSTEM METRICS OPERATIONS ====================
 
-export async function insertSystemMetric(metric: InsertSystemMetric): Promise<number> {
+export async function insertSystemMetric(
+  metric: InsertSystemMetric
+): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
@@ -308,7 +346,9 @@ export async function insertSystemMetric(metric: InsertSystemMetric): Promise<nu
   return Number(result[0].insertId);
 }
 
-export async function getRecentMetrics(limit: number = 30): Promise<SystemMetric[]> {
+export async function getRecentMetrics(
+  limit: number = 30
+): Promise<SystemMetric[]> {
   const db = await getDb();
   if (!db) return [];
 
@@ -319,7 +359,10 @@ export async function getRecentMetrics(limit: number = 30): Promise<SystemMetric
     .limit(limit);
 }
 
-export async function getMetricsInRange(start: Date, end: Date): Promise<SystemMetric[]> {
+export async function getMetricsInRange(
+  start: Date,
+  end: Date
+): Promise<SystemMetric[]> {
   const db = await getDb();
   if (!db) return [];
 
@@ -378,9 +421,10 @@ export async function getQueryStats(periodHours: number = 24): Promise<{
     .where(gte(queries.createdAt, since));
 
   const stats = result[0];
-  const cacheHitRate = stats.totalQueries > 0 
-    ? (stats.cacheHitCount / stats.totalQueries) * 100 
-    : 0;
+  const cacheHitRate =
+    stats.totalQueries > 0
+      ? (stats.cacheHitCount / stats.totalQueries) * 100
+      : 0;
 
   return {
     totalQueries: stats.totalQueries || 0,

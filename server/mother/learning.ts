@@ -1,7 +1,7 @@
 /**
  * MOTHER v7.0 - Iteration 18: Continuous Learning
  * Automatically extracts insights from high-quality responses and adds to knowledge base
- * 
+ *
  * Algorithm (designed by MOTHER superinteligência):
  * 1. Trigger: Quality >95%
  * 2. Extract: NLP sentence segmentation + keyword density
@@ -9,9 +9,9 @@
  * 4. Validate: Test improvement in next related query
  */
 
-import { getEmbedding, cosineSimilarity } from './embeddings';
-import { insertKnowledge, getAllKnowledge } from '../db';
-import { logger } from '../lib/logger';
+import { getEmbedding, cosineSimilarity } from "./embeddings";
+import { insertKnowledge, getAllKnowledge } from "../db";
+import { logger } from "../lib/logger";
 
 export interface LearningCandidate {
   content: string;
@@ -43,18 +43,36 @@ export function extractInsights(response: string): string[] {
 
   // Keywords indicating high-value content
   const highValueKeywords = [
-    'algorithm', 'implementation', 'strategy', 'approach', 'method',
-    'pattern', 'architecture', 'design', 'solution', 'technique',
-    'principle', 'concept', 'framework', 'model', 'system',
-    'process', 'workflow', 'best practice', 'optimization',
-    'performance', 'scalability', 'reliability', 'security'
+    "algorithm",
+    "implementation",
+    "strategy",
+    "approach",
+    "method",
+    "pattern",
+    "architecture",
+    "design",
+    "solution",
+    "technique",
+    "principle",
+    "concept",
+    "framework",
+    "model",
+    "system",
+    "process",
+    "workflow",
+    "best practice",
+    "optimization",
+    "performance",
+    "scalability",
+    "reliability",
+    "security",
   ];
 
   for (const sentence of sentences) {
     const lowerSentence = sentence.toLowerCase();
-    
+
     // Count keyword matches
-    const keywordMatches = highValueKeywords.filter(keyword => 
+    const keywordMatches = highValueKeywords.filter(keyword =>
       lowerSentence.includes(keyword)
     ).length;
 
@@ -73,7 +91,11 @@ export function extractInsights(response: string): string[] {
  */
 export async function isDuplicate(
   insight: string,
-  existingKnowledge: Array<{ title: string; content: string; embedding: string | null }>
+  existingKnowledge: Array<{
+    title: string;
+    content: string;
+    embedding: string | null;
+  }>
 ): Promise<{ isDuplicate: boolean; maxSimilarity: number }> {
   try {
     // Get embedding for new insight
@@ -99,7 +121,7 @@ export async function isDuplicate(
 
     return { isDuplicate: false, maxSimilarity };
   } catch (error) {
-    logger.error('[Learning] Embedding check failed:', error);
+    logger.error("[Learning] Embedding check failed:", error);
     // Fallback: assume not duplicate if embeddings fail
     return { isDuplicate: false, maxSimilarity: 0 };
   }
@@ -110,36 +132,37 @@ export async function isDuplicate(
  */
 function generateTitle(insight: string): string {
   // Take first 50 chars or until first comma/colon
-  const title = insight
-    .split(/[,:]/)[0]
-    .substring(0, 50)
-    .trim();
-  
-  return title || 'Learned Insight';
+  const title = insight.split(/[,:]/)[0].substring(0, 50).trim();
+
+  return title || "Learned Insight";
 }
 
 /**
  * Learn from high-quality response
  * Main entry point for continuous learning
  */
-export async function learnFromResponse(candidate: LearningCandidate): Promise<LearningResult> {
-  logger.info(`[Learning] Evaluating response (quality: ${candidate.qualityScore})`);
+export async function learnFromResponse(
+  candidate: LearningCandidate
+): Promise<LearningResult> {
+  logger.info(
+    `[Learning] Evaluating response (quality: ${candidate.qualityScore})`
+  );
 
   // Step 1: Check quality threshold (>95%)
   if (candidate.qualityScore <= 95) {
     return {
       learned: false,
-      reason: `Quality ${candidate.qualityScore} <= 95 threshold`
+      reason: `Quality ${candidate.qualityScore} <= 95 threshold`,
     };
   }
 
   // Step 2: Extract insights
   const insights = extractInsights(candidate.response);
-  
+
   if (insights.length === 0) {
     return {
       learned: false,
-      reason: 'No high-value insights extracted'
+      reason: "No high-value insights extracted",
     };
   }
 
@@ -149,10 +172,15 @@ export async function learnFromResponse(candidate: LearningCandidate): Promise<L
   const existingKnowledge = await getAllKnowledge();
 
   for (const insight of insights) {
-    const { isDuplicate: isDup, maxSimilarity } = await isDuplicate(insight, existingKnowledge);
+    const { isDuplicate: isDup, maxSimilarity } = await isDuplicate(
+      insight,
+      existingKnowledge
+    );
 
     if (isDup) {
-      logger.info(`[Learning] Skipping duplicate (similarity: ${maxSimilarity.toFixed(2)})`);
+      logger.info(
+        `[Learning] Skipping duplicate (similarity: ${maxSimilarity.toFixed(2)})`
+      );
       continue;
     }
 
@@ -164,34 +192,36 @@ export async function learnFromResponse(candidate: LearningCandidate): Promise<L
       const knowledgeId = await insertKnowledge({
         title,
         content: insight,
-        category: 'learned', // Mark as learned (vs manually added)
-        tags: JSON.stringify(['auto-learned', 'continuous-learning']),
+        category: "learned", // Mark as learned (vs manually added)
+        tags: JSON.stringify(["auto-learned", "continuous-learning"]),
         source: `Query: ${candidate.query.substring(0, 100)}`,
-        sourceType: 'learning',
+        sourceType: "learning",
         embedding: JSON.stringify(embedding),
-        embeddingModel: 'text-embedding-3-small',
+        embeddingModel: "text-embedding-3-small",
       });
 
-      logger.info(`[Learning] ✅ Added knowledge ID ${knowledgeId}: "${title}"`);
+      logger.info(
+        `[Learning] ✅ Added knowledge ID ${knowledgeId}: "${title}"`
+      );
 
       return {
         learned: true,
         reason: `Added insight (similarity: ${maxSimilarity.toFixed(2)})`,
         knowledgeId,
-        similarity: maxSimilarity
+        similarity: maxSimilarity,
       };
     } catch (error) {
-      logger.error('[Learning] Failed to add knowledge:', error);
+      logger.error("[Learning] Failed to add knowledge:", error);
       return {
         learned: false,
-        reason: `Insert failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+        reason: `Insert failed: ${error instanceof Error ? error.message : "Unknown error"}`,
       };
     }
   }
 
   return {
     learned: false,
-    reason: 'All insights were duplicates'
+    reason: "All insights were duplicates",
   };
 }
 

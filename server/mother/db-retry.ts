@@ -1,8 +1,8 @@
-import { logger } from '../lib/logger';
+import { logger } from "../lib/logger";
 /**
  * Database Retry Logic
  * Fixes V2-001: DB connection failures without retry mechanism
- * 
+ *
  * Implements exponential backoff retry strategy for transient DB failures
  */
 
@@ -36,7 +36,7 @@ export async function retryDbOperation<T>(
       return await operation();
     } catch (error) {
       lastError = error as Error;
-      
+
       // Don't retry on the last attempt
       if (attempt === opts.maxAttempts) {
         break;
@@ -47,7 +47,9 @@ export async function retryDbOperation<T>(
         throw error;
       }
 
-      logger.info(`[DB Retry] Attempt ${attempt}/${opts.maxAttempts} failed: ${lastError.message}`);
+      logger.info(
+        `[DB Retry] Attempt ${attempt}/${opts.maxAttempts} failed: ${lastError.message}`
+      );
       logger.info(`[DB Retry] Retrying in ${delay}ms...`);
 
       // Wait before retrying
@@ -70,17 +72,17 @@ function isRetryableError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
 
   const message = error.message.toLowerCase();
-  
+
   // Common transient DB errors
   const retryablePatterns = [
-    'connection',
-    'timeout',
-    'deadlock',
-    'lock wait',
-    'too many connections',
-    'econnrefused',
-    'econnreset',
-    'etimedout',
+    "connection",
+    "timeout",
+    "deadlock",
+    "lock wait",
+    "too many connections",
+    "econnrefused",
+    "econnreset",
+    "etimedout",
   ];
 
   return retryablePatterns.some(pattern => message.includes(pattern));
@@ -100,17 +102,17 @@ function sleep(ms: number): Promise<void> {
 export async function warmUpDbConnection(
   getDb: () => Promise<any>
 ): Promise<void> {
-  logger.info('[DB Warm-up] Starting connection pool warm-up...');
-  
+  logger.info("[DB Warm-up] Starting connection pool warm-up...");
+
   try {
     const db = await retryDbOperation(getDb, { maxAttempts: 5 });
-    
+
     // Execute simple query to warm up connection
-    await db.execute('SELECT 1');
-    
-    logger.info('[DB Warm-up] Connection pool ready');
+    await db.execute("SELECT 1");
+
+    logger.info("[DB Warm-up] Connection pool ready");
   } catch (error) {
-    logger.error('[DB Warm-up] Failed:', error);
+    logger.error("[DB Warm-up] Failed:", error);
     throw error;
   }
 }

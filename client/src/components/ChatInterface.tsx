@@ -1,14 +1,14 @@
-import { useEffect, useRef } from 'react';
-import { useMother } from '@/contexts/MotherContext';
-import MessageBubble from './MessageBubble';
-import TypingIndicator from './TypingIndicator';
+import { useEffect, useRef } from "react";
+import { useMother } from "@/contexts/MotherContext";
+import MessageBubble from "./MessageBubble";
+import TypingIndicator from "./TypingIndicator";
 
 export default function ChatInterface() {
   const { messages, isTyping } = useMother();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(() => {
@@ -22,13 +22,14 @@ export default function ChatInterface() {
           <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 animate-pulse" />
           <h2 className="text-2xl font-bold text-foreground">Mother v12.0</h2>
           <p className="text-muted-foreground max-w-md">
-            Your autonomous AI system for Apollo Project management and Intelltech expansion.
-            Ask me anything about the 11,861 companies in the APAC database.
+            Your autonomous AI system for Apollo Project management and
+            Intelltech expansion. Ask me anything about the 11,861 companies in
+            the APAC database.
           </p>
         </div>
       ) : (
         <>
-          {messages.map((message) => (
+          {messages.map(message => (
             <MessageBubble key={message.id} message={message} />
           ))}
           {isTyping && <TypingIndicator />}
