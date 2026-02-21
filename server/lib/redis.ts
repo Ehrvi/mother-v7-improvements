@@ -37,13 +37,19 @@ export function getRedisClient(): Redis | null {
       host: redisHost,
       port: redisPort,
       password: process.env.REDIS_PASSWORD,
+      connectTimeout: 5000, // 5 second timeout (was infinite)
       retryStrategy(times) {
+        // Limit retries to 3 attempts
+        if (times > 3) {
+          logger.error('Redis connection failed after 3 attempts - disabling Redis');
+          return null; // Stop retrying
+        }
         const delay = Math.min(times * 50, 2000);
         return delay;
       },
-      maxRetriesPerRequest: 3,
+      maxRetriesPerRequest: 1, // Reduce from 3 to 1 for faster failure
       enableReadyCheck: true,
-      lazyConnect: false,
+      lazyConnect: true, // Don't connect immediately - connect on first use
     });
 
     redisClient.on('connect', () => {

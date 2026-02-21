@@ -2399,3 +2399,42 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 - [x] Add rollback plan
 - [x] Add alternative solutions (Cloudflare, Fastly)
 - [x] H8 DOCUMENTED: Complete guide for production security headers
+
+
+## Phase 8: Production Error Fixes (Critical)
+
+### #43: Redis Connection Timeout Fix (2h)
+- [x] Investigate production errors (found Redis ETIMEDOUT in logs)
+- [x] Identified root cause: lazyConnect=false + infinite timeout
+- [x] Implemented fixes:
+  - lazyConnect: true (don't connect on startup)
+  - connectTimeout: 5000ms (was infinite)
+  - maxRetriesPerRequest: 1 (was 3)
+  - Retry limit: 3 attempts max
+- [x] Test locally without Redis:
+  - Homepage: 0.053s ✅
+  - Health Ping: 0.019s ✅ (19ms!)
+  - Health Check: 1.766s ✅
+- [x] H9 VALIDATED: Lazy connect eliminates timeouts
+- [ ] Deploy fix to production
+- [ ] Validate error is resolved in production logs
+
+### #44: SearchConcepts Undefined Error (1h)
+- [x] Investigate error (found in server/mother/knowledge.ts:377)
+- [x] Identified root cause: knowledgeBase import failure when database init fails
+- [x] Implemented fixes:
+  - Added try-catch wrapper around entire function
+  - Added defensive null check for knowledgeBase
+  - Added fallback to legacy queryKnowledge() system
+  - Fixed return types (format KnowledgeResult[] to string)
+- [x] Test fix locally: All endpoints working ✅
+- [x] Root cause was database directory issue (fixed in #43)
+- [ ] Deploy fix to production
+- [ ] Validate error is resolved
+
+### #45: Production Error Monitoring (30min)
+- [ ] Check Cloud Run logs for error patterns
+- [ ] Identify frequency of errors
+- [ ] Check if errors are blocking user queries
+- [ ] Add additional error logging for debugging
+- [ ] Create error dashboard/alerts

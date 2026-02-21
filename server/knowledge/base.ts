@@ -71,8 +71,13 @@ class KnowledgeAcquisitionLayer {
   private githubEnabled: boolean;
 
   constructor(dbPath?: string) {
-    // Default to project directory
-    this.dbPath = dbPath || '/home/ubuntu/.mother/knowledge.db';
+    // Use /tmp in Cloud Run (only writable directory), fallback to project directory
+    const isCloudRun = process.env.K_SERVICE !== undefined;
+    const defaultPath = isCloudRun 
+      ? '/tmp/.mother/knowledge.db' 
+      : '/home/ubuntu/.mother/knowledge.db';
+    
+    this.dbPath = dbPath || defaultPath;
     this.googleDriveEnabled = existsSync('/home/ubuntu/.gdrive-rclone.ini');
     this.githubEnabled = existsSync('/home/ubuntu/mother-knowledge/.git');
 
@@ -80,14 +85,25 @@ class KnowledgeAcquisitionLayer {
   }
 
   private _initDatabase(): void {
-    // Ensure directory exists
+    // Ensure directory exists (synchronously to avoid race condition)
     const dir = this.dbPath.substring(0, this.dbPath.lastIndexOf('/'));
     if (!existsSync(dir)) {
-      execAsync(`mkdir -p ${dir}`).catch(console.error);
+      try {
+        // Use sync mkdir to ensure directory exists before creating database
+        require('fs').mkdirSync(dir, { recursive: true });
+      } catch (error) {
+        console.error('Failed to create knowledge database directory:', error);
+        throw error;
+      }
     }
 
     // Initialize SQLite
-    this.sqlite = new Database(this.dbPath);
+    try {
+      this.sqlite = new Database(this.dbPath);
+    } catch (error) {
+      console.error(`Failed to open database at ${this.dbPath}:`, error);
+      throw error;
+    }
     this.sqlite.pragma('journal_mode = WAL'); // Write-Ahead Logging for better concurrency
 
     // Create tables

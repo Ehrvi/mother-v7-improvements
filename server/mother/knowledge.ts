@@ -371,13 +371,25 @@ export async function addKnowledge(
 export async function getKnowledgeContext(query: string): Promise<string> {
   // v14: Use Knowledge Acquisition Layer (SQLite + TiDB dual-write)
   // Provides cross-task knowledge retention (resolves "Groundhog Day Problem")
-  const knowledgeBase = (await import('../knowledge/base')).default;
-  
-  // Search concepts from Knowledge Acquisition Layer
-  const concepts = await knowledgeBase.searchConcepts(query, undefined, 5);
-  
-  // Search lessons learned
-  const lessons = await knowledgeBase.searchLessons(query, undefined, 3);
+  try {
+    const knowledgeBase = (await import('../knowledge/base')).default;
+    
+    // Defensive check: ensure knowledgeBase is initialized
+    if (!knowledgeBase || typeof knowledgeBase.searchConcepts !== 'function') {
+      logger.warn('Knowledge Acquisition Layer not available - using fallback');
+      const results = await queryKnowledge(query);
+      if (results.length === 0) return '';
+      const contextParts = results.map((result, index) => 
+        `[Source ${index + 1}: ${result.source.name}]\n${result.content}`
+      );
+      return `\n\nRelevant Knowledge:\n${contextParts.join('\n\n')}`;
+    }
+    
+    // Search concepts from Knowledge Acquisition Layer
+    const concepts = await knowledgeBase.searchConcepts(query, undefined, 5);
+    
+    // Search lessons learned
+    const lessons = await knowledgeBase.searchLessons(query, undefined, 3);
   
   // Fallback to legacy knowledge system if no results from new layer
   if (concepts.length === 0 && lessons.length === 0) {
@@ -427,5 +439,15 @@ export async function getKnowledgeContext(query: string): Promise<string> {
     });
   }
   
-  return `\n\nRelevant Knowledge (Knowledge Acquisition Layer):\n${contextParts.join('\n\n')}`;
+    return `\n\nRelevant Knowledge (Knowledge Acquisition Layer):\n${contextParts.join('\n\n')}`;
+  } catch (error) {
+    logger.error('Error in Knowledge Acquisition Layer - falling back to legacy system:', error);
+    // Fallback to legacy knowledge system
+    const results = await queryKnowledge(query);
+    if (results.length === 0) return '';
+    const contextParts = results.map((result, index) => 
+      `[Source ${index + 1}: ${result.source.name}]\n${result.content}`
+    );
+    return `\n\nRelevant Knowledge:\n${contextParts.join('\n\n')}`;
+  }
 }
