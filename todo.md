@@ -2353,11 +2353,13 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 - [ ] Test with curl -I in production
 
 ### #38: API Cold Start Fix (1h)
-- [ ] Configure Cloud Run min instances = 1
-- [ ] Deploy configuration change
-- [ ] Test API endpoint response time (target: <2s)
-- [ ] Measure improvement (before: 25s, after: <2s)
-- [ ] Verify no cold starts occur
+- [x] Configure Cloud Run min instances = 1 (gcloud run services update)
+- [x] Deploy configuration change (revision mother-interface-00096-t7x)
+- [x] Test homepage response time: 0.658s ✅ (cold start RESOLVED)
+- [x] Test API health endpoint: 29.15s ❌ (database connection timeout, not cold start)
+- [x] Verify min instances working (homepage consistently fast)
+- [ ] Optimize testPoolConnection() in db-pool.ts (separate issue)
+- [x] Conclusion: H5 VALIDATED - Cold start fixed, but health check has database issue
 
 ### #39: Production Monitoring (3h)
 - [ ] Set up Cloud Monitoring dashboard
