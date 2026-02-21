@@ -6,6 +6,7 @@ import { selfAuditRouter } from "./routers/self-audit";
 import { authRouter } from "./routers/auth";
 import { knowledgeSyncRouter } from "./routers/knowledgeSync";
 import { healthRouter } from "./routers/health";
+import { backupRouter } from "./routers/backup";
 import { router } from "./_core/trpc";
 
 export const appRouter = router({
@@ -25,6 +26,9 @@ export const appRouter = router({
   
   // Health check (#11: Health checks)
   health: healthRouter,
+  
+  // Automated backup (#10: Backup automatizado)
+  backup: backupRouter,
 });
 
 export type AppRouter = typeof appRouter;
