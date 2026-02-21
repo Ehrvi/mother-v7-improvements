@@ -216,9 +216,31 @@ async function startServer() {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
   
+  // #34: Global async error handlers
+  process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) => {
+    logError('Unhandled Promise Rejection', {
+      reason,
+      promise: String(promise),
+      stack: reason instanceof Error ? reason.stack : undefined
+    });
+    // Don't exit - log and continue (graceful degradation)
+  });
+  
+  process.on('uncaughtException', (error: Error) => {
+    logError('Uncaught Exception', {
+      error: error.message,
+      stack: error.stack
+    });
+    // Exit on uncaught exceptions (process is in undefined state)
+    shutdown('UNCAUGHT_EXCEPTION');
+  });
+  
   // Global error handlers (#14: Error handling global) - MUST be last
   app.use(notFoundHandler);
   app.use(errorHandler);
 }
 
-startServer().catch(console.error);
+startServer().catch((error) => {
+  logger.error('Failed to start server', { error: error.message, stack: error.stack });
+  process.exit(1);
+});
