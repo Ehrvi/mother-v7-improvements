@@ -1,0 +1,8 @@
+{
+  "query": "SELECT \n  id, \n  LEFT(query, 100) as query_preview,\n  tier,\n  qualityScore,\n  cost,\n  model,\n  createdAt\nFROM queries \nWHERE tier = 'gpt-4o-mini' AND qualityScore < 85\nORDER BY qualityScore ASC\nLIMIT 50;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3QQhaXF1ucYHpuK.e4b7c6254861 --database 25NeaJLRyMKQFYzeZChVTB --execute SELECT \n  id, \n  LEFT(query, 100) as query_preview,\n  tier,\n  qualityScore,\n  cost,\n  model,\n  createdAt\nFROM queries \nWHERE tier = 'gpt-4o-mini' AND qualityScore < 85\nORDER BY qualityScore ASC\nLIMIT 50;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'model' in 'field list'"
+  ]
+}

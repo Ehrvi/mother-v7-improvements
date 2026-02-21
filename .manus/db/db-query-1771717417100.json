@@ -1,0 +1,190 @@
+{
+  "query": "SELECT \n  id, \n  LEFT(query, 100) as query_preview,\n  tier,\n  CAST(qualityScore AS DECIMAL(5,2)) as quality,\n  CAST(cost AS DECIMAL(10,6)) as cost_usd,\n  CAST(complexityScore AS DECIMAL(5,2)) as complexity,\n  createdAt\nFROM queries \nWHERE tier = 'gpt-4o-mini' AND CAST(qualityScore AS DECIMAL(5,2)) < 85\nORDER BY CAST(qualityScore AS DECIMAL(5,2)) ASC\nLIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3QQhaXF1ucYHpuK.e4b7c6254861 --database 25NeaJLRyMKQFYzeZChVTB --execute SELECT \n  id, \n  LEFT(query, 100) as query_preview,\n  tier,\n  CAST(qualityScore AS DECIMAL(5,2)) as quality,\n  CAST(cost AS DECIMAL(10,6)) as cost_usd,\n  CAST(complexityScore AS DECIMAL(5,2)) as complexity,\n  createdAt\nFROM queries \nWHERE tier = 'gpt-4o-mini' AND CAST(qualityScore AS DECIMAL(5,2)) < 85\nORDER BY CAST(qualityScore AS DECIMAL(5,2)) ASC\nLIMIT 20;",
+  "rows": [
+    {
+      "id": "270001",
+      "query_preview": "What is 2+2?",
+      "tier": "gpt-4o-mini",
+      "quality": "71.00",
+      "cost_usd": "0.000063",
+      "complexity": "0.15",
+      "createdAt": "2026-02-19 10:22:15"
+    },
+    {
+      "id": "270049",
+      "query_preview": "test",
+      "tier": "gpt-4o-mini",
+      "quality": "71.00",
+      "cost_usd": "0.000108",
+      "complexity": "0.15",
+      "createdAt": "2026-02-19 11:15:02"
+    },
+    {
+      "id": "270004",
+      "query_preview": "What is 2+2?",
+      "tier": "gpt-4o-mini",
+      "quality": "71.00",
+      "cost_usd": "0.000063",
+      "complexity": "0.15",
+      "createdAt": "2026-02-19 10:39:33"
+    },
+    {
+      "id": "270078",
+      "query_preview": "What is 2+2?",
+      "tier": "gpt-4o-mini",
+      "quality": "71.00",
+      "cost_usd": "0.001204",
+      "complexity": "0.15",
+      "createdAt": "2026-02-19 12:03:53"
+    },
+    {
+      "id": "270021",
+      "query_preview": "What is 2+2?",
+      "tier": "gpt-4o-mini",
+      "quality": "71.00",
+      "cost_usd": "0.000063",
+      "complexity": "0.15",
+      "createdAt": "2026-02-19 10:48:50"
+    },
+    {
+      "id": "270006",
+      "query_preview": "What is 2+2?",
+      "tier": "gpt-4o-mini",
+      "quality": "71.00",
+      "cost_usd": "0.000063",
+      "complexity": "0.15",
+      "createdAt": "2026-02-19 10:41:37"
+    },
+    {
+      "id": "270063",
+      "query_preview": "What is 2+2?",
+      "tier": "gpt-4o-mini",
+      "quality": "71.00",
+      "cost_usd": "0.001204",
+      "complexity": "0.15",
+      "createdAt": "2026-02-19 11:51:16"
+    },
+    {
+      "id": "270036",
+      "query_preview": "What is 2+2?",
+      "tier": "gpt-4o-mini",
+      "quality": "71.00",
+      "cost_usd": "0.000063",
+      "complexity": "0.15",
+      "createdAt": "2026-02-19 10:55:45"
+    },
+    {
+      "id": "270052",
+      "query_preview": "What is 2+2?",
+      "tier": "gpt-4o-mini",
+      "quality": "71.00",
+      "cost_usd": "0.001208",
+      "complexity": "0.15",
+      "createdAt": "2026-02-19 11:47:14"
+    },
+    {
+      "id": "270088",
+      "query_preview": "What is 2+2?",
+      "tier": "gpt-4o-mini",
+      "quality": "71.00",
+      "cost_usd": "0.001204",
+      "complexity": "0.15",
+      "createdAt": "2026-02-19 12:18:11"
+    },
+    {
+      "id": "240005",
+      "query_preview": "What is 2+2?",
+      "tier": "gpt-4o-mini",
+      "quality": "71.00",
+      "cost_usd": "0.000063",
+      "complexity": "0.15",
+      "createdAt": "2026-02-19 09:45:27"
+    },
+    {
+      "id": "270068",
+      "query_preview": "What is 2+2?",
+      "tier": "gpt-4o-mini",
+      "quality": "71.00",
+      "cost_usd": "0.000131",
+      "complexity": "0.15",
+      "createdAt": "2026-02-19 11:51:42"
+    },
+    {
+      "id": "270026",
+      "query_preview": "What is 2+2?",
+      "tier": "gpt-4o-mini",
+      "quality": "71.00",
+      "cost_usd": "0.000063",
+      "complexity": "0.15",
+      "createdAt": "2026-02-19 10:51:21"
+    },
+    {
+      "id": "270015",
+      "query_preview": "What is 2+2?",
+      "tier": "gpt-4o-mini",
+      "quality": "75.00",
+      "cost_usd": "0.000065",
+      "complexity": "0.15",
+      "createdAt": "2026-02-19 10:46:15"
+    },
+    {
+      "id": "270042",
+      "query_preview": "What is 2+2?",
+      "tier": "gpt-4o-mini",
+      "quality": "75.00",
+      "cost_usd": "0.000111",
+      "complexity": "0.15",
+      "createdAt": "2026-02-19 11:12:09"
+    },
+    {
+      "id": "150004",
+      "query_preview": "onde vc esta instalada?",
+      "tier": "gpt-4o-mini",
+      "quality": "75.00",
+      "cost_usd": "0.000018",
+      "complexity": "0.00",
+      "createdAt": "2026-02-19 07:30:50"
+    },
+    {
+      "id": "270008",
+      "query_preview": "What is brutal honesty?",
+      "tier": "gpt-4o-mini",
+      "quality": "76.00",
+      "cost_usd": "0.000455",
+      "complexity": "0.15",
+      "createdAt": "2026-02-19 10:41:55"
+    },
+    {
+      "id": "270069",
+      "query_preview": "Explain quantum entanglement",
+      "tier": "gpt-4o-mini",
+      "quality": "76.00",
+      "cost_usd": "0.000616",
+      "complexity": "0.15",
+      "createdAt": "2026-02-19 11:51:53"
+    },
+    {
+      "id": "270005",
+      "query_preview": "What is brutal honesty?",
+      "tier": "gpt-4o-mini",
+      "quality": "76.00",
+      "cost_usd": "0.000283",
+      "complexity": "0.15",
+      "createdAt": "2026-02-19 10:40:05"
+    },
+    {
+      "id": "270075",
+      "query_preview": "Explain something complex",
+      "tier": "gpt-4o-mini",
+      "quality": "76.00",
+      "cost_usd": "0.001895",
+      "complexity": "0.30",
+      "createdAt": "2026-02-19 11:53:02"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tquery_preview\ttier\tquality\tcost_usd\tcomplexity\tcreatedAt\n270001\tWhat is 2+2?\tgpt-4o-mini\t71.00\t0.000063\t0.15\t2026-02-19 10:22:15\n270049\ttest\tgpt-4o-mini\t71.00\t0.000108\t0.15\t2026-02-19 11:15:02\n270004\tWhat is 2+2?\tgpt-4o-mini\t71.00\t0.000063\t0.15\t2026-02-19 10:39:33\n270078\tWhat is 2+2?\tgpt-4o-mini\t71.00\t0.001204\t0.15\t2026-02-19 12:03:53\n270021\tWhat is 2+2?\tgpt-4o-mini\t71.00\t0.000063\t0.15\t2026-02-19 10:48:50\n270006\tWhat is 2+2?\tgpt-4o-mini\t71.00\t0.000063\t0.15\t2026-02-19 10:41:37\n270063\tWhat is 2+2?\tgpt-4o-mini\t71.00\t0.001204\t0.15\t2026-02-19 11:51:16\n270036\tWhat is 2+2?\tgpt-4o-mini\t71.00\t0.000063\t0.15\t2026-02-19 10:55:45\n270052\tWhat is 2+2?\tgpt-4o-mini\t71.00\t0.001208\t0.15\t2026-02-19 11:47:14\n270088\tWhat is 2+2?\tgpt-4o-mini\t71.00\t0.001204\t0.15\t2026-02-19 12:18:11\n240005\tWhat is 2+2?\tgpt-4o-mini\t71.00\t0.000063\t0.15\t2026-02-19 09:45:27\n270068\tWhat is 2+2?\tgpt-4o-mini\t71.00\t0.000131\t0.15\t2026-02-19 11:51:42\n270026\tWhat is 2+2?\tgpt-4o-mini\t71.00\t0.000063\t0.15\t2026-02-19 10:51:21\n270015\tWhat is 2+2?\tgpt-4o-mini\t75.00\t0.000065\t0.15\t2026-02-19 10:46:15\n270042\tWhat is 2+2?\tgpt-4o-mini\t75.00\t0.000111\t0.15\t2026-02-19 11:12:09\n150004\tonde vc esta instalada?\tgpt-4o-mini\t75.00\t0.000018\t0.00\t2026-02-19 07:30:50\n270008\tWhat is brutal honesty?\tgpt-4o-mini\t76.00\t0.000455\t0.15\t2026-02-19 10:41:55\n270069\tExplain quantum entanglement\tgpt-4o-mini\t76.00\t0.000616\t0.15\t2026-02-19 11:51:53\n270005\tWhat is brutal honesty?\tgpt-4o-mini\t76.00\t0.000283\t0.15\t2026-02-19 10:40:05\n270075\tExplain something complex\tgpt-4o-mini\t76.00\t0.001895\t0.30\t2026-02-19 11:53:02\n",
+  "stderr": "",
+  "execution_time_ms": 1803
+}

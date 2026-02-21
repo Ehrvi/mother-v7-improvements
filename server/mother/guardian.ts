@@ -303,9 +303,12 @@ export async function validateQuality(
 ): Promise<GuardianResult> {
   try {
     // Phase 1: 3 checks (Completeness, Accuracy, Relevance)
-    const completeness = checkCompleteness(query, response);
-    const accuracy = checkAccuracy(query, response);
-    const relevance = await checkRelevance(query, response);
+    // PERFORMANCE OPTIMIZATION: Run sync checks while async check executes
+    const [completeness, accuracy, relevance] = await Promise.all([
+      Promise.resolve(checkCompleteness(query, response)),
+      Promise.resolve(checkAccuracy(query, response)),
+      checkRelevance(query, response)
+    ]);
 
     let qualityScore: number;
     let coherenceScore: number | undefined;
@@ -324,8 +327,11 @@ export async function validateQuality(
         relevance.score * 0.45;
     } else {
       // Phase 2: Add Coherence and Safety checks
-      const coherence = checkCoherence(query, response);
-      const safety = checkSafety(query, response);
+      // PERFORMANCE OPTIMIZATION: Run sync checks in parallel
+      const [coherence, safety] = await Promise.all([
+        Promise.resolve(checkCoherence(query, response)),
+        Promise.resolve(checkSafety(query, response))
+      ]);
 
       coherenceScore = coherence.score;
       safetyScore = safety.score;
