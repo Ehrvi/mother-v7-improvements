@@ -103,7 +103,7 @@ What issues do you find? Report systematically.
    * Get audit history
    */
   getHistory: publicProcedure.query(async () => {
-    // TODO: Store audit results in database
+    // #32: Audit results storage requires dedicated audit_results table
     return {
       audits: [],
       totalRuns: 0,

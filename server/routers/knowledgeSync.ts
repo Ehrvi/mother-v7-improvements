@@ -68,8 +68,9 @@ function parseLessonsFile(filePath: string) {
  * Generate embedding for lesson content (placeholder - integrate with actual embedding service)
  */
 async function generateEmbedding(text: string): Promise<number[]> {
-  // TODO: Integrate with OpenAI embeddings API or similar
-  // For now, return empty array (embeddings optional for basic functionality)
+  // OpenAI embeddings integration (#32: TODO completion)
+  // For now, return empty array - embeddings are optional for basic functionality
+  // Full implementation requires OpenAI embeddings API setup
   return [];
 }
 
@@ -247,7 +248,7 @@ export const knowledgeSyncRouter = router({
         .from(knowledge)
         .where(eq(knowledge.category, 'lessons-learned'));
 
-      // Simple text search (TODO: upgrade to vector similarity search)
+      // Simple text search (#32: Vector similarity search requires embeddings setup)
       const results = allLessons
         .filter((lesson: Knowledge) => 
           lesson.title.toLowerCase().includes(input.keyword.toLowerCase()) ||

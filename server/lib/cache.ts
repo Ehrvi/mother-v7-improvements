@@ -12,7 +12,9 @@
  */
 
 import { cacheGet, cacheSet, cacheExists } from './redis';
-import { getCacheEntry, insertCacheEntry } from '../db';
+import { getCacheEntry, insertCacheEntry, getDb } from '../db';
+import { cacheEntries } from '../../drizzle/schema';
+import { sql, gt } from 'drizzle-orm';
 import { logger } from './logger';
 
 export interface CacheEntry {
@@ -150,11 +152,23 @@ export async function getCacheStatistics(): Promise<CacheStats> {
       };
     }
 
-    // L2 stats (Database)
-    // TODO: Add query to count cache entries in database
+    // L2 stats (Database) - #32: TODO completion
+    const db = await getDb();
+    let l2Entries = 0;
+    if (db) {
+      try {
+        const result = await db
+          .select({ count: sql<number>`COUNT(*)` })
+          .from(cacheEntries)
+          .where(gt(cacheEntries.expiresAt, new Date()));
+        l2Entries = result[0]?.count || 0;
+      } catch (error) {
+        logger.error('[Cache] Failed to count L2 entries:', error);
+      }
+    }
     const l2Stats = {
       enabled: true as const,
-      entries: 0, // Placeholder
+      entries: l2Entries,
     };
 
     return {

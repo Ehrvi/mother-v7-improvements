@@ -344,6 +344,7 @@ export async function getQueryStats(periodHours: number = 24): Promise<{
   tier3Count: number;
   avgQuality: number;
   avgResponseTime: number;
+  avgCostReduction: number;
   cacheHitRate: number;
 }> {
   const db = await getDb();
@@ -355,6 +356,7 @@ export async function getQueryStats(periodHours: number = 24): Promise<{
       tier3Count: 0,
       avgQuality: 0,
       avgResponseTime: 0,
+      avgCostReduction: 0,
       cacheHitRate: 0,
     };
   }
@@ -369,6 +371,7 @@ export async function getQueryStats(periodHours: number = 24): Promise<{
       tier3Count: sql<number>`SUM(CASE WHEN tier = 'gpt-4' THEN 1 ELSE 0 END)`,
       avgQuality: sql<number>`AVG(CAST(qualityScore AS DECIMAL(10,2)))`,
       avgResponseTime: sql<number>`AVG(responseTime)`,
+      avgCostReduction: sql<number>`AVG(CAST(costReduction AS DECIMAL(10,2)))`,
       cacheHitCount: sql<number>`SUM(cacheHit)`,
     })
     .from(queries)
@@ -386,6 +389,7 @@ export async function getQueryStats(periodHours: number = 24): Promise<{
     tier3Count: stats.tier3Count || 0,
     avgQuality: stats.avgQuality || 0,
     avgResponseTime: stats.avgResponseTime || 0,
+    avgCostReduction: stats.avgCostReduction || 0,
     cacheHitRate,
   };
 }

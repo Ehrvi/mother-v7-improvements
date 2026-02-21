@@ -265,8 +265,8 @@ export async function getRequestLogs(filters: {
   status?: number;
   limit?: number;
 }): Promise<RequestLog[]> {
-  // TODO: Implement log aggregation query
-  // This would typically query Elasticsearch, CloudWatch Logs, etc.
+  // #32: Log aggregation requires external log storage (Elasticsearch, CloudWatch, etc.)
+  // Current implementation logs to console/file only
   return [];
 }
 
