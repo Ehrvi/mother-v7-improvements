@@ -40,14 +40,24 @@ export async function closePool() {
   }
 }
 
-// Health check: test pool connection
-export async function testPoolConnection(): Promise<boolean> {
+// Health check: test pool connection with timeout
+export async function testPoolConnection(timeoutMs: number = 2000): Promise<boolean> {
   try {
     const pool = getPool();
-    const connection = await pool.getConnection();
-    await connection.ping();
-    connection.release();
-    return true;
+    
+    // Race between connection test and timeout
+    const connectionPromise = (async () => {
+      const connection = await pool.getConnection();
+      await connection.ping();
+      connection.release();
+      return true;
+    })();
+    
+    const timeoutPromise = new Promise<boolean>((_, reject) => {
+      setTimeout(() => reject(new Error(`Database health check timeout after ${timeoutMs}ms`)), timeoutMs);
+    });
+    
+    return await Promise.race([connectionPromise, timeoutPromise]);
   } catch (error) {
     logger.error('❌ Database pool health check failed:', error);
     return false;

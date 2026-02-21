@@ -4,7 +4,17 @@ import { getCacheStats } from "../lib/redis";
 import { z } from "zod";
 
 export const healthRouter = router({
-  // Simple health check
+  // Ultra-lightweight ping (no database/cache checks)
+  // Use this for monitoring and load balancer health checks
+  ping: publicProcedure.query(() => {
+    return {
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      uptime: Math.floor(process.uptime()),
+    };
+  }),
+  
+  // Simple health check (includes database)
   check: publicProcedure.query(async () => {
     const dbHealthy = await testPoolConnection();
     
