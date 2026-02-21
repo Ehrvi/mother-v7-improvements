@@ -11,6 +11,8 @@ import helmet from "helmet";
 import { closePool } from "../db-pool";
 import { logger, logInfo, logError, httpLogger } from "../lib/logger";
 import { errorHandler, notFoundHandler } from "../middleware/error-handler";
+import { startWorker, closeQueue } from "../lib/queue";
+import { closeRedis } from "../lib/redis";
 // Vite imports moved to dynamic imports to avoid bundling in production
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -101,9 +103,17 @@ async function startServer() {
   }
 
   server.listen(port, () => {
-    logInfo(`Server running on http://localhost:${port}/`);
+    logInfo(`Server running on port ${port}`);
     logInfo(`Environment: ${process.env.NODE_ENV || 'development'}`);
     logInfo(`Logging to: ${process.cwd()}/logs/`);
+    
+    // Start BullMQ worker for async job processing (#16: Message Queue)
+    const worker = startWorker();
+    if (worker) {
+      logInfo('BullMQ worker started successfully');
+    } else {
+      logger.warn('BullMQ worker not started (Redis not configured)');
+    }
   });
   
   // Graceful shutdown (#7)
@@ -122,6 +132,14 @@ async function startServer() {
     }, 10000);
     
     try {
+      // Close BullMQ worker and queue (#16: Message Queue)
+      logInfo('Closing BullMQ worker and queue...');
+      await closeQueue();
+      
+      // Close Redis connection (#15: Redis caching)
+      logInfo('Closing Redis connection...');
+      await closeRedis();
+      
       // Close database connection pool (#3: Database pooling)
       logInfo('Closing database connections...');
       await closePool();

@@ -9,10 +9,66 @@ import { processQuery, getSystemStats } from '../mother/core';
 import { addKnowledge } from '../mother/knowledge';
 import { getRecentQueries, getQueryStats, getAllKnowledge } from '../db';
 import { sanitizeAndValidate } from '../middleware/sanitize';
+import { enqueueQuery } from '../lib/queue';
+import { assessComplexity } from '../mother/intelligence';
+import { createHash } from 'crypto';
 
 export const motherRouter = router({
   /**
-   * Main query endpoint
+   * Async query endpoint (uses BullMQ for tier 3 queries)
+   * Returns job ID for polling, or immediate result for tier 1-2
+   */
+  queryAsync: publicProcedure
+    .input(
+      z.object({
+        query: z.string().min(1).max(5000),
+        useCache: z.boolean().optional().default(true),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const sanitizedQuery = sanitizeAndValidate(input.query, 5000);
+      
+      // Assess complexity to determine if we should queue
+      const complexity = assessComplexity(sanitizedQuery);
+      const queryHash = createHash('sha256').update(sanitizedQuery.toLowerCase().trim()).digest('hex');
+      
+      // Tier 3 (gpt-4) queries go to queue for async processing
+      if (complexity.tier === 'gpt-4') {
+        const job = await enqueueQuery({
+          query: sanitizedQuery,
+          userId: ctx.user?.id,
+          tier: complexity.tier,
+          queryHash,
+          timestamp: Date.now(),
+        });
+        
+        if (job) {
+          return {
+            async: true,
+            jobId: job.id,
+            tier: complexity.tier,
+            message: 'Query queued for processing. Use /api/trpc/queue.job to check status.',
+          };
+        }
+        
+        // Fallback to sync processing if queue is not available
+      }
+      
+      // Tier 1-2 queries process synchronously (fast enough)
+      const result = await processQuery({
+        query: sanitizedQuery,
+        userId: ctx.user?.id,
+        useCache: input.useCache,
+      });
+      
+      return {
+        async: false,
+        result,
+      };
+    }),
+  
+  /**
+   * Main query endpoint (synchronous)
    * Processes a query through all 7 MOTHER layers
    */
   query: publicProcedure

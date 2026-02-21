@@ -2033,12 +2033,14 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 - [ ] Measure latency reduction (target: 50%)
 
 ### #16: Message Queue - BullMQ (5h)
-- [ ] Install BullMQ dependencies
-- [ ] Create server/lib/queue.ts
-- [ ] Create workers for heavy query processing
-- [ ] Integrate with MOTHER tiers (gpt-4 → queue)
-- [ ] Add job monitoring dashboard
-- [ ] Test throughput improvement (target: +200%)
+- [x] Install BullMQ dependencies
+- [x] Create server/lib/queue.ts with worker and queue management
+- [x] Create workers for heavy query processing (concurrency: 5)
+- [x] Integrate with MOTHER tiers (gpt-4 → queue, tier 1-2 → sync)
+- [x] Add job monitoring endpoints (/api/trpc/queue.stats, /api/trpc/queue.job)
+- [x] Add graceful shutdown for worker and queue
+- [x] Create queryAsync endpoint for async processing
+- [ ] Test throughput improvement in production (target: +200%)
 
 ### #17: Query Optimization (3h)
 - [ ] Analyze slow queries in TiDB

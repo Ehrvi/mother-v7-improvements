@@ -7,6 +7,7 @@ import { authRouter } from "./routers/auth";
 import { knowledgeSyncRouter } from "./routers/knowledgeSync";
 import { healthRouter } from "./routers/health";
 import { backupRouter } from "./routers/backup";
+import { queueRouter } from "./routers/queue";
 import { router } from "./_core/trpc";
 
 export const appRouter = router({
@@ -29,6 +30,9 @@ export const appRouter = router({
   
   // Automated backup (#10: Backup automatizado)
   backup: backupRouter,
+  
+  // Queue monitoring (#16: Message Queue - BullMQ)
+  queue: queueRouter,
 });
 
 export type AppRouter = typeof appRouter;
