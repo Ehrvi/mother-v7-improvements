@@ -45,6 +45,9 @@ async function startServer() {
   // Trust proxy (required for rate limiting behind load balancer/CDN)
   app.set('trust proxy', 1);
   
+  // Disable x-powered-by header (security best practice)
+  app.disable('x-powered-by');
+  
   // HTTPS enforcement in production
   if (process.env.NODE_ENV === 'production') {
     app.use((req, res, next) => {
@@ -55,7 +58,8 @@ async function startServer() {
     });
   }
   
-  // Security headers (helmet)
+  // Security headers (helmet) - Applied BEFORE all other middleware
+  // This ensures headers are set early and not overridden
   app.use(helmet({
     contentSecurityPolicy: false, // Disable CSP for now (conflicts with Vite/React)
     hsts: {
@@ -68,6 +72,7 @@ async function startServer() {
     },
     noSniff: true, // X-Content-Type-Options: nosniff
     xssFilter: true, // X-XSS-Protection: 1; mode=block
+    hidePoweredBy: true, // Remove X-Powered-By header
   }));
   
   // CORS configuration (#29: CORS Configuration)

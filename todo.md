@@ -2341,3 +2341,27 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 - [ ] Fix closure leaks
 - [ ] Add memory monitoring
 - [ ] Test memory usage over 24h
+
+## Phase 6: Post-Deploy Fixes (2 HIGH Priority Issues)
+
+### #37: Security Headers Fix (2h)
+- [x] Investigate Helmet middleware placement in server/_core/index.ts
+- [x] Add app.disable('x-powered-by') explicitly (line 49)
+- [x] Add hidePoweredBy: true to Helmet config (line 75)
+- [x] Test Helmet locally to confirm it's working (ALL HEADERS PRESENT)
+- [ ] Deploy to production and verify headers
+- [ ] Test with curl -I in production
+
+### #38: API Cold Start Fix (1h)
+- [ ] Configure Cloud Run min instances = 1
+- [ ] Deploy configuration change
+- [ ] Test API endpoint response time (target: <2s)
+- [ ] Measure improvement (before: 25s, after: <2s)
+- [ ] Verify no cold starts occur
+
+### #39: Production Monitoring (3h)
+- [ ] Set up Cloud Monitoring dashboard
+- [ ] Configure error rate alerts (threshold: >1%)
+- [ ] Configure response time alerts (threshold: >3s)
+- [ ] Configure memory usage alerts (threshold: >80%)
+- [ ] Test alert delivery (<5 min latency)
