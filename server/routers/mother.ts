@@ -8,6 +8,7 @@ import { publicProcedure, protectedProcedure, router } from '../_core/trpc';
 import { processQuery, getSystemStats } from '../mother/core';
 import { addKnowledge } from '../mother/knowledge';
 import { getRecentQueries, getQueryStats, getAllKnowledge } from '../db';
+import { sanitizeAndValidate } from '../middleware/sanitize';
 
 export const motherRouter = router({
   /**
@@ -22,8 +23,11 @@ export const motherRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      // Sanitize and validate input to prevent XSS/injection attacks
+      const sanitizedQuery = sanitizeAndValidate(input.query, 5000);
+      
       const result = await processQuery({
-        query: input.query,
+        query: sanitizedQuery,
         userId: ctx.user?.id,
         useCache: input.useCache,
       });

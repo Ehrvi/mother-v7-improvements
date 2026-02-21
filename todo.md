@@ -1917,3 +1917,102 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 - [x] Deploy produção
 - [x] Smoke tests
 - [x] Documentação final
+
+
+---
+
+## DOCUMENTAÇÃO ATUALIZADA - DO ZERO AO DEPLOY
+- [x] Criar guia completo "Local → Produção" com valores reais
+- [x] Incluir URLs reais, repositórios, database, API keys
+- [x] Nível QI 70 (qualquer pessoa consegue seguir)
+- [x] Anexo técnico: códigos completos, arquiteturas, fluxogramas
+- [x] Export como PDF para distribuição
+
+
+---
+
+## PROMPT MASTER - EXECUÇÃO AUTÔNOMA TOTAL
+- [ ] Parte 1-3: Guia passo a passo + Scripts completos + Python automation
+- [ ] Parte 4-6: Fluxogramas + Detalhes técnicos + Troubleshooting
+- [ ] Parte 7-9: Valores reais + Checklists + Métricas de sucesso
+- [ ] Guia Bônus: Automação IA para 35 correções técnicas
+- [ ] Export como PDF (100+ páginas)
+
+
+---
+
+## PROMPT MASTER - EXECUÇÃO AUTÔNOMA TOTAL ✅
+- [x] Criar guia definitivo (9 partes, 150+ páginas)
+- [x] Incluir scripts completos (Windows + Linux)
+- [x] Incluir fluxogramas e diagramas
+- [x] Incluir códigos completos de automação
+- [x] Incluir valores reais (API keys, URLs, database, etc.)
+- [x] Nível QI 70 (qualquer pessoa consegue seguir)
+- [x] Criar guia bônus: Automação IA (35 correções técnicas)
+- [x] Export tudo como PDF
+- [x] Método científico para cada correção
+- [x] Garantias de não-conflito
+- [x] Rollback automático
+
+
+---
+
+## EXECUÇÃO COMPLETA - 35 CORREÇÕES TÉCNICAS (OPÇÃO B)
+
+### Fase 1: Critical Security (7 correções)
+- [x] #1: Rate limiting (complete integration) ✅ TESTED
+- [ ] #2: Input validation (Zod + DOMPurify)
+- [ ] #3: Database pooling (integrate existing code)
+- [ ] #4: HTTPS enforcement
+- [ ] #5: Security headers (helmet)
+- [ ] #6: Request size limits
+- [ ] #7: Graceful shutdown
+
+### Fase 2: High Priority Stability (7 correções)
+- [ ] #8: Logging framework (Winston)
+- [ ] #9: Secrets rotation
+- [ ] #10: Backup automatizado
+- [ ] #11: Health checks
+- [ ] #12: Monitoring (Prometheus)
+- [ ] #13: Circuit breaker
+- [ ] #14: Error handling global
+
+### Fase 3: Performance (7 correções)
+- [ ] #15: Redis caching
+- [ ] #16: Message queue (BullMQ)
+- [ ] #17: Load balancer config
+- [ ] #18: Multi-instance setup
+- [ ] #19: Auto-scaling config
+- [ ] #20: CDN setup
+- [ ] #21: Database indexes
+
+### Fase 4: Developer Experience (8 correções)
+- [ ] #22: API documentation (OpenAPI)
+- [ ] #23: JavaScript SDK
+- [ ] #24: Python SDK
+- [ ] #25: Webhook support
+- [ ] #26: Rate limit headers
+- [ ] #27: Error response standardization
+- [ ] #28: CORS configuration
+- [ ] #29: Request logging
+
+### Fase 5: Code Quality (6 correções)
+- [ ] #30: Console.log cleanup
+- [ ] #31: TODO completion
+- [ ] #32: Type safety improvements
+- [ ] #33: Async error handling
+- [ ] #34: Promise rejection handling
+- [ ] #35: Memory leak fixes
+
+### Fase 6: Deploy Final
+- [ ] Deploy to GCloud production
+- [ ] Run full test suite
+- [ ] Validate all 35 corrections
+- [ ] Performance benchmarks
+- [ ] Security scan
+
+### Fase 7: Documentação
+- [ ] Create final report
+- [ ] Document all changes
+- [ ] Update README
+- [ ] Create changelog
