@@ -1,5 +1,6 @@
 import { publicProcedure, router } from "../_core/trpc";
 import { testPoolConnection } from "../db-pool";
+import { getCacheStats } from "../lib/redis";
 import { z } from "zod";
 
 export const healthRouter = router({
@@ -17,6 +18,32 @@ export const healthRouter = router({
         limit: Math.round(process.memoryUsage().rss / 1024 / 1024),
       },
       database: dbHealthy ? "connected" : "disconnected",
+    };
+  }),
+  
+  // Cache statistics
+  cache: publicProcedure.query(async () => {
+    const stats = await getCacheStats();
+    
+    if (!stats) {
+      return {
+        enabled: false,
+        message: "Redis not configured",
+      };
+    }
+    
+    const hitRate = stats.hits + stats.misses > 0
+      ? ((stats.hits / (stats.hits + stats.misses)) * 100).toFixed(2)
+      : "0.00";
+    
+    return {
+      enabled: true,
+      connected: stats.connected,
+      keys: stats.keys,
+      memory: stats.memory,
+      hits: stats.hits,
+      misses: stats.misses,
+      hitRate: `${hitRate}%`,
     };
   }),
   
@@ -48,6 +75,7 @@ export const healthRouter = router({
       cpu: {
         usage: process.cpuUsage(),
       },
+      cache: await getCacheStats(),
     };
   }),
 });

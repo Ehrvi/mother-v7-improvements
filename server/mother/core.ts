@@ -16,7 +16,8 @@ import { invokeLLM } from '../_core/llm';
 import { assessComplexity, getModelForTier, calculateCost, calculateBaselineCost, calculateCostReduction, type LLMTier } from './intelligence';
 import { validateQuality, type GuardianResult } from './guardian';
 import { getKnowledgeContext } from './knowledge';
-import { insertQuery, getCacheEntry, insertCacheEntry } from '../db';
+import { getCachedQuery, setCachedQuery } from '../lib/cache';
+import { insertQuery } from '../db';
 import { retryDbOperation } from './db-retry';
 import { learnFromResponse } from './learning';
 import GODLevelLearning from '../learning/god-level';
@@ -71,21 +72,26 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   // Generate query hash for caching
   const queryHash = createHash('sha256').update(query.toLowerCase().trim()).digest('hex');
   
-  // ==================== CACHING LAYER ====================
-  // Check cache first (35% hit rate target)
+  // ==================== CACHING LAYER (Two-Tier: Redis L1 + Database L2) ====================
+  // Check cache first (target: 70% hit rate with Redis)
   
   if (useCache) {
-    const cached = await getCacheEntry(queryHash);
+    const cached = await getCachedQuery(queryHash);
     if (cached) {
-      console.log('[MOTHER] Cache hit!');
-      
-      // Parse cached response
-      const cachedResponse = JSON.parse(cached.response);
+      console.log('[MOTHER] Cache hit (two-tier)!');
       
       return {
-        ...cachedResponse,
-        cacheHit: true,
+        response: cached.response,
+        tier: cached.tier as LLMTier,
+        complexityScore: cached.complexityScore,
+        confidenceScore: 0, // Not stored in cache
+        quality: cached.quality,
         responseTime: Date.now() - startTime,
+        tokensUsed: cached.tokensUsed,
+        cost: cached.cost,
+        costReduction: 0, // Calculated later
+        cacheHit: true,
+        queryId: 0, // Not stored in cache
       };
     }
   }
@@ -390,18 +396,8 @@ Now respond to the user's query following these standards.`;
       queryId,
     };
     
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-    
-    await retryDbOperation(() => insertCacheEntry({
-      queryHash,
-      query,
-      response: JSON.stringify(cacheData),
-      embedding: null,
-      hitCount: 0,
-      lastHit: null,
-      ttl: 86400, // 24 hours in seconds
-      expiresAt,
-    }));
+    // Store in two-tier cache (Redis L1 + Database L2)
+    await setCachedQuery(queryHash, query, cacheData);
   }
   
   // ==================== RETURN RESPONSE ====================
