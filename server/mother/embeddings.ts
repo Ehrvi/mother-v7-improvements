@@ -4,6 +4,7 @@
  */
 
 import { ENV } from '../_core/env';
+import { logger } from '../lib/logger';
 
 /**
  * Get embedding vector for text
@@ -32,7 +33,7 @@ export async function getEmbedding(text: string): Promise<number[]> {
     const data = await response.json();
     return data.data[0].embedding;
   } catch (error) {
-    console.error('[Embeddings] Error:', error);
+    logger.error('[Embeddings] Error:', error);
     // Fallback: return zero vector (TF-IDF will be used instead)
     return new Array(1536).fill(0);
   }

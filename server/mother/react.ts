@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 /**
  * ReAct (Reasoning and Acting) Implementation
  * Based on MOTHER superintelligence guidance - Iteration 12
@@ -66,7 +67,7 @@ export function parseAction(thought: string): Action | null {
         parameters: JSON.parse(`{${match1[2]}}`),
       };
     } catch (e) {
-      console.error("Failed to parse action params:", e);
+      logger.error("Failed to parse action params:", e);
     }
   }
 
@@ -79,7 +80,7 @@ export function parseAction(thought: string): Action | null {
         parameters: JSON.parse(`{${match2[2]}}`),
       };
     } catch (e) {
-      console.error("Failed to parse action params:", e);
+      logger.error("Failed to parse action params:", e);
     }
   }
 
@@ -103,7 +104,7 @@ export function parseAction(thought: string): Action | null {
         parameters: params,
       };
     } catch (e) {
-      console.error("Failed to parse action params:", e);
+      logger.error("Failed to parse action params:", e);
     }
   }
 
@@ -121,7 +122,7 @@ export async function executeAction(action: Action): Promise<string> {
   }
 
   try {
-    console.log(`[ReAct] Executing tool: ${action.toolName}`, action.parameters);
+    logger.info(`[ReAct] Executing tool: ${action.toolName}`, action.parameters);
     const result = await tool.handler(action.parameters);
     
     if (result.success === false) {
@@ -147,7 +148,7 @@ export async function reasonAndAct(thoughts: string[]): Promise<string[]> {
     if (action) {
       const observation = await executeAction(action);
       observations.push(observation);
-      console.log(`[ReAct] Observation:`, observation);
+      logger.info(`[ReAct] Observation:`, observation);
     } else {
       // No action detected, just record the thought
       observations.push(`THOUGHT: ${thought}`);
@@ -205,7 +206,7 @@ export async function processWithReAct(
     return { observations: [], enhancedResponse: llmResponse };
   }
 
-  console.log(`[ReAct] Extracted ${thoughts.length} thoughts from response`);
+  logger.info(`[ReAct] Extracted ${thoughts.length} thoughts from response`);
 
   // Execute ReAct loop
   const observations = await reasonAndAct(thoughts);

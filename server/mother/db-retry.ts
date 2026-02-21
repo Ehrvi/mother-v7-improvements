@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 /**
  * Database Retry Logic
  * Fixes V2-001: DB connection failures without retry mechanism
@@ -46,8 +47,8 @@ export async function retryDbOperation<T>(
         throw error;
       }
 
-      console.log(`[DB Retry] Attempt ${attempt}/${opts.maxAttempts} failed: ${lastError.message}`);
-      console.log(`[DB Retry] Retrying in ${delay}ms...`);
+      logger.info(`[DB Retry] Attempt ${attempt}/${opts.maxAttempts} failed: ${lastError.message}`);
+      logger.info(`[DB Retry] Retrying in ${delay}ms...`);
 
       // Wait before retrying
       await sleep(delay);
@@ -99,7 +100,7 @@ function sleep(ms: number): Promise<void> {
 export async function warmUpDbConnection(
   getDb: () => Promise<any>
 ): Promise<void> {
-  console.log('[DB Warm-up] Starting connection pool warm-up...');
+  logger.info('[DB Warm-up] Starting connection pool warm-up...');
   
   try {
     const db = await retryDbOperation(getDb, { maxAttempts: 5 });
@@ -107,9 +108,9 @@ export async function warmUpDbConnection(
     // Execute simple query to warm up connection
     await db.execute('SELECT 1');
     
-    console.log('[DB Warm-up] Connection pool ready');
+    logger.info('[DB Warm-up] Connection pool ready');
   } catch (error) {
-    console.error('[DB Warm-up] Failed:', error);
+    logger.error('[DB Warm-up] Failed:', error);
     throw error;
   }
 }

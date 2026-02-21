@@ -1,4 +1,5 @@
 import rateLimit from 'express-rate-limit';
+import { logger } from '../lib/logger';
 
 // Global rate limiter: 100 requests per 15 minutes per IP
 export const globalLimiter = rateLimit({
@@ -8,7 +9,7 @@ export const globalLimiter = rateLimit({
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   handler: (req, res) => {
-    console.warn(`Rate limit exceeded for IP: ${req.ip}`);
+    logger.warn(`Rate limit exceeded for IP: ${req.ip}`);
     res.status(429).json({
       error: 'Too many requests',
       message: 'You have exceeded the rate limit. Please try again later.',
@@ -29,7 +30,7 @@ export const motherLimiter = rateLimit({
     return req.path === '/health' || req.path === '/api/health';
   },
   handler: (req, res) => {
-    console.warn(`MOTHER rate limit exceeded for IP: ${req.ip}`);
+    logger.warn(`MOTHER rate limit exceeded for IP: ${req.ip}`);
     res.status(429).json({
       error: 'Rate limit exceeded',
       message: 'You are sending too many queries. Please wait before trying again.',

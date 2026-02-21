@@ -18,6 +18,7 @@
 import { searchKnowledge, getAllKnowledge } from '../db';
 import type { Knowledge } from '../../drizzle/schema';
 import { getEmbedding, cosineSimilarity } from './embeddings';
+import { logger } from '../lib/logger';
 
 export interface KnowledgeSource {
   name: string;
@@ -51,7 +52,7 @@ export async function queryDatabase(query: string): Promise<KnowledgeResult[]> {
       relevance: calculateRelevance(query, item.content),
     }));
   } catch (error) {
-    console.error('[Knowledge] Database query failed:', error);
+    logger.error('[Knowledge] Database query failed:', error);
     return [];
   }
 }
@@ -67,7 +68,7 @@ export async function queryVectorSearch(query: string): Promise<KnowledgeResult[
     const allKnowledge = await getAllKnowledge();
     
     if (allKnowledge.length === 0) {
-      console.log('[Knowledge] No knowledge entries in database');
+      logger.info('[Knowledge] No knowledge entries in database');
       return [];
     }
     
@@ -77,7 +78,7 @@ export async function queryVectorSearch(query: string): Promise<KnowledgeResult[
     // Check if we got a valid embedding (not zero vector)
     const isZeroVector = queryEmbedding.every(v => v === 0);
     if (isZeroVector) {
-      console.warn('[Knowledge] Failed to get query embedding, falling back to keyword search');
+      logger.warn('[Knowledge] Failed to get query embedding, falling back to keyword search');
       return await queryVectorSearchFallback(query, allKnowledge);
     }
     
@@ -92,7 +93,7 @@ export async function queryVectorSearch(query: string): Promise<KnowledgeResult[
             const itemEmbedding = JSON.parse(item.embedding);
             relevance = cosineSimilarity(queryEmbedding, itemEmbedding);
           } catch (e) {
-            console.error(`[Knowledge] Failed to parse embedding for "${item.title}"`);
+            logger.error(`[Knowledge] Failed to parse embedding for "${item.title}"`);
             // Fall back to keyword matching for this entry
             const queryTerms = extractTerms(query);
             const titleRelevance = calculateTermRelevance(queryTerms, item.title);
@@ -112,7 +113,7 @@ export async function queryVectorSearch(query: string): Promise<KnowledgeResult[
             // Store embedding for future use (fire-and-forget)
             const { updateKnowledgeEmbedding } = await import('../db');
             updateKnowledgeEmbedding(item.id, JSON.stringify(itemEmbedding), 'text-embedding-3-small')
-              .catch((err: Error) => console.error(`[Knowledge] Failed to store embedding for ID ${item.id}:`, err));
+              .catch((err: Error) => logger.error(`[Knowledge] Failed to store embedding for ID ${item.id}:`, err));
           } else {
             // Fallback to keyword matching
             const queryTerms = extractTerms(query);
@@ -142,14 +143,14 @@ export async function queryVectorSearch(query: string): Promise<KnowledgeResult[
       .sort((a, b) => b.relevance - a.relevance)
       .slice(0, 3); // Top 3 most relevant
     
-    console.log(`[Knowledge] Vector search found ${relevantResults.length} relevant entries`);
+    logger.info(`[Knowledge] Vector search found ${relevantResults.length} relevant entries`);
     if (relevantResults.length > 0) {
-      console.log(`[Knowledge] Top match: "${relevantResults[0].item.title}" (similarity: ${(relevantResults[0].relevance * 100).toFixed(1)}%)`);
+      logger.info(`[Knowledge] Top match: "${relevantResults[0].item.title}" (similarity: ${(relevantResults[0].relevance * 100).toFixed(1)}%)`);
     }
     
     return relevantResults;
   } catch (error) {
-    console.error('[Knowledge] Vector search failed:', error);
+    logger.error('[Knowledge] Vector search failed:', error);
     // Fallback to keyword search
     const allKnowledge = await getAllKnowledge();
     return await queryVectorSearchFallback(query, allKnowledge);
@@ -190,7 +191,7 @@ async function queryVectorSearchFallback(query: string, allKnowledge: Knowledge[
     .sort((a, b) => b.relevance - a.relevance)
     .slice(0, 3);
   
-  console.log(`[Knowledge] Keyword fallback found ${relevantResults.length} relevant entries`);
+  logger.info(`[Knowledge] Keyword fallback found ${relevantResults.length} relevant entries`);
   return relevantResults;
 }
 
@@ -264,7 +265,7 @@ export async function queryRealTimeAPIs(query: string): Promise<KnowledgeResult[
   // - Stock API for financial data
   // - etc.
   
-  console.log('[Knowledge] Real-time APIs not yet implemented (Phase 2)');
+  logger.info('[Knowledge] Real-time APIs not yet implemented (Phase 2)');
   return [];
 }
 
@@ -281,7 +282,7 @@ export async function queryExternalKnowledge(query: string): Promise<KnowledgeRe
   // - Technical documentation
   // - etc.
   
-  console.log('[Knowledge] External knowledge not yet implemented (Phase 2)');
+  logger.info('[Knowledge] External knowledge not yet implemented (Phase 2)');
   return [];
 }
 

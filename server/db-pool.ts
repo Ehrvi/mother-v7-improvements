@@ -1,6 +1,7 @@
 import mysql from 'mysql2/promise';
 import { drizzle } from 'drizzle-orm/mysql2';
 import * as schema from '../drizzle/schema';
+import { logger } from './lib/logger';
 
 // Create connection pool (singleton pattern)
 let pool: mysql.Pool | null = null;
@@ -18,7 +19,7 @@ export function getPool(): mysql.Pool {
       keepAliveInitialDelay: 0
     });
     
-    console.log('✅ Database connection pool created (max: 10 connections)');
+    logger.info('✅ Database connection pool created (max: 10 connections)');
   }
   
   return pool;
@@ -35,7 +36,7 @@ export async function closePool() {
   if (pool) {
     await pool.end();
     pool = null;
-    console.log('✅ Database connection pool closed');
+    logger.info('✅ Database connection pool closed');
   }
 }
 
@@ -48,7 +49,7 @@ export async function testPoolConnection(): Promise<boolean> {
     connection.release();
     return true;
   } catch (error) {
-    console.error('❌ Database pool health check failed:', error);
+    logger.error('❌ Database pool health check failed:', error);
     return false;
   }
 }

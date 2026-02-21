@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 /**
  * MOTHER v7.0 - Security Auditing and Monitoring System
  * Implements continuous security monitoring and threat detection
@@ -56,7 +57,7 @@ export class SecurityAuditLogger {
     
     // Log critical events immediately
     if (event.severity === 'critical') {
-      console.error('[SECURITY CRITICAL]', JSON.stringify(fullEvent));
+      logger.error('[SECURITY CRITICAL]', JSON.stringify(fullEvent));
     }
   }
   

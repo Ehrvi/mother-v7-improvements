@@ -2214,28 +2214,71 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 - [ ] Measure engagement increase (target: +40%)
 
 ### #27: Rate Limit Headers (2h)
-- [ ] Add X-RateLimit-Limit header to all responses
-- [ ] Add X-RateLimit-Remaining header
-- [ ] Add X-RateLimit-Reset header
-- [ ] Add Retry-After header on 429 responses
+- [x] Create rate limit middleware (server/lib/rateLimit.ts)
+- [x] Implement token bucket algorithm with Redis backend
+- [x] Add X-RateLimit-Limit header to all responses
+- [x] Add X-RateLimit-Remaining header
+- [x] Add X-RateLimit-Reset header
+- [x] Add Retry-After header on 429 responses
+- [x] Configure rate limits per endpoint type:
+  * mother.query: 10/min
+  * mother.queryAsync: 20/min
+  * health: 60/min
+  * queue: 30/min
+  * webhooks: 20/min
+  * default: 30/min
+- [x] Integrate with tRPC middleware (all procedures)
+- [x] Use user ID or IP for identification
+- [x] Graceful degradation (allow if Redis unavailable)
+- [x] Add rate limit stats function
 - [ ] Document rate limit headers
-- [ ] Test with curl
+- [ ] Test with curl in production
+- [ ] Measure 429 error reduction (target: 80%)
 
 ### #28: Error Standardization (3h)
-- [ ] Define standard error format (RFC 7807)
-- [ ] Update all error responses to use standard format
-- [ ] Add error codes (INVALID_TIER, RATE_LIMIT_EXCEEDED, etc.)
-- [ ] Add error details (field validation errors)
-- [ ] Document all error codes
-- [ ] Test error responses
+- [x] Define standard error format (RFC 7807) in server/lib/errors.ts
+- [x] Create ErrorCode enum with 20+ error codes:
+  * Authentication: UNAUTHENTICATED, UNAUTHORIZED, SESSION_EXPIRED, INVALID_CREDENTIALS
+  * Validation: INVALID_INPUT, INVALID_TIER, INVALID_QUERY, MISSING_REQUIRED_FIELD
+  * Rate limiting: RATE_LIMIT_EXCEEDED, QUOTA_EXCEEDED
+  * Resources: NOT_FOUND, ALREADY_EXISTS, CONFLICT
+  * External services: EXTERNAL_SERVICE_ERROR, LLM_ERROR, DATABASE_ERROR, REDIS_ERROR
+  * Internal: INTERNAL_ERROR, NOT_IMPLEMENTED, TIMEOUT
+- [x] Add StandardError interface with RFC 7807 fields:
+  * type, title, status, detail, instance, code, details, recovery, timestamp
+- [x] Add recovery suggestions for all error codes
+- [x] Add HTTP status mapping for all error codes
+- [x] Create helper functions:
+  * createStandardError() - Generic error creator
+  * trpcErrorToStandard() - Convert TRPC errors
+  * createValidationError() - Field validation errors
+  * createRateLimitError() - Rate limit errors
+  * createNotFoundError() - Resource not found
+  * createLLMError() - LLM service errors
+  * createDatabaseError() - Database errors
+  * logError() - Structured error logging
+- [ ] Update all routers to use standard errors
+- [ ] Document all error codes in API docs
+- [ ] Test error responses in production
+- [ ] Measure support ticket reduction (target: 60%)
 
 ### #30: Request Logging (3h)
-- [ ] Add request ID generation (UUID)
-- [ ] Log all API requests (method, path, status, duration)
-- [ ] Log request/response bodies (configurable)
-- [ ] Add correlation IDs for tracing
-- [ ] Create log analysis script
+- [x] Add request ID generation (UUID v7 - time-ordered)
+- [x] Log all API requests (method, path, status, duration)
+- [x] Log request/response bodies (configurable, dev only by default)
+- [x] Add correlation IDs for tracing (X-Request-ID header)
+- [x] Create request logging middleware (server/lib/requestLogger.ts)
+- [x] Implement log sanitization (redact sensitive headers)
+- [x] Implement log truncation (max 10 KB per log)
+- [x] Add request context logger (createRequestLogger)
+- [x] Add log analysis functions:
+  * getRequestLogs() - Query logs with filters
+  * analyzeRequestLogs() - Analyze patterns (avg duration, error rate, slowest endpoints, top users)
+- [x] Integrate with server (after httpLogger)
+- [x] Configure for dev/prod (bodies logged in dev only)
+- [x] Exclude health check paths from logging
 - [ ] Test logging in production
+- [ ] Measure debugging time reduction (target: 70%)
 
 ---
 

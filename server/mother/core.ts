@@ -24,6 +24,7 @@ import { learnFromResponse } from './learning';
 import GODLevelLearning from '../learning/god-level';
 import { processWithReAct } from './react';
 import { createHash } from 'crypto';
+import { logger } from '../lib/logger';
 
 export interface MotherRequest {
   query: string;
@@ -79,7 +80,7 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   if (useCache) {
     const cached = await getCachedQuery(queryHash);
     if (cached) {
-      console.log('[MOTHER] Cache hit (two-tier)!');
+      logger.info('[MOTHER] Cache hit (two-tier)!');
       
       return {
         response: cached.response,
@@ -101,7 +102,7 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   // Assess complexity and route to appropriate LLM tier
   
   const complexity = assessComplexity(query);
-  console.log(`[MOTHER] Complexity: ${complexity.complexityScore.toFixed(2)}, Tier: ${complexity.tier}`);
+  logger.info(`[MOTHER] Complexity: ${complexity.complexityScore.toFixed(2)}, Tier: ${complexity.tier}`);
   
   // ==================== LAYER 5: KNOWLEDGE ====================
   // Retrieve relevant knowledge context
@@ -136,12 +137,12 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
         variant = useCriticalThinking ? 'critical_thinking' : 'control';
         
         if (useCriticalThinking) {
-          console.log('[MOTHER] 🧠 A/B Test: Using Critical Thinking Central (10% variant)');
+          logger.info('[MOTHER] 🧠 A/B Test: Using Critical Thinking Central (10% variant)');
         }
       }
     }
   } catch (error) {
-    console.error('[MOTHER] Failed to check Critical Thinking flag:', error);
+    logger.error('[MOTHER] Failed to check Critical Thinking flag:', error);
     // Fall through to standard processing
   }
   
@@ -255,11 +256,11 @@ Now respond to the user's query following these standards.`;
   let reactObservations: string[] = [];
   // Iteration 14: Aligned ReAct threshold with CoT threshold (0.5)
   if (complexity.complexityScore >= 0.5) {
-    console.log('[MOTHER] Applying ReAct pattern (complex query)');
+    logger.info('[MOTHER] Applying ReAct pattern (complex query)');
     const reactResult = await processWithReAct(query, response, complexity.complexityScore);
     response = reactResult.enhancedResponse;
     reactObservations = reactResult.observations;
-    console.log(`[MOTHER] ReAct observations: ${reactObservations.length}`);
+    logger.info(`[MOTHER] ReAct observations: ${reactObservations.length}`);
   }
   
   // ==================== v14: CRITICAL THINKING CENTRAL ====================
@@ -272,11 +273,11 @@ Now respond to the user's query following these standards.`;
       const ctResult = await ct.execute(query, complexity.complexityScore * 100); // Convert 0-1 to 0-100
       
       if (ctResult) {
-        console.log(`[MOTHER] 🧠 Critical Thinking: Quality improved ${ctResult.baselineQuality} → ${ctResult.improvedQuality}`);
+        logger.info(`[MOTHER] 🧠 Critical Thinking: Quality improved ${ctResult.baselineQuality} → ${ctResult.improvedQuality}`);
         response = ctResult.improvedResponse;
       }
     } catch (error) {
-      console.error('[MOTHER] Critical Thinking failed (non-blocking):', error);
+      logger.error('[MOTHER] Critical Thinking failed (non-blocking):', error);
       // Fall back to baseline response
     }
   }
@@ -286,10 +287,10 @@ Now respond to the user's query following these standards.`;
   // Iteration 16: Activated Phase 2 (5 checks: Completeness, Accuracy, Relevance, Coherence, Safety)
   
   const quality = await validateQuality(query, response, 2); // Phase 2: 5 checks
-  console.log(`[MOTHER] Quality Score: ${quality.qualityScore}/100 (${quality.passed ? 'PASSED' : 'FAILED'})`);
+  logger.info(`[MOTHER] Quality Score: ${quality.qualityScore}/100 (${quality.passed ? 'PASSED' : 'FAILED'})`);
   
   if (!quality.passed) {
-    console.warn('[MOTHER] Quality check failed:', quality.issues);
+    logger.warn('[MOTHER] Quality check failed:', quality.issues);
   }
   
   // ==================== LAYER 7: LEARNING/METRICS ====================
@@ -300,8 +301,8 @@ Now respond to the user's query following these standards.`;
   const costReduction = calculateCostReduction(cost, baselineCost);
   const responseTime = Date.now() - startTime;
   
-  console.log(`[MOTHER] Cost: $${cost.toFixed(6)} (${costReduction.toFixed(1)}% reduction vs baseline)`);
-  console.log(`[MOTHER] Response Time: ${responseTime}ms`);
+  logger.info(`[MOTHER] Cost: $${cost.toFixed(6)} (${costReduction.toFixed(1)}% reduction vs baseline)`);
+  logger.info(`[MOTHER] Response Time: ${responseTime}ms`);
   
   // ==================== PERSISTENCE ====================
   // Store query log for learning (with retry logic)
@@ -330,10 +331,10 @@ Now respond to the user's query following these standards.`;
   }))
     .then(id => {
       queryId = id;
-      console.log(`[MOTHER] Query logged successfully: ID ${id}`);
+      logger.info(`[MOTHER] Query logged successfully: ID ${id}`);
     })
     .catch(error => {
-      console.error('[MOTHER] Failed to log query (non-blocking):', error.message);
+      logger.error('[MOTHER] Failed to log query (non-blocking):', error.message);
     });
   
   // ==================== ITERATION 18: CONTINUOUS LEARNING ====================
@@ -350,13 +351,13 @@ Now respond to the user's query following these standards.`;
     })
       .then(result => {
         if (result.learned) {
-          console.log(`[MOTHER] 🧠 Learned new knowledge: ${result.reason}`);
+          logger.info(`[MOTHER] 🧠 Learned new knowledge: ${result.reason}`);
         } else {
-          console.log(`[MOTHER] No learning: ${result.reason}`);
+          logger.info(`[MOTHER] No learning: ${result.reason}`);
         }
       })
       .catch(error => {
-        console.error('[MOTHER] Learning failed (non-blocking):', error.message);
+        logger.error('[MOTHER] Learning failed (non-blocking):', error.message);
       });
   }
   
@@ -374,11 +375,11 @@ Now respond to the user's query following these standards.`;
   })
     .then(learned => {
       if (learned) {
-        console.log(`[MOTHER] ✅ GOD-Level Learning: Knowledge acquired`);
+        logger.info(`[MOTHER] ✅ GOD-Level Learning: Knowledge acquired`);
       }
     })
     .catch(error => {
-      console.error('[MOTHER] GOD-Level Learning failed (non-blocking):', error.message);
+      logger.error('[MOTHER] GOD-Level Learning failed (non-blocking):', error.message);
     });
   
   // ==================== CACHE UPDATE ====================
@@ -412,7 +413,7 @@ Now respond to the user's query following these standards.`;
     responseTime,
     cost,
   }).catch(error => {
-    console.error('[MOTHER] Webhook trigger failed (non-blocking):', error.message);
+    logger.error('[MOTHER] Webhook trigger failed (non-blocking):', error.message);
   });
   
   // ==================== RETURN RESPONSE ====================
@@ -434,7 +435,7 @@ Now respond to the user's query following these standards.`;
   
   } catch (error) {
     // Error handling: Return safe defaults if processing fails
-    console.error('[MOTHER] Processing error:', error);
+    logger.error('[MOTHER] Processing error:', error);
     
     const responseTime = Date.now() - startTime;
     
@@ -444,7 +445,7 @@ Now respond to the user's query following these standards.`;
       error: error instanceof Error ? error.message : 'Unknown error',
       responseTime: responseTime,
     }).catch(err => {
-      console.error('[MOTHER] Webhook trigger failed:', err.message);
+      logger.error('[MOTHER] Webhook trigger failed:', err.message);
     });
     
     return {
@@ -512,7 +513,7 @@ export async function getSystemStats(): Promise<{
     tier3Percentage: total > 0 ? (stats.tier3Count / total) * 100 : 0,
     avgQuality: stats.avgQuality,
     avgResponseTime: stats.avgResponseTime,
-    avgCostReduction: 0, // TODO: Calculate from queries table
+    avgCostReduction: stats.avgCostReduction || 0, // Calculated from queries table
     cacheHitRate: stats.cacheHitRate,
   };
 }

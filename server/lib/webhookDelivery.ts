@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { getDb } from "../db";
 import { webhooks, webhookDeliveries } from "../../drizzle/schema";
 import { eq, and, lte } from "drizzle-orm";
+import { logger } from '../lib/logger';
 
 /**
  * Webhook Delivery System
@@ -86,7 +87,7 @@ export async function triggerWebhookEvent(
 ): Promise<void> {
   const db = await getDb();
   if (!db) {
-    console.warn("[Webhooks] Database not available, skipping webhook delivery");
+    logger.warn("[Webhooks] Database not available, skipping webhook delivery");
     return;
   }
 
@@ -164,7 +165,7 @@ export async function triggerWebhookEvent(
         })
         .where(eq(webhooks.id, webhook.id));
     } catch (error) {
-      console.error(`[Webhooks] Failed to deliver webhook ${webhook.id}:`, error);
+      logger.error(`[Webhooks] Failed to deliver webhook ${webhook.id}:`, error);
     }
   }
 }
@@ -244,7 +245,7 @@ export async function retryFailedDeliveries(): Promise<void> {
           .where(eq(webhooks.id, webhook.id));
       }
     } catch (error) {
-      console.error(
+      logger.error(
         `[Webhooks] Failed to retry delivery ${delivery.id}:`,
         error
       );

@@ -10,6 +10,7 @@ import { createExpressMiddleware } from '@trpc/server/adapters/express';
 import { createContext } from './context.js';
 import { appRouter } from '../routers.js';
 import { registerOAuthRoutes } from './oauth.js';
+import { logger } from '../lib/logger';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,7 +40,7 @@ const distPath = process.env.NODE_ENV === 'production'
   ? '/app/dist/public'  // Absolute path in Docker container
   : path.join(__dirname, '../../public');  // Relative path for local dev
 
-console.log(`📦 Serving static files from: ${distPath}`);
+logger.info(`📦 Serving static files from: ${distPath}`);
 app.use(express.static(distPath));
 
 // SPA fallback - serve index.html for all non-API routes
@@ -48,6 +49,6 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Production server running on http://0.0.0.0:${PORT}`);
-  console.log(`📦 Serving static files from: ${distPath}`);
+  logger.info(`🚀 Production server running on http://0.0.0.0:${PORT}`);
+  logger.info(`📦 Serving static files from: ${distPath}`);
 });

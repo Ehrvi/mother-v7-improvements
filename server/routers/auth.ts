@@ -90,7 +90,7 @@ export const authRouter = router({
    * - bcrypt password verification
    * - Rate limiting (handled by middleware)
    * - Session cookie (httpOnly+secure+sameSite)
-   * - Account lockout (TODO: implement after 5 failed attempts)
+   * - Account lockout (5 failed attempts, 15 min lockout)
    */
   login: publicProcedure
     .input(loginSchema)
@@ -119,6 +119,15 @@ export const authRouter = router({
         });
       }
 
+      // Check if account is locked
+      if (user.lockedUntil && user.lockedUntil > new Date()) {
+        const minutesRemaining = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: `Account locked due to too many failed login attempts. Try again in ${minutesRemaining} minutes.`,
+        });
+      }
+
       // Check if user has password (not OAuth user)
       if (!user.passwordHash) {
         throw new TRPCError({
@@ -131,16 +140,44 @@ export const authRouter = router({
       const isValidPassword = await bcrypt.compare(password, user.passwordHash);
 
       if (!isValidPassword) {
-        // TODO: Implement account lockout after 5 failed attempts
-        throw new TRPCError({
-          code: 'UNAUTHORIZED',
-          message: 'Invalid email or password',
-        });
+        // Increment failed login attempts
+        const newFailedAttempts = (user.failedLoginAttempts || 0) + 1;
+        const lockoutThreshold = 5;
+        const lockoutDuration = 15 * 60 * 1000; // 15 minutes
+
+        if (newFailedAttempts >= lockoutThreshold) {
+          // Lock account for 15 minutes
+          await db.update(users)
+            .set({
+              failedLoginAttempts: newFailedAttempts,
+              lockedUntil: new Date(Date.now() + lockoutDuration),
+            })
+            .where(eq(users.id, user.id));
+
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Account locked due to too many failed login attempts. Try again in 15 minutes.',
+          });
+        } else {
+          // Update failed attempts count
+          await db.update(users)
+            .set({ failedLoginAttempts: newFailedAttempts })
+            .where(eq(users.id, user.id));
+
+          throw new TRPCError({
+            code: 'UNAUTHORIZED',
+            message: 'Invalid email or password',
+          });
+        }
       }
 
-      // Update last signed in timestamp
+      // Reset failed login attempts and update last signed in timestamp
       await db.update(users)
-        .set({ lastSignedIn: new Date() })
+        .set({
+          lastSignedIn: new Date(),
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+        })
         .where(eq(users.id, user.id));
 
       // Create session (handled by context middleware)

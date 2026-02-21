@@ -20,6 +20,7 @@ import { invokeLLM } from "../_core/llm";
 import { getDb } from "../db";
 import { knowledge } from "../../drizzle/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
+import { logger } from '../lib/logger';
 
 export interface CriticalThinkingConfig {
   enabled: boolean;
@@ -127,7 +128,7 @@ export class CriticalThinkingCentral {
         iterations: 1,
       };
     } catch (error) {
-      console.error("[Critical Thinking] Error:", error);
+      logger.error("[Critical Thinking] Error:", error);
       return null; // Fail gracefully
     }
   }
@@ -219,7 +220,7 @@ Quality criteria:
 
     // Search knowledge base for relevant entries
     if (!db) {
-      console.warn('[Critical Thinking] Database not available');
+      logger.warn('[Critical Thinking] Database not available');
       // Continue with LLM-only research
     } else {
       try {
@@ -233,7 +234,7 @@ Quality criteria:
         godKnowledge.push(entry.content);
       }
     } catch (error) {
-      console.warn("[Critical Thinking] Knowledge search failed:", error);
+      logger.warn("[Critical Thinking] Knowledge search failed:", error);
       }
     }
 

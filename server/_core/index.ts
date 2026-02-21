@@ -16,6 +16,7 @@ import { closeRedis } from "../lib/redis";
 import cors from "cors";
 import swaggerUi from "swagger-ui-express";
 import { generateOpenAPISpec } from "../lib/openapi";
+import { requestLogger } from "../lib/requestLogger";
 // Vite imports moved to dynamic imports to avoid bundling in production
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -89,6 +90,15 @@ async function startServer() {
   // HTTP request logging (#8: Logging framework)
   app.use(httpLogger);
   
+  // Request logging with correlation IDs (#30: Request Logging)
+  app.use(requestLogger({
+    logRequestBody: process.env.NODE_ENV === 'development',
+    logResponseBody: process.env.NODE_ENV === 'development',
+    logHeaders: false,
+    excludePaths: ['/health', '/api/health'],
+    maxBodySize: 10000, // 10 KB
+  }));
+  
   // Apply global rate limiting
   app.use(globalLimiter);
   
@@ -150,7 +160,7 @@ async function startServer() {
   const port = await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+    logger.info(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
   server.listen(port, () => {

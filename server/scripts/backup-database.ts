@@ -13,6 +13,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { logger } from '../lib/logger';
 
 const execAsync = promisify(exec);
 
@@ -21,7 +22,7 @@ const DATABASE_URL = process.env.DATABASE_URL!;
 const RETENTION_DAYS = parseInt(process.env.BACKUP_RETENTION_DAYS || '30');
 
 async function backupDatabase() {
-  console.log('[Backup] Starting database backup...');
+  logger.info('[Backup] Starting database backup...');
   
   try {
     // Create backup directory if it doesn't exist
@@ -42,33 +43,33 @@ async function backupDatabase() {
     // Run mysqldump
     const command = `mysqldump -h ${host} -P ${port} -u ${username} -p${password} ${database} > ${backupFile}`;
     
-    console.log(`[Backup] Dumping database: ${database}`);
+    logger.info(`[Backup] Dumping database: ${database}`);
     await execAsync(command);
     
     // Compress backup
     const gzipFile = `${backupFile}.gz`;
     await execAsync(`gzip ${backupFile}`);
     
-    console.log(`[Backup] Backup created: ${gzipFile}`);
+    logger.info(`[Backup] Backup created: ${gzipFile}`);
     
     // Get backup size
     const stats = await fs.stat(gzipFile);
     const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
-    console.log(`[Backup] Backup size: ${sizeMB} MB`);
+    logger.info(`[Backup] Backup size: ${sizeMB} MB`);
     
     // Clean old backups
     await cleanOldBackups();
     
-    console.log('[Backup] Backup completed successfully');
+    logger.info('[Backup] Backup completed successfully');
     return gzipFile;
   } catch (error) {
-    console.error('[Backup] Backup failed:', error);
+    logger.error('[Backup] Backup failed:', error);
     throw error;
   }
 }
 
 async function cleanOldBackups() {
-  console.log(`[Backup] Cleaning backups older than ${RETENTION_DAYS} days...`);
+  logger.info(`[Backup] Cleaning backups older than ${RETENTION_DAYS} days...`);
   
   try {
     const files = await fs.readdir(BACKUP_DIR);
@@ -89,13 +90,13 @@ async function cleanOldBackups() {
       if (age > maxAge) {
         await fs.unlink(filePath);
         deletedCount++;
-        console.log(`[Backup] Deleted old backup: ${file}`);
+        logger.info(`[Backup] Deleted old backup: ${file}`);
       }
     }
     
-    console.log(`[Backup] Cleaned ${deletedCount} old backup(s)`);
+    logger.info(`[Backup] Cleaned ${deletedCount} old backup(s)`);
   } catch (error) {
-    console.error('[Backup] Failed to clean old backups:', error);
+    logger.error('[Backup] Failed to clean old backups:', error);
   }
 }
 

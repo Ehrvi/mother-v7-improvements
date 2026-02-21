@@ -22,6 +22,7 @@ const pdfParse = require('pdf-parse');
 import { writeFile, readFile, unlink } from 'fs/promises';
 import { existsSync } from 'fs';
 import knowledgeBase from '../knowledge/base';
+import { logger } from '../lib/logger';
 
 export interface SearchResult {
   title: string;
@@ -82,7 +83,7 @@ class AnnasArchiveIntegration {
 
       return results.slice(0, limit);
     } catch (error) {
-      console.error('[AnnasArchive] Search failed:', error);
+      logger.error('[AnnasArchive] Search failed:', error);
       return [];
     }
   }
@@ -107,7 +108,7 @@ class AnnasArchiveIntegration {
 
       return filepath;
     } catch (error) {
-      console.error('[AnnasArchive] Download failed:', error);
+      logger.error('[AnnasArchive] Download failed:', error);
       throw new Error(`Failed to download: ${error}`);
     }
   }
@@ -123,7 +124,7 @@ class AnnasArchiveIntegration {
 
       return data.text;
     } catch (error) {
-      console.error('[AnnasArchive] Text extraction failed:', error);
+      logger.error('[AnnasArchive] Text extraction failed:', error);
       return '';
     }
   }
@@ -182,7 +183,7 @@ ${content.slice(0, 2000)}...
    * @param maxPapers Maximum papers to process (default: 3)
    */
   async research(query: string, maxPapers: number = 3): Promise<ResearchResult> {
-    console.log(`[AnnasArchive] Starting research: "${query}"`);
+    logger.info(`[AnnasArchive] Starting research: "${query}"`);
 
     // 1. Search for papers
     const papers = await this.search(query, maxPapers * 2); // Search 2x to account for download failures
@@ -203,7 +204,7 @@ ${content.slice(0, 2000)}...
     for (const paper of papers.slice(0, maxPapers)) {
       try {
         if (!paper.downloadUrl) {
-          console.warn(`[AnnasArchive] No download URL for: ${paper.title}`);
+          logger.warn(`[AnnasArchive] No download URL for: ${paper.title}`);
           continue;
         }
 
@@ -215,7 +216,7 @@ ${content.slice(0, 2000)}...
         const content = await this.extractText(filepath);
 
         if (content.length < 100) {
-          console.warn(`[AnnasArchive] Insufficient content extracted from: ${paper.title}`);
+          logger.warn(`[AnnasArchive] Insufficient content extracted from: ${paper.title}`);
           continue;
         }
 
@@ -227,9 +228,9 @@ ${content.slice(0, 2000)}...
         // Cleanup
         await unlink(filepath);
 
-        console.log(`[AnnasArchive] ✅ Processed: ${paper.title}`);
+        logger.info(`[AnnasArchive] ✅ Processed: ${paper.title}`);
       } catch (error) {
-        console.error(`[AnnasArchive] Failed to process: ${paper.title}`, error);
+        logger.error(`[AnnasArchive] Failed to process: ${paper.title}`, error);
       }
     }
 

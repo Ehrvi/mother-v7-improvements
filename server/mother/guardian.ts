@@ -1,3 +1,4 @@
+import { logger } from '../lib/logger';
 /**
  * MOTHER v7.0 - Layer 6: Quality Layer (Guardian System)
  * Implements 5-check validation framework
@@ -170,7 +171,7 @@ async function checkRelevance(query: string, response: string): Promise<{ score:
     score = 100;
   }
   
-  console.log(`[Guardian] Keyword relevance: ${(relevanceRatio * 100).toFixed(1)}%, Score: ${score}`)
+  logger.info(`[Guardian] Keyword relevance: ${(relevanceRatio * 100).toFixed(1)}%, Score: ${score}`)
   
   // Check for off-topic indicators
   const offTopicPatterns = [
@@ -323,7 +324,7 @@ export async function validateQuality(query: string, response: string, phase: 1 
   
   } catch (error) {
     // Error handling: Return safe defaults if validation fails
-    console.error('[GUARDIAN] Validation error:', error);
+    logger.error('[GUARDIAN] Validation error:', error);
     
     return {
       qualityScore: 0,

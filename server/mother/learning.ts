@@ -11,6 +11,7 @@
 
 import { getEmbedding, cosineSimilarity } from './embeddings';
 import { insertKnowledge, getAllKnowledge } from '../db';
+import { logger } from '../lib/logger';
 
 export interface LearningCandidate {
   content: string;
@@ -98,7 +99,7 @@ export async function isDuplicate(
 
     return { isDuplicate: false, maxSimilarity };
   } catch (error) {
-    console.error('[Learning] Embedding check failed:', error);
+    logger.error('[Learning] Embedding check failed:', error);
     // Fallback: assume not duplicate if embeddings fail
     return { isDuplicate: false, maxSimilarity: 0 };
   }
@@ -122,7 +123,7 @@ function generateTitle(insight: string): string {
  * Main entry point for continuous learning
  */
 export async function learnFromResponse(candidate: LearningCandidate): Promise<LearningResult> {
-  console.log(`[Learning] Evaluating response (quality: ${candidate.qualityScore})`);
+  logger.info(`[Learning] Evaluating response (quality: ${candidate.qualityScore})`);
 
   // Step 1: Check quality threshold (>95%)
   if (candidate.qualityScore <= 95) {
@@ -142,7 +143,7 @@ export async function learnFromResponse(candidate: LearningCandidate): Promise<L
     };
   }
 
-  console.log(`[Learning] Extracted ${insights.length} insights`);
+  logger.info(`[Learning] Extracted ${insights.length} insights`);
 
   // Step 3: Check for duplicates and add new knowledge
   const existingKnowledge = await getAllKnowledge();
@@ -151,7 +152,7 @@ export async function learnFromResponse(candidate: LearningCandidate): Promise<L
     const { isDuplicate: isDup, maxSimilarity } = await isDuplicate(insight, existingKnowledge);
 
     if (isDup) {
-      console.log(`[Learning] Skipping duplicate (similarity: ${maxSimilarity.toFixed(2)})`);
+      logger.info(`[Learning] Skipping duplicate (similarity: ${maxSimilarity.toFixed(2)})`);
       continue;
     }
 
@@ -171,7 +172,7 @@ export async function learnFromResponse(candidate: LearningCandidate): Promise<L
         embeddingModel: 'text-embedding-3-small',
       });
 
-      console.log(`[Learning] ✅ Added knowledge ID ${knowledgeId}: "${title}"`);
+      logger.info(`[Learning] ✅ Added knowledge ID ${knowledgeId}: "${title}"`);
 
       return {
         learned: true,
@@ -180,7 +181,7 @@ export async function learnFromResponse(candidate: LearningCandidate): Promise<L
         similarity: maxSimilarity
       };
     } catch (error) {
-      console.error('[Learning] Failed to add knowledge:', error);
+      logger.error('[Learning] Failed to add knowledge:', error);
       return {
         learned: false,
         reason: `Insert failed: ${error instanceof Error ? error.message : 'Unknown error'}`

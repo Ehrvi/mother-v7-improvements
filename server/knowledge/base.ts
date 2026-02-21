@@ -22,6 +22,7 @@ import { getEmbedding, cosineSimilarity } from '../mother/embeddings';
 import { getDb } from '../db';
 import { knowledge as knowledgeTable } from '../../drizzle/schema';
 import { eq } from 'drizzle-orm';
+import { logger } from '../lib/logger';
 
 const execAsync = promisify(exec);
 
@@ -161,7 +162,7 @@ class KnowledgeAcquisitionLayer {
     // 2. Check for duplicates (SQLite first for speed)
     const isDuplicate = await this._checkDuplicate(embedding);
     if (isDuplicate) {
-      console.warn('[KnowledgeAcquisitionLayer] Duplicate concept detected, skipping');
+      logger.warn('[KnowledgeAcquisitionLayer] Duplicate concept detected, skipping');
       return conceptId;
     }
 
@@ -197,20 +198,20 @@ class KnowledgeAcquisitionLayer {
 
     // 5. Sync to TiDB (async, non-blocking)
     this._syncToTiDB(conceptId, conceptName, conceptType, description, source, confidence, embedding).catch(err => {
-      console.error('[KnowledgeAcquisitionLayer] TiDB sync failed:', err);
+      logger.error('[KnowledgeAcquisitionLayer] TiDB sync failed:', err);
     });
 
     // 6. Backup to Google Drive (async, non-blocking)
     if (this.googleDriveEnabled) {
       this._syncToGoogleDrive({ conceptId, conceptName, conceptType, description, source, confidence, metadata }).catch(err => {
-        console.error('[KnowledgeAcquisitionLayer] Google Drive sync failed:', err);
+        logger.error('[KnowledgeAcquisitionLayer] Google Drive sync failed:', err);
       });
     }
 
     // 7. Commit to GitHub (async, non-blocking)
     if (this.githubEnabled) {
       this._commitToGitHub({ conceptId, conceptName, description }).catch(err => {
-        console.error('[KnowledgeAcquisitionLayer] GitHub commit failed:', err);
+        logger.error('[KnowledgeAcquisitionLayer] GitHub commit failed:', err);
       });
     }
 

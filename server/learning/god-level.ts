@@ -19,6 +19,7 @@ import { getDb } from "../db";
 import { knowledge } from "../../drizzle/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
+import { logger } from '../lib/logger';
 // QueryResult type will be defined inline
 interface QueryResult {
   query: string;
@@ -85,14 +86,14 @@ export class GODLevelLearning {
     try {
       // Step 1: Quality filtering (only learn from 90+ score)
       if (result.quality.qualityScore < GOD_LEVEL_CONFIG.MIN_QUALITY_SCORE) {
-        console.log(`[GOD-Level] Skipping learning: quality ${result.quality.qualityScore} < ${GOD_LEVEL_CONFIG.MIN_QUALITY_SCORE}`);
+        logger.info(`[GOD-Level] Skipping learning: quality ${result.quality.qualityScore} < ${GOD_LEVEL_CONFIG.MIN_QUALITY_SCORE}`);
         return false;
       }
 
       // Step 2: Check for duplicates (prevent redundant entries)
       const isDuplicate = await this.checkDuplicate(result.response);
       if (isDuplicate) {
-        console.log(`[GOD-Level] Skipping learning: duplicate content detected`);
+        logger.info(`[GOD-Level] Skipping learning: duplicate content detected`);
         return false;
       }
 
@@ -119,10 +120,10 @@ export class GODLevelLearning {
 
       await this.saveKnowledge(entry, embedding);
 
-      console.log(`[GOD-Level] ✅ Learned from query: category=${category}, quality=${result.quality.qualityScore}`);
+      logger.info(`[GOD-Level] ✅ Learned from query: category=${category}, quality=${result.quality.qualityScore}`);
       return true;
     } catch (error) {
-      console.error(`[GOD-Level] ❌ Learning failed:`, error);
+      logger.error(`[GOD-Level] ❌ Learning failed:`, error);
       return false;
     }
   }
@@ -158,14 +159,14 @@ export class GODLevelLearning {
         );
 
         if (similarity >= GOD_LEVEL_CONFIG.SIMILARITY_THRESHOLD) {
-          console.log(`[GOD-Level] Duplicate detected: similarity=${similarity.toFixed(3)}`);
+          logger.info(`[GOD-Level] Duplicate detected: similarity=${similarity.toFixed(3)}`);
           return true;
         }
       }
 
       return false;
     } catch (error) {
-      console.error(`[GOD-Level] Deduplication check failed:`, error);
+      logger.error(`[GOD-Level] Deduplication check failed:`, error);
       return false; // Assume not duplicate if check fails
     }
   }
@@ -204,10 +205,10 @@ Category (respond with ONLY the category name):`;
         return category;
       }
 
-      console.warn(`[GOD-Level] Invalid category "${category}", defaulting to "other"`);
+      logger.warn(`[GOD-Level] Invalid category "${category}", defaulting to "other"`);
       return "other";
     } catch (error) {
-      console.error(`[GOD-Level] Categorization failed:`, error);
+      logger.error(`[GOD-Level] Categorization failed:`, error);
       return "other";
     }
   }
@@ -240,7 +241,7 @@ Category (respond with ONLY the category name):`;
       const data = await response.json();
       return data.data[0].embedding;
     } catch (error) {
-      console.error(`[GOD-Level] Embedding generation failed:`, error);
+      logger.error(`[GOD-Level] Embedding generation failed:`, error);
       // Return zero vector as fallback
       return new Array(1536).fill(0);
     }
@@ -337,7 +338,7 @@ Category (respond with ONLY the category name):`;
 
       return results;
     } catch (error) {
-      console.error(`[GOD-Level] Knowledge retrieval failed:`, error);
+      logger.error(`[GOD-Level] Knowledge retrieval failed:`, error);
       return [];
     }
   }
