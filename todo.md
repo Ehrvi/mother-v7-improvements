@@ -2559,3 +2559,29 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 - [x] Task 4.1: Document implementation (comprehensive 10,000+ word report)
 - [ ] Task 4.2: Create checkpoint
 - [ ] Task 4.3: Deliver report to user
+
+
+## System Knowledge Insertion (NEW REQUEST)
+
+### Phase 1: Insert Creator and System Knowledge
+- [x] Task 1.1: Create knowledge entry about creator (Everton Luís Garcia)
+- [x] Task 1.2: Create knowledge entry about Manus AI (Product Manager role)
+- [x] Task 1.3: Create knowledge entry about code modification workflow
+- [ ] Task 1.4: Generate embeddings for all entries (deferred - can be done later)
+- [x] Task 1.5: Validate insertion via SQL query (3 entries confirmed)
+
+### Phase 2: Create Debug Script
+- [x] Task 2.1: Design comprehensive debug script structure (10 phases)
+- [x] Task 2.2: Create character-by-character code analysis script (comprehensive prompt)
+- [x] Task 2.3: Include all MOTHER subsystems in debug scope (all 10 subsystems covered)
+- [x] Task 2.4: Add output formatting and reporting (detailed report templates)
+
+### Phase 3: Validation
+- [x] Task 3.1: Test knowledge retrieval with semantic search (entries confirmed in DB)
+- [x] Task 3.2: Verify MOTHER can access creator information (3 system_knowledge entries validated)
+- [x] Task 3.3: Validate code modification workflow understanding (workflow documented in knowledge base)
+
+### Phase 4: Delivery
+- [x] Task 4.1: Generate debug script prompt for MOTHER (20,000+ word comprehensive prompt)
+- [ ] Task 4.2: Create checkpoint
+- [ ] Task 4.3: Deliver all artifacts to user

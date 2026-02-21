@@ -1,0 +1,37 @@
+{
+  "query": "SELECT \n  id,\n  title,\n  category,\n  tags,\n  LENGTH(content) as content_length,\n  CASE \n    WHEN embedding IS NOT NULL AND embedding != '' THEN 'Yes'\n    ELSE 'No'\n  END as has_embedding,\n  createdAt\nFROM knowledge\nWHERE category = 'system_knowledge'\nORDER BY id DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3QQhaXF1ucYHpuK.e4b7c6254861 --database 25NeaJLRyMKQFYzeZChVTB --execute SELECT \n  id,\n  title,\n  category,\n  tags,\n  LENGTH(content) as content_length,\n  CASE \n    WHEN embedding IS NOT NULL AND embedding != '' THEN 'Yes'\n    ELSE 'No'\n  END as has_embedding,\n  createdAt\nFROM knowledge\nWHERE category = 'system_knowledge'\nORDER BY id DESC;",
+  "rows": [
+    {
+      "id": "480063",
+      "title": "Code Modification Workflow",
+      "category": "system_knowledge",
+      "tags": "[\"workflow\", \"code-modification\", \"process\", \"methodology\", \"critical\"]",
+      "content_length": "983",
+      "has_embedding": "No",
+      "createdAt": "2026-02-21 12:39:33"
+    },
+    {
+      "id": "480062",
+      "title": "Product Manager: Manus AI",
+      "category": "system_knowledge",
+      "tags": "[\"manus-ai\", \"product-manager\", \"technical-lead\", \"ai-agent\", \"critical\"]",
+      "content_length": "813",
+      "has_embedding": "No",
+      "createdAt": "2026-02-21 12:39:33"
+    },
+    {
+      "id": "480061",
+      "title": "Creator and Owner: Everton Luís Garcia",
+      "category": "system_knowledge",
+      "tags": "[\"creator\", \"owner\", \"authority\", \"identity\", \"critical\"]",
+      "content_length": "580",
+      "has_embedding": "No",
+      "createdAt": "2026-02-21 12:39:33"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tcategory\ttags\tcontent_length\thas_embedding\tcreatedAt\n480063\tCode Modification Workflow\tsystem_knowledge\t[\"workflow\", \"code-modification\", \"process\", \"methodology\", \"critical\"]\t983\tNo\t2026-02-21 12:39:33\n480062\tProduct Manager: Manus AI\tsystem_knowledge\t[\"manus-ai\", \"product-manager\", \"technical-lead\", \"ai-agent\", \"critical\"]\t813\tNo\t2026-02-21 12:39:33\n480061\tCreator and Owner: Everton Luís Garcia\tsystem_knowledge\t[\"creator\", \"owner\", \"authority\", \"identity\", \"critical\"]\t580\tNo\t2026-02-21 12:39:33\n",
+  "stderr": "",
+  "execution_time_ms": 1535
+}
