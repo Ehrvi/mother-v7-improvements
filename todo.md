@@ -2055,12 +2055,25 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 - [x] Apply indexes to production database (11.8s execution)
 - [x] Verify indexes created (26 indexes confirmed)
 - [ ] Test query performance in production (target: <100ms)
-- [ ] Measure improvement vs baselineCDN Setup - Cloudflare (2h)
-- [ ] Configure Cloudflare account
-- [ ] Add domain to Cloudflare
-- [ ] Configure caching rules for static assets
-- [ ] Enable Brotli compression
-- [ ] Test asset delivery speed
+- [ ] Measure improvement vs baseline
+
+### #18: CDN Setup - Cloudflare (2h)
+- [x] Create comprehensive CDN setup guide (CLOUDFLARE-CDN-SETUP.md)
+- [x] Add Cache-Control headers middleware to server
+  * Static assets: 1 year TTL (immutable)
+  * API responses: no-cache
+  * HTML: 30 minutes TTL
+- [x] Document Page Rules configuration (3 rules)
+- [x] Document Brotli compression setup
+- [x] Document security settings (SSL/TLS, HSTS)
+- [x] Create verification checklist
+- [ ] Purchase domain (if not available)
+- [ ] Configure Cloudflare account (requires domain)
+- [ ] Add domain to Cloudflare (requires domain)
+- [ ] Apply caching rules (requires domain)
+- [ ] Enable Brotli compression (requires domain)
+- [ ] Test cache hit rate (target: ≥80%)
+- [ ] Measure load time reduction (target: 80%)
 
 ### #19: Lazy Loading (3h)
 - [ ] Implement React.lazy() for heavy components

@@ -77,6 +77,25 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "10mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+  
+  // Cache-Control headers for CDN optimization (#18)
+  app.use((req, res, next) => {
+    // Cache static assets aggressively (1 year)
+    if (req.url.match(/\.(js|css|png|jpg|jpeg|gif|svg|woff|woff2|ttf|ico|webp)$/)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+    // Don't cache API responses
+    else if (req.url.startsWith('/api/')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+    // Cache HTML for 30 minutes
+    else {
+      res.setHeader('Cache-Control', 'public, max-age=1800');
+    }
+    next();
+  });
   // tRPC API with MOTHER-specific rate limiting
   app.use(
     "/api/trpc",
