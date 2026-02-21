@@ -1,0 +1,54 @@
+import mysql from 'mysql2/promise';
+import { drizzle } from 'drizzle-orm/mysql2';
+import * as schema from '../drizzle/schema';
+
+// Create connection pool (singleton pattern)
+let pool: mysql.Pool | null = null;
+
+export function getPool(): mysql.Pool {
+  if (!pool) {
+    pool = mysql.createPool({
+      uri: process.env.DATABASE_URL!,
+      waitForConnections: true,
+      connectionLimit: 10, // Max 10 concurrent connections
+      maxIdle: 5, // Max 5 idle connections
+      idleTimeout: 60000, // Close idle connections after 60 seconds
+      queueLimit: 0, // Unlimited queue
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 0
+    });
+    
+    console.log('✅ Database connection pool created (max: 10 connections)');
+  }
+  
+  return pool;
+}
+
+// Get Drizzle instance with pooled connection
+export function getDb() {
+  const pool = getPool();
+  return drizzle(pool, { schema, mode: 'default' });
+}
+
+// Graceful shutdown: close pool
+export async function closePool() {
+  if (pool) {
+    await pool.end();
+    pool = null;
+    console.log('✅ Database connection pool closed');
+  }
+}
+
+// Health check: test pool connection
+export async function testPoolConnection(): Promise<boolean> {
+  try {
+    const pool = getPool();
+    const connection = await pool.getConnection();
+    await connection.ping();
+    connection.release();
+    return true;
+  } catch (error) {
+    console.error('❌ Database pool health check failed:', error);
+    return false;
+  }
+}
