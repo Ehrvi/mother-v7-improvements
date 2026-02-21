@@ -49,24 +49,17 @@ async function startServer() {
   
   // Security headers (helmet)
   app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"], // Allow inline scripts for React
-        styleSrc: ["'self'", "'unsafe-inline'"], // Allow inline styles
-        imgSrc: ["'self'", "data:", "https:"],
-        connectSrc: ["'self'"],
-        fontSrc: ["'self'", "data:"],
-        objectSrc: ["'none'"],
-        mediaSrc: ["'self'"],
-        frameSrc: ["'none'"],
-      },
-    },
+    contentSecurityPolicy: false, // Disable CSP for now (conflicts with Vite/React)
     hsts: {
       maxAge: 31536000, // 1 year
       includeSubDomains: true,
       preload: true,
     },
+    frameguard: {
+      action: 'deny' // X-Frame-Options: DENY
+    },
+    noSniff: true, // X-Content-Type-Options: nosniff
+    xssFilter: true, // X-XSS-Protection: 1; mode=block
   }));
   
   // Apply global rate limiting
