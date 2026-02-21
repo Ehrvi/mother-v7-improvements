@@ -13,6 +13,7 @@ import { logger, logInfo, logError, httpLogger } from "../lib/logger";
 import { errorHandler, notFoundHandler } from "../middleware/error-handler";
 import { startWorker, closeQueue } from "../lib/queue";
 import { closeRedis } from "../lib/redis";
+import cors from "cors";
 // Vite imports moved to dynamic imports to avoid bundling in production
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -64,6 +65,23 @@ async function startServer() {
     },
     noSniff: true, // X-Content-Type-Options: nosniff
     xssFilter: true, // X-XSS-Protection: 1; mode=block
+  }));
+  
+  // CORS configuration (#29: CORS Configuration)
+  // Allow browser-based integrations from any origin
+  app.use(cors({
+    origin: process.env.NODE_ENV === 'production'
+      ? (origin, callback) => {
+          // In production, allow specific origins or all origins
+          // For now, allow all origins (can be restricted later)
+          callback(null, true);
+        }
+      : true, // Allow all origins in development
+    credentials: true, // Allow cookies
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+    exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset', 'Retry-After'],
+    maxAge: 86400, // 24 hours preflight cache
   }));
   
   // HTTP request logging (#8: Logging framework)

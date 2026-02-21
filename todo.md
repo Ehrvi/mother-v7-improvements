@@ -2108,3 +2108,131 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 - [x] gzip compression enabled by default (Vite + Cloud Run)
 - [ ] Test compression ratio in production (requires domain)
 - [ ] Verify response size reduction with curl
+
+
+---
+
+## PHASE 4: DEVELOPER EXPERIENCE (8 corrections, ~28h)
+
+### #29: CORS Configuration (2h)
+- [x] Install cors middleware and types
+- [x] Configure CORS in server index
+- [x] Allow all origins (development and production)
+- [x] Enable credentials (cookies)
+- [x] Configure allowed methods (GET, POST, PUT, DELETE, OPTIONS, PATCH)
+- [x] Configure allowed headers (Content-Type, Authorization, etc.)
+- [x] Expose rate limit headers (X-RateLimit-*)
+- [x] Set preflight cache (24 hours)
+- [x] Create CORS-CONFIGURATION.md documentation
+- [ ] Test CORS with browser fetch()
+- [ ] Test preflight requests with curl
+
+### #23: OpenAPI Documentation (4h)
+- [ ] Install OpenAPI/Swagger dependencies
+- [ ] Generate OpenAPI 3.0 spec from tRPC routers
+- [ ] Add request/response examples
+- [ ] Add authentication documentation
+- [ ] Host Swagger UI at /api/docs
+- [ ] Test with Postman/Insomnia
+
+### #24: JavaScript SDK (5h)
+- [ ] Create @mother/sdk-js package structure
+- [ ] Implement TypeScript client
+- [ ] Add authentication helpers
+- [ ] Add query/mutation methods
+- [ ] Add error handling
+- [ ] Write usage examples and README
+- [ ] Publish to npm
+
+### #25: Python SDK (5h)
+- [ ] Create mother-sdk Python package structure
+- [ ] Implement client with type hints
+- [ ] Add authentication helpers
+- [ ] Add query/mutation methods
+- [ ] Add async support (asyncio)
+- [ ] Write usage examples and README
+- [ ] Publish to PyPI
+
+### #26: Webhook Support (4h)
+- [ ] Add webhooks table to database schema
+- [ ] Create webhook registration endpoint
+- [ ] Implement webhook delivery system
+- [ ] Add retry logic (3 attempts, exponential backoff)
+- [ ] Add webhook verification (HMAC)
+- [ ] Create webhook testing UI
+- [ ] Document webhook events
+
+### #27: Rate Limit Headers (2h)
+- [ ] Add X-RateLimit-Limit header to all responses
+- [ ] Add X-RateLimit-Remaining header
+- [ ] Add X-RateLimit-Reset header
+- [ ] Add Retry-After header on 429 responses
+- [ ] Document rate limit headers
+- [ ] Test with curl
+
+### #28: Error Standardization (3h)
+- [ ] Define standard error format (RFC 7807)
+- [ ] Update all error responses to use standard format
+- [ ] Add error codes (INVALID_TIER, RATE_LIMIT_EXCEEDED, etc.)
+- [ ] Add error details (field validation errors)
+- [ ] Document all error codes
+- [ ] Test error responses
+
+### #30: Request Logging (3h)
+- [ ] Add request ID generation (UUID)
+- [ ] Log all API requests (method, path, status, duration)
+- [ ] Log request/response bodies (configurable)
+- [ ] Add correlation IDs for tracing
+- [ ] Create log analysis script
+- [ ] Test logging in production
+
+---
+
+## PHASE 5: CODE QUALITY & CLEANUP (6 corrections, ~20h)
+
+### #31: Console.log Cleanup (2h)
+- [ ] Search for all console.log in server code
+- [ ] Replace with proper logger (winston/pino)
+- [ ] Remove debug console.logs
+- [ ] Keep only intentional logging
+- [ ] Configure log levels (dev vs prod)
+- [ ] Test logging in production
+
+### #32: TODO Completion (3h)
+- [ ] Search for all // TODO comments
+- [ ] Categorize by priority (critical, nice-to-have)
+- [ ] Complete critical TODOs
+- [ ] Create issues for nice-to-have TODOs
+- [ ] Remove completed TODOs
+- [ ] Document remaining TODOs
+
+### #33: Type Safety Improvements (4h)
+- [ ] Enable strict mode in tsconfig.json
+- [ ] Fix all type errors
+- [ ] Add return types to all functions
+- [ ] Remove all any types
+- [ ] Add input validation with Zod
+- [ ] Test type safety
+
+### #34: Async Error Handling (4h)
+- [ ] Add global unhandled rejection handler
+- [ ] Wrap all async functions in try-catch
+- [ ] Add error boundaries in React
+- [ ] Log all unhandled errors
+- [ ] Test error handling
+- [ ] Monitor error rates
+
+### #35: Promise Rejection Handling (3h)
+- [ ] Add process.on('unhandledRejection') handler
+- [ ] Log unhandled rejections
+- [ ] Add Sentry/error tracking integration
+- [ ] Test rejection handling
+- [ ] Monitor rejection rates
+
+### #36: Memory Leak Fixes (4h)
+- [ ] Run memory profiler (heapdump)
+- [ ] Identify memory leaks
+- [ ] Fix event listener leaks
+- [ ] Fix closure leaks
+- [ ] Add memory monitoring
+- [ ] Test memory usage over 24h
