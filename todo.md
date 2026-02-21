@@ -2173,13 +2173,17 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 - [ ] Test integration in production
 
 ### #25: Python SDK (5h)
-- [ ] Create mother-sdk Python package structure
-- [ ] Implement client with type hints
-- [ ] Add authentication helpers
-- [ ] Add query/mutation methods
-- [ ] Add async support (asyncio)
-- [ ] Write usage examples and README
-- [ ] Publish to PyPI
+- [x] Create mother-sdk Python package structure (pyproject.toml, hatchling)
+- [x] Implement client with type hints and Pydantic models
+- [x] Add authentication helpers (get_login_url, set_session_cookie)
+- [x] Add all query/mutation methods (13 endpoints, sync + async)
+- [x] Add async support (asyncio, httpx async client)
+- [x] Add context managers (with/async with)
+- [x] Write comprehensive 12 KB README with examples
+- [x] Build package (Wheel 9.8 KB + Source 8.4 KB)
+- [x] Copy to sdk/python/ in repository
+- [ ] Publish to PyPI (requires PyPI account)
+- [ ] Test integration in production
 
 ### #26: Webhook Support (4h)
 - [ ] Add webhooks table to database schema

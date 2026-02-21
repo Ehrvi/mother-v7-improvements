@@ -1,0 +1,73 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mother-sdk"
+version = "1.0.0"
+description = "Official Python SDK for MOTHER API - Multi-Operational Tiered Hierarchical Execution & Routing"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Everton Luis Garcia", email = "everton@intelltech.com.br"}
+]
+keywords = [
+    "mother",
+    "ai",
+    "api",
+    "sdk",
+    "llm",
+    "openai",
+    "anthropic",
+    "multi-tier",
+    "cost-optimization"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "httpx>=0.24.0",
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://mother-interface-233196174701.australia-southeast1.run.app/api/docs"
+Documentation = "https://mother-interface-233196174701.australia-southeast1.run.app/api/docs"
+Repository = "https://github.com/Ehrvi/mother-v7-improvements"
+Issues = "https://github.com/Ehrvi/mother-v7-improvements/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mother_sdk"]
+
+[tool.black]
+line-length = 100
+target-version = ['py38']
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+
+[tool.mypy]
+python_version = "3.8"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
