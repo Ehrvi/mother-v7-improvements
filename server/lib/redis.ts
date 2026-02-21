@@ -12,17 +12,32 @@ import { logger } from './logger';
  */
 
 let redisClient: Redis | null = null;
+let redisDisabled = false; // Flag to prevent repeated connection attempts
 
 /**
  * Get or create Redis client
  */
 export function getRedisClient(): Redis | null {
+  // If Redis was previously disabled, return null immediately
+  if (redisDisabled) {
+    return null;
+  }
+
+  // Check if Redis is explicitly disabled via environment variable
+  const redisEnabled = process.env.REDIS_ENABLED !== 'false';
+  if (!redisEnabled) {
+    redisDisabled = true;
+    logger.info('Redis explicitly disabled via REDIS_ENABLED=false');
+    return null;
+  }
+
   // If Redis is not configured, return null (graceful degradation)
   const redisHost = process.env.REDIS_HOST;
   const redisPort = parseInt(process.env.REDIS_PORT || '6379');
   
   if (!redisHost) {
-    logger.warn('Redis not configured - caching disabled');
+    redisDisabled = true;
+    logger.info('Redis not configured (REDIS_HOST missing) - caching disabled');
     return null;
   }
 

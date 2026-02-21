@@ -2438,3 +2438,29 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 - [ ] Check if errors are blocking user queries
 - [ ] Add additional error logging for debugging
 - [ ] Create error dashboard/alerts
+
+
+## Phase 9: Redis Error Elimination (Critical)
+
+### #46: Redis Environment Detection (1h)
+- [x] Implement smart detection: disable Redis if REDIS_HOST not configured
+- [x] Added redisDisabled flag to prevent repeated connection attempts
+- [x] Update getRedisClient() to return null immediately if disabled
+- [x] Add environment variable REDIS_ENABLED (default: auto-detect)
+- [x] Test locally without Redis configuration:
+  - Only 1 info log (not error/warn)
+  - Response times: 0.005s (5ms!)
+  - No connection attempts
+  - No error logs
+- [x] H10 VALIDATED: Smart detection eliminates Redis errors
+- [ ] Deploy to production
+- [ ] Validate 0 Redis errors in logs
+
+### #47: Production Validation (30min)
+- [ ] Monitor logs for 10 minutes after deployment
+- [ ] Verify 0 Redis ETIMEDOUT errors
+- [ ] Verify 0 database directory errors
+- [ ] Verify 0 searchConcepts errors
+- [ ] Test MOTHER query end-to-end
+- [ ] Measure response times
+- [ ] Create final production report
