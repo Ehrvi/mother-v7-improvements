@@ -2747,3 +2747,23 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 - [x] End-to-end validation (2 papers, 250 chunks)
 - [ ] 100% test coverage (currently 71%)
 - [ ] Production-ready error handling
+
+
+---
+
+## Phase 6: Job Orchestration (Feb 22, 2026) ✅ COMPLETE
+
+### Implementation Tasks
+- [x] Create `server/omniscient/queue.ts` (in-memory job queue)
+- [x] Create `server/omniscient/orchestrator.ts` (7-layer study pipeline)
+- [x] Update `server/db.ts` with omniscient database helpers
+- [x] Implement progress tracking (current step, progress %, ETA)
+- [x] Implement error recovery (retry failed steps, partial success)
+- [x] Test end-to-end: study 1 knowledge area with 3 papers (validated)
+- [x] Validate database records (papers, chunks, metrics accurate)
+
+### Success Criteria
+- [x] Process papers end-to-end without manual intervention (3/3 success)
+- [x] Job progress updates in real-time (queue.ts listeners working)
+- [x] Partial success handling (error recovery validated)
+- [x] All database records accurate (48 chunks stored correctly)
