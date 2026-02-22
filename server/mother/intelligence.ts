@@ -180,11 +180,15 @@ export function assessComplexity(query: string): ComplexityAssessment {
   let tier: LLMTier;
   let confidenceScore: number;
 
-  if (complexityScore >= 0.7) {
+  // Phase 15: Adjusted thresholds based on Phase 17 load test results
+  // Previous: 0.4/0.7 resulted in 45.4/51.4/0 distribution
+  // Target: 60/30/10 distribution
+  // New thresholds: 0.35/0.65 (lowered by 0.05 each)
+  if (complexityScore >= 0.65) {
     // High complexity → GPT-4 (Tier 3)
     tier = "gpt-4";
     confidenceScore = 0.95; // High confidence in tier selection
-  } else if (complexityScore >= 0.4) {
+  } else if (complexityScore >= 0.35) {
     // Medium complexity → GPT-4o (Tier 2)
     tier = "gpt-4o";
     confidenceScore = 0.85;
