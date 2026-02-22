@@ -5,6 +5,8 @@
  */
 
 import { get_encoding } from 'tiktoken';
+// Note: pdf-parse has complex API, using simple extraction for MVP
+// TODO (Phase 6): Integrate pdf-parse properly or use pdfjs-dist
 
 /**
  * Text chunk with metadata
@@ -26,16 +28,25 @@ export interface ChunkingOptions {
 /**
  * Extract text from PDF buffer
  * 
- * Note: This is a simplified implementation for MVP.
- * For production, consider using pdf-parse or pdfjs-dist for better accuracy.
+ * LIMITATION (MVP): Uses simple text extraction that works for basic PDFs.
+ * For production, integrate pdf-parse or pdfjs-dist for better accuracy with:
+ * - Multi-column layouts
+ * - Tables and figures
+ * - Complex formatting
+ * - Image-based PDFs (OCR)
  * 
  * @param pdfBuffer - PDF file buffer
  * @returns Extracted text
+ * 
+ * @example
+ * const pdfBuffer = await downloadPdf('http://arxiv.org/pdf/2301.12345v1');
+ * const text = await extractTextFromPdf(pdfBuffer);
+ * console.log(text);
  */
 export async function extractTextFromPdf(pdfBuffer: Buffer): Promise<string> {
   try {
-    // For MVP, we'll use a simple text extraction
-    // In production, use pdf-parse or pdfjs-dist
+    // Simple text extraction for MVP
+    // Works for basic PDFs, may fail on complex layouts
     
     // Convert buffer to string and extract text between stream/endstream markers
     const pdfString = pdfBuffer.toString('latin1');
@@ -63,7 +74,12 @@ export async function extractTextFromPdf(pdfBuffer: Buffer): Promise<string> {
       .replace(/\n\s+/g, '\n') // Remove spaces after newlines
       .trim();
     
-    console.log(`[PDF] Extracted ${text.length} characters`);
+    console.log(`[PDF] Extracted ${text.length} characters (simple extraction)`);
+    
+    if (text.length < 100) {
+      console.warn('[PDF] Extracted text is suspiciously short, PDF might be image-based or encrypted');
+      console.warn('[PDF] Consider using pdf-parse or pdfjs-dist for better extraction');
+    }
     
     return text;
   } catch (error) {
