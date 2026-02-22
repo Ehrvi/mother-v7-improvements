@@ -78,7 +78,7 @@ export async function processOmniscientPaper(
         title,
         authors: authors.join(', '),
         abstract,
-        publishedDate,
+        publishedDate: new Date(publishedDate),
         pdfUrl,
         chunksCount: chunks.length,
       });
