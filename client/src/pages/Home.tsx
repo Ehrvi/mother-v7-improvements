@@ -22,6 +22,7 @@ interface Message {
 export default function Home() {
   const [, setLocation] = useLocation();
   
+  // ✅ ALL HOOKS MUST BE CALLED BEFORE ANY EARLY RETURNS
   // Authentication state from tRPC
   const { data: user, isLoading } = trpc.auth.me.useQuery();
   const logoutMutation = trpc.auth.logout.useMutation({
@@ -30,30 +31,7 @@ export default function Home() {
     },
   });
 
-  // 🔒 LOGIN PROTECTION: Redirect to login if not authenticated
-  useEffect(() => {
-    if (!isLoading && !user) {
-      setLocation("/login");
-    }
-  }, [user, isLoading, setLocation]);
-
-  // Show loading while checking authentication
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0A0A0F] via-[#1A0B2E] to-[#0A0A0F] flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#B026FF]"></div>
-          <p className="mt-4 text-[#B026FF]">Verificando autenticação...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Don't render anything if not authenticated (will redirect)
-  if (!user) {
-    return null;
-  }
-
+  // Chat state (must be declared before early returns)
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
@@ -99,13 +77,33 @@ export default function Home() {
     },
   });
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  // 🔒 LOGIN PROTECTION: Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isLoading && !user) {
+      setLocation("/login");
+    }
+  }, [user, isLoading, setLocation]);
 
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Show loading while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#0A0A0F] via-[#1A0B2E] to-[#0A0A0F] flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#B026FF]"></div>
+          <p className="mt-4 text-[#B026FF]">Verificando autenticação...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render anything if not authenticated (will redirect)
+  if (!user) {
+    return null;
+  }
 
   const sendMessage = async () => {
     if (!input.trim() || queryMutation.isPending) return;
