@@ -11,7 +11,7 @@ import { createContext } from "./context.js";
 import { appRouter } from "../routers.js";
 import { registerOAuthRoutes } from "./oauth.js";
 import { logger } from "../lib/logger";
-import { enqueuePaper } from "../omniscient/worker.js";
+import { processPaper } from "../omniscient/worker.js";
 import { handleDiscoveryRequest } from "../workers/discoveryWorker.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -28,7 +28,7 @@ app.use(express.urlencoded({ extended: true }));
 registerOAuthRoutes(app);
 
 // Cloud Tasks worker endpoints
-app.post('/api/tasks/omniscient-worker', express.json(), enqueuePaper);
+app.post('/api/tasks/omniscient-worker', express.json(), processPaper);
 app.post('/api/tasks/discovery-worker', express.json(), handleDiscoveryRequest);
 
 // tRPC routes

@@ -17,7 +17,7 @@ import cors from "cors";
 import swaggerUi from "swagger-ui-express";
 import { generateOpenAPISpec } from "../lib/openapi";
 import { requestLogger } from "../lib/requestLogger";
-import { enqueuePaper } from "../omniscient/worker";
+import { processPaper } from "../omniscient/worker";
 // Vite imports moved to dynamic imports to avoid bundling in production
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -133,7 +133,7 @@ async function startServer() {
   registerOAuthRoutes(app);
 
   // Cloud Tasks worker endpoint for Omniscient
-  app.post('/api/tasks/omniscient-worker', express.json(), enqueuePaper);
+  app.post('/api/tasks/omniscient-worker', express.json(), processPaper);
 
   // OpenAPI/Swagger documentation (#23: OpenAPI Documentation)
   const openApiSpec = generateOpenAPISpec();
