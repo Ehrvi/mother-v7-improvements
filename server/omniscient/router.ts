@@ -60,22 +60,21 @@ export const omniscientRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      // Start study job asynchronously
-      const resultPromise = studyKnowledgeArea(
+      // FIXED: Await study job to prevent Cloud Run from killing process
+      // Cloud Run terminates when request ends, so we must block until completion
+      const result = await studyKnowledgeArea(
         input.name,
         input.description,
         { maxPapers: input.maxPapers }
       );
 
-      // Don't await - let it run in background
-      resultPromise.catch(error => {
-        console.error('[Omniscient Router] Study job failed:', error);
-      });
-
-      // Return immediately with job info
+      // Return with job info and results
       return {
-        message: `Study job started for "${input.name}"`,
-        maxPapers: input.maxPapers,
+        message: `Study completed for "${input.name}"`,
+        knowledgeAreaId: result.knowledgeAreaId,
+        papersProcessed: result.papersProcessed,
+        chunksCreated: result.chunksCreated,
+        totalCost: result.totalCost,
       };
     }),
 
