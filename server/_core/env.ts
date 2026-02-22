@@ -8,4 +8,7 @@ export const ENV = {
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
   openaiApiKey: process.env.OPENAI_API_KEY ?? "",
+  langfuseSecretKey: process.env.LANGFUSE_SECRET_KEY ?? "",
+  langfusePublicKey: process.env.LANGFUSE_PUBLIC_KEY ?? "",
+  langfuseBaseUrl: process.env.LANGFUSE_BASE_URL ?? "https://cloud.langfuse.com",
 };

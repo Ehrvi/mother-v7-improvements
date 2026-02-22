@@ -2892,3 +2892,68 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 
 ---
 
+
+
+---
+
+## MOTHER v14 → SOTA Upgrade (Gen 1.5 → Gen 3-4) - Feb 22, 2026
+
+### Phase 1: LLM Observability (Langfuse) ✅ COMPLETE
+- [x] Install langfuse-node SDK
+- [x] Configure environment variables (LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_BASE_URL)
+- [x] Wrap LLM invocations with Langfuse traces
+- [x] Create langfuse.ts module with traceLLMCall helper
+- [x] Integrate into invokeLLM function
+- [x] Write and validate tests (5/5 passing)
+- [ ] Commit: "feat(observability): integrate langfuse for LLM tracing"
+
+### Phase 2: Factual Grounding
+- [ ] Update system prompt to force JSON output with sources
+- [ ] Create fact_checking.ts module
+- [ ] Implement source verification logic
+- [ ] Integrate verification into response flow
+- [ ] Test with factual and invented questions
+- [ ] Commit: "feat(grounding): implement factual grounding with source verification"
+
+### Phase 3: Persistent Memory
+- [ ] Review existing conversation system (already implemented via tRPC)
+- [ ] Validate conversation history persistence
+- [ ] Test multi-turn conversations
+- [ ] Document memory architecture
+- [ ] Commit: "docs(memory): document persistent agent memory architecture"
+
+### Phase 4: Modular/GraphRAG
+- [x] arXiv integration (ALREADY IMPLEMENTED in Omniscient)
+- [x] PDF parsing (ALREADY IMPLEMENTED with pdf-parse)
+- [x] Text chunking (ALREADY IMPLEMENTED)
+- [x] Embeddings generation (ALREADY IMPLEMENTED with OpenAI)
+- [x] Vector search (ALREADY IMPLEMENTED with cosine similarity)
+- [ ] Integrate Omniscient search into main query pipeline
+- [ ] Add citation formatting for paper sources
+- [ ] Commit: "feat(rag): integrate Omniscient knowledge acquisition into main pipeline"
+
+### Phase 5: Semantic Caching
+- [ ] Add semantic_cache table to database schema
+- [ ] Implement query embedding before LLM call
+- [ ] Implement similarity search in cache (threshold 0.95)
+- [ ] Add cache hit/miss logging
+- [ ] Test with semantically similar queries
+- [ ] Commit: "feat(cache): upgrade to semantic caching for improved hit rate"
+
+### Phase 6: Learned Router
+- [ ] Design router training dataset (query → tier mapping)
+- [ ] Train simple classifier (scikit-learn or LLM-based)
+- [ ] Create router service endpoint
+- [ ] Replace heuristic router with learned model
+- [ ] Validate routing decisions
+- [ ] Commit: "feat(router): replace heuristic router with learned classification model"
+
+### Deployment & Validation
+- [ ] Run complete test suite
+- [ ] Performance benchmarking
+- [ ] Deploy to production (GCloud Run)
+- [ ] Monitor Langfuse dashboards (24-48h)
+- [ ] Document SOTA upgrade completion
+
+---
+

@@ -199,6 +199,9 @@ importers:
       jose:
         specifier: 6.1.0
         version: 6.1.0
+      langfuse-node:
+        specifier: ^3.38.6
+        version: 3.38.6
       lucide-react:
         specifier: ^0.453.0
         version: 0.453.0(react@19.2.1)
@@ -3810,6 +3813,14 @@ packages:
   kuler@2.0.0:
     resolution: {integrity: sha512-Xq9nH7KlWZmXAtodXDDRE7vs6DU1gTU8zYDHDiWLSip45Egwq3plLHzPn27NgvzL2r1LMPC1vdqh98sQxtqj4A==}
 
+  langfuse-core@3.38.6:
+    resolution: {integrity: sha512-EcZXa+DK9FJdi1I30+u19eKjuBJ04du6j2Nybk19KKCuraLczg/ppkTQcGvc4QOk//OAi3qUHrajUuV74RXsBQ==}
+    engines: {node: '>=18'}
+
+  langfuse-node@3.38.6:
+    resolution: {integrity: sha512-wM7ttRURW6JfQg8HzNzv/b2s33Z1vxu72TfbSoyPG3Vo9YZgCqU0pXFpnA7o9JqtniGyiZfyI8+UVtclU+OF+Q==}
+    engines: {node: '>=18.0.0'}
+
   langium@3.3.1:
     resolution: {integrity: sha512-QJv/h939gDpvT+9SiLVlY7tZC3xB2qK57v0J04Sh9wpMb6MP1q8gB21L3WIo8T5P1MSMg3Ep14L7KkDCFG3y4w==}
     engines: {node: '>=16.0.0'}
@@ -4188,6 +4199,10 @@ packages:
 
   msgpackr@1.11.8:
     resolution: {integrity: sha512-bC4UGzHhVvgDNS7kn9tV8fAucIYUBuGojcaLiz7v+P63Lmtm0Xeji8B/8tYKddALXxJLpwIeBmUN3u64C4YkRA==}
+
+  mustache@4.2.0:
+    resolution: {integrity: sha512-71ippSywq5Yb7/tVYyGbkBggbU8H3u5Rz56fH60jGFgr8uHwxs+aSKeqmluIVzM0m0kB7xQjKS6qPfd0b2ZoqQ==}
+    hasBin: true
 
   mysql2@3.17.2:
     resolution: {integrity: sha512-/tFCtdqk5V5Aowpnzshryxuxp63ti4I7kcp3yqAKgWmhYXEXs8+F/IbQ6JTMzQPYc+ElnnhmMD2SqUYLtRVcTQ==}
@@ -9034,6 +9049,17 @@ snapshots:
 
   kuler@2.0.0: {}
 
+  langfuse-core@3.38.6:
+    dependencies:
+      mustache: 4.2.0
+
+  langfuse-node@3.38.6:
+    dependencies:
+      axios: 1.12.2
+      langfuse-core: 3.38.6
+    transitivePeerDependencies:
+      - debug
+
   langium@3.3.1:
     dependencies:
       chevrotain: 11.0.3
@@ -9629,6 +9655,8 @@ snapshots:
   msgpackr@1.11.8:
     optionalDependencies:
       msgpackr-extract: 3.0.3
+
+  mustache@4.2.0: {}
 
   mysql2@3.17.2:
     dependencies:
