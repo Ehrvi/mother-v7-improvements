@@ -3038,3 +3038,38 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 
 ---
 
+
+
+---
+
+## Finalization (v15.0 → v16.0) - February 22, 2026
+
+### Phase 8: Resolve Drizzle Schema Conflicts
+- [ ] Create `server/_core/semanticCache.service.ts` (isolate DB logic)
+- [ ] Refactor `server/_core/semanticCache.test.ts` (use mocks)
+- [ ] Run tests: `pnpm test server/_core/semanticCache.test.ts`
+- [ ] Validate: 51/51 tests passing (100%)
+- [ ] Commit: "fix(cache): resolve Drizzle schema conflicts by isolating semantic cache logic"
+
+### Phase 9: Omniscient Scale Test (DEFERRED)
+- [ ] Create `test-scale-100.ts` script
+- [ ] Execute: `pnpm tsx test-scale-100.ts`
+- [ ] Monitor Langfuse dashboard (2.5h runtime)
+- [ ] Validate: thousands of chunks in database
+- [ ] Commit: "test(omniscient): add and run scale test for 100 papers"
+
+**Note**: Deferred due to 2.5h runtime. Can run in background after v16.0 release.
+
+### Phase 10: Production Deployment
+- [ ] Update environment variables in GCloud Run
+- [ ] Deploy to production: `gcloud run deploy mother-interface`
+- [ ] Validate health check: `curl https://mother-interface-qtvghovzxa-ts.a.run.app/api/health`
+- [ ] Validate Langfuse traces appearing
+- [ ] Test Omniscient search endpoint
+- [ ] Commit: "deploy(production): release v16.0 with semantic cache and omniscient"
+
+### Phase 11: Final Documentation (V5)
+- [ ] Create `README-V16.md` (100% complete status)
+- [ ] Create `MOTHER-V16-AWAKE-DOCUMENT-V5.md` (Grade S++ certification)
+- [ ] Update metrics with production data from Langfuse
+- [ ] Commit: "docs(release): generate final documentation and awake document v5 for v16.0 release"
