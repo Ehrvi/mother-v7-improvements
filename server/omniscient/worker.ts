@@ -1,13 +1,13 @@
 /**
- * Omniscient Worker Endpoint (v19.4 Omega Fix)
+ * Omniscient Worker Endpoint (v20.0 Asynchronous Architecture)
  * 
- * Processes a single paper from Cloud Tasks queue.
- * This endpoint is called by Cloud Tasks for each paper in a study job.
+ * Implements fully asynchronous processing with database-driven status tracking.
  * 
- * v19.4 Optimizations:
- * 1. Parallel I/O (Promise.all for PDF download + DB check)
- * 2. Transaction-based chunk insertion (atomic, parallel)
- * 3. SQL-based atomic updates (no SELECT before UPDATE)
+ * Architecture:
+ * 1. enqueuePaper() - Called by Cloud Tasks, inserts paper with status='pending', returns HTTP 200 immediately
+ * 2. processPendingPapers() - Background loop that polls for pending papers and processes them
+ * 
+ * v20.0 resolves the fundamental timeout issue by decoupling task acknowledgment from processing.
  */
 
 import { Request, Response } from 'express';
@@ -24,17 +24,15 @@ export interface WorkerPayload {
   title: string;
   authors: string[];
   abstract: string;
-  publishedDate: Date;
+  publishedDate: string;
   pdfUrl: string;
 }
 
 /**
- * Process a single paper (called by Cloud Tasks)
+ * Enqueue a paper for processing (called by Cloud Tasks)
+ * Returns HTTP 200 immediately after inserting paper with status='pending'
  */
-export async function processOmniscientPaper(
-  req: Request,
-  res: Response
-): Promise<void> {
+export async function enqueuePaper(req: Request, res: Response): Promise<void> {
   const db = await getDb();
   if (!db) {
     res.status(500).json({ success: false, error: 'Database not available' });
@@ -42,75 +40,114 @@ export async function processOmniscientPaper(
   }
 
   const payload: WorkerPayload = req.body;
-  const { knowledgeAreaId, arxivId, title, authors, abstract, publishedDate, pdfUrl } = payload;
-
   try {
-    console.log(`\n[Worker v19.4] Processing paper: ${arxivId}`);
-
-    // Optimization 1: Parallel I/O (download PDF + check if paper exists)
-    const [pdfBuffer, existingPaper] = await Promise.all([
-      downloadPdf(pdfUrl),
-      db.select().from(papers).where(eq(papers.arxivId, arxivId)).limit(1),
-    ]);
-
+    // Check if paper already exists
+    const existingPaper = await db.select().from(papers).where(eq(papers.arxivId, payload.arxivId)).limit(1);
     if (existingPaper.length > 0) {
-      console.log(`  ⚠️ Paper ${arxivId} already exists. Skipping.`);
+      console.log(`[v20.0] Paper ${payload.arxivId} already exists. Skipping.`);
       res.status(200).json({ success: true, message: 'Paper already exists' });
       return;
     }
 
-    const text = await extractTextFromPdf(pdfBuffer);
-    if (text.length < 1000) {
-      console.warn(`  ⚠️ Text too short (${text.length} chars), skipping.`);
-      res.status(200).json({ success: false, reason: 'Text too short' });
-      return;
-    }
-
-    const chunks = chunkText(text);
-    const embeddings = await generateEmbeddingsBatch(chunks.map(c => c.text));
-    const embeddingCost = (chunks.reduce((sum, c) => sum + c.tokenCount, 0) / 1000) * 0.00002;
-
-    // Optimization 2: Use transaction for atomicity
-    await db.transaction(async (tx) => {
-      const paperResult = await tx.insert(papers).values({
-        knowledgeAreaId,
-        arxivId,
-        title,
-        authors: authors.join(', '),
-        abstract,
-        publishedDate: new Date(publishedDate),
-        pdfUrl,
-        chunksCount: chunks.length,
-      });
-      const paperId = Number(paperResult[0].insertId);
-
-      // Optimization 3: Insert chunks in parallel
-      const chunkInsertPromises = chunks.map((chunk, j) =>
-        tx.insert(paperChunks).values({
-          paperId,
-          chunkIndex: j,
-          text: chunk.text,
-          embedding: JSON.stringify(embeddings[j]),
-          tokenCount: chunk.tokenCount,
-        })
-      );
-      await Promise.all(chunkInsertPromises);
-
-      // Optimization 4: Use SQL for atomic updates
-      await tx.update(knowledgeAreas)
-        .set({
-          papersCount: sql`${knowledgeAreas.papersCount} + 1`,
-          chunksCount: sql`${knowledgeAreas.chunksCount} + ${chunks.length}`,
-          cost: sql`${knowledgeAreas.cost} + ${embeddingCost}`,
-        })
-        .where(eq(knowledgeAreas.id, knowledgeAreaId));
+    await db.insert(papers).values({
+      knowledgeAreaId: payload.knowledgeAreaId,
+      arxivId: payload.arxivId,
+      title: payload.title,
+      authors: payload.authors.join(', '),
+      abstract: payload.abstract,
+      publishedDate: new Date(payload.publishedDate),
+      pdfUrl: payload.pdfUrl,
+      status: 'pending',
     });
-
-    console.log(`  ✅ Paper ${arxivId} processed successfully!`);
-    res.status(200).json({ success: true, arxivId, chunksCreated: chunks.length });
-
+    console.log(`[v20.0] ✅ Enqueued paper: ${payload.arxivId}`);
+    res.status(200).json({ success: true, message: 'Paper enqueued for processing' });
   } catch (error) {
-    console.error(`\n❌ [Worker v19.4] Error processing ${arxivId}:`, error);
-    res.status(500).json({ success: false, error: String(error), arxivId });
+    console.error(`[v20.0] ❌ Error enqueuing paper ${payload.arxivId}:`, error);
+    res.status(500).json({ success: false, error: String(error) });
   }
 }
+
+/**
+ * Process pending papers in a loop (background processing)
+ * Polls database for papers with status='pending', processes them, and updates status
+ */
+async function processPendingPapers() {
+  const db = await getDb();
+  if (!db) {
+    console.error('[v20.0] Database not available for processing loop.');
+    return;
+  }
+
+  console.log('[v20.0] 🚀 Starting background processing loop...');
+
+  while (true) {
+    try {
+      const pendingPapers = await db.select().from(papers).where(eq(papers.status, 'pending')).limit(10);
+      
+      if (pendingPapers.length === 0) {
+        await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10s if no papers
+        continue;
+      }
+
+      console.log(`[v20.0] 📋 Found ${pendingPapers.length} pending papers`);
+
+      for (const paper of pendingPapers) {
+        try {
+          // Mark as processing
+          await db.update(papers).set({ status: 'processing' }).where(eq(papers.id, paper.id));
+          console.log(`[v20.0] 🔄 Processing paper: ${paper.arxivId}`);
+
+          // Download and process PDF
+          const pdfBuffer = await downloadPdf(paper.pdfUrl!);
+          const text = await extractTextFromPdf(pdfBuffer);
+          
+          if (text.length < 1000) {
+            console.log(`[v20.0] ⚠️ Paper ${paper.arxivId} has insufficient text (${text.length} chars)`);
+            await db.update(papers).set({ status: 'failed' }).where(eq(papers.id, paper.id));
+            continue;
+          }
+
+          // Chunk and generate embeddings
+          const chunks = chunkText(text);
+          const embeddings = await generateEmbeddingsBatch(chunks.map(c => c.text));
+          const embeddingCost = (chunks.reduce((sum, c) => sum + c.tokenCount, 0) / 1000) * 0.00002;
+
+          // Store chunks and update status atomically
+          await db.transaction(async (tx) => {
+            await tx.update(papers).set({ chunksCount: chunks.length, status: 'completed' }).where(eq(papers.id, paper.id));
+
+            const chunkInsertPromises = chunks.map((chunk, j) =>
+              tx.insert(paperChunks).values({
+                paperId: paper.id,
+                chunkIndex: j,
+                text: chunk.text,
+                embedding: JSON.stringify(embeddings[j]),
+                tokenCount: chunk.tokenCount,
+              })
+            );
+            await Promise.all(chunkInsertPromises);
+
+            await tx.update(knowledgeAreas)
+              .set({
+                papersCount: sql`${knowledgeAreas.papersCount} + 1`,
+                chunksCount: sql`${knowledgeAreas.chunksCount} + ${chunks.length}`,
+                cost: sql`${knowledgeAreas.cost} + ${embeddingCost}`,
+              })
+              .where(eq(knowledgeAreas.id, paper.knowledgeAreaId!));
+          });
+
+          console.log(`[v20.0] ✅ Processed paper: ${paper.arxivId} (${chunks.length} chunks)`);
+        } catch (error) {
+          console.error(`[v20.0] ❌ Error processing paper ${paper.arxivId}:`, error);
+          await db.update(papers).set({ status: 'failed' }).where(eq(papers.id, paper.id));
+        }
+      }
+    } catch (error) {
+      console.error('[v20.0] ❌ Error in processing loop:', error);
+      await new Promise(resolve => setTimeout(resolve, 30000)); // Wait 30s on error
+    }
+  }
+}
+
+// Start background processing loop
+processPendingPapers();

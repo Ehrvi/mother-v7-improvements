@@ -342,6 +342,9 @@ export const papers = mysqlTable("papers", {
   // URLs
   pdfUrl: varchar("pdfUrl", { length: 500 }),
   
+  // Processing status
+  status: mysqlEnum("status", ["pending", "processing", "completed", "failed"]).default("pending").notNull(),
+  
   // Metrics
   citationCount: int("citationCount").default(0),
   qualityScore: varchar("qualityScore", { length: 20 }),
