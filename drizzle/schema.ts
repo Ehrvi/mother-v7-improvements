@@ -409,3 +409,31 @@ export const studyJobs = mysqlTable("study_jobs", {
 
 export type StudyJob = typeof studyJobs.$inferSelect;
 export type InsertStudyJob = typeof studyJobs.$inferInsert;
+
+/**
+ * MOTHER v15.0: Semantic Cache
+ * Stores query embeddings and responses for semantic similarity matching
+ * Threshold: 0.95 cosine similarity for cache hits
+ */
+export const semanticCache = mysqlTable("semantic_cache", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Query information
+  queryText: text("queryText").notNull(),
+  queryEmbedding: text("queryEmbedding").notNull(), // JSON array of 1536 floats
+  
+  // Response information
+  response: text("response").notNull(),
+  responseMetadata: text("responseMetadata"), // JSON: tier, quality scores, etc.
+  
+  // Performance tracking
+  hitCount: int("hitCount").default(0),
+  lastHitAt: timestamp("lastHitAt"),
+  
+  // Metadata
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SemanticCache = typeof semanticCache.$inferSelect;
+export type InsertSemanticCache = typeof semanticCache.$inferInsert;

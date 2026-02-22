@@ -2957,3 +2957,84 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 
 ---
 
+
+
+---
+
+## SOTA Upgrade Continuation - Phases 2-6 + Documentation (Feb 22, 2026)
+
+### Phase 2: Factual Grounding ⏳ IN PROGRESS
+- [ ] Update system prompt to force JSON output with sources
+- [ ] Create fact_checking.ts module with verifySources function
+- [ ] Integrate source verification into main query pipeline
+- [ ] Test with factual questions (e.g., "Qual a capital da Mongólia?")
+- [ ] Test with invented facts (should fail verification)
+- [ ] Validate Langfuse traces show source-verification spans
+- [ ] Commit: "feat(grounding): implement factual grounding with source verification"
+
+### Phase 3: Persistent Memory ✅ ALREADY IMPLEMENTED
+- [x] Conversation system exists (tRPC conversations)
+- [x] Database tables: conversations, messages
+- [x] Multi-turn conversation support
+- [ ] Document existing memory architecture
+- [ ] Test conversation persistence across sessions
+- [ ] Commit: "docs(memory): document persistent agent memory architecture"
+
+### Phase 4: Omniscient GraphRAG Integration ✅ COMPLETE
+- [x] Omniscient MVP complete (arXiv, PDF, embeddings, vector search)
+- [x] Create tRPC endpoint for omniscient search (omniscient.search)
+- [x] Integrate omniscient search into main query pipeline (omniscientRouter registered)
+- [ ] Add citation formatting for paper sources - DEFERRED to Phase 8 documentation
+- [ ] Test end-to-end: query → omniscient search → cited response - DEFERRED
+- [ ] Commit: "feat(rag): integrate Omniscient knowledge acquisition into main pipeline"
+
+**Notes**: Omniscient router already exists and is registered in appRouter. System can search 48 paper chunks across 3 quantum computing papers. Citation formatting and end-to-end testing deferred to documentation phase.
+
+### Phase 5: Semantic Caching ⏭️ DEFERRED
+- [x] Add semantic_cache table to database schema
+- [x] Implement query embedding before LLM call
+- [x] Implement cosine similarity search in cache (threshold 0.95)
+- [x] Add cache hit/miss logging to Langfuse
+- [ ] Test with semantically similar queries - BLOCKED (Drizzle schema import issues)
+- [ ] Measure cache hit rate improvement - DEFERRED
+- [ ] Commit: "feat(cache): upgrade to semantic caching for improved hit rate" - DEFERRED
+
+**Notes**: Schema and logic implemented but integration tests blocked by Drizzle schema import issues (same as Omniscient). Deferring to Phase 8 after GraphRAG and Grounding are complete.
+
+### Phase 6: Learned Router ⏳ PENDING
+- [ ] Design router training dataset (query → tier mapping)
+- [ ] Train simple classifier (scikit-learn or LLM-based)
+- [ ] Create router service endpoint (FastAPI or tRPC)
+- [ ] Replace heuristic router with learned model
+- [ ] Validate routing decisions with test queries
+- [ ] Measure cost/quality improvements
+- [ ] Commit: "feat(router): replace heuristic router with learned classification model"
+
+### Phase 7: Technical Documentation 📝 PENDING
+- [ ] Generate TypeDoc API documentation
+- [ ] Update README.md with new architecture
+- [ ] Document all 6 SOTA improvements
+- [ ] Create deployment guide
+- [ ] Create troubleshooting guide
+- [ ] Commit: "docs(release): generate comprehensive technical documentation"
+
+### Phase 8: MOTHER v15 Awake Document V4 📝 PENDING
+- [ ] Create MOTHER-V15-AWAKE-DOCUMENT-V4.md
+- [ ] Executive Summary (new capabilities)
+- [ ] System Identity (v15.0)
+- [ ] Performance Metrics (updated from Langfuse)
+- [ ] System Architecture (updated 7-layer diagram)
+- [ ] Knowledge Base (Omniscient capabilities)
+- [ ] Future Roadmap
+- [ ] Commit: "docs(release): create awake document v4 for MOTHER v15"
+
+### Phase 9: Deployment & Validation 🚀 PENDING
+- [ ] Run complete test suite
+- [ ] Performance benchmarking
+- [ ] Deploy to GCloud Run (australia-southeast1)
+- [ ] Monitor Langfuse dashboards (24-48h)
+- [ ] Validate all improvements in production
+- [ ] Document final metrics
+
+---
+
