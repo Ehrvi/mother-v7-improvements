@@ -10,6 +10,7 @@ import { backupRouter } from "./routers/backup";
 import { queueRouter } from "./routers/queue";
 import { webhooksRouter } from "./routers/webhooks";
 import { analyticsRouter } from "./routers/analytics";
+import { omniscientRouter } from "./omniscient/router";
 import { router } from "./_core/trpc";
 
 export const appRouter = router({
@@ -41,6 +42,9 @@ export const appRouter = router({
 
   // Analytics Dashboard (Phase 12)
   analytics: analyticsRouter,
+
+  // MOTHER Omniscient (Knowledge Area Study System)
+  omniscient: omniscientRouter,
 });
 
 export type AppRouter = typeof appRouter;

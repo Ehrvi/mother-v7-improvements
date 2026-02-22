@@ -294,3 +294,146 @@ export const webhookDeliveries = mysqlTable("webhook_deliveries", {
 
 export type WebhookDelivery = typeof webhookDeliveries.$inferSelect;
 export type InsertWebhookDelivery = typeof webhookDeliveries.$inferInsert;
+
+/**
+ * MOTHER Omniscient: Knowledge Areas
+ * Stores high-level information about studied knowledge areas
+ */
+export const knowledgeAreas = mysqlTable("knowledge_areas", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Area identification
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  
+  // Processing status
+  status: mysqlEnum("status", ["pending", "in_progress", "completed", "failed"]).default("pending").notNull(),
+  
+  // Metrics
+  papersCount: int("papersCount").default(0),
+  chunksCount: int("chunksCount").default(0),
+  qualityScore: varchar("qualityScore", { length: 20 }),
+  cost: varchar("cost", { length: 20 }),
+  
+  // Metadata
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  completedAt: timestamp("completedAt"),
+});
+
+export type KnowledgeArea = typeof knowledgeAreas.$inferSelect;
+export type InsertKnowledgeArea = typeof knowledgeAreas.$inferInsert;
+
+/**
+ * MOTHER Omniscient: Papers
+ * Stores metadata for each academic paper
+ */
+export const papers = mysqlTable("papers", {
+  id: int("id").autoincrement().primaryKey(),
+  knowledgeAreaId: int("knowledgeAreaId").references(() => knowledgeAreas.id, { onDelete: "cascade" }).notNull(),
+  
+  // Paper identification
+  arxivId: varchar("arxivId", { length: 50 }).notNull().unique(),
+  title: text("title").notNull(),
+  authors: text("authors"),
+  abstract: text("abstract"),
+  publishedDate: timestamp("publishedDate"),
+  
+  // URLs
+  pdfUrl: varchar("pdfUrl", { length: 500 }),
+  
+  // Metrics
+  citationCount: int("citationCount").default(0),
+  qualityScore: varchar("qualityScore", { length: 20 }),
+  chunksCount: int("chunksCount").default(0),
+  
+  // Metadata
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Paper = typeof papers.$inferSelect;
+export type InsertPaper = typeof papers.$inferInsert;
+
+/**
+ * MOTHER Omniscient: Paper Chunks
+ * Stores text chunks and embeddings for vector search
+ */
+export const paperChunks = mysqlTable("paper_chunks", {
+  id: int("id").autoincrement().primaryKey(),
+  paperId: int("paperId").references(() => papers.id, { onDelete: "cascade" }).notNull(),
+  
+  // Chunk data
+  chunkIndex: int("chunkIndex").notNull(),
+  text: text("text").notNull(),
+  embedding: text("embedding").notNull(), // JSON array of 1536 floats
+  tokenCount: int("tokenCount"),
+  
+  // Metadata
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PaperChunk = typeof paperChunks.$inferSelect;
+export type InsertPaperChunk = typeof paperChunks.$inferInsert;
+
+/**
+ * MOTHER Omniscient: Study Jobs
+ * Tracks async study job progress
+ */
+export const studyJobs = mysqlTable("study_jobs", {
+  id: int("id").autoincrement().primaryKey(),
+  knowledgeAreaId: int("knowledgeAreaId").references(() => knowledgeAreas.id, { onDelete: "cascade" }).notNull(),
+  
+  // Job status
+  status: mysqlEnum("status", [
+    "pending",
+    "discovering",
+    "retrieving",
+    "processing",
+    "indexing",
+    "validating",
+    "completed",
+    "failed"
+  ]).default("pending").notNull(),
+  
+  // Progress tracking
+  progress: int("progress").default(0),
+  total: int("total").default(0),
+  currentStep: varchar("currentStep", { length: 255 }),
+  errorMessage: text("errorMessage"),
+  
+  // Metadata
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  completedAt: timestamp("completedAt"),
+});
+
+export type StudyJob = typeof studyJobs.$inferSelect;
+export type InsertStudyJob = typeof studyJobs.$inferInsert;
+
+/**
+ * MOTHER v15.0: Semantic Cache
+ * Stores query embeddings and responses for semantic similarity matching
+ * Threshold: 0.95 cosine similarity for cache hits
+ */
+export const semanticCache = mysqlTable("semantic_cache", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Query information
+  queryText: text("queryText").notNull(),
+  queryEmbedding: text("queryEmbedding").notNull(), // JSON array of 1536 floats
+  
+  // Response information
+  response: text("response").notNull(),
+  responseMetadata: text("responseMetadata"), // JSON: tier, quality scores, etc.
+  
+  // Performance tracking
+  hitCount: int("hitCount").default(0),
+  lastHitAt: timestamp("lastHitAt"),
+  
+  // Metadata
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SemanticCache = typeof semanticCache.$inferSelect;
+export type InsertSemanticCache = typeof semanticCache.$inferInsert;

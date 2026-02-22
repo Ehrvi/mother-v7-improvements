@@ -1,4 +1,5 @@
 import { ENV } from "./env";
+import { createTrace } from "./langfuse";
 
 export type Role = "system" | "user" | "assistant" | "tool" | "function";
 
@@ -271,8 +272,21 @@ const normalizeResponseFormat = ({
   };
 };
 
-export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
+export async function invokeLLM(params: InvokeParams, userId?: string): Promise<InvokeResult> {
   assertApiKey();
+
+  // Create Langfuse trace for observability
+  const trace = createTrace('llm-invocation', userId, {
+    model: params.model || 'gpt-4o',
+    messages_count: params.messages.length,
+    has_tools: !!params.tools,
+  });
+
+  const generation = trace.generation({
+    name: 'openai-completion',
+    model: params.model || 'gpt-4o',
+    input: params.messages,
+  });
 
   const {
     messages,
@@ -348,10 +362,29 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(
+    const error = new Error(
       `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
     );
+    
+    // Log error to Langfuse
+    generation.end({
+      level: 'ERROR',
+      statusMessage: error.message,
+    });
+    
+    throw error;
   }
 
-  return (await response.json()) as InvokeResult;
+  const result = (await response.json()) as InvokeResult;
+  
+  // Log successful completion to Langfuse
+  generation.end({
+    output: result.choices[0]?.message?.content || '',
+    metadata: {
+      usage: result.usage,
+      finish_reason: result.choices[0]?.finish_reason,
+    },
+  });
+
+  return result;
 }
