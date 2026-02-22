@@ -36,34 +36,30 @@ export const router = t.router;
 const rateLimitMiddleware = t.middleware(async opts => {
   const { ctx, next, path } = opts;
 
-  // TEMPORARY: Rate limiting disabled for Phase 17 load testing
-  // TODO: Re-enable after load test completion
-  return next({ ctx });
-
   // Get identifier (user ID or IP)
-  // const identifier = ctx.user?.id?.toString() || ctx.req.ip || "unknown";
+  const identifier = ctx.user?.id?.toString() || ctx.req.ip || "unknown";
 
   // Get rate limit config for this procedure
-  // const config = getRateLimitConfig(path);
+  const config = getRateLimitConfig(path);
 
   // Check rate limit
-  // const result = await checkRateLimit(identifier, config);
+  const result = await checkRateLimit(identifier, config);
 
   // Add headers to response
-  // const headers = formatRateLimitHeaders(result);
-  // Object.entries(headers).forEach(([key, value]) => {
-  //   ctx.res.setHeader(key, value);
-  // });
+  const headers = formatRateLimitHeaders(result);
+  Object.entries(headers).forEach(([key, value]) => {
+    ctx.res.setHeader(key, value);
+  });
 
   // Deny if rate limited
-  // if (!result.allowed) {
-  //   throw new TRPCError({
-  //     code: "TOO_MANY_REQUESTS",
-  //     message: `Rate limit exceeded. Try again in ${result.retryAfter} seconds.`,
-  //   });
-  // }
+  if (!result.allowed) {
+    throw new TRPCError({
+      code: "TOO_MANY_REQUESTS",
+      message: `Rate limit exceeded. Try again in ${result.retryAfter} seconds.`,
+    });
+  }
 
-  // return next({ ctx });
+  return next({ ctx });
 });
 
 export const publicProcedure = t.procedure.use(rateLimitMiddleware);
