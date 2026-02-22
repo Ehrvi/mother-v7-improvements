@@ -9,6 +9,7 @@ import { publicProcedure, router } from '../_core/trpc';
 import { getDb } from '../db';
 import { knowledgeAreas, papers, paperChunks } from '../../drizzle/schema';
 import { studyKnowledgeArea } from './orchestrator';
+import { studyKnowledgeAreaAsync } from './orchestrator-async';
 import { jobQueue } from './queue';
 import { searchSimilarChunks } from './search';
 import { eq, desc } from 'drizzle-orm';
@@ -49,7 +50,7 @@ export const omniscientRouter = router({
     }),
 
   /**
-   * Create a new study job
+   * Create a new study job (v19.0: Async with Cloud Tasks)
    */
   createStudyJob: publicProcedure
     .input(
@@ -60,21 +61,20 @@ export const omniscientRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      // FIXED: Await study job to prevent Cloud Run from killing process
-      // Cloud Run terminates when request ends, so we must block until completion
-      const result = await studyKnowledgeArea(
+      // v19.0: Use async orchestrator with Cloud Tasks
+      // This returns immediately after enqueuing tasks (no timeout)
+      const result = await studyKnowledgeAreaAsync(
         input.name,
         input.description,
         { maxPapers: input.maxPapers }
       );
 
-      // Return with job info and results
+      // Return with job info and enqueued count
       return {
-        message: `Study completed for "${input.name}"`,
+        message: result.message,
+        jobId: result.job.id,
         knowledgeAreaId: result.knowledgeAreaId,
-        papersProcessed: result.papersProcessed,
-        chunksCreated: result.chunksCreated,
-        totalCost: result.totalCost,
+        papersEnqueued: result.papersEnqueued,
       };
     }),
 
