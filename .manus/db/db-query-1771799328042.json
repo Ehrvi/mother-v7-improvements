@@ -1,0 +1,60 @@
+{
+  "query": "SELECT id, name, cost FROM knowledge_areas LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3QQhaXF1ucYHpuK.e4b7c6254861 --database 25NeaJLRyMKQFYzeZChVTB --execute SELECT id, name, cost FROM knowledge_areas LIMIT 10;",
+  "rows": [
+    {
+      "id": "30001",
+      "name": "AI Orchestration Scale Test",
+      "cost": "NULL"
+    },
+    {
+      "id": "60001",
+      "name": "AI Orchestration Test (10 papers)",
+      "cost": "NULL"
+    },
+    {
+      "id": "60002",
+      "name": "Validation Test v18 - GraphRAG",
+      "cost": "0.00000000"
+    },
+    {
+      "id": "60003",
+      "name": "GraphRAG",
+      "cost": "0.00000000"
+    },
+    {
+      "id": "60004",
+      "name": "machine learning",
+      "cost": "0.00000000"
+    },
+    {
+      "id": "90001",
+      "name": "machine learning transformers",
+      "cost": "0.00000000"
+    },
+    {
+      "id": "90002",
+      "name": "quantum computing applications",
+      "cost": "0.00000000"
+    },
+    {
+      "id": "90003",
+      "name": "large language model orchestration",
+      "cost": "0.00289268"
+    },
+    {
+      "id": "90004",
+      "name": "bioinformatics and deep learning",
+      "cost": "0.0004236"
+    },
+    {
+      "id": "90005",
+      "name": "neural networks",
+      "cost": "0.00076898"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tcost\n30001\tAI Orchestration Scale Test\tNULL\n60001\tAI Orchestration Test (10 papers)\tNULL\n60002\tValidation Test v18 - GraphRAG\t0.00000000\n60003\tGraphRAG\t0.00000000\n60004\tmachine learning\t0.00000000\n90001\tmachine learning transformers\t0.00000000\n90002\tquantum computing applications\t0.00000000\n90003\tlarge language model orchestration\t0.00289268\n90004\tbioinformatics and deep learning\t0.0004236\n90005\tneural networks\t0.00076898\n",
+  "stderr": "",
+  "execution_time_ms": 1603
+}
