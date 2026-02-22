@@ -1,5 +1,5 @@
 /**
- * MOTHER v7.0 - Secure Signup Page
+ * MOTHER v14 - Secure Signup Page
  *
  * Features:
  * - Strong password requirements (12+ chars, uppercase, lowercase, number, special)
@@ -70,7 +70,7 @@ export default function Signup() {
             Create Account
           </CardTitle>
           <CardDescription className="text-center text-gray-300">
-            Join MOTHER v7.0 - Advanced AI System
+            Join MOTHER v14 - Advanced AI System
           </CardDescription>
         </CardHeader>
         <CardContent>

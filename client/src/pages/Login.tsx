@@ -1,5 +1,5 @@
 /**
- * MOTHER v7.0 - Secure Login Page
+ * MOTHER v14 - Secure Login Page
  *
  * Features:
  * - Rate limiting protection (5 attempts/15min)
@@ -56,7 +56,7 @@ export default function Login() {
             Welcome Back
           </CardTitle>
           <CardDescription className="text-center text-gray-300">
-            Login to MOTHER v7.0 - Advanced AI System
+            Login to MOTHER v14 - Advanced AI System
           </CardDescription>
         </CardHeader>
         <CardContent>

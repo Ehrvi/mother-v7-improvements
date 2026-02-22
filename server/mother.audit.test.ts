@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 
 /**
- * MOTHER v7.0 GCloud - Comprehensive Audit Test Suite
+ * MOTHER v14 GCloud - Comprehensive Audit Test Suite
  * Scientific Method Phase 11: Audit
  *
  * Tests all 7 layers of MOTHER architecture
@@ -13,7 +13,7 @@ const GCLOUD_URL =
 // Helper to add delay between tests
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-describe.sequential("MOTHER v7.0 GCloud - Comprehensive Audit", () => {
+describe.sequential("MOTHER v14 GCloud - Comprehensive Audit", () => {
   // Warm-up: ensure GCloud Run instance is active before tests
   beforeAll(async () => {
     console.log("🔥 Warming up GCloud Run instance...");

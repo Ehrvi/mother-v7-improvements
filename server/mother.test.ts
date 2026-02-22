@@ -6,7 +6,7 @@ import {
 } from "./mother/intelligence";
 import { validateQuality } from "./mother/guardian";
 
-describe("MOTHER v7.0 - Layer 3: Intelligence (Routing)", () => {
+describe("MOTHER v14 - Tier Routing System", () => {
   it("should route simple queries to gpt-4o-mini (Tier 1)", () => {
     const result = assessComplexity("What is the weather today?");
 
@@ -66,7 +66,7 @@ describe("MOTHER v7.0 - Layer 3: Intelligence (Routing)", () => {
   });
 });
 
-describe("MOTHER v7.0 - Layer 6: Quality (Guardian)", () => {
+describe("MOTHER v14 - Guardian Quality Assessment", () => {
   it("should pass quality check for good responses", async () => {
     const query = "What is machine learning?";
     const response =
@@ -128,7 +128,7 @@ describe("MOTHER v7.0 - Layer 6: Quality (Guardian)", () => {
   });
 });
 
-describe("MOTHER v7.0 - Integration", () => {
+describe("MOTHER v14 - Integration", () => {
   it("should demonstrate cost reduction through tier routing", () => {
     // Simulate 100 queries with realistic distribution
     const queries = [
@@ -188,7 +188,7 @@ describe("MOTHER v7.0 - Integration", () => {
   });
 });
 
-describe("MOTHER v7.0 - Academic Validation", () => {
+describe("MOTHER v14 - Academic Validation", () => {
   it("should validate FrugalGPT benchmark (98% cost reduction possible)", () => {
     // Extreme case: 99% simple queries
     const queries = [

@@ -11,7 +11,7 @@ interface Message {
   role: "user" | "mother";
   content: string;
   timestamp: Date;
-  // MOTHER v7.0 metrics
+  // MOTHER v14 metrics
   tier?: string;
   qualityScore?: number;
   costReduction?: number;
@@ -33,7 +33,7 @@ export default function Home() {
       id: "1",
       role: "mother",
       content:
-        "Olá! Sou **MOTHER v7.0** (Multi-Operational Tiered Hierarchical Execution & Routing) - um sistema de IA avançado com **83% de redução de custo** e **qualidade 90+**. Como posso ajudá-lo hoje?",
+        "Olá! Sou **MOTHER v14** (Multi-Operational Tiered Hierarchical Execution & Routing) - um sistema de IA avançado com **91% de redução de custo** e **qualidade 94+**. Como posso ajudá-lo hoje?",
       timestamp: new Date(),
     },
   ]);
@@ -94,7 +94,7 @@ export default function Home() {
     setMessages(prev => [...prev, userMessage]);
     setInput("");
 
-    // Call MOTHER v7.0 API
+    // Call MOTHER v14 API
     queryMutation.mutate({ query: input });
   };
 
@@ -143,7 +143,7 @@ export default function Home() {
                   M O T H E R
                 </h1>
                 <p className="text-sm text-muted-foreground font-mono">
-                  v7.0 - 7-Layer Architecture | 83% Cost Reduction | 90+ Quality
+                  v7.0 - Multi-Operational Tiered Hierarchical Execution & Routing | 91% Cost Reduction | 94+ Quality
                 </p>
               </div>
             </div>
@@ -225,7 +225,7 @@ export default function Home() {
                     )}
                   </div>
 
-                  {/* MOTHER v7.0 Metrics */}
+                  {/* MOTHER v14 Metrics */}
                   {message.role === "mother" && message.tier && (
                     <div className="mt-3 pt-3 border-t border-[#B026FF]/20 flex flex-wrap gap-2 text-xs">
                       <div className="flex items-center gap-1 bg-[#B026FF]/10 px-2 py-1 rounded">
@@ -287,7 +287,7 @@ export default function Home() {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Converse com MOTHER v7.0..."
+              placeholder="Converse com MOTHER v14..."
               className="flex-1 glass border-[#B026FF]/30 focus:border-[#00F5FF] transition-colors"
               disabled={queryMutation.isPending}
             />
@@ -304,7 +304,7 @@ export default function Home() {
         {/* Footer */}
         <footer className="mt-4 text-center text-xs text-muted-foreground font-mono">
           <p>
-            MOTHER v7.0 - Multi-Operational Tiered Hierarchical Execution &
+            MOTHER v14 - Multi-Operational Tiered Hierarchical Execution &
             Routing
           </p>
           <p className="opacity-50">
