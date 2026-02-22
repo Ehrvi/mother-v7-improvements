@@ -54,7 +54,7 @@ MOTHER v7.0 is a multi-tier LLM routing system with 7-layer architecture achievi
 
 **Cloud Run Service**:
 - **Name**: mother-interface
-- **URL**: https://mother-interface-233196174701.australia-southeast1.run.app
+- **URL**: https://mother-interface-qtvghovzxa-ts.a.run.app
 - **Current Revision**: mother-interface-00080-hkv (or later)
 - **Auto-scaling**: 0-100 instances
 - **Memory**: 512 MB per instance
@@ -183,7 +183,7 @@ gcloud run services update-traffic mother-interface \
   --project=mothers-library-mcp
 
 # 4. Verify rollback
-curl -s https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/health.simple | jq
+curl -s https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/health.simple | jq
 ```
 
 **Rollback from GitHub**:
@@ -242,19 +242,19 @@ git push github main
 **Individual Endpoints**:
 ```bash
 # Simple health
-curl https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/health.simple
+curl https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/health.simple
 
 # Detailed health (includes memory, uptime, database status)
-curl https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/health.detailed
+curl https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/health.detailed
 
 # Cache statistics (Redis + Database)
-curl https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/health.cache
+curl https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/health.cache
 
 # Queue statistics (BullMQ)
-curl https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/queue.stats
+curl https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/queue.stats
 
 # Backup status
-curl https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/backup.status
+curl https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/backup.status
 ```
 
 **Logs**:
@@ -779,7 +779,7 @@ gcloud run deploy mother-interface \
 **Diagnosis**:
 ```bash
 # Test database connection
-curl https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/health.detailed
+curl https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/health.detailed
 
 # Check pool status (from logs)
 grep "database pool" logs/app.log
@@ -814,7 +814,7 @@ gcloud redis instances describe mother-cache \
   --project=mothers-library-mcp
 
 # Test Redis connection
-curl https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/health.cache
+curl https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/health.cache
 ```
 
 **Recovery**:
@@ -841,10 +841,10 @@ gcloud run services update mother-interface \
 **Diagnosis**:
 ```bash
 # Check queue stats
-curl https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/queue.stats
+curl https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/queue.stats
 
 # Check specific job
-curl "https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/queue.job?input={\"jobId\":\"abc123\"}"
+curl "https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/queue.job?input={\"jobId\":\"abc123\"}"
 ```
 
 **Recovery**:
@@ -939,10 +939,10 @@ BACKUP_TOKEN=b7e365bfbf9fded0323a6c0d57007a8b779039be0da4b91430d38759db251880
 **Monitoring Commands**:
 ```bash
 # Cache hit rate
-curl -s https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/health.cache | jq '.redis.hitRate'
+curl -s https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/health.cache | jq '.redis.hitRate'
 
 # Queue throughput
-curl -s https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/queue.stats | jq '.stats'
+curl -s https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/queue.stats | jq '.stats'
 
 # Memory usage
 gcloud run services describe mother-interface \

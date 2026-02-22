@@ -165,7 +165,7 @@ gcloud builds submit --config cloudbuild.yaml
 
 ### Test 4: Browser verification
 ```
-https://mother-interface-233196174701.australia-southeast1.run.app
+https://mother-interface-qtvghovzxa-ts.a.run.app
 # Expected: Interface loads, no 404 errors
 ```
 

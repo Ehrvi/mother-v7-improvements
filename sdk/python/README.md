@@ -266,7 +266,7 @@ except Exception as e:
 from mother_sdk import MotherClient, MotherConfig
 
 config = MotherConfig(
-    base_url="https://mother-interface-233196174701.australia-southeast1.run.app",
+    base_url="https://mother-interface-qtvghovzxa-ts.a.run.app",
     session_cookie="your-session-cookie",
     timeout=30.0,  # seconds
     debug=True,  # Enable logging
@@ -478,7 +478,7 @@ MIT © Everton Luis Garcia
 
 ## Links
 
-- [API Documentation](https://mother-interface-233196174701.australia-southeast1.run.app/api/docs)
+- [API Documentation](https://mother-interface-qtvghovzxa-ts.a.run.app/api/docs)
 - [GitHub Repository](https://github.com/Ehrvi/mother-v7-improvements)
 - [Report Issues](https://github.com/Ehrvi/mother-v7-improvements/issues)
 

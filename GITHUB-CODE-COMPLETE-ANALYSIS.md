@@ -285,7 +285,7 @@ server/
 - **Layers:** 7 layers completos
 - **Testes:** 30+ testes unitários
 - **Deploy:** Cloud Run (australia-southeast1)
-- **URL:** https://mother-interface-233196174701.australia-southeast1.run.app
+- **URL:** https://mother-interface-qtvghovzxa-ts.a.run.app
 
 ### v12.0 (Conceptual)
 - **Status:** NÃO É VERSÃO SEPARADA

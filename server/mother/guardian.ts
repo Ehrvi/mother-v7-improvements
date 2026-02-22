@@ -83,10 +83,51 @@ function checkCompleteness(
  */
 function checkAccuracy(
   query: string,
-  response: string
+  response: string,
+  systemPrompt?: string,
+  knowledgeContext?: string
 ): { score: number; issues: string[] } {
   const issues: string[] = [];
   let score = 100;
+
+  // NEW: Layer 2 - System Prompt Validation (Creator Queries)
+  if (systemPrompt) {
+    const creatorQueries = [
+      /quem\s+(criou|desenvolveu|fez|é\s+o\s+criador)\s+(vc|você|mother|de\s+vc|de\s+você)/i,
+      /who\s+(created|made|built|developed|is\s+the\s+creator)\s+(you|mother|of\s+you)/i,
+      /your\s+creator/i,
+      /quem\s+eh\s+vc\s+e\s+quem\s+criou\s+vc/i,
+    ];
+
+    const isCreatorQuery = creatorQueries.some(p => p.test(query));
+    
+    if (isCreatorQuery) {
+      // Extract creator info from system prompt
+      const creatorMatch = systemPrompt.match(/Creator:\s*([^\n]+)/i);
+      const expectedCreator = creatorMatch ? creatorMatch[1].trim() : null;
+      
+      if (expectedCreator) {
+        // Check if response mentions correct creator
+        const responseHasCorrectCreator = response.toLowerCase().includes(expectedCreator.toLowerCase());
+        
+        // Check for common wrong patterns
+        const wrongCreatorPatterns = [
+          /equipe\s+multidisciplinar/i,
+          /team\s+of\s+engineers/i,
+          /desenvolvido\s+por\s+uma\s+equipe/i,
+          /created\s+by\s+a\s+team/i,
+          /openai/i, // Wrong if creator is Everton
+        ];
+        
+        const hasWrongCreator = wrongCreatorPatterns.some(p => p.test(response));
+        
+        if (hasWrongCreator || !responseHasCorrectCreator) {
+          score -= 50; // MAJOR penalty for wrong creator
+          issues.push("Factual error: incorrect creator information");
+        }
+      }
+    }
+  }
 
   // Check for hedging language (indicates uncertainty)
   const hedgingPatterns = [
@@ -299,14 +340,16 @@ function checkSafety(
 export async function validateQuality(
   query: string,
   response: string,
-  phase: 1 | 2 = 1
+  phase: 1 | 2 = 1,
+  systemPrompt?: string,
+  knowledgeContext?: string
 ): Promise<GuardianResult> {
   try {
     // Phase 1: 3 checks (Completeness, Accuracy, Relevance)
     // PERFORMANCE OPTIMIZATION: Run sync checks while async check executes
     const [completeness, accuracy, relevance] = await Promise.all([
       Promise.resolve(checkCompleteness(query, response)),
-      Promise.resolve(checkAccuracy(query, response)),
+      Promise.resolve(checkAccuracy(query, response, systemPrompt, knowledgeContext)),
       checkRelevance(query, response)
     ]);
 

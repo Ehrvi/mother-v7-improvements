@@ -317,7 +317,7 @@ Valida qualidade em 5 dimensões...
 
 ## 🔗 Links Úteis
 
-- **GCloud Deployment:** https://mother-interface-233196174701.australia-southeast1.run.app
+- **GCloud Deployment:** https://mother-interface-qtvghovzxa-ts.a.run.app
 - **Test Suite Completo:** MOTHER-v7.0-TEST-PROMPTS.md
 - **Automated Script:** test-mother-gcloud.sh
 

@@ -188,7 +188,7 @@ Cost: $0.0000633
 - **Confidence:** 9/10 ✅
 
 ## Production Deployment:
-- **URL:** https://mother-interface-233196174701.australia-southeast1.run.app
+- **URL:** https://mother-interface-qtvghovzxa-ts.a.run.app
 - **Latest Revision:** Automatic (Cloud Build triggered)
 - **Status:** ONLINE and responding correctly ✅
 - **Error Handling:** Robust (try-catch throughout pipeline) ✅
@@ -385,7 +385,7 @@ Cost: $0.0000633
 
 # 🚀 DEPLOYMENT STATUS
 
-**Production URL:** https://mother-interface-233196174701.australia-southeast1.run.app
+**Production URL:** https://mother-interface-qtvghovzxa-ts.a.run.app
 
 **Latest Commit:** 76daef56
 

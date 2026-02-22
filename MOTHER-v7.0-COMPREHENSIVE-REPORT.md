@@ -346,7 +346,7 @@ Run comprehensive test prompt on local MOTHER and collect detailed metrics.
 ### Test Execution
 
 **GCloud Deployment:**
-- URL: https://mother-interface-233196174701.australia-southeast1.run.app
+- URL: https://mother-interface-qtvghovzxa-ts.a.run.app
 - Revision: 00047-tbk
 - Status: ✅ Active
 

@@ -301,7 +301,7 @@ const result = await apiConnector.query({
 
 - **Platform:** Google Cloud Run
 - **Region:** australia-southeast1 (Sydney)
-- **URL:** https://mother-interface-233196174701.australia-southeast1.run.app
+- **URL:** https://mother-interface-qtvghovzxa-ts.a.run.app
 - **Status:** 🔄 Deploying improvements
 
 ### Environment Variables

@@ -537,7 +537,7 @@ comando2 arg1 arg2
 5. **Testar Deploy Produção:**
    ```bash
    # Query MOTHER API
-   curl -X POST https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/mother.query \
+   curl -X POST https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/mother.query \
      -H "Content-Type: application/json" \
      -d '{"query":"[Test query]","useCache":false}'
    ```

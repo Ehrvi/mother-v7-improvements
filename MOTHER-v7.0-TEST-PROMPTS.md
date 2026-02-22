@@ -341,7 +341,7 @@ To run all tests automatically, use the following script:
 #!/bin/bash
 # MOTHER v7.0 Automated Test Suite
 
-BASE_URL="https://mother-interface-233196174701.australia-southeast1.run.app"
+BASE_URL="https://mother-interface-qtvghovzxa-ts.a.run.app"
 
 # Test function
 test_query() {

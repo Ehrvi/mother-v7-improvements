@@ -82,7 +82,7 @@ These headers are exposed to browser JavaScript:
 
 ```javascript
 // Simple GET request
-const response = await fetch('https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/auth.me', {
+const response = await fetch('https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/auth.me', {
   method: 'GET',
   credentials: 'include', // Include cookies
   headers: {
@@ -108,7 +108,7 @@ import superjson from 'superjson';
 const client = createTRPCProxyClient({
   links: [
     httpBatchLink({
-      url: 'https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc',
+      url: 'https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc',
       transformer: superjson,
       fetch(input, init) {
         return globalThis.fetch(input, {
@@ -147,7 +147,7 @@ const queryClient = new QueryClient();
 const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({
-      url: 'https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc',
+      url: 'https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc',
       transformer: superjson,
       fetch(input, init) {
         return globalThis.fetch(input, {
@@ -191,7 +191,7 @@ import requests
 # But the API will respond with CORS headers anyway
 
 response = requests.post(
-    'https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/mother.query',
+    'https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/mother.query',
     json={
         'query': 'What is the meaning of life?',
         'tier': 1
@@ -220,7 +220,7 @@ CORS preflight requests (OPTIONS) are automatically handled by the `cors` middle
 
 ```http
 OPTIONS /api/trpc/mother.query HTTP/1.1
-Host: mother-interface-233196174701.australia-southeast1.run.app
+Host: mother-interface-qtvghovzxa-ts.a.run.app
 Origin: https://example.com
 Access-Control-Request-Method: POST
 Access-Control-Request-Headers: Content-Type
@@ -311,7 +311,7 @@ app.use(cors({
 ```bash
 # Test preflight request
 curl -X OPTIONS \
-  https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/mother.query \
+  https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/mother.query \
   -H "Origin: https://example.com" \
   -H "Access-Control-Request-Method: POST" \
   -H "Access-Control-Request-Headers: Content-Type" \
@@ -319,7 +319,7 @@ curl -X OPTIONS \
 
 # Test actual request
 curl -X POST \
-  https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/mother.query \
+  https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/mother.query \
   -H "Origin: https://example.com" \
   -H "Content-Type: application/json" \
   -d '{"query":"Hello","tier":1}' \
@@ -332,7 +332,7 @@ curl -X POST \
 // Open browser console on any website
 // Test CORS by making a request to MOTHER API
 
-fetch('https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/auth.me', {
+fetch('https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/auth.me', {
   method: 'GET',
   credentials: 'include',
 })

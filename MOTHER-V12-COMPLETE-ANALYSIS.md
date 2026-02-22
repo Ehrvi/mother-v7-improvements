@@ -85,7 +85,7 @@
 
 ### Status
 ✅ DEPLOYED & OPERATIONAL  
-**URL:** https://mother-interface-233196174701.australia-southeast1.run.app
+**URL:** https://mother-interface-qtvghovzxa-ts.a.run.app
 
 ### 7-Layer Architecture
 

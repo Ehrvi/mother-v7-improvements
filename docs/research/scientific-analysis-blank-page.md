@@ -2,7 +2,7 @@
 
 **Data:** 2026-02-19  
 **Problema:** Página carrega mas exibe tela branca  
-**URL:** https://mother-interface-233196174701.australia-southeast1.run.app
+**URL:** https://mother-interface-qtvghovzxa-ts.a.run.app
 
 ---
 

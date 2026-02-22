@@ -1442,7 +1442,7 @@ gcloud builds submit --config cloudbuild.yaml
 # ✓ Build completed successfully
 # ✓ Image pushed to Artifact Registry
 # ✓ Service deployed to Cloud Run
-# ✓ Service URL: https://mother-interface-233196174701.australia-southeast1.run.app
+# ✓ Service URL: https://mother-interface-qtvghovzxa-ts.a.run.app
 ```
 
 **Passo 3.6: Verificar Deploy**
@@ -1454,7 +1454,7 @@ gcloud run services describe mother-interface \
   --format='value(status.url)'
 
 # Test endpoint
-curl https://mother-interface-233196174701.australia-southeast1.run.app/api/health
+curl https://mother-interface-qtvghovzxa-ts.a.run.app/api/health
 
 # Expected output:
 # {"status":"ok","version":"v7.0","timestamp":"2026-02-20T12:00:00.000Z"}
@@ -1576,7 +1576,7 @@ gcloud builds submit --config cloudbuild-asia.yaml
 cat > test-integration.mjs << 'EOF'
 import axios from 'axios';
 
-const BASE_URL = 'https://mother-interface-233196174701.australia-southeast1.run.app';
+const BASE_URL = 'https://mother-interface-qtvghovzxa-ts.a.run.app';
 
 // Test 1: Health check
 const health = await axios.get(`${BASE_URL}/api/health`);
@@ -1608,7 +1608,7 @@ gcloud services enable monitoring.googleapis.com
 # Create uptime check
 gcloud monitoring uptime create mother-uptime \
   --resource-type=uptime-url \
-  --host=mother-interface-233196174701.australia-southeast1.run.app \
+  --host=mother-interface-qtvghovzxa-ts.a.run.app \
   --path=/api/health \
   --check-interval=60s
 

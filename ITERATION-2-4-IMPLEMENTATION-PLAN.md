@@ -372,7 +372,7 @@ git push origin main
 
 ### 4.7 Test Deployment (4.2.1.1.6)
 ```bash
-curl -s -X POST "https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/mother.query?batch=1" \
+curl -s -X POST "https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/mother.query?batch=1" \
   -H "Content-Type: application/json" \
   -d '{"0":{"json":{"query":"Test Iteration 2-4 deployment","useCache":false}}}' \
   | jq -r '.[0].result.data.json | "Quality: \(.quality)/100 | Tier: \(.tier) | Cost: $\(.cost)"'

@@ -4,7 +4,7 @@
 **Deployment Method:** gcloud CLI (Lição #21 applied)  
 **Revision:** 00049-5fl  
 **Region:** australia-southeast1  
-**URL:** https://mother-interface-233196174701.australia-southeast1.run.app
+**URL:** https://mother-interface-qtvghovzxa-ts.a.run.app
 
 ---
 
@@ -36,7 +36,7 @@ gcloud run deploy mother-interface \
 - ✅ Container created and pushed
 - ✅ Revision created: 00049-5fl
 - ✅ Traffic routed: 100% to new revision
-- ✅ Service URL active: https://mother-interface-233196174701.australia-southeast1.run.app
+- ✅ Service URL active: https://mother-interface-qtvghovzxa-ts.a.run.app
 
 ---
 
@@ -46,7 +46,7 @@ gcloud run deploy mother-interface \
 **Objective:** Verify signup endpoint returns error (security measure)
 
 **Steps:**
-1. Navigate to: https://mother-interface-233196174701.australia-southeast1.run.app/signup
+1. Navigate to: https://mother-interface-qtvghovzxa-ts.a.run.app/signup
 2. Attempt to create account with valid data
 3. **Expected:** Error message "Registration is temporarily disabled. Please contact the administrator."
 
@@ -58,7 +58,7 @@ gcloud run deploy mother-interface \
 **Objective:** Verify login works with existing user
 
 **Steps:**
-1. Navigate to: https://mother-interface-233196174701.australia-southeast1.run.app/login
+1. Navigate to: https://mother-interface-qtvghovzxa-ts.a.run.app/login
 2. Enter credentials:
    - Email: `elgarcia.eng@gmail.com`
    - Password: `Mother@2026Temp!`

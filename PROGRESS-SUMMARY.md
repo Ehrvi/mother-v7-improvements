@@ -11,7 +11,7 @@
 **Progresso Total**: 11/35 correções (31%)  
 **Fase Atual**: Phase 3 - Performance Optimization  
 **Último Deploy**: Build e8342130 (SUCCESS - 21 Fev 04:50 UTC)  
-**Production URL**: https://mother-interface-233196174701.australia-southeast1.run.app
+**Production URL**: https://mother-interface-qtvghovzxa-ts.a.run.app
 
 ---
 
@@ -159,7 +159,7 @@
 - **Região**: australia-southeast1
 - **Revisão**: mother-interface-00077-whv
 - **Status**: Running (100% tráfego)
-- **URL**: https://mother-interface-233196174701.australia-southeast1.run.app
+- **URL**: https://mother-interface-qtvghovzxa-ts.a.run.app
 
 ### TiDB Cloud (Database)
 - **Host**: gateway01.us-east-1.prod.aws.tidbcloud.com

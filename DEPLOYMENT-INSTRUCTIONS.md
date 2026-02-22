@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Production URL**: https://mother-interface-233196174701.australia-southeast1.run.app
+**Production URL**: https://mother-interface-qtvghovzxa-ts.a.run.app
 
 **Current Version**: Phase 1 (Security improvements only)
 **New Version Ready**: Phase 2 (Checkpoint `6c568ff8` - Security + Stability)
@@ -85,7 +85,7 @@ gcloud run services update mother-interface \
 
 ```bash
 # Get service URL
-SERVICE_URL="https://mother-interface-233196174701.australia-southeast1.run.app"
+SERVICE_URL="https://mother-interface-qtvghovzxa-ts.a.run.app"
 
 # Create daily backup job (2 AM Sydney time)
 gcloud scheduler jobs create http mother-backup-daily \

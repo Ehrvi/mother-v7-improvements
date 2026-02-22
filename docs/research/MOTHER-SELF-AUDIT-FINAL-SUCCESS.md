@@ -2,7 +2,7 @@
 
 **Date:** 2026-02-19  
 **Status:** ✅ SUCCESS  
-**URL:** https://mother-interface-233196174701.australia-southeast1.run.app
+**URL:** https://mother-interface-qtvghovzxa-ts.a.run.app
 
 ---
 

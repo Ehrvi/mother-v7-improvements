@@ -329,7 +329,7 @@ Now respond to the user's query following these standards.`;
     // Validate response quality
     // Iteration 16: Activated Phase 2 (5 checks: Completeness, Accuracy, Relevance, Coherence, Safety)
 
-    const quality = await validateQuality(query, response, 2); // Phase 2: 5 checks
+    const quality = await validateQuality(query, response, 2, systemPrompt, knowledgeContext); // Phase 2: 5 checks
     logger.info(
       `[MOTHER] Quality Score: ${quality.qualityScore}/100 (${quality.passed ? "PASSED" : "FAILED"})`
     );

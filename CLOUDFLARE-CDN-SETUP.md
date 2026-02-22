@@ -24,7 +24,7 @@ Cloudflare CDN will cache static assets (JavaScript, CSS, images, fonts) at edge
 ✅ **Domain**: You need a domain name (e.g., `mother-ai.com`)  
 ✅ **Cloudflare Account**: Free tier is sufficient  
 ✅ **DNS Access**: Ability to change nameservers  
-✅ **Production URL**: https://mother-interface-233196174701.australia-southeast1.run.app
+✅ **Production URL**: https://mother-interface-qtvghovzxa-ts.a.run.app
 
 ---
 
@@ -65,7 +65,7 @@ TTL: Auto
 
 Type: CNAME
 Name: api
-Content: mother-interface-233196174701.australia-southeast1.run.app
+Content: mother-interface-qtvghovzxa-ts.a.run.app
 Proxy: ✅ Proxied (orange cloud)
 TTL: Auto
 ```
@@ -343,7 +343,7 @@ curl -I -H "Accept-Encoding: br" https://mother-ai.com/assets/index.js | grep -i
 
 **Before CDN** (direct to Cloud Run):
 ```bash
-curl -w "@curl-format.txt" -o /dev/null -s https://mother-interface-233196174701.australia-southeast1.run.app/assets/index.js
+curl -w "@curl-format.txt" -o /dev/null -s https://mother-interface-qtvghovzxa-ts.a.run.app/assets/index.js
 ```
 
 **After CDN** (via Cloudflare):

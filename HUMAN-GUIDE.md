@@ -99,7 +99,7 @@ Você recebe a resposta!
 
 **Método 1: Rápido (para perguntas fáceis e médias)**
 
-1. Abra o site: https://mother-interface-233196174701.australia-southeast1.run.app
+1. Abra o site: https://mother-interface-qtvghovzxa-ts.a.run.app
 2. Digite sua pergunta na caixa
 3. Aperte "Enviar"
 4. Espere alguns segundos
@@ -124,7 +124,7 @@ Imagine que MOTHER é como um **carro**. Você pode verificar se está tudo OK o
 
 1. Abra este link no navegador:
    ```
-   https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/health.simple
+   https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/health.simple
    ```
 
 2. Se aparecer `"status": "ok"`, está tudo bem! ✅
@@ -134,7 +134,7 @@ Imagine que MOTHER é como um **carro**. Você pode verificar se está tudo OK o
 
 1. Abra este link:
    ```
-   https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/health.detailed
+   https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/health.detailed
    ```
 
 2. Você vai ver várias informações:
@@ -174,7 +174,7 @@ Imagine que MOTHER é como um **carro**. Você pode verificar se está tudo OK o
 1. **Verifique sua internet** - Teste abrindo o Google. Se o Google também está lento, o problema é sua internet.
 
 2. **Verifique se MOTHER está sobrecarregada**:
-   - Abra: https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/queue.stats
+   - Abra: https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/queue.stats
    - Se você ver `"waiting": 100` ou mais, significa que tem **muita gente usando** ao mesmo tempo
    - Espere alguns minutos e tente de novo
 
@@ -211,7 +211,7 @@ MOTHER faz isso **automaticamente**:
 
 1. Abra este link:
    ```
-   https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/backup.status
+   https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/backup.status
    ```
 
 2. Procure por `"lastBackup"` - mostra quando foi o último backup
@@ -334,7 +334,7 @@ Use esta lista para verificar se MOTHER está funcionando bem:
 
 ### Verificação Diária (faça todo dia):
 
-- [ ] Abrir o site: https://mother-interface-233196174701.australia-southeast1.run.app
+- [ ] Abrir o site: https://mother-interface-qtvghovzxa-ts.a.run.app
 - [ ] Site abre em menos de 5 segundos? ✅
 - [ ] Fazer uma pergunta simples: "Quanto é 2+2?"
 - [ ] Resposta chega em menos de 10 segundos? ✅
@@ -385,9 +385,9 @@ Use esta lista para verificar se MOTHER está funcionando bem:
 
 ## 📞 Informações de Contato
 
-**Site MOTHER**: https://mother-interface-233196174701.australia-southeast1.run.app
+**Site MOTHER**: https://mother-interface-qtvghovzxa-ts.a.run.app
 
-**Verificar saúde**: https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/health.simple
+**Verificar saúde**: https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/health.simple
 
 **Suporte Manus**: https://help.manus.im
 

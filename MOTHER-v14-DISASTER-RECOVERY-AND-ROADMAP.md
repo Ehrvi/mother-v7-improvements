@@ -117,7 +117,7 @@ gcloud run services describe mother-interface \
   --project=mothers-library-mcp
 
 # Testar health check (se disponível)
-curl https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/health.check
+curl https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/health.check
 
 # Verificar logs
 gcloud logging read \
@@ -696,7 +696,7 @@ TOTAL: 18 dias úteis (94 horas)
 
 **Nome**: mother-backup-daily  
 **Schedule**: Todos os dias às 2:00 AM (Australia/Sydney)  
-**Endpoint**: https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/backup.trigger  
+**Endpoint**: https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/backup.trigger  
 **Token**: `b7e365bfbf9fded0323a6c0d57007a8b779039be0da4b91430d38759db251880`
 
 ### Verificar Status do Job
@@ -723,7 +723,7 @@ gcloud scheduler jobs run mother-backup-daily \
 
 # Ou via curl
 curl -X POST \
-  https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/backup.trigger \
+  https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/backup.trigger \
   -H "Content-Type: application/json" \
   -d '{"token":"b7e365bfbf9fded0323a6c0d57007a8b779039be0da4b91430d38759db251880"}'
 ```
@@ -949,10 +949,10 @@ gcloud monitoring time-series list \
 
 ```bash
 # Simple health check
-curl https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/health.check
+curl https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/health.check
 
 # Detailed health check
-curl https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/health.detailed | jq '.'
+curl https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/health.detailed | jq '.'
 
 # Script de monitoramento completo
 /home/ubuntu/mother-interface/scripts/check-production-status.sh
@@ -970,7 +970,7 @@ curl https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc
 **Service Account**: mother-cloudrun-sa@mothers-library-mcp.iam.gserviceaccount.com  
 
 **Repositório GitHub**: https://github.com/Ehrvi/mother-v7-improvements.git  
-**Production URL**: https://mother-interface-233196174701.australia-southeast1.run.app  
+**Production URL**: https://mother-interface-qtvghovzxa-ts.a.run.app  
 
 ---
 

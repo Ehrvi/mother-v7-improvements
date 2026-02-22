@@ -313,7 +313,7 @@ pnpm test --coverage
 **Current Deployment:**
 - Revision: 00044-k86
 - Region: australia-southeast1 (Sydney)
-- URL: https://mother-interface-233196174701.australia-southeast1.run.app
+- URL: https://mother-interface-qtvghovzxa-ts.a.run.app
 - Status: ACTIVE (100% traffic)
 
 **Deploy Command:**

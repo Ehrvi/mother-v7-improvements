@@ -618,7 +618,7 @@
 **Projeto GCP:** `mothers-library-mcp`  
 **Região Atual:** `australia-southeast1` (Sydney)  
 **Serviço:** Cloud Run (serverless)  
-**URL Produção:** https://mother-interface-233196174701.australia-southeast1.run.app
+**URL Produção:** https://mother-interface-qtvghovzxa-ts.a.run.app
 
 ### Regiões Ásia Disponíveis
 

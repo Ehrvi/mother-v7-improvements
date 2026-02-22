@@ -342,7 +342,7 @@ git push github main
 - [ ] Manual trigger test successful
 - [ ] Automatic trigger test successful (push to main)
 - [ ] Cloud Run service updated with new revision
-- [ ] Production URL accessible: https://mother-interface-233196174701.australia-southeast1.run.app
+- [ ] Production URL accessible: https://mother-interface-qtvghovzxa-ts.a.run.app
 - [ ] API key working (no 401 errors)
 - [ ] Knowledge queries returning correct results
 

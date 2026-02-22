@@ -47,7 +47,7 @@ cd /home/ubuntu/mother-interface && gcloud run deploy mother-interface \
 
 ### Resultado
 - ✅ **Nova revision:** 00052-mdp
-- ✅ **URL:** https://mother-interface-233196174701.australia-southeast1.run.app
+- ✅ **URL:** https://mother-interface-qtvghovzxa-ts.a.run.app
 - ✅ **API key:** Corrigida (usando $OPENAI_API_KEY do ambiente local)
 - ✅ **Deploy time:** ~5 minutos
 
@@ -103,7 +103,7 @@ curl -s -X POST "http://localhost:3000/api/trpc/mother.query?batch=1" \
 
 **Comando:**
 ```bash
-curl -s -X POST "https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/mother.query?batch=1" \
+curl -s -X POST "https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/mother.query?batch=1" \
   -H "Content-Type: application/json" \
   -d '{"0":{"json":{"query":"o que você sabe sobre PMBOK?"}}}'
 ```
@@ -201,7 +201,7 @@ gcloud run deploy mother-interface \
   ...
 
 # 3. Validar em produção
-curl -s -X POST "https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/mother.query?batch=1" \
+curl -s -X POST "https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/mother.query?batch=1" \
   -H "Content-Type: application/json" \
   -d '{"0":{"json":{"query":"teste"}}}'
 ```
@@ -228,7 +228,7 @@ curl -s -X POST "https://mother-interface-233196174701.australia-southeast1.run.
 ## 🚀 STATUS FINAL
 
 ### Produção (Revision 00052-mdp)
-- ✅ **URL:** https://mother-interface-233196174701.australia-southeast1.run.app
+- ✅ **URL:** https://mother-interface-qtvghovzxa-ts.a.run.app
 - ✅ **API Key:** Corrigida e funcionando
 - ✅ **Conhecimento:** 208 entries (100% embeddings coverage)
 - ✅ **Quality Score:** 99/100 (teste PMBOK)

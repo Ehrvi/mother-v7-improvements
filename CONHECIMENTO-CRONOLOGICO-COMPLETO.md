@@ -544,7 +544,7 @@ if (complexity >= 0.7 || clientFacing || critical) {
 ## 6. MOTHER Production System Status
 
 ### Deployment:
-- **URL:** https://mother-interface-233196174701.australia-southeast1.run.app
+- **URL:** https://mother-interface-qtvghovzxa-ts.a.run.app
 - **Latest Revision:** 00052-mdp (as of 2026-02-19 23:15)
 - **Region:** australia-southeast1
 - **Database:** TiDB (shared with local)

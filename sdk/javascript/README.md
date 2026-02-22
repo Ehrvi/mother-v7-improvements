@@ -28,7 +28,7 @@ import { MotherClient } from '@mother/sdk-js';
 
 // Initialize client
 const mother = new MotherClient({
-  baseUrl: 'https://mother-interface-233196174701.australia-southeast1.run.app',
+  baseUrl: 'https://mother-interface-qtvghovzxa-ts.a.run.app',
   sessionCookie: 'your-session-cookie', // Optional, from OAuth
   timeout: 30000, // Optional, default 30s
   debug: false // Optional, enable logging
@@ -317,7 +317,7 @@ MIT © Everton Luis Garcia
 
 ## Links
 
-- [API Documentation](https://mother-interface-233196174701.australia-southeast1.run.app/api/docs)
+- [API Documentation](https://mother-interface-qtvghovzxa-ts.a.run.app/api/docs)
 - [GitHub Repository](https://github.com/Ehrvi/mother-v7-improvements)
 - [Report Issues](https://github.com/Ehrvi/mother-v7-improvements/issues)
 

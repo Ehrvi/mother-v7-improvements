@@ -1,0 +1,122 @@
+# Cloud Build configuration for documentation validation
+# This runs AFTER successful deployment to validate docs match production
+
+steps:
+  # Step 1: Install gcloud components
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'install-components'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Installing gcloud components..."
+        gcloud components install alpha --quiet
+        echo "✅ Components installed"
+
+  # Step 2: Capture production state
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'capture-production-state'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "📊 Capturing production state..."
+        
+        # Cloud Run
+        gcloud run services describe mother-interface \
+          --region=australia-southeast1 \
+          --format=json > /workspace/prod-cloudrun.json
+        
+        # Redis
+        gcloud redis instances describe mother-cache \
+          --region=australia-southeast1 \
+          --format=json > /workspace/prod-redis.json
+        
+        # VPC Connector
+        gcloud compute networks vpc-access connectors describe mother-vpc-connector \
+          --region=australia-southeast1 \
+          --format=json > /workspace/prod-vpc.json
+        
+        # Project
+        gcloud projects describe mothers-library-mcp \
+          --format=json > /workspace/prod-project.json
+        
+        echo "✅ Production state captured"
+
+  # Step 3: Validate documentation
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'validate-documentation'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "🔍 Validating documentation..."
+        
+        # Read production state
+        PROJECT_ID=$(jq -r '.projectId' /workspace/prod-project.json)
+        CLOUDRUN_URL=$(jq -r '.status.url' /workspace/prod-cloudrun.json)
+        REDIS_NAME=$(jq -r '.name' /workspace/prod-redis.json | awk -F'/' '{print $$NF}')
+        REDIS_HOST=$(jq -r '.host' /workspace/prod-redis.json)
+        
+        REWAKE_DOC="/workspace/MOTHER-V14-RE-WAKE-DOCUMENT-V2.md"
+        
+        # Check if Re-Wake Document exists
+        if [ ! -f "$$REWAKE_DOC" ]; then
+          echo "⚠️  Re-Wake Document V2 not found, skipping validation"
+          exit 0
+        fi
+        
+        ERRORS=0
+        
+        # Validate critical fields
+        if ! grep -q "$$PROJECT_ID" "$$REWAKE_DOC"; then
+          echo "❌ Project ID mismatch!"
+          ERRORS=$$((ERRORS + 1))
+        else
+          echo "✅ Project ID: $$PROJECT_ID"
+        fi
+        
+        if ! grep -q "$$CLOUDRUN_URL" "$$REWAKE_DOC"; then
+          echo "❌ Cloud Run URL mismatch!"
+          ERRORS=$$((ERRORS + 1))
+        else
+          echo "✅ Cloud Run URL: $$CLOUDRUN_URL"
+        fi
+        
+        if ! grep -q "$$REDIS_NAME" "$$REWAKE_DOC"; then
+          echo "❌ Redis name mismatch!"
+          ERRORS=$$((ERRORS + 1))
+        else
+          echo "✅ Redis name: $$REDIS_NAME"
+        fi
+        
+        if ! grep -q "$$REDIS_HOST" "$$REWAKE_DOC"; then
+          echo "❌ Redis host mismatch!"
+          ERRORS=$$((ERRORS + 1))
+        else
+          echo "✅ Redis host: $$REDIS_HOST"
+        fi
+        
+        # Exit with appropriate code
+        if [ $$ERRORS -eq 0 ]; then
+          echo ""
+          echo "✅ Documentation validation PASSED"
+          exit 0
+        else
+          echo ""
+          echo "❌ Documentation validation FAILED ($$ERRORS errors)"
+          echo ""
+          echo "⚠️  WARNING: Documentation is out of sync with production!"
+          echo "Please run: /home/ubuntu/scripts/generate-rewake-doc.mjs"
+          echo ""
+          echo "Continuing deployment despite validation failure..."
+          exit 0  # Don't fail the build, just warn
+        fi
+
+# Timeout for the entire build
+timeout: '600s'
+
+# Options
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'

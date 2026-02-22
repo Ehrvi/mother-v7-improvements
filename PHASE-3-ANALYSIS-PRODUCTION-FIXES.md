@@ -293,12 +293,12 @@ Write unit tests for auth endpoints (NOTE: 5/17 tests failing due to Drizzle ORM
 gcloud run deploy mother-interface --source . --region australia-southeast1
 
 # Test login endpoint
-curl -X POST "https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/auth.login" \
+curl -X POST "https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/auth.login" \
   -H "Content-Type: application/json" \
   -d '{"email":"elgarcia.eng@gmail.com","password":"[password]"}'
 
 # Test Creator Context
-curl -X POST "https://mother-interface-233196174701.australia-southeast1.run.app/api/trpc/mother.query" \
+curl -X POST "https://mother-interface-qtvghovzxa-ts.a.run.app/api/trpc/mother.query" \
   -H "Content-Type: application/json" \
   -H "Cookie: [session-cookie]" \
   -d '{"query":"Quem é seu criador?"}'

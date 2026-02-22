@@ -26,7 +26,7 @@
 
 **Core Concept:** Intelligent LLM routing system with 7-layer architecture for cost optimization (83% reduction) and quality enhancement (90+ scores).
 
-**Status:** DEPLOYED & OPERATIONAL (https://mother-interface-233196174701.australia-southeast1.run.app)
+**Status:** DEPLOYED & OPERATIONAL (https://mother-interface-qtvghovzxa-ts.a.run.app)
 
 ### 1.2 Architecture Layers
 

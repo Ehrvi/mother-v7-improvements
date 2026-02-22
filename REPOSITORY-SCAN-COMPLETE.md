@@ -49,7 +49,7 @@
 - **Last Updated:** 2026-02-17 03:19:34Z
 - **Status:** Current production
 - **Description:** MOTHER v7.0 Web Interface (current production deployment)
-- **Significance:** **CURRENT PRODUCTION** (https://mother-interface-233196174701.australia-southeast1.run.app)
+- **Significance:** **CURRENT PRODUCTION** (https://mother-interface-qtvghovzxa-ts.a.run.app)
 - **Location:** `/home/ubuntu/mother-interface`
 
 ---
