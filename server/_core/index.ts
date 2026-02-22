@@ -132,7 +132,7 @@ async function startServer() {
   registerOAuthRoutes(app);
 
   // Cloud Tasks worker endpoint for Omniscient
-  const { processOmniscientPaper } = await import('../omniscient/worker');
+  const { processOmniscientPaper } = await import('../omniscient/worker.js');
   app.post('/api/tasks/omniscient-worker', express.json(), processOmniscientPaper);
 
   // OpenAPI/Swagger documentation (#23: OpenAPI Documentation)
