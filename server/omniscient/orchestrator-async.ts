@@ -1,21 +1,23 @@
 /**
- * MOTHER Omniscient - Async Orchestrator (v20.1)
+ * MOTHER Omniscient - Async Orchestrator (v20.2)
  * 
- * Fully asynchronous orchestrator that returns immediately and processes discovery in background.
- * This solves the orchestrator timeout issue by moving searchArxiv to a background process.
+ * Dual-queue architecture orchestrator that eliminates fire-and-forget pattern.
+ * Uses Cloud Tasks for both discovery and paper processing.
  * 
  * Architecture:
- * 1. Create knowledge area with status 'discovering' (sync, <1s)
- * 2. Return immediately with areaId (total time: <2s)
- * 3. Background process: Search arXiv + Enqueue tasks (async, no timeout)
- * 4. Workers process papers asynchronously (no timeout limit)
+ * 1. Create knowledge area with status 'pending' (sync, <1s)
+ * 2. Enqueue discovery task to discovery-queue (sync, <1s)
+ * 3. Return immediately with areaId (total time: <2s)
+ * 4. Discovery worker: Search arXiv + Enqueue paper tasks (async, no timeout)
+ * 5. Paper workers: Process papers asynchronously (no timeout limit)
+ * 
+ * This eliminates the fire-and-forget pattern that failed in v20.1 due to
+ * Cloud Run terminating containers after HTTP response.
  */
 
-import { eq } from 'drizzle-orm';
 import { getDb } from '../db';
 import { knowledgeAreas } from '../../drizzle/schema';
-import { searchArxiv } from './arxiv';
-import { enqueueOmniscientTasksBatch, type OmniscientTaskPayload } from '../_core/cloudTasks';
+import { enqueueDiscoveryTask } from '../_core/cloudTasks';
 
 export interface StudyOptionsAsync {
   maxPapers?: number; // Max papers to process (default: 100)
@@ -24,22 +26,27 @@ export interface StudyOptionsAsync {
 
 export interface StudyResultAsync {
   knowledgeAreaId: number;
-  papersEnqueued: number;
+  discoveryTaskName: string;
   message: string;
 }
 
 /**
- * Study a knowledge area asynchronously with instant return
+ * Study a knowledge area asynchronously with dual-queue architecture
  * 
  * This function:
- * 1. Creates a knowledge area with status 'discovering'
- * 2. Returns immediately (< 2s)
- * 3. Processes discovery and enqueuing in background
+ * 1. Creates a knowledge area with status 'pending'
+ * 2. Enqueues a discovery task to discovery-queue
+ * 3. Returns immediately (< 2s)
+ * 
+ * The discovery worker will:
+ * 1. Search arXiv for papers
+ * 2. Enqueue paper processing tasks to omniscient-study-queue
+ * 3. Update knowledge area status to 'in_progress'
  * 
  * @param name - Knowledge area name (used as arXiv query)
  * @param description - Optional description
  * @param options - Study options (maxPapers, dateRange)
- * @returns Study result with areaId (papersEnqueued will be 0 initially)
+ * @returns Study result with areaId and discovery task name
  */
 export async function studyKnowledgeAreaAsync(
   name: string,
@@ -49,94 +56,33 @@ export async function studyKnowledgeAreaAsync(
   const db = await getDb();
   if (!db) throw new Error('Database not available');
 
-  console.log(`\n🚀 [Async Orchestrator v20.1] Initiating study: "${name}"`);
+  console.log(`\n🚀 [Async Orchestrator v20.2] Initiating study: "${name}"`);
 
-  // Create knowledge area with status 'discovering'
+  // Create knowledge area with status 'pending'
   const areaResult = await db.insert(knowledgeAreas).values({
     name,
     description: description || `Study of ${name} from arXiv`,
-    status: 'pending', // Will be updated to 'in_progress' after discovery
+    status: 'pending', // Will be updated to 'in_progress' by discovery worker
     papersCount: 0,
     chunksCount: 0,
     cost: '0.0000',
   });
 
   const areaId = Number(areaResult[0].insertId);
-  console.log(`✅ Knowledge area created with ID: ${areaId}. Discovery will run in background.`);
+  console.log(`✅ Knowledge area created with ID: ${areaId}`);
 
-  // Fire-and-forget: Process discovery in background
-  processDiscoveryInBackground(areaId, name, options).catch(error => {
-    console.error(`[Background Discovery] Error for area ${areaId}:`, error);
+  // Enqueue discovery task to discovery-queue
+  const discoveryTaskName = await enqueueDiscoveryTask({
+    areaId,
+    name,
+    options,
   });
+
+  console.log(`✅ Discovery task enqueued: ${discoveryTaskName}`);
 
   return {
     knowledgeAreaId: areaId,
-    papersEnqueued: 0, // Will be updated in background
-    message: `Study initiated! Discovery and processing will run asynchronously. Check area status for progress.`,
+    discoveryTaskName,
+    message: `Study initiated! Discovery task enqueued. Processing will start shortly.`,
   };
-}
-
-/**
- * Background process: Search arXiv and enqueue papers
- * This runs asynchronously without blocking the HTTP response
- */
-async function processDiscoveryInBackground(
-  areaId: number,
-  name: string,
-  options: StudyOptionsAsync
-) {
-  const db = await getDb();
-  if (!db) return;
-
-  try {
-    const maxPapers = options.maxPapers || 100;
-
-    console.log(`\n[Background Discovery] Starting for area ${areaId}...`);
-
-    // Search arXiv
-    const arxivPapers = await searchArxiv({
-      query: name,
-      maxResults: maxPapers,
-      startDate: options.dateRange?.start ? new Date(options.dateRange.start) : undefined,
-      endDate: options.dateRange?.end ? new Date(options.dateRange.end) : undefined,
-    });
-
-    console.log(`[Background Discovery] Found ${arxivPapers.length} papers for area ${areaId}`);
-
-    if (arxivPapers.length === 0) {
-      await db.update(knowledgeAreas)
-        .set({ status: 'completed' })
-        .where(eq(knowledgeAreas.id, areaId));
-      return;
-    }
-
-    // Enqueue papers as Cloud Tasks
-    const payloads: OmniscientTaskPayload[] = arxivPapers.map(paper => ({
-      knowledgeAreaId: areaId,
-      arxivId: paper.id,
-      title: paper.title,
-      authors: paper.authors,
-      abstract: paper.abstract,
-      publishedDate: paper.publishedDate,
-      pdfUrl: paper.pdfUrl,
-    }));
-
-    const taskNames = await enqueueOmniscientTasksBatch(payloads);
-    console.log(`[Background Discovery] Enqueued ${taskNames.length}/${arxivPapers.length} tasks for area ${areaId}`);
-
-    // Update status to 'in_progress'
-    await db.update(knowledgeAreas)
-      .set({ status: 'in_progress' })
-      .where(eq(knowledgeAreas.id, areaId));
-
-    console.log(`[Background Discovery] Completed for area ${areaId}`);
-
-  } catch (error) {
-    console.error(`[Background Discovery] Error for area ${areaId}:`, error);
-
-    // Mark as failed
-    await db.update(knowledgeAreas)
-      .set({ status: 'failed' })
-      .where(eq(knowledgeAreas.id, areaId));
-  }
 }

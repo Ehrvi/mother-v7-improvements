@@ -69,11 +69,11 @@ export const omniscientRouter = router({
         { maxPapers: input.maxPapers }
       );
 
-      // Return with area info and enqueued count
+      // Return with area info and discovery task name
       return {
         message: result.message,
         knowledgeAreaId: result.knowledgeAreaId,
-        papersEnqueued: result.papersEnqueued,
+        discoveryTaskName: result.discoveryTaskName,
       };
     }),
 

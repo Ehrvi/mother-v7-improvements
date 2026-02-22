@@ -15,9 +15,11 @@ const client = new CloudTasksClient();
 const PROJECT_ID = process.env.GCP_PROJECT_ID || 'mothers-library-mcp';
 const LOCATION = process.env.GCP_LOCATION || 'australia-southeast1';
 const QUEUE_NAME = 'omniscient-study-queue';
+const DISCOVERY_QUEUE_NAME = 'discovery-queue';
 
-// Construct queue path
+// Construct queue paths
 const queuePath = client.queuePath(PROJECT_ID, LOCATION, QUEUE_NAME);
+const discoveryQueuePath = client.queuePath(PROJECT_ID, LOCATION, DISCOVERY_QUEUE_NAME);
 
 export interface OmniscientTaskPayload {
   knowledgeAreaId: number;
@@ -89,6 +91,51 @@ export async function enqueueOmniscientTasksBatch(
   console.log(`✅ Enqueued ${successfulTaskNames.length}/${payloads.length} tasks in parallel.`);
 
   return successfulTaskNames;
+}
+
+export interface DiscoveryTaskPayload {
+  areaId: number;
+  name: string;
+  options: {
+    maxPapers?: number;
+    dateRange?: { start: string; end: string };
+  };
+}
+
+/**
+ * Enqueue a discovery task to the discovery-queue
+ * 
+ * @param payload - Discovery task payload
+ * @returns Task name (for tracking)
+ */
+export async function enqueueDiscoveryTask(
+  payload: DiscoveryTaskPayload
+): Promise<string> {
+  const url = process.env.CLOUD_RUN_URL || 'https://mother-interface-233196174701.australia-southeast1.run.app';
+  const taskEndpoint = `${url}/api/tasks/discovery-worker`;
+
+  const task: protos.google.cloud.tasks.v2.ITask = {
+    httpRequest: {
+      httpMethod: 'POST',
+      url: taskEndpoint,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: Buffer.from(JSON.stringify(payload)).toString('base64'),
+      oidcToken: {
+        serviceAccountEmail: process.env.GCP_SERVICE_ACCOUNT_EMAIL,
+      },
+    },
+  };
+
+  const request = {
+    parent: discoveryQueuePath,
+    task,
+  };
+
+  const [response] = await client.createTask(request);
+  console.log(`✅ Discovery task enqueued: ${response.name}`);
+  return response.name!;
 }
 
 /**
