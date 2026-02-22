@@ -1,14 +1,19 @@
 /**
- * Omniscient Worker Endpoint
+ * Omniscient Worker Endpoint (v19.4 Omega Fix)
  * 
  * Processes a single paper from Cloud Tasks queue.
  * This endpoint is called by Cloud Tasks for each paper in a study job.
+ * 
+ * v19.4 Optimizations:
+ * 1. Parallel I/O (Promise.all for PDF download + DB check)
+ * 2. Transaction-based chunk insertion (atomic, parallel)
+ * 3. SQL-based atomic updates (no SELECT before UPDATE)
  */
 
 import { Request, Response } from 'express';
 import { getDb } from '../db';
 import { papers, paperChunks, knowledgeAreas } from '../../drizzle/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { downloadPdf } from './arxiv';
 import { extractTextFromPdf, chunkText } from './pdf';
 import { generateEmbeddingsBatch } from './embeddings';
@@ -35,104 +40,77 @@ export async function processOmniscientPaper(
     res.status(500).json({ success: false, error: 'Database not available' });
     return;
   }
-  
+
+  const payload: WorkerPayload = req.body;
+  const { knowledgeAreaId, arxivId, title, authors, abstract, publishedDate, pdfUrl } = payload;
+
   try {
-    const payload: WorkerPayload = req.body;
+    console.log(`\n[Worker v19.4] Processing paper: ${arxivId}`);
 
-    console.log(`\n[Worker] Processing paper: ${payload.arxivId}`);
-    console.log(`  Title: ${payload.title}`);
-    console.log(`  Knowledge Area: ${payload.knowledgeAreaId}`);
+    // Optimization 1: Parallel I/O (download PDF + check if paper exists)
+    const [pdfBuffer, existingPaper] = await Promise.all([
+      downloadPdf(pdfUrl),
+      db.select().from(papers).where(eq(papers.arxivId, arxivId)).limit(1),
+    ]);
 
-    // Step 1: Download PDF
-    console.log(`  [1/5] Downloading PDF...`);
-    const pdfBuffer = await downloadPdf(payload.pdfUrl);
-    console.log(`  ✅ Downloaded ${(pdfBuffer.length / 1024).toFixed(1)} KB`);
-
-    // Step 2: Extract text
-    console.log(`  [2/5] Extracting text...`);
-    const text = await extractTextFromPdf(pdfBuffer);
-    console.log(`  ✅ Extracted ${text.length} characters`);
-
-    // Validate text length
-    if (text.length < 1000) {
-      console.warn(`  ⚠️  Text too short (${text.length} chars), skipping paper`);
-      res.status(200).json({
-        success: false,
-        reason: 'Text too short',
-        arxivId: payload.arxivId,
-      });
+    if (existingPaper.length > 0) {
+      console.log(`  ⚠️ Paper ${arxivId} already exists. Skipping.`);
+      res.status(200).json({ success: true, message: 'Paper already exists' });
       return;
     }
 
-    // Step 3: Chunk text
-    console.log(`  [3/5] Chunking text...`);
+    const text = await extractTextFromPdf(pdfBuffer);
+    if (text.length < 1000) {
+      console.warn(`  ⚠️ Text too short (${text.length} chars), skipping.`);
+      res.status(200).json({ success: false, reason: 'Text too short' });
+      return;
+    }
+
     const chunks = chunkText(text);
-    console.log(`  ✅ Created ${chunks.length} chunks`);
-
-    // Step 4: Store paper in database
-    console.log(`  [4/5] Storing paper metadata...`);
-    const paperResult = await db.insert(papers).values({
-      knowledgeAreaId: payload.knowledgeAreaId,
-      arxivId: payload.arxivId,
-      title: payload.title,
-      authors: payload.authors.join(', '),
-      abstract: payload.abstract,
-      publishedDate: payload.publishedDate,
-      pdfUrl: payload.pdfUrl,
-      chunksCount: chunks.length,
-    });
-
-    const paperId = Number(paperResult[0].insertId);
-    console.log(`  ✅ Paper stored with ID: ${paperId}`);
-
-    // Step 5: Generate embeddings and store chunks
-    console.log(`  [5/5] Generating embeddings for ${chunks.length} chunks...`);
     const embeddings = await generateEmbeddingsBatch(chunks.map(c => c.text));
     const embeddingCost = (chunks.reduce((sum, c) => sum + c.tokenCount, 0) / 1000) * 0.00002;
 
-    // Store chunks with embeddings
-    for (let j = 0; j < chunks.length; j++) {
-      await db.insert(paperChunks).values({
-        paperId,
-        chunkIndex: j,
-        text: chunks[j].text,
-        embedding: JSON.stringify(embeddings[j]),
-        tokenCount: chunks[j].tokenCount,
+    // Optimization 2: Use transaction for atomicity
+    await db.transaction(async (tx) => {
+      const paperResult = await tx.insert(papers).values({
+        knowledgeAreaId,
+        arxivId,
+        title,
+        authors: authors.join(', '),
+        abstract,
+        publishedDate,
+        pdfUrl,
+        chunksCount: chunks.length,
       });
-    }
+      const paperId = Number(paperResult[0].insertId);
 
-    console.log(`  ✅ Paper processed successfully!`);
-    console.log(`  📊 Stats: ${chunks.length} chunks, $${embeddingCost.toFixed(4)} cost`);
-
-    // Update knowledge area stats (increment counters)
-    // Note: Using raw SQL for increment operations
-    // This is a simplified version - in production, use proper atomic updates
-    const [area] = await db.select().from(knowledgeAreas).where(eq(knowledgeAreas.id, payload.knowledgeAreaId));
-    if (area) {
-      await db
-        .update(knowledgeAreas)
-        .set({
-          papersCount: (area.papersCount || 0) + 1,
-          chunksCount: (area.chunksCount || 0) + chunks.length,
-          cost: String((parseFloat(area.cost || '0') + embeddingCost).toFixed(4)),
+      // Optimization 3: Insert chunks in parallel
+      const chunkInsertPromises = chunks.map((chunk, j) =>
+        tx.insert(paperChunks).values({
+          paperId,
+          chunkIndex: j,
+          text: chunk.text,
+          embedding: JSON.stringify(embeddings[j]),
+          tokenCount: chunk.tokenCount,
         })
-        .where(eq(knowledgeAreas.id, payload.knowledgeAreaId));
-    }
+      );
+      await Promise.all(chunkInsertPromises);
 
-    res.status(200).json({
-      success: true,
-      paperId,
-      arxivId: payload.arxivId,
-      chunksCreated: chunks.length,
-      cost: embeddingCost,
+      // Optimization 4: Use SQL for atomic updates
+      await tx.update(knowledgeAreas)
+        .set({
+          papersCount: sql`${knowledgeAreas.papersCount} + 1`,
+          chunksCount: sql`${knowledgeAreas.chunksCount} + ${chunks.length}`,
+          cost: sql`${knowledgeAreas.cost} + ${embeddingCost}`,
+        })
+        .where(eq(knowledgeAreas.id, knowledgeAreaId));
     });
+
+    console.log(`  ✅ Paper ${arxivId} processed successfully!`);
+    res.status(200).json({ success: true, arxivId, chunksCreated: chunks.length });
 
   } catch (error) {
-    console.error(`\n❌ [Worker] Error processing paper:`, error);
-    res.status(500).json({
-      success: false,
-      error: String(error),
-      arxivId: req.body.arxivId,
-    });
+    console.error(`\n❌ [Worker v19.4] Error processing ${arxivId}:`, error);
+    res.status(500).json({ success: false, error: String(error), arxivId });
   }
 }
