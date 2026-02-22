@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { decimal, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -56,7 +56,7 @@ export const queries = mysqlTable("queries", {
   // Performance Metrics
   responseTime: int("responseTime"), // milliseconds
   tokensUsed: int("tokensUsed"),
-  cost: varchar("cost", { length: 20 }), // USD stored as string
+  cost: decimal("cost", { precision: 15, scale: 8 }).notNull().default("0.00000000"), // USD stored as string
   cacheHit: int("cacheHit").default(0), // 0 or 1 (boolean)
   
   // Metadata
@@ -313,7 +313,7 @@ export const knowledgeAreas = mysqlTable("knowledge_areas", {
   papersCount: int("papersCount").default(0),
   chunksCount: int("chunksCount").default(0),
   qualityScore: varchar("qualityScore", { length: 20 }),
-  cost: varchar("cost", { length: 20 }),
+  cost: decimal("cost", { precision: 15, scale: 8 }).notNull().default("0.00000000"),
   
   // Metadata
   createdAt: timestamp("createdAt").defaultNow().notNull(),

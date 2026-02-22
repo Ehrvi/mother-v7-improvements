@@ -64,6 +64,20 @@
       "when": 1771793321320,
       "tag": "0008_unknown_miss_america",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1771795876298,
+      "tag": "0009_rapid_triathlon",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1771795900482,
+      "tag": "0010_blushing_warbird",
+      "breakpoints": true
     }
   ]
 }

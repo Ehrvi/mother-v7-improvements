@@ -69,10 +69,9 @@ export const omniscientRouter = router({
         { maxPapers: input.maxPapers }
       );
 
-      // Return with job info and enqueued count
+      // Return with area info and enqueued count
       return {
         message: result.message,
-        jobId: result.job.id,
         knowledgeAreaId: result.knowledgeAreaId,
         papersEnqueued: result.papersEnqueued,
       };
