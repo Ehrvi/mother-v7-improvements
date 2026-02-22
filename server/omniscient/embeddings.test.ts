@@ -46,7 +46,7 @@ describe('MOTHER Omniscient - Embeddings', () => {
     const tokenCount = 100000; // 100K tokens
     const cost = calculateEmbeddingCost(tokenCount);
     
-    expect(cost).toBe(2.0); // $0.00002 * 100 = $2.00
+    expect(cost).toBe(0.002); // $0.00002 * 100 = $0.002 (not $2.00)
   });
   
   it('should serialize and deserialize embeddings', () => {

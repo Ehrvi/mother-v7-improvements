@@ -5,8 +5,7 @@
  */
 
 import { get_encoding } from 'tiktoken';
-// Note: pdf-parse has complex API, using simple extraction for MVP
-// TODO (Phase 6): Integrate pdf-parse properly or use pdfjs-dist
+import { PDFParse } from 'pdf-parse';
 
 /**
  * Text chunk with metadata
@@ -45,40 +44,18 @@ export interface ChunkingOptions {
  */
 export async function extractTextFromPdf(pdfBuffer: Buffer): Promise<string> {
   try {
-    // Simple text extraction for MVP
-    // Works for basic PDFs, may fail on complex layouts
+    // Use pdf-parse library (v2 API) for proper PDF text extraction
+    const parser = new PDFParse({ data: pdfBuffer });
+    const result = await parser.getText();
     
-    // Convert buffer to string and extract text between stream/endstream markers
-    const pdfString = pdfBuffer.toString('latin1');
+    const text = result.text.trim();
     
-    // Simple regex to extract text (works for basic PDFs)
-    const textMatches = pdfString.match(/stream\s+([\s\S]*?)\s+endstream/g);
-    
-    if (!textMatches) {
-      throw new Error('No text found in PDF');
-    }
-    
-    // Extract and clean text
-    let text = '';
-    for (const match of textMatches) {
-      const content = match.replace(/stream\s+/, '').replace(/\s+endstream/, '');
-      
-      // Remove PDF operators and keep only readable text
-      const readable = content.replace(/[^\x20-\x7E\n]/g, ' ');
-      text += readable + '\n';
-    }
-    
-    // Clean up whitespace
-    text = text
-      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
-      .replace(/\n\s+/g, '\n') // Remove spaces after newlines
-      .trim();
-    
-    console.log(`[PDF] Extracted ${text.length} characters (simple extraction)`);
+    console.log(`[PDF] Extracted ${text.length} characters using pdf-parse`);
+    console.log(`[PDF] Pages: ${result.pages?.length || 'unknown'}`);
     
     if (text.length < 100) {
       console.warn('[PDF] Extracted text is suspiciously short, PDF might be image-based or encrypted');
-      console.warn('[PDF] Consider using pdf-parse or pdfjs-dist for better extraction');
+      console.warn('[PDF] Consider using OCR for image-based PDFs');
     }
     
     return text;
