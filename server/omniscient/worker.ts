@@ -83,7 +83,7 @@ export async function processPaper(req: Request, res: Response): Promise<void> {
     // 4. Save everything in a single atomic transaction
     await db.transaction(async (tx) => {
       // Insert paper with 'completed' status
-      const paperResult = await tx.insert(papers).values({
+      const paperData = {
         knowledgeAreaId: payload.knowledgeAreaId,
         arxivId: payload.arxivId,
         title: payload.title,
@@ -91,9 +91,17 @@ export async function processPaper(req: Request, res: Response): Promise<void> {
         abstract: payload.abstract,
         publishedDate: new Date(payload.publishedDate),
         pdfUrl: payload.pdfUrl,
-        status: 'completed',
+        status: 'completed' as const,
         chunksCount: chunks.length,
-      });
+      };
+      console.log(`[v20.4] 📝 Inserting paper data:`, JSON.stringify({
+        arxivId: paperData.arxivId,
+        knowledgeAreaId: paperData.knowledgeAreaId,
+        publishedDate: paperData.publishedDate,
+        authorsLength: paperData.authors.length,
+        abstractLength: paperData.abstract?.length || 0,
+      }));
+      const paperResult = await tx.insert(papers).values(paperData);
 
       const paperId = Number(paperResult[0].insertId);
 
@@ -128,6 +136,16 @@ export async function processPaper(req: Request, res: Response): Promise<void> {
     });
   } catch (error) {
     console.error(`[v20.4] ❌ Error processing paper ${payload.arxivId}:`, error);
+    console.error(`[v20.4] 🔍 Error details:`, {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      payload: {
+        arxivId: payload.arxivId,
+        knowledgeAreaId: payload.knowledgeAreaId,
+        publishedDate: payload.publishedDate,
+        authorsCount: payload.authors?.length || 0,
+      }
+    });
     
     // Try to save as 'failed' to avoid infinite retries
     try {
