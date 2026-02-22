@@ -73,20 +73,22 @@ export async function enqueueOmniscientTask(
 export async function enqueueOmniscientTasksBatch(
   payloads: OmniscientTaskPayload[]
 ): Promise<string[]> {
-  const taskNames: string[] = [];
-
-  for (const payload of payloads) {
-    try {
-      const taskName = await enqueueOmniscientTask(payload);
-      taskNames.push(taskName);
-      console.log(`✅ Enqueued task for paper: ${payload.arxivId}`);
-    } catch (error) {
+  // Parallelize task enqueuing with Promise.all for O(1) latency
+  const taskPromises = payloads.map(payload => 
+    enqueueOmniscientTask(payload).catch(error => {
       console.error(`❌ Failed to enqueue task for paper ${payload.arxivId}:`, error);
-      // Continue with next paper (partial success)
-    }
-  }
+      return null; // Return null for failed tasks to prevent Promise.all rejection
+    })
+  );
 
-  return taskNames;
+  const results = await Promise.all(taskPromises);
+  
+  // Filter out null results (failed tasks)
+  const successfulTaskNames = results.filter((name): name is string => name !== null);
+
+  console.log(`✅ Enqueued ${successfulTaskNames.length}/${payloads.length} tasks in parallel.`);
+
+  return successfulTaskNames;
 }
 
 /**
