@@ -180,15 +180,17 @@ export function assessComplexity(query: string): ComplexityAssessment {
   let tier: LLMTier;
   let confidenceScore: number;
 
-  // Phase 15: Adjusted thresholds based on Phase 17 load test results
-  // Previous: 0.4/0.7 resulted in 45.4/51.4/0 distribution
-  // Target: 60/30/10 distribution
-  // New thresholds: 0.35/0.65 (lowered by 0.05 each)
+  // Phase 15: Adjusted thresholds based on empirical validation
+  // Iteration 1: 0.4/0.7 → 45.4/51.4/0 distribution
+  // Iteration 2: 0.35/0.65 → 31.2/31.2/0 distribution (worse!)
+  // Root cause: "What is" questions have 0.5 complexity (0.25 baseline + 0.05 length + 0.20 question)
+  // Iteration 3: 0.50/0.65 (empirically calibrated)
+  // Expected: 55-65% Guardian, 25-35% Direct, 5-15% Parallel
   if (complexityScore >= 0.65) {
     // High complexity → GPT-4 (Tier 3)
     tier = "gpt-4";
     confidenceScore = 0.95; // High confidence in tier selection
-  } else if (complexityScore >= 0.35) {
+  } else if (complexityScore >= 0.50) {
     // Medium complexity → GPT-4o (Tier 2)
     tier = "gpt-4o";
     confidenceScore = 0.85;
