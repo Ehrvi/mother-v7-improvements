@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Sparkles, Brain, Shield, Zap, TrendingDown } from "lucide-react";
+import { Send, Sparkles, Brain, Shield, Zap, TrendingDown, BookOpen } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -170,6 +170,16 @@ export default function Home() {
                   v7.0 - Multi-Operational Tiered Hierarchical Execution & Routing | 91% Cost Reduction | 94+ Quality
                 </p>
               </div>
+            </div>
+
+            {/* Navigation */}
+            <div className="flex items-center gap-3">
+              <Link href="/omniscient">
+                <Button variant="outline" size="sm" className="gap-2 border-[#B026FF]/30 hover:bg-[#B026FF]/10">
+                  <BookOpen className="w-4 h-4" />
+                  Omniscient
+                </Button>
+              </Link>
             </div>
 
             {/* Auth Section */}

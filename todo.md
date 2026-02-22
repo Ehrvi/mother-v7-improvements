@@ -2767,3 +2767,87 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 - [x] Job progress updates in real-time (queue.ts listeners working)
 - [x] Partial success handling (error recovery validated)
 - [x] All database records accurate (48 chunks stored correctly)
+
+
+---
+
+## Phase 7: Scale Testing (Feb 22, 2026)
+
+### Performance Validation
+- [ ] Test with 100 papers (full MVP scale)
+- [ ] Measure throughput (papers/hour)
+- [ ] Measure cost ($/paper, $/knowledge area)
+- [ ] Measure quality (embedding accuracy, search relevance)
+- [ ] Identify bottlenecks (PDF download, text extraction, embeddings, database)
+
+### Success Criteria
+- [ ] Process 100 papers in <3 hours
+- [ ] Cost <$15 per knowledge area
+- [ ] Search relevance >0.7 (cosine similarity)
+- [ ] Error rate <10% (90+ papers succeed)
+
+
+---
+
+## Phase 3: Omniscient UI (Feb 22, 2026)
+
+### UI Components
+- [ ] Create `/omniscient` page with knowledge areas list
+- [ ] Create "Study New Area" form (name, description, maxPapers)
+- [ ] Display job progress (status, progress bar, current step)
+- [ ] Show knowledge area details (papers count, chunks count, cost)
+- [ ] Implement semantic search interface (query input, results list)
+- [ ] Display search results with paper metadata and similarity scores
+
+### tRPC Integration
+- [ ] Create `omniscient` router in `server/routers.ts`
+- [ ] Add procedures: `listAreas`, `createStudyJob`, `getJobStatus`, `search`
+- [ ] Connect UI to backend via tRPC hooks
+
+### Success Criteria
+- [ ] User can create new study jobs from UI
+- [ ] User can monitor job progress in real-time
+- [ ] User can search knowledge areas semantically
+- [ ] UI is responsive and intuitive
+
+
+---
+
+## MOTHER Omniscient MVP Phase 1 (Feb 22, 2026)
+
+### Phase 5: PDF Parsing Fix ✅ COMPLETE
+- [x] Replace naive regex with pdf-parse library
+- [x] Test text extraction (39K+ characters from real papers)
+- [x] Validate semantic search (0.535 similarity achieved)
+- [x] Fix corrupted chunks (250 → 13 clean chunks)
+
+### Phase 6: Job Orchestration ✅ COMPLETE
+- [x] Create `server/omniscient/queue.ts` (in-memory job queue)
+- [x] Create `server/omniscient/orchestrator.ts` (7-layer study pipeline)
+- [x] Implement progress tracking (current step, progress %, ETA)
+- [x] Implement error recovery (retry failed steps, partial success)
+- [x] Test end-to-end: study 1 knowledge area with 3 papers (validated)
+- [x] Validate database records (48 chunks stored correctly)
+
+### Phase 3: Omniscient UI ⏭️ DEFERRED
+- [x] Create `server/omniscient/router.ts` (tRPC router)
+- [ ] Create `client/src/pages/Omniscient.tsx` (UI page) - BLOCKED by React duplicate versions issue
+- [ ] Add route to `client/src/App.tsx` - BLOCKED
+- [ ] Implement knowledge area list view - DEFERRED
+- [ ] Implement study job creation form - DEFERRED
+- [ ] Implement job progress monitoring (real-time updates) - DEFERRED
+- [ ] Implement semantic search interface - DEFERRED
+
+**Notes:**
+- Backend 100% functional via tRPC API
+- UI blocked by React duplicate versions issue (1h debugging, no resolution)
+- Decision: Ship MVP with API-only, add UI in Phase 8
+- API can be tested via Postman/curl/scripts
+
+### Phase 7: Testing & Documentation 🔄 IN PROGRESS
+- [ ] Write unit tests for omniscient modules
+- [ ] Document tRPC API endpoints
+- [ ] Create usage examples (curl/Postman)
+- [ ] Performance benchmarks (100+ papers test)
+- [ ] Save final checkpoint
+

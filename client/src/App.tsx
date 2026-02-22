@@ -11,6 +11,7 @@ const Signup = lazy(() => import("./pages/Signup"));
 const Login = lazy(() => import("./pages/Login"));
 const Admin = lazy(() => import("./pages/Admin"));
 const Analytics = lazy(() => import("./pages/Analytics"));
+import Omniscient from "./pages/Omniscient"; // Direct import for debugging
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Loading fallback component
@@ -34,6 +35,7 @@ function Router() {
         <Route path={"/login"} component={Login} />
         <Route path={"/admin"} component={Admin} />
         <Route path={"/analytics"} component={Analytics} />
+        <Route path={"/omniscient"} component={Omniscient} />
         <Route path={"/404"} component={NotFound} />
         {/* Final fallback route */}
         <Route component={NotFound} />
