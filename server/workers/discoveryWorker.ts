@@ -12,9 +12,9 @@
  */
 
 import type { Request, Response } from 'express';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { getDb } from '../db';
-import { knowledgeAreas } from '../../drizzle/schema';
+import { knowledgeAreas, papers } from '../../drizzle/schema';
 import { searchArxiv } from '../omniscient/arxiv';
 import { enqueueOmniscientTasksBatch, type OmniscientTaskPayload } from '../_core/cloudTasks';
 import { logger, startTimer, formatError } from '../omniscient/logger';
@@ -67,7 +67,23 @@ export async function handleDiscoveryRequest(req: Request, res: Response) {
       maxPapers,
     });
 
-    if (arxivPapers.length === 0) {
+    // Pre-filter duplicates (v22.0 optimization)
+    const paperArxivIds = arxivPapers.map(p => p.id);
+    const existingPapers = await db.select({ arxivId: papers.arxivId })
+      .from(papers)
+      .where(inArray(papers.arxivId, paperArxivIds));
+
+    const existingArxivIds = new Set(existingPapers.map(p => p.arxivId));
+    const newPapers = arxivPapers.filter(p => !existingArxivIds.has(p.id));
+
+    logger.info('Duplicate pre-filtering complete', {
+      areaId,
+      papersFound: arxivPapers.length,
+      duplicatesFound: existingArxivIds.size,
+      newPapersToProcess: newPapers.length,
+    });
+
+    if (newPapers.length === 0) {
       // No papers found - mark as completed
       await db.update(knowledgeAreas)
         .set({ status: 'completed' })
@@ -80,8 +96,8 @@ export async function handleDiscoveryRequest(req: Request, res: Response) {
       return res.status(200).send('Discovery complete (no papers found)');
     }
 
-    // Enqueue papers as Cloud Tasks to omniscient-study-queue
-    const payloads: OmniscientTaskPayload[] = arxivPapers.map(paper => ({
+    // Enqueue only new papers as Cloud Tasks to omniscient-study-queue
+    const payloads: OmniscientTaskPayload[] = newPapers.map(paper => ({
       knowledgeAreaId: areaId,
       arxivId: paper.id,
       title: paper.title,
@@ -96,6 +112,8 @@ export async function handleDiscoveryRequest(req: Request, res: Response) {
       areaId,
       tasksEnqueued: taskNames.length,
       totalPapers: arxivPapers.length,
+      newPapers: newPapers.length,
+      duplicatesSkipped: existingArxivIds.size,
     });
 
     // Update status to 'in_progress'
