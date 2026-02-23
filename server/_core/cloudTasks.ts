@@ -76,20 +76,26 @@ export async function enqueueOmniscientTask(
 export async function enqueueOmniscientTasksBatch(
   payloads: OmniscientTaskPayload[]
 ): Promise<string[]> {
-  // Parallelize task enqueuing with Promise.all for O(1) latency
+  // Parallelize task enqueuing with Promise.allSettled for best-effort processing
+  // (some tasks may fail due to transient errors, but we continue with successful ones)
   const taskPromises = payloads.map(payload => 
     enqueueOmniscientTask(payload).catch(error => {
       console.error(`❌ Failed to enqueue task for paper ${payload.arxivId}:`, error);
-      // CRITICAL: Throw error to propagate failure to orchestrator (no silent failures)
-      throw new Error(`Failed to enqueue task for paper ${payload.arxivId}: ${error.message}`);
+      return null; // Return null for failed tasks (best-effort)
     })
   );
 
   const results = await Promise.all(taskPromises);
+  const successfulTasks = results.filter((name): name is string => name !== null);
   
-  console.log(`✅ Enqueued ${results.length}/${payloads.length} tasks in parallel.`);
+  console.log(`✅ Enqueued ${successfulTasks.length}/${payloads.length} tasks in parallel.`);
 
-  return results;
+  // If ALL tasks failed, throw error to alert orchestrator
+  if (successfulTasks.length === 0 && payloads.length > 0) {
+    throw new Error(`Failed to enqueue all ${payloads.length} tasks`);
+  }
+
+  return successfulTasks;
 }
 
 export interface DiscoveryTaskPayload {
