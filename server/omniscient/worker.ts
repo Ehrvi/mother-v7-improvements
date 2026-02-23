@@ -101,8 +101,23 @@ export async function processPaper(req: Request, res: Response): Promise<void> {
     });
 
     // 2. Download and process PDF (with retry)
+    const downloadTimer = startTimer();
     const pdfBuffer = await retry(() => downloadPdf(payload.pdfUrl), 3, 1000);
+    const downloadDurationMs = downloadTimer.end();
+    logger.info('[PROFILING] PDF downloaded', {
+      arxivId: payload.arxivId,
+      durationMs: downloadDurationMs,
+      bufferSizeKB: Math.round(pdfBuffer.length / 1024),
+    });
+
+    const extractionTimer = startTimer();
     const text = await extractTextFromPdf(pdfBuffer);
+    const extractionDurationMs = extractionTimer.end();
+    logger.info('[PROFILING] Text extracted', {
+      arxivId: payload.arxivId,
+      durationMs: extractionDurationMs,
+      textLength: text.length,
+    });
     
     if (text.length < 1000) {
       logger.warn('Paper has insufficient text', {
@@ -127,11 +142,28 @@ export async function processPaper(req: Request, res: Response): Promise<void> {
     }
 
     // 3. Chunk text and generate embeddings (with retry)
+    const chunkingTimer = startTimer();
     const chunks = chunkText(text);
+    const chunkingDurationMs = chunkingTimer.end();
+    logger.info('[PROFILING] Text chunked', {
+      arxivId: payload.arxivId,
+      durationMs: chunkingDurationMs,
+      chunksCount: chunks.length,
+      totalTokens: chunks.reduce((sum, c) => sum + c.tokenCount, 0),
+    });
+
+    const embeddingTimer = startTimer();
     const embeddings = await retry(() => generateEmbeddingsBatch(chunks.map(c => c.text)), 3, 1000);
+    const embeddingDurationMs = embeddingTimer.end();
+    logger.info('[PROFILING] Embeddings generated', {
+      arxivId: payload.arxivId,
+      durationMs: embeddingDurationMs,
+      chunksCount: chunks.length,
+    });
     const embeddingCost = (chunks.reduce((sum, c) => sum + c.tokenCount, 0) / 1000) * 0.00002;
 
     // 4. Save everything in a single atomic transaction
+    const dbTimer = startTimer();
     await db.transaction(async (tx) => {
       // Insert paper with 'completed' status
       const paperData = {
@@ -177,13 +209,27 @@ export async function processPaper(req: Request, res: Response): Promise<void> {
         })
         .where(eq(knowledgeAreas.id, payload.knowledgeAreaId));
     });
+    const dbDurationMs = dbTimer.end();
+    logger.info('[PROFILING] Database transaction completed', {
+      arxivId: payload.arxivId,
+      durationMs: dbDurationMs,
+    });
 
-    logger.info('Paper processed successfully', {
+    const totalDurationMs = timer.end();
+    logger.info('[PROFILING] Paper processed successfully', {
       arxivId: payload.arxivId,
       knowledgeAreaId: payload.knowledgeAreaId,
       chunksCount: chunks.length,
       cost: embeddingCost,
-      durationMs: timer.end(),
+      totalDurationMs,
+      downloadDurationMs,
+      extractionDurationMs,
+      chunkingDurationMs,
+      embeddingDurationMs,
+      dbDurationMs,
+      pdfPercentage: Math.round(((downloadDurationMs + extractionDurationMs) / totalDurationMs) * 100),
+      embeddingPercentage: Math.round((embeddingDurationMs / totalDurationMs) * 100),
+      dbPercentage: Math.round((dbDurationMs / totalDurationMs) * 100),
     });
     res.status(200).json({ 
       success: true, 
