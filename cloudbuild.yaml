@@ -40,7 +40,7 @@ steps:
       - '--timeout=300'
       - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA'
       # PATCH v28.5: Inject DATABASE_URL from Secret Manager
-      - '--set-secrets=DATABASE_URL=DATABASE_URL:latest'
+      - '--set-secrets=DATABASE_URL=mother-db-url:latest'
 
 images:
   - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-interface:latest'
