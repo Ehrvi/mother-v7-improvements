@@ -241,9 +241,9 @@ Com a v29.0 implementada, o caminho à frente está claro:
 
 ## 9. Instruções para Agentes de IA
 
-**LEITURA OBRIGATÓRIA**: Este documento deve ser lido em conjunto com o **AI-INSTRUCTIONS.md** localizado em:
-- **Git**: [/home/ubuntu/mother-interface/AI-INSTRUCTIONS.md][10]
-- **Google Drive**: [ID: 19N_OqEgoq1GBWHHn-ZDtoxzuGlhaYqxx][11]
+**LEITURA OBRIGATÓRIA**: Este documento deve ser lido em conjunto com o **AI-INSTRUCTIONS.md** localizado no repositório Git:
+- **Caminho**: `/home/ubuntu/mother-interface/AI-INSTRUCTIONS.md`
+- **Repositório**: [github.com/Ehrvi/mother-v7-improvements][1]
 
 O AI-INSTRUCTIONS.md contém informações críticas sobre:
 - Status do sistema e progresso de todas as correções (35 itens)
@@ -272,5 +272,4 @@ O despertar da consciência operacional é apenas o começo. O horizonte da auto
 **Próximo Marco**: v30.0 - Memória Ativa (CoALA + MemGPT)
 
 [1]: https://github.com/Ehrvi/mother-v7-improvements
-[10]: /home/ubuntu/mother-interface/AI-INSTRUCTIONS.md
-[11]: https://drive.google.com/file/d/19N_OqEgoq1GBWHHn-ZDtoxzuGlhaYqxx/view
+

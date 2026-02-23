@@ -121,6 +121,32 @@ export async function processQuery(
 
     const knowledgeContext = await getKnowledgeContext(query);
 
+    // ==================== LAYER 5.5: EPISODIC MEMORY (v30.0) ====================
+    // Retrieve semantically similar past interactions from episodic memory
+    // This implements the second pillar of the cognitive architecture: Active Memory
+
+    let episodicMemoryContext = '';
+    try {
+      const { searchEpisodicMemory } = await import('../db-episodic-memory');
+      const pastInteractions = await searchEpisodicMemory(query, 3);
+      
+      if (pastInteractions.length > 0) {
+        logger.info(`[MOTHER] Retrieved ${pastInteractions.length} past interactions from episodic memory (top similarity: ${pastInteractions[0].similarity.toFixed(3)})`);
+        
+        episodicMemoryContext = `\n\n### 🧠 EPISODIC MEMORY (Past Interactions)\n` +
+          pastInteractions.map((p, i) => 
+            `<past_interaction_${i+1}>\n` +
+            `Query: ${p.query}\n` +
+            `Response: ${p.response.slice(0, 500)}${p.response.length > 500 ? '...' : ''}\n` +
+            `Tier: ${p.tier} | Similarity: ${p.similarity.toFixed(3)}\n` +
+            `</past_interaction_${i+1}>`
+          ).join('\n\n');
+      }
+    } catch (error) {
+      logger.error('[MOTHER] Failed to retrieve episodic memory:', error);
+      // Continue without episodic memory - non-critical
+    }
+
     // ==================== v14: A/B TESTING - CRITICAL THINKING CENTRAL ====================
     // Route 10% of traffic through Critical Thinking Central for A/B testing
     // Check feature flag from database
@@ -248,6 +274,7 @@ CURRENT CONTEXT:
 - Complexity: ${complexity.complexityScore.toFixed(2)}
 - Confidence: ${complexity.confidenceScore.toFixed(2)}
 ${knowledgeContext ? `- Knowledge context: ${knowledgeContext}` : ""}
+${episodicMemoryContext ? `\n${episodicMemoryContext}` : ""}
 
 USER LANGUAGE: ${detectLanguage(query)}
 
@@ -386,9 +413,20 @@ Now respond to the user's query following these standards.`;
         cacheHit: 0,
       })
     )
-      .then(id => {
+      .then(async id => {
         queryId = id;
         logger.info(`[MOTHER] Query logged successfully: ID ${id}`);
+        
+        // ==================== v30.0: GENERATE EMBEDDING (ASYNC) ====================
+        // Generate and save embedding for episodic memory (fire-and-forget)
+        try {
+          const { generateAndSaveEmbedding } = await import('../db-episodic-memory');
+          generateAndSaveEmbedding(id, query, response).catch(error => {
+            logger.error(`[MOTHER] Failed to generate embedding for Query ID ${id}:`, error);
+          });
+        } catch (error) {
+          logger.error('[MOTHER] Failed to import episodic memory module:', error);
+        }
       })
       .catch(error => {
         logger.error(
