@@ -52,7 +52,8 @@ export async function enqueueOmniscientTask(
       },
       body: Buffer.from(JSON.stringify(payload)).toString('base64'),
       oidcToken: {
-        serviceAccountEmail: process.env.GCP_SERVICE_ACCOUNT_EMAIL,
+        // CRITICAL: Use hardcoded service account (not env var) to ensure OIDC token generation
+        serviceAccountEmail: 'mother-cloudrun-sa@mothers-library-mcp.iam.gserviceaccount.com',
       },
     },
   };
@@ -79,18 +80,16 @@ export async function enqueueOmniscientTasksBatch(
   const taskPromises = payloads.map(payload => 
     enqueueOmniscientTask(payload).catch(error => {
       console.error(`❌ Failed to enqueue task for paper ${payload.arxivId}:`, error);
-      return null; // Return null for failed tasks to prevent Promise.all rejection
+      // CRITICAL: Throw error to propagate failure to orchestrator (no silent failures)
+      throw new Error(`Failed to enqueue task for paper ${payload.arxivId}: ${error.message}`);
     })
   );
 
   const results = await Promise.all(taskPromises);
   
-  // Filter out null results (failed tasks)
-  const successfulTaskNames = results.filter((name): name is string => name !== null);
+  console.log(`✅ Enqueued ${results.length}/${payloads.length} tasks in parallel.`);
 
-  console.log(`✅ Enqueued ${successfulTaskNames.length}/${payloads.length} tasks in parallel.`);
-
-  return successfulTaskNames;
+  return results;
 }
 
 export interface DiscoveryTaskPayload {
@@ -123,7 +122,8 @@ export async function enqueueDiscoveryTask(
       },
       body: Buffer.from(JSON.stringify(payload)).toString('base64'),
       oidcToken: {
-        serviceAccountEmail: process.env.GCP_SERVICE_ACCOUNT_EMAIL,
+        // CRITICAL: Use hardcoded service account (not env var) to ensure OIDC token generation
+        serviceAccountEmail: 'mother-cloudrun-sa@mothers-library-mcp.iam.gserviceaccount.com',
       },
     },
   };
