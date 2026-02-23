@@ -17,6 +17,45 @@ import { eq, sql } from 'drizzle-orm';
 import { downloadPdf } from './arxiv';
 import { extractTextFromPdf, chunkText } from './pdf';
 import { generateEmbeddingsBatch } from './embeddings';
+import { logger, startTimer, formatError } from './logger';
+
+/**
+ * Generic retry function with exponential backoff
+ * @param operation - Async function to retry
+ * @param maxAttempts - Maximum number of attempts (default: 3)
+ * @param initialDelayMs - Initial delay in milliseconds (default: 1000)
+ * @returns Result of the operation
+ */
+async function retry<T>(
+  operation: () => Promise<T>,
+  maxAttempts: number = 3,
+  initialDelayMs: number = 1000
+): Promise<T> {
+  let lastError: Error | undefined;
+  
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error as Error;
+      
+      if (attempt === maxAttempts) {
+        throw lastError;
+      }
+      
+      const delayMs = initialDelayMs * Math.pow(2, attempt - 1);
+      logger.warn('Retry attempt failed', {
+        attempt,
+        maxAttempts,
+        delayMs,
+        ...formatError(error),
+      });
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+  
+  throw lastError!;
+}
 
 export interface WorkerPayload {
   knowledgeAreaId: number;
@@ -41,24 +80,36 @@ export async function processPaper(req: Request, res: Response): Promise<void> {
   }
 
   const payload: WorkerPayload = req.body;
+  const timer = startTimer();
   
   try {
     // 1. Check if paper already exists before any heavy processing
     const existingPaper = await db.select().from(papers).where(eq(papers.arxivId, payload.arxivId)).limit(1);
     if (existingPaper.length > 0) {
-      console.log(`[v20.4] Paper ${payload.arxivId} already exists. Skipping.`);
+      logger.info('Paper already exists, skipping', {
+        arxivId: payload.arxivId,
+        knowledgeAreaId: payload.knowledgeAreaId,
+      });
       res.status(200).json({ success: true, message: 'Paper already exists' });
       return;
     }
 
-    console.log(`[v20.4] 🔄 Processing paper: ${payload.arxivId}`);
+    logger.info('Processing paper started', {
+      arxivId: payload.arxivId,
+      knowledgeAreaId: payload.knowledgeAreaId,
+      title: payload.title,
+    });
 
-    // 2. Download and process PDF
-    const pdfBuffer = await downloadPdf(payload.pdfUrl);
+    // 2. Download and process PDF (with retry)
+    const pdfBuffer = await retry(() => downloadPdf(payload.pdfUrl), 3, 1000);
     const text = await extractTextFromPdf(pdfBuffer);
     
     if (text.length < 1000) {
-      console.log(`[v20.4] ⚠️ Paper ${payload.arxivId} has insufficient text (${text.length} chars)`);
+      logger.warn('Paper has insufficient text', {
+        arxivId: payload.arxivId,
+        textLength: text.length,
+        knowledgeAreaId: payload.knowledgeAreaId,
+      });
       // Save as 'failed' to avoid retrying
       await db.insert(papers).values({
         knowledgeAreaId: payload.knowledgeAreaId,
@@ -75,9 +126,9 @@ export async function processPaper(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // 3. Chunk text and generate embeddings
+    // 3. Chunk text and generate embeddings (with retry)
     const chunks = chunkText(text);
-    const embeddings = await generateEmbeddingsBatch(chunks.map(c => c.text));
+    const embeddings = await retry(() => generateEmbeddingsBatch(chunks.map(c => c.text)), 3, 1000);
     const embeddingCost = (chunks.reduce((sum, c) => sum + c.tokenCount, 0) / 1000) * 0.00002;
 
     // 4. Save everything in a single atomic transaction
@@ -94,13 +145,13 @@ export async function processPaper(req: Request, res: Response): Promise<void> {
         status: 'completed' as const,
         chunksCount: chunks.length,
       };
-      console.log(`[v20.4] 📝 Inserting paper data:`, JSON.stringify({
+      logger.debug('Inserting paper data', {
         arxivId: paperData.arxivId,
         knowledgeAreaId: paperData.knowledgeAreaId,
         publishedDate: paperData.publishedDate,
         authorsLength: paperData.authors.length,
         abstractLength: paperData.abstract?.length || 0,
-      }));
+      });
       const paperResult = await tx.insert(papers).values(paperData);
 
       const paperId = Number(paperResult[0].insertId);
@@ -127,7 +178,13 @@ export async function processPaper(req: Request, res: Response): Promise<void> {
         .where(eq(knowledgeAreas.id, payload.knowledgeAreaId));
     });
 
-    console.log(`[v20.4] ✅ Processed paper: ${payload.arxivId} (${chunks.length} chunks, cost: $${embeddingCost.toFixed(8)})`);
+    logger.info('Paper processed successfully', {
+      arxivId: payload.arxivId,
+      knowledgeAreaId: payload.knowledgeAreaId,
+      chunksCount: chunks.length,
+      cost: embeddingCost,
+      durationMs: timer.end(),
+    });
     res.status(200).json({ 
       success: true, 
       message: 'Paper processed successfully', 
@@ -135,16 +192,13 @@ export async function processPaper(req: Request, res: Response): Promise<void> {
       cost: embeddingCost 
     });
   } catch (error) {
-    console.error(`[v20.4] ❌ Error processing paper ${payload.arxivId}:`, error);
-    console.error(`[v20.4] 🔍 Error details:`, {
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      payload: {
-        arxivId: payload.arxivId,
-        knowledgeAreaId: payload.knowledgeAreaId,
-        publishedDate: payload.publishedDate,
-        authorsCount: payload.authors?.length || 0,
-      }
+    logger.error('Error processing paper', {
+      arxivId: payload.arxivId,
+      knowledgeAreaId: payload.knowledgeAreaId,
+      publishedDate: payload.publishedDate,
+      authorsCount: payload.authors?.length || 0,
+      durationMs: timer.end(),
+      ...formatError(error),
     });
     
     // Try to save as 'failed' to avoid infinite retries

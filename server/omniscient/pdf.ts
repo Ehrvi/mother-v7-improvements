@@ -20,7 +20,7 @@ export interface TextChunk {
  * Chunking options
  */
 export interface ChunkingOptions {
-  chunkSize?: number; // Target chunk size in tokens (default: 1000)
+  chunkSize?: number; // Target chunk size in tokens (default: 4000)
   overlap?: number; // Overlap between chunks in tokens (default: 200)
 }
 
@@ -92,7 +92,7 @@ export function countTokens(text: string): number {
  */
 export function chunkText(text: string, options: ChunkingOptions = {}): TextChunk[] {
   const {
-    chunkSize = 1000,
+    chunkSize = 4000,
     overlap = 200,
   } = options;
   
