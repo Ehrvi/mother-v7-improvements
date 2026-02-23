@@ -210,18 +210,70 @@ export async function downloadPdf(pdfUrl: string): Promise<Buffer> {
   console.log(`[arXiv] Downloading PDF: ${pdfUrl}`);
   
   try {
-    const response = await fetch(pdfUrl);
+    // Try primary URL with 60s timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
     
-    if (!response.ok) {
-      throw new Error(`PDF download error: ${response.status} ${response.statusText}`);
+    try {
+      const response = await fetch(pdfUrl, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`PDF download error: ${response.status} ${response.statusText}`);
+      }
+      
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      
+      // Validate PDF size (must be > 10KB)
+      if (buffer.length < 10240) {
+        throw new Error(`PDF too small (${buffer.length} bytes) - likely corrupted or error page`);
+      }
+      
+      console.log(`[arXiv] Downloaded PDF: ${buffer.length} bytes`);
+      return buffer;
+    } catch (primaryError) {
+      clearTimeout(timeoutId);
+      
+      // Extract arXiv ID from URL (e.g., http://arxiv.org/pdf/2301.12345v1 -> 2301.12345)
+      const arxivIdMatch = pdfUrl.match(/arxiv\.org\/pdf\/([0-9.]+)/);
+      if (!arxivIdMatch) {
+        throw primaryError; // Can't construct fallback URL
+      }
+      
+      const arxivId = arxivIdMatch[1];
+      const fallbackUrl = `https://export.arxiv.org/pdf/${arxivId}`;
+      
+      console.log(`[arXiv] Primary URL failed, trying fallback: ${fallbackUrl}`);
+      
+      // Try fallback URL with 60s timeout
+      const fallbackController = new AbortController();
+      const fallbackTimeoutId = setTimeout(() => fallbackController.abort(), 60000);
+      
+      try {
+        const fallbackResponse = await fetch(fallbackUrl, { signal: fallbackController.signal });
+        clearTimeout(fallbackTimeoutId);
+        
+        if (!fallbackResponse.ok) {
+          throw new Error(`Fallback PDF download error: ${fallbackResponse.status} ${fallbackResponse.statusText}`);
+        }
+        
+        const fallbackArrayBuffer = await fallbackResponse.arrayBuffer();
+        const fallbackBuffer = Buffer.from(fallbackArrayBuffer);
+        
+        // Validate PDF size
+        if (fallbackBuffer.length < 10240) {
+          throw new Error(`Fallback PDF too small (${fallbackBuffer.length} bytes)`);
+        }
+        
+        console.log(`[arXiv] Downloaded PDF from fallback: ${fallbackBuffer.length} bytes`);
+        return fallbackBuffer;
+      } catch (fallbackError) {
+        clearTimeout(fallbackTimeoutId);
+        console.error('[arXiv] Both primary and fallback URLs failed');
+        throw fallbackError;
+      }
     }
-    
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    
-    console.log(`[arXiv] Downloaded PDF: ${buffer.length} bytes`);
-    
-    return buffer;
   } catch (error) {
     console.error('[arXiv] PDF download error:', error);
     throw error;
