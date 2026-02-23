@@ -22,16 +22,39 @@ const colors = {
 
 winston.addColors(colors);
 
-// Format for logs
-const format = winston.format.combine(
-  winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
+// Google Cloud Logging requires 'severity' field (uppercase) instead of 'level'
+const severityMap: { [key: string]: string } = {
+  error: 'ERROR',
+  warn: 'WARNING',
+  info: 'INFO',
+  http: 'INFO',
+  debug: 'DEBUG',
+};
+
+// Production format: JSON with Google Cloud Logging schema
+const productionFormat = winston.format.combine(
+  winston.format.timestamp(),
   winston.format.errors({ stack: true }),
-  winston.format.splat(),
-  winston.format.json()
+  winston.format.json(),
+  winston.format((info) => {
+    // Map Winston 'level' to Google Cloud 'severity'
+    info.severity = severityMap[info.level] || 'INFO';
+    // Keep level for Winston internal use, severity for Cloud Logging
+    
+    // Extract trace context from metadata if available
+    if (info.traceId) {
+      info['logging.googleapis.com/trace'] = `projects/mothers-library-mcp/traces/${info.traceId}`;
+    }
+    if (info.spanId) {
+      info['logging.googleapis.com/spanId'] = info.spanId;
+    }
+    
+    return info;
+  })()
 );
 
-// Console format (pretty print for development)
-const consoleFormat = winston.format.combine(
+// Development format: colorized text for readability
+const developmentFormat = winston.format.combine(
   winston.format.colorize({ all: true }),
   winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
   winston.format.printf(
@@ -40,12 +63,24 @@ const consoleFormat = winston.format.combine(
   )
 );
 
+// File format: JSON for structured storage
+const fileFormat = winston.format.combine(
+  winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
+  winston.format.errors({ stack: true }),
+  winston.format.splat(),
+  winston.format.json()
+);
+
 // Transports
+// Choose format based on environment
+const isProduction = process.env.NODE_ENV === 'production';
+const consoleFormat = isProduction ? productionFormat : developmentFormat;
+
 const transports: winston.transport[] = [
-  // Console output (development)
+  // Console output (production: JSON, development: colorized text)
   new winston.transports.Console({
     format: consoleFormat,
-    level: process.env.NODE_ENV === "production" ? "info" : "debug",
+    level: isProduction ? "info" : "debug",
   }),
 
   // Daily rotate file - All logs
@@ -54,7 +89,7 @@ const transports: winston.transport[] = [
     datePattern: "YYYY-MM-DD",
     maxSize: "20m",
     maxFiles: "14d", // Keep logs for 14 days
-    format,
+    format: fileFormat,
     level: "info",
   }),
 
@@ -64,7 +99,7 @@ const transports: winston.transport[] = [
     datePattern: "YYYY-MM-DD",
     maxSize: "20m",
     maxFiles: "30d", // Keep error logs for 30 days
-    format,
+    format: fileFormat,
     level: "error",
   }),
 ];
@@ -72,7 +107,7 @@ const transports: winston.transport[] = [
 // Create logger instance
 export const logger = winston.createLogger({
   levels,
-  format,
+  format: fileFormat,
   transports,
   exceptionHandlers: [
     new DailyRotateFile({
