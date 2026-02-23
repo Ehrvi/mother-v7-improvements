@@ -35,7 +35,7 @@ const severityMap: { [key: string]: string } = {
 const productionFormat = winston.format.combine(
   winston.format.timestamp(),
   winston.format.errors({ stack: true }),
-  winston.format.json(),
+  // MUST transform before json() to ensure severity is included in final output
   winston.format((info) => {
     // Map Winston 'level' to Google Cloud 'severity'
     info.severity = severityMap[info.level] || 'INFO';
@@ -50,7 +50,8 @@ const productionFormat = winston.format.combine(
     }
     
     return info;
-  })()
+  })(),
+  winston.format.json()
 );
 
 // Development format: colorized text for readability
