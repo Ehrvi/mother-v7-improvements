@@ -79,12 +79,14 @@ export function countTokens(text: string): number {
 }
 
 /**
- * Split text into chunks with overlap
+ * Split text into chunks with overlap (OPTIMIZED v23.3)
  * 
  * Strategy:
- * 1. Split by sentences (using '. ' as delimiter)
- * 2. Group sentences into chunks of ~chunkSize tokens
- * 3. Add overlap by including last N tokens from previous chunk
+ * 1. Tokenize entire text ONCE using tiktoken
+ * 2. Split tokens into chunks of ~chunkSize with overlap
+ * 3. Decode each chunk back to text
+ * 
+ * Performance: O(n) instead of O(n²) - tokenizes text once, not per sentence
  * 
  * @param text - Input text
  * @param options - Chunking options
@@ -96,47 +98,40 @@ export function chunkText(text: string, options: ChunkingOptions = {}): TextChun
     overlap = 200,
   } = options;
   
-  // Split text into sentences
-  const sentences = text.split(/\.\s+/).map(s => s + '.');
+  // Tokenize entire text ONCE (v23.3 optimization)
+  const encoding = get_encoding('cl100k_base');
+  const tokens = encoding.encode(text);
   
   const chunks: TextChunk[] = [];
-  let currentChunk = '';
-  let currentTokenCount = 0;
   let chunkIndex = 0;
-  let previousChunkEnd = ''; // For overlap
+  let startIdx = 0;
   
-  for (const sentence of sentences) {
-    const sentenceTokenCount = countTokens(sentence);
+  while (startIdx < tokens.length) {
+    // Calculate end index for this chunk
+    const endIdx = Math.min(startIdx + chunkSize, tokens.length);
     
-    // If adding this sentence would exceed chunk size, start new chunk
-    if (currentTokenCount + sentenceTokenCount > chunkSize && currentChunk.length > 0) {
-      // Save current chunk
-      chunks.push({
-        index: chunkIndex++,
-        text: currentChunk.trim(),
-        tokenCount: currentTokenCount,
-      });
-      
-      // Start new chunk with overlap from previous chunk
-      const overlapText = getLastNTokens(currentChunk, overlap);
-      previousChunkEnd = overlapText;
-      currentChunk = overlapText + ' ' + sentence;
-      currentTokenCount = countTokens(currentChunk);
-    } else {
-      // Add sentence to current chunk
-      currentChunk += (currentChunk.length > 0 ? ' ' : '') + sentence;
-      currentTokenCount += sentenceTokenCount;
+    // Extract chunk tokens
+    const chunkTokens = tokens.slice(startIdx, endIdx);
+    
+    // Decode tokens back to text
+    const chunkText = new TextDecoder().decode(encoding.decode(chunkTokens));
+    
+    chunks.push({
+      index: chunkIndex++,
+      text: chunkText.trim(),
+      tokenCount: chunkTokens.length,
+    });
+    
+    // Move to next chunk with overlap
+    startIdx = endIdx - overlap;
+    
+    // Prevent infinite loop if overlap >= chunkSize
+    if (startIdx >= endIdx) {
+      startIdx = endIdx;
     }
   }
   
-  // Add final chunk if not empty
-  if (currentChunk.length > 0) {
-    chunks.push({
-      index: chunkIndex,
-      text: currentChunk.trim(),
-      tokenCount: currentTokenCount,
-    });
-  }
+  encoding.free(); // Free memory
   
   console.log(`[PDF] Created ${chunks.length} chunks (avg ${Math.round(chunks.reduce((sum, c) => sum + c.tokenCount, 0) / chunks.length)} tokens/chunk)`);
   
