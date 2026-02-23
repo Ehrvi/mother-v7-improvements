@@ -5,7 +5,7 @@ async function checkKnowledgeArea() {
   const result = await db.execute(`
     SELECT id, name, description, papersCount, status, createdAt
     FROM knowledge_areas
-    WHERE id = 180011
+    WHERE id = 180012
   `);
 
   console.log(JSON.stringify(result[0], null, 2));
