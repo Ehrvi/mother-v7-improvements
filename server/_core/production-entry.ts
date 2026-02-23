@@ -55,7 +55,21 @@ app.get("*", (req, res) => {
   res.sendFile(path.join(distPath, "index.html"));
 });
 
+// Log version information on startup
+const GIT_COMMIT_SHA = process.env.GIT_COMMIT_SHA || 'unknown';
+const VERSION = process.env.npm_package_version || 'unknown';
+const NODE_VERSION = process.version;
+const ENVIRONMENT = process.env.NODE_ENV || 'development';
+
 app.listen(PORT, "0.0.0.0", () => {
+  logger.info('🚀 MOTHER server starting', {
+    version: VERSION,
+    commit: GIT_COMMIT_SHA,
+    nodeVersion: NODE_VERSION,
+    environment: ENVIRONMENT,
+    port: PORT,
+    distPath: distPath,
+  });
   logger.info(`🚀 Production server running on http://0.0.0.0:${PORT}`);
   logger.info(`📦 Serving static files from: ${distPath}`);
 });

@@ -38,6 +38,7 @@ steps:
       - '--concurrency=10'
       - '--max-instances=10'
       - '--timeout=300'
+      - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA'
 
 images:
   - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-interface:latest'

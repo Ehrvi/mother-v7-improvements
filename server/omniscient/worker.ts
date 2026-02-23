@@ -73,8 +73,22 @@ export interface WorkerPayload {
  * Returns HTTP 200 only after processing is complete
  */
 export async function processPaper(req: Request, res: Response): Promise<void> {
+  // Extract traceId for correlation
+  const traceId = req.headers['x-cloud-trace-context']?.toString().split('/')[0] || 'no-trace';
+  const startTime = Date.now();
+  
+  // Log entry ALWAYS - to detect code drift
+  logger.info('📥 Paper Worker invoked', {
+    traceId,
+    contentType: req.headers['content-type'],
+    bodyKeys: Object.keys(req.body || {}),
+    hasArxivId: !!req.body?.arxivId,
+    hasKnowledgeAreaId: !!req.body?.knowledgeAreaId,
+  });
+
   const db = await getDb();
   if (!db) {
+    logger.error('❌ Database not available', { traceId });
     res.status(500).json({ success: false, error: 'Database not available' });
     return;
   }
@@ -83,6 +97,12 @@ export async function processPaper(req: Request, res: Response): Promise<void> {
   const timer = startTimer();
   
   try {
+    // Validate payload
+    if (!payload?.arxivId || !payload?.knowledgeAreaId) {
+      logger.error('❌ Invalid payload', { traceId, payload });
+      res.status(400).json({ success: false, message: 'Invalid payload: missing arxivId or knowledgeAreaId' });
+      return;
+    }
     // 1. Check if paper already exists before any heavy processing
     const existingPaper = await db.select().from(papers).where(eq(papers.arxivId, payload.arxivId)).limit(1);
     if (existingPaper.length > 0) {
@@ -201,12 +221,16 @@ export async function processPaper(req: Request, res: Response): Promise<void> {
       cost: embeddingCost 
     });
   } catch (error) {
-    logger.error('Error processing paper', {
+    const duration = Date.now() - startTime;
+    logger.error('🔥 Unhandled Paper Worker exception', {
+      traceId,
       arxivId: payload.arxivId,
       knowledgeAreaId: payload.knowledgeAreaId,
       publishedDate: payload.publishedDate,
       authorsCount: payload.authors?.length || 0,
-      durationMs: timer.end(),
+      duration,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
       ...formatError(error),
     });
     
@@ -227,6 +251,6 @@ export async function processPaper(req: Request, res: Response): Promise<void> {
       console.error(`[v20.4] ❌ Failed to save error state for paper ${payload.arxivId}:`, insertError);
     }
     
-    res.status(500).json({ success: false, error: String(error) });
+    res.status(500).json({ success: false, error: 'Internal Server Error', message: String(error) });
   }
 }
