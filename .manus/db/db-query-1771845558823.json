@@ -1,0 +1,28 @@
+{
+  "query": "SELECT arxivId, status, knowledgeAreaId, createdAt FROM papers WHERE arxivId IN ('2501.04817', '2403.04546', '2512.23200') ORDER BY createdAt DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3QQhaXF1ucYHpuK.e4b7c6254861 --database 25NeaJLRyMKQFYzeZChVTB --execute SELECT arxivId, status, knowledgeAreaId, createdAt FROM papers WHERE arxivId IN ('2501.04817', '2403.04546', '2512.23200') ORDER BY createdAt DESC;",
+  "rows": [
+    {
+      "arxivId": "2501.04817",
+      "status": "failed",
+      "knowledgeAreaId": "180028",
+      "createdAt": "2026-02-23 11:13:24"
+    },
+    {
+      "arxivId": "2403.04546",
+      "status": "failed",
+      "knowledgeAreaId": "180028",
+      "createdAt": "2026-02-23 11:13:17"
+    },
+    {
+      "arxivId": "2512.23200",
+      "status": "failed",
+      "knowledgeAreaId": "180028",
+      "createdAt": "2026-02-23 11:13:16"
+    }
+  ],
+  "messages": [],
+  "stdout": "arxivId\tstatus\tknowledgeAreaId\tcreatedAt\n2501.04817\tfailed\t180028\t2026-02-23 11:13:24\n2403.04546\tfailed\t180028\t2026-02-23 11:13:17\n2512.23200\tfailed\t180028\t2026-02-23 11:13:16\n",
+  "stderr": "",
+  "execution_time_ms": 1587
+}

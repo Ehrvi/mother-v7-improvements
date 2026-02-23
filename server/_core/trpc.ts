@@ -20,9 +20,82 @@ import {
   getRateLimitConfig,
   formatRateLimitHeaders,
 } from "../lib/rateLimit";
+import { recordRequestMetrics, logMetrics } from "./metrics";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
+  /**
+   * Global middleware for metrics collection (Four Golden Signals)
+   * Instruments all tRPC procedures with latency, traffic, errors, and saturation metrics
+   */
+  errorFormatter({ shape, error }) {
+    return shape;
+  },
+});
+
+/**
+ * Metrics middleware - Instruments all procedures with Four Golden Signals
+ * 1. Latency: Request duration
+ * 2. Traffic: Request count
+ * 3. Errors: Error count
+ * 4. Saturation: Memory/CPU usage (collected via observables)
+ */
+const metricsMiddleware = t.middleware(async (opts) => {
+  const { path, type, next, ctx } = opts;
+  const startTime = Date.now();
+  
+  try {
+    const result = await next();
+    const duration = Date.now() - startTime;
+    
+    // Extract tier from result if available (for mother.query)
+    const tier = (result as any)?.data?.tier || (result as any)?.tier;
+    
+    // Record metrics
+    recordRequestMetrics({
+      path,
+      method: type,
+      duration,
+      success: true,
+      tier,
+    });
+    
+    // Log metrics (structured logging)
+    logMetrics({
+      path,
+      method: type,
+      duration,
+      success: true,
+      tier,
+      userId: ctx.user?.id?.toString(),
+    });
+    
+    return result;
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    const errorCode = error instanceof TRPCError ? error.code : 'INTERNAL_SERVER_ERROR';
+    
+    // Record error metrics
+    recordRequestMetrics({
+      path,
+      method: type,
+      duration,
+      success: false,
+      errorCode,
+    });
+    
+    // Log error metrics
+    logMetrics({
+      path,
+      method: type,
+      duration,
+      success: false,
+      errorCode,
+      userId: ctx.user?.id?.toString(),
+    });
+    
+    throw error;
+  }
 });
 
 export const router = t.router;
@@ -62,7 +135,7 @@ const rateLimitMiddleware = t.middleware(async opts => {
   return next({ ctx });
 });
 
-export const publicProcedure = t.procedure.use(rateLimitMiddleware);
+export const publicProcedure = t.procedure.use(metricsMiddleware).use(rateLimitMiddleware);
 
 const requireUser = t.middleware(async opts => {
   const { ctx, next } = opts;
@@ -79,9 +152,9 @@ const requireUser = t.middleware(async opts => {
   });
 });
 
-export const protectedProcedure = t.procedure.use(requireUser);
+export const protectedProcedure = t.procedure.use(metricsMiddleware).use(requireUser);
 
-export const adminProcedure = t.procedure.use(
+export const adminProcedure = t.procedure.use(metricsMiddleware).use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
 

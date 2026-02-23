@@ -1,0 +1,9 @@
+{
+  "query": "DELETE FROM papers WHERE status='failed' OR knowledgeAreaId IN (\n  SELECT id FROM knowledge_areas \n  WHERE name LIKE '%test%' \n  OR name LIKE '%quantum%' \n  OR name LIKE '%machine learning%'\n  OR name LIKE '%federated learning%'\n  OR name LIKE '%reinforcement learning%'\n  OR id >= 180022\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3QQhaXF1ucYHpuK.e4b7c6254861 --database 25NeaJLRyMKQFYzeZChVTB --execute DELETE FROM papers WHERE status='failed' OR knowledgeAreaId IN (\n  SELECT id FROM knowledge_areas \n  WHERE name LIKE '%test%' \n  OR name LIKE '%quantum%' \n  OR name LIKE '%machine learning%'\n  OR name LIKE '%federated learning%'\n  OR name LIKE '%reinforcement learning%'\n  OR id >= 180022\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1846
+}

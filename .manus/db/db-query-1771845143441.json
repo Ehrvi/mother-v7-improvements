@@ -1,0 +1,58 @@
+{
+  "query": "SELECT arxivId, status, knowledgeAreaId, title FROM papers WHERE arxivId IN ('2506.12182', '2502.05879', '2305.04091', '2304.13007', '2404.14812', '2410.03595', '2302.11520', '2310.13552') ORDER BY knowledgeAreaId, arxivId;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3QQhaXF1ucYHpuK.e4b7c6254861 --database 25NeaJLRyMKQFYzeZChVTB --execute SELECT arxivId, status, knowledgeAreaId, title FROM papers WHERE arxivId IN ('2506.12182', '2502.05879', '2305.04091', '2304.13007', '2404.14812', '2410.03595', '2302.11520', '2310.13552') ORDER BY knowledgeAreaId, arxivId;",
+  "rows": [
+    {
+      "arxivId": "2302.11520",
+      "status": "failed",
+      "knowledgeAreaId": "180027",
+      "title": "Guiding Large Language Models via Directional Stimulus Prompting"
+    },
+    {
+      "arxivId": "2304.13007",
+      "status": "failed",
+      "knowledgeAreaId": "180027",
+      "title": "Answering Questions by Meta-Reasoning over Multiple Chains of Thought"
+    },
+    {
+      "arxivId": "2305.04091",
+      "status": "failed",
+      "knowledgeAreaId": "180027",
+      "title": "Plan-and-Solve Prompting: Improving Zero-Shot Chain-of-Thought Reasoning by Large Language Models"
+    },
+    {
+      "arxivId": "2310.13552",
+      "status": "failed",
+      "knowledgeAreaId": "180027",
+      "title": "Self-prompted Chain-of-Thought on Large Language Models for Open-domain Multi-hop Reasoning"
+    },
+    {
+      "arxivId": "2404.14812",
+      "status": "failed",
+      "knowledgeAreaId": "180027",
+      "title": "Enhancing Chain of Thought Prompting in Large Language Models via Reasoning Patterns"
+    },
+    {
+      "arxivId": "2410.03595",
+      "status": "failed",
+      "knowledgeAreaId": "180027",
+      "title": "Understanding Reasoning in Chain-of-Thought from the Hopfieldian View"
+    },
+    {
+      "arxivId": "2502.05879",
+      "status": "failed",
+      "knowledgeAreaId": "180027",
+      "title": "Enhancing Depression Detection with Chain-of-Thought Prompting: From Emotion to Reasoning Using Large Language Models"
+    },
+    {
+      "arxivId": "2506.12182",
+      "status": "failed",
+      "knowledgeAreaId": "180027",
+      "title": "Instruction Tuning and CoT Prompting for Contextual Medical QA with LLMs"
+    }
+  ],
+  "messages": [],
+  "stdout": "arxivId\tstatus\tknowledgeAreaId\ttitle\n2302.11520\tfailed\t180027\tGuiding Large Language Models via Directional Stimulus Prompting\n2304.13007\tfailed\t180027\tAnswering Questions by Meta-Reasoning over Multiple Chains of Thought\n2305.04091\tfailed\t180027\tPlan-and-Solve Prompting: Improving Zero-Shot Chain-of-Thought Reasoning by Large Language Models\n2310.13552\tfailed\t180027\tSelf-prompted Chain-of-Thought on Large Language Models for Open-domain Multi-hop Reasoning\n2404.14812\tfailed\t180027\tEnhancing Chain of Thought Prompting in Large Language Models via Reasoning Patterns\n2410.03595\tfailed\t180027\tUnderstanding Reasoning in Chain-of-Thought from the Hopfieldian View\n2502.05879\tfailed\t180027\tEnhancing Depression Detection with Chain-of-Thought Prompting: From Emotion to Reasoning Using Large Language Models\n2506.12182\tfailed\t180027\tInstruction Tuning and CoT Prompting for Contextual Medical QA with LLMs\n",
+  "stderr": "",
+  "execution_time_ms": 1666
+}
