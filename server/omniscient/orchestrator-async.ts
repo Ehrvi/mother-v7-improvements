@@ -50,6 +50,7 @@ export interface StudyResultAsync {
  */
 export async function studyKnowledgeAreaAsync(
   name: string,
+  query: string,
   description?: string,
   options: StudyOptionsAsync = {}
 ): Promise<StudyResultAsync> {
@@ -74,7 +75,7 @@ export async function studyKnowledgeAreaAsync(
   // Enqueue discovery task to discovery-queue
   const discoveryTaskName = await enqueueDiscoveryTask({
     areaId,
-    name,
+    name: query, // Use query instead of name for arXiv search
     options,
   });
 

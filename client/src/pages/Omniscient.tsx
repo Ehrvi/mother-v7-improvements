@@ -52,6 +52,7 @@ export default function Omniscient() {
     }
     createStudyJob.mutate({
       name: studyName,
+      query: studyName, // Use studyName as arXiv query
       description: studyDescription || undefined,
       maxPapers,
     });

@@ -56,6 +56,7 @@ export const omniscientRouter = router({
     .input(
       z.object({
         name: z.string().min(1).max(255),
+        query: z.string().min(1).max(500),
         description: z.string().optional(),
         maxPapers: z.number().min(1).max(200).default(100),
       })
@@ -65,6 +66,7 @@ export const omniscientRouter = router({
       // This returns immediately after enqueuing tasks (no timeout)
       const result = await studyKnowledgeAreaAsync(
         input.name,
+        input.query,
         input.description,
         { maxPapers: input.maxPapers }
       );
