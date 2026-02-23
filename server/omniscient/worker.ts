@@ -188,16 +188,17 @@ export async function processPaper(req: Request, res: Response): Promise<void> {
 
       const paperId = Number(paperResult[0].insertId);
 
-      // Insert all chunks in a single batch (v23.4 optimization)
-      // Instead of N separate INSERT statements, use one INSERT with multiple VALUES
-      const chunkValues = chunks.map((chunk, j) => ({
-        paperId,
-        chunkIndex: j,
-        text: chunk.text,
-        embedding: JSON.stringify(embeddings[j]),
-        tokenCount: chunk.tokenCount,
-      }));
-      await tx.insert(paperChunks).values(chunkValues);
+      // Insert all chunks in parallel
+      const chunkInsertPromises = chunks.map((chunk, j) =>
+        tx.insert(paperChunks).values({
+          paperId,
+          chunkIndex: j,
+          text: chunk.text,
+          embedding: JSON.stringify(embeddings[j]),
+          tokenCount: chunk.tokenCount,
+        })
+      );
+      await Promise.all(chunkInsertPromises);
 
       // Atomically update knowledge area stats
       await tx.update(knowledgeAreas)
