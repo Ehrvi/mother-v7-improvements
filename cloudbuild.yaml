@@ -41,6 +41,8 @@ steps:
       - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA'
       # PATCH v28.5: Inject DATABASE_URL from Secret Manager
       - '--set-secrets=DATABASE_URL=mother-db-url:latest'
+      # PATCH v28.5.1: Enable Cloud SQL Proxy for Unix socket connection
+      - '--add-cloudsql-instances=mothers-library-mcp:us-central1:mother-db'
 
 images:
   - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-interface:latest'
