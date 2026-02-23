@@ -7,6 +7,16 @@ ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 
+# Install Python 3 and pip
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies globally
+RUN pip3 install --no-cache-dir tiktoken openai --break-system-packages
+
 # Build stage - Install ALL dependencies and build
 FROM base AS build
 WORKDIR /app
@@ -50,6 +60,10 @@ COPY --from=build /app/package.json ./
 
 # Copy drizzle schema if exists (for database migrations)
 COPY --from=build /app/drizzle ./drizzle
+
+# Copy Python scripts for text processing
+COPY --from=build /app/server/omniscient/pdf_processor.py ./server/omniscient/pdf_processor.py
+RUN chmod +x ./server/omniscient/pdf_processor.py
 
 # Create non-root user for security (Debian syntax for node:22-slim)
 RUN groupadd --system --gid 1001 nodejs && \

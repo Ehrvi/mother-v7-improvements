@@ -15,8 +15,8 @@ import { getDb } from '../db';
 import { papers, paperChunks, knowledgeAreas } from '../../drizzle/schema';
 import { eq, sql } from 'drizzle-orm';
 import { downloadPdf } from './arxiv';
-import { extractTextFromPdf, chunkText } from './pdf';
-import { generateEmbeddingsBatch } from './embeddings';
+import { extractTextFromPdf } from './pdf';
+import { processTextWithPython, PythonProcessResult } from './worker-python-helper';
 import { logger, startTimer, formatError } from './logger';
 
 /**
@@ -126,10 +126,19 @@ export async function processPaper(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // 3. Chunk text and generate embeddings (with retry)
-    const chunks = chunkText(text);
-    const embeddings = await retry(() => generateEmbeddingsBatch(chunks.map(c => c.text)), 3, 1000);
-    const embeddingCost = (chunks.reduce((sum, c) => sum + c.tokenCount, 0) / 1000) * 0.00002;
+    // 3. Chunk text and generate embeddings via isolated Python process
+    const processResult: PythonProcessResult = await retry(() => processTextWithPython(text), 3, 1000);
+    
+    if (!processResult.success) {
+      throw new Error(`Python processor failed: ${processResult.error}`);
+    }
+    
+    const chunks = (processResult.chunks || []).map(c => ({
+      text: c.text,
+      tokenCount: c.tokens,
+    }));
+    const embeddings = (processResult.chunks || []).map(c => c.embedding);
+    const embeddingCost = ((processResult.total_tokens || 0) / 1000) * 0.00002;
 
     // 4. Save everything in a single atomic transaction
     await db.transaction(async (tx) => {
@@ -157,7 +166,7 @@ export async function processPaper(req: Request, res: Response): Promise<void> {
       const paperId = Number(paperResult[0].insertId);
 
       // Insert all chunks in parallel
-      const chunkInsertPromises = chunks.map((chunk, j) =>
+      const chunkInsertPromises = chunks.map((chunk: any, j: number) =>
         tx.insert(paperChunks).values({
           paperId,
           chunkIndex: j,
