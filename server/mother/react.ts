@@ -49,6 +49,49 @@ export const toolRegistry: Tool[] = [
       return { success: true, quality };
     },
   },
+  // v31.0: Code manipulation tools for CodeAgent
+  {
+    name: "read_file",
+    description: "Reads the entire content of a file from the filesystem. Input: { path: string }",
+    handler: async (input: { path: string }) => {
+      const fs = await import("fs/promises");
+      try {
+        const content = await fs.readFile(input.path, "utf-8");
+        return { success: true, content };
+      } catch (error) {
+        return { success: false, error: (error as Error).message };
+      }
+    },
+  },
+  {
+    name: "write_file",
+    description: "Writes or overwrites a file on the filesystem. Input: { path: string, content: string }",
+    handler: async (input: { path: string; content: string }) => {
+      const fs = await import("fs/promises");
+      try {
+        await fs.writeFile(input.path, input.content, "utf-8");
+        return { success: true, message: `File ${input.path} written successfully.` };
+      } catch (error) {
+        return { success: false, error: (error as Error).message };
+      }
+    },
+  },
+  {
+    name: "run_shell_command",
+    description: "Executes a shell command and returns its stdout and stderr. Input: { command: string }. Timeout: 30 seconds.",
+    handler: async (input: { command: string }) => {
+      const { exec } = await import("child_process");
+      return new Promise((resolve) => {
+        exec(input.command, { timeout: 30000 }, (error, stdout, stderr) => {
+          if (error) {
+            resolve({ success: false, error: error.message, stdout, stderr });
+          } else {
+            resolve({ success: true, stdout, stderr });
+          }
+        });
+      });
+    },
+  },
 ];
 
 /**

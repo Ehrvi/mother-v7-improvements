@@ -12,6 +12,7 @@ import { sanitizeAndValidate } from "../middleware/sanitize";
 import { enqueueQuery } from "../lib/queue";
 import { assessComplexity } from "../mother/intelligence";
 import { createHash } from "crypto";
+import { invokeCodeAgent } from "../mother/code_agent";
 
 export const motherRouter = router({
   /**
@@ -181,5 +182,21 @@ export const motherRouter = router({
     )
     .query(async ({ input }) => {
       return await getAllKnowledge(input.limit);
+    }),
+
+  /**
+   * v31.0: CodeAgent endpoint
+   * Invokes the autonomous CodeAgent to perform software engineering tasks
+   * 
+   * Example task: "Add a new field 'priority' of type 'number' with default value 0 to the 'queries' table in drizzle/schema.ts"
+   */
+  runCodeAgent: protectedProcedure
+    .input(
+      z.object({
+        task: z.string().min(1).max(2000),
+      })
+    )
+    .mutation(async ({ input }) => {
+      return await invokeCodeAgent(input.task);
     }),
 });
