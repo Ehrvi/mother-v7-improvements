@@ -34,7 +34,8 @@ steps:
       - '--allow-unauthenticated'
       - '--port=8080'
       - '--memory=512Mi'
-      - '--cpu=1'
+      - '--cpu=2'
+      - '--concurrency=10'
       - '--max-instances=10'
       - '--timeout=300'
 
