@@ -4,31 +4,8 @@
  * Provides functions to extract text from PDF files and chunk them for embeddings
  */
 
-import { get_encoding, type Tiktoken } from 'tiktoken';
+import { get_encoding } from 'tiktoken';
 import { PDFParse } from 'pdf-parse';
-
-/**
- * Singleton encoder to avoid memory leaks from repeated encoder creation
- * This fixes the O(n²) chunking bottleneck identified in v23.2 profiling
- */
-let globalEncoder: Tiktoken | null = null;
-
-function getEncoder(): Tiktoken {
-  if (!globalEncoder) {
-    globalEncoder = get_encoding('cl100k_base');
-  }
-  return globalEncoder;
-}
-
-/**
- * Free the global encoder (call on shutdown)
- */
-export function freeGlobalEncoder(): void {
-  if (globalEncoder) {
-    globalEncoder.free();
-    globalEncoder = null;
-  }
-}
 
 /**
  * Text chunk with metadata
@@ -95,8 +72,9 @@ export async function extractTextFromPdf(pdfBuffer: Buffer): Promise<string> {
  * @returns Token count
  */
 export function countTokens(text: string): number {
-  const encoding = getEncoder(); // Use singleton encoder
+  const encoding = get_encoding('cl100k_base');
   const tokens = encoding.encode(text);
+  encoding.free(); // Free memory
   return tokens.length;
 }
 
@@ -118,32 +96,46 @@ export function chunkText(text: string, options: ChunkingOptions = {}): TextChun
     overlap = 200,
   } = options;
   
-  const encoding = getEncoder(); // Use singleton encoder
-  
-  // Tokenize entire text ONCE (O(n) instead of O(n²))
-  const allTokens = encoding.encode(text);
+  // Split text into sentences
+  const sentences = text.split(/\.\s+/).map(s => s + '.');
   
   const chunks: TextChunk[] = [];
+  let currentChunk = '';
+  let currentTokenCount = 0;
   let chunkIndex = 0;
-  let startIdx = 0;
+  let previousChunkEnd = ''; // For overlap
   
-  // Streaming approach: process tokens in fixed-size windows (O(1) memory per iteration)
-  while (startIdx < allTokens.length) {
-    const endIdx = Math.min(startIdx + chunkSize, allTokens.length);
-    const chunkTokens = allTokens.slice(startIdx, endIdx);
+  for (const sentence of sentences) {
+    const sentenceTokenCount = countTokens(sentence);
     
-    // Decode chunk tokens to text
-    const chunkText = new TextDecoder().decode(encoding.decode(chunkTokens));
-    
+    // If adding this sentence would exceed chunk size, start new chunk
+    if (currentTokenCount + sentenceTokenCount > chunkSize && currentChunk.length > 0) {
+      // Save current chunk
+      chunks.push({
+        index: chunkIndex++,
+        text: currentChunk.trim(),
+        tokenCount: currentTokenCount,
+      });
+      
+      // Start new chunk with overlap from previous chunk
+      const overlapText = getLastNTokens(currentChunk, overlap);
+      previousChunkEnd = overlapText;
+      currentChunk = overlapText + ' ' + sentence;
+      currentTokenCount = countTokens(currentChunk);
+    } else {
+      // Add sentence to current chunk
+      currentChunk += (currentChunk.length > 0 ? ' ' : '') + sentence;
+      currentTokenCount += sentenceTokenCount;
+    }
+  }
+  
+  // Add final chunk if not empty
+  if (currentChunk.length > 0) {
     chunks.push({
-      index: chunkIndex++,
-      text: chunkText.trim(),
-      tokenCount: chunkTokens.length,
+      index: chunkIndex,
+      text: currentChunk.trim(),
+      tokenCount: currentTokenCount,
     });
-    
-    // Move to next chunk with overlap
-    startIdx = endIdx - overlap;
-    if (startIdx >= endIdx) startIdx = endIdx; // Prevent infinite loop
   }
   
   console.log(`[PDF] Created ${chunks.length} chunks (avg ${Math.round(chunks.reduce((sum, c) => sum + c.tokenCount, 0) / chunks.length)} tokens/chunk)`);
@@ -159,10 +151,11 @@ export function chunkText(text: string, options: ChunkingOptions = {}): TextChun
  * @returns Text containing last N tokens
  */
 function getLastNTokens(text: string, tokenCount: number): string {
-  const encoding = getEncoder(); // Use singleton encoder
+  const encoding = get_encoding('cl100k_base');
   const tokens = encoding.encode(text);
   
   if (tokens.length <= tokenCount) {
+    encoding.free();
     return text;
   }
   
@@ -170,6 +163,7 @@ function getLastNTokens(text: string, tokenCount: number): string {
   const lastTokens = tokens.slice(-tokenCount);
   const decoded = new TextDecoder().decode(encoding.decode(lastTokens));
   
+  encoding.free();
   return decoded;
 }
 
