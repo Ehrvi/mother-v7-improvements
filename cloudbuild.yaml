@@ -31,7 +31,7 @@ steps:
       - 'deploy'
       - 'mother-interface'
       - '--image=australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-interface:latest'
-      - '--region=us-central1'
+      - '--region=australia-southeast1'
       - '--platform=managed'
       - '--allow-unauthenticated'
       - '--port=8080'
