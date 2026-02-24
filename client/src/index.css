@@ -1,5 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* CRITICAL FIX v53.1: @import "tailwindcss" is REQUIRED to activate Features.Utilities in the Tailwind v4 compiler.
+   Without this directive, the @tailwindcss/vite plugin skips the scanner entirely (Features.Utilities bit = 0)
+   and generates ZERO utility classes (flex, overflow-hidden, w-[248px], etc.).
+   Scientific basis: @tailwindcss/vite source code - compiler.features & h.Utilities check.
+   The @source directives below ensure scanning works even when .git is excluded from Docker build context. */
+@import "tailwindcss";
 @import "tw-animate-css";
+
+@source "../../";
+@source "../";
+@source "../../shared/";
+@source "../../server/";
 
 @custom-variant dark (&:is(.dark *));
 

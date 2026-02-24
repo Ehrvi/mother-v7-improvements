@@ -22,6 +22,7 @@ import { learnFromResponse } from './learning';
 import { processWithReAct } from './react';
 import { searchEpisodicMemory, generateAndStoreEmbedding } from './embeddings';
 import { createHash } from 'crypto';
+import { conductResearch, requiresResearch } from './research';
 
 export interface MotherRequest {
   query: string;
@@ -100,6 +101,28 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   
   const knowledgeContext = await getKnowledgeContext(query);
   
+  // ==================== LAYER 5.4: SCIENTIFIC RESEARCH (v54.0) ====================
+  // Autonomous web search and scientific literature retrieval
+  // Scientific basis: ReAct (Yao et al., ICLR 2023), WebGPT (Nakano et al., 2021)
+  
+  let researchContext = '';
+  if (requiresResearch(query)) {
+    console.log('[MOTHER] Research mode activated — conducting web search');
+    try {
+      const research = await conductResearch(query);
+      if (research.usedSearch && research.synthesis) {
+        researchContext = `\n\n## 🔬 SCIENTIFIC RESEARCH RESULTS\n${research.synthesis}`;
+        if (research.sources.length > 0) {
+          researchContext += `\n\n**Sources consulted:**\n` +
+            research.sources.map((s, i) => `[${i+1}] [${s.title}](${s.url})`).join('\n');
+        }
+        console.log(`[MOTHER] Research complete: ${research.sources.length} sources, synthesis ready`);
+      }
+    } catch (err) {
+      console.error('[MOTHER] Research failed (non-blocking):', err);
+    }
+  }
+
   // ==================== LAYER 5.5: EPISODIC MEMORY (v30.0) ====================
   // Search past interactions for semantically similar queries
   // Scientific basis: MemGPT (Packer et al., 2023) - episodic memory for LLM agents
@@ -200,7 +223,7 @@ CURRENT CONTEXT:
 - Tier: ${complexity.tier}
 - Complexity: ${complexity.complexityScore.toFixed(2)}
 - Confidence: ${complexity.confidenceScore.toFixed(2)}
-${knowledgeContext ? `- Knowledge context: ${knowledgeContext}` : ''}${episodicContext}
+${knowledgeContext ? `- Knowledge context: ${knowledgeContext}` : ''}${episodicContext}${researchContext}
 
 USER LANGUAGE: ${detectLanguage(query)}
 
