@@ -13,6 +13,8 @@ import { enqueueQuery } from "../lib/queue";
 import { assessComplexity } from "../mother/intelligence";
 import { createHash } from "crypto";
 import { invokeCodeAgent } from "../mother/code_agent";
+import { invokeSupervisor, getSupervisorStatus } from "../mother/supervisor";
+import { randomUUID } from "crypto";
 
 export const motherRouter = router({
   /**
@@ -185,10 +187,10 @@ export const motherRouter = router({
     }),
 
   /**
-   * v31.0: CodeAgent endpoint
+   * v31.0: CodeAgent endpoint (DEPRECATED - use supervisor.evolve instead)
    * Invokes the autonomous CodeAgent to perform software engineering tasks
    * 
-   * Example task: "Add a new field 'priority' of type 'number' with default value 0 to the 'queries' table in drizzle/schema.ts"
+   * @deprecated Use supervisor.evolve for v35.0+ DGM architecture
    */
   runCodeAgent: protectedProcedure
     .input(
@@ -199,4 +201,75 @@ export const motherRouter = router({
     .mutation(async ({ input }) => {
       return await invokeCodeAgent(input.task);
     }),
+
+  /**
+   * v35.0: Supervisor Evolve - Invoke the DGM Supervisor
+   * 
+   * Starts a new evolution run with the Supervisor, which coordinates
+   * CodeAgent, MemoryAgent, and ValidationAgent to achieve the goal.
+   * 
+   * Returns a run_id (thread_id) for polling status via supervisor.getStatus
+   */
+  supervisor: router({
+    evolve: protectedProcedure
+      .input(
+        z.object({
+          goal: z.string().min(1).max(2000),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const runId = randomUUID();
+        
+        // Invoke the supervisor asynchronously (don't await)
+        invokeSupervisor(input.goal, runId).catch((error) => {
+          console.error(`[Supervisor] Error in run ${runId}:`, error);
+        });
+
+        return {
+          run_id: runId,
+          status: "started",
+          message: "Supervisor evolution started. Use supervisor.getStatus to monitor progress.",
+        };
+      }),
+
+    /**
+     * v35.0: Supervisor Get Status - Monitor evolution progress
+     * 
+     * Retrieves the state history for a given run_id (thread_id).
+     * Shows the progression through the StateGraph and current status.
+     */
+    getStatus: protectedProcedure
+      .input(
+        z.object({
+          run_id: z.string().uuid(),
+        })
+      )
+      .query(async ({ input }) => {
+        const stateHistory = await getSupervisorStatus(input.run_id);
+
+        if (stateHistory.length === 0) {
+          return {
+            run_id: input.run_id,
+            status: "not_found",
+            message: "No state found for this run_id. It may not have started yet or may have expired.",
+            history: [],
+          };
+        }
+
+        const latestState = stateHistory[0];
+        const isComplete = latestState.next?.includes("__end__") || false;
+
+        return {
+          run_id: input.run_id,
+          status: isComplete ? "completed" : "running",
+          current_node: latestState.next,
+          message_count: latestState.values.messages?.length || 0,
+          history: stateHistory.map((state) => ({
+            checkpoint_id: state.config.configurable?.checkpoint_id,
+            next: state.next,
+            message_count: state.values.messages?.length || 0,
+          })),
+        };
+      }),
+  }),
 });
