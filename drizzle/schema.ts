@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, primaryKey, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { float, int, mediumtext, mysqlEnum, mysqlTable, primaryKey, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -211,17 +211,21 @@ export type EpisodicMemory = typeof episodicMemory.$inferSelect;
 export type InsertEpisodicMemory = typeof episodicMemory.$inferInsert;
 
 /**
- * MOTHER v34.0: DGM Archive
+ * MOTHER v40.0: DGM Archive
  * Stores the evolutionary lineage of agent versions (Darwin Gödel Machine)
+ *
+ * IMPORTANT: This schema reflects the ACTUAL table structure in production (mother_v7_prod).
+ * The table was created manually/by an older version of the code, NOT by migration 0002.
+ * Verified via: mysql DESCRIBE dgm_archive (2026-02-24)
  */
 export const dgmArchive = mysqlTable("dgm_archive", {
   id: int("id").autoincrement().primaryKey(),
-  // IMPORTANT: DB was created with camelCase column names (migration 0002)
-  parentId: int("parentId"),
-  fitnessScore: varchar("fitnessScore", { length: 20 }).notNull(),
-  codeSnapshotUrl: varchar("codeSnapshotUrl", { length: 512 }),
-  metadata: text("metadata"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  generationId: varchar("generation_id", { length: 255 }).notNull(),
+  parentId: varchar("parent_id", { length: 255 }),
+  codeSnapshot: mediumtext("code_snapshot").notNull(),
+  fitnessScore: float("fitness_score"),
+  benchmarkResults: text("benchmark_results"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export type DgmArchive = typeof dgmArchive.$inferSelect;

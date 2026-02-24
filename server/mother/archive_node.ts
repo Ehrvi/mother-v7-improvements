@@ -1,19 +1,24 @@
 /**
- * MOTHER v39.0: Archive Node
- * 
+ * MOTHER v40.0: Archive Node
+ *
  * Saves evolution data to the dgm_archive table for historical tracking.
  * Part of the Darwin Gödel Machine (DGM) evolutionary loop.
- * 
- * This node receives the state from ValidationAgent and persists:
- * - parent_id: Reference to parent generation (for lineage tracking)
- * - fitness_score: Calculated fitness score (0.0-1.0)
- * - code_snapshot_url: URL/identifier for the code snapshot
- * - metadata: JSON with task, changes, benchmark results
+ *
+ * SCHEMA (verified against production DB mother_v7_prod on 2026-02-24):
+ *   id             INT AUTO_INCREMENT PRIMARY KEY
+ *   generation_id  VARCHAR(255) NOT NULL
+ *   parent_id      VARCHAR(255) NULL
+ *   code_snapshot  MEDIUMTEXT NOT NULL
+ *   fitness_score  FLOAT NULL
+ *   benchmark_results TEXT NULL
+ *   created_at     TIMESTAMP NOT NULL DEFAULT now()
+ *
+ * Scientific basis: Darwin Gödel Machine (Zhang et al., arXiv:2505.22954)
  */
 
 import { getDb } from "../db";
 import { dgmArchive } from "../../drizzle/schema";
-// SupervisorState type will be inferred from supervisor.ts
+
 type SupervisorState = {
   messages: Array<{ role: string; content: string }>;
   currentNode?: string;
@@ -24,11 +29,9 @@ type SupervisorState = {
 
 /**
  * Archive Node Function
- * 
+ *
  * Receives state from ValidationAgent and saves to dgm_archive table.
- * 
- * @param state - The current supervisor state
- * @returns Updated state with archive confirmation
+ * Uses the ACTUAL production schema (snake_case, generation_id, code_snapshot, etc.)
  */
 export async function archiveNode(state: SupervisorState): Promise<Partial<SupervisorState>> {
   console.log("[ArchiveNode] Archiving evolution data...");
@@ -38,70 +41,69 @@ export async function archiveNode(state: SupervisorState): Promise<Partial<Super
   try {
     // Extract data from state
     const generationId = state.threadId || `gen-${Date.now()}`;
-    const parentId = state.parentId ? parseInt(state.parentId) : null;
-    
-    // Extract code snapshot from messages
+    const parentId = state.parentId || null;
+
+    // Extract code snapshot and fitness score from messages
     let codeSnapshot = "No code generated";
-    let fitnessScore = 0.0;
+    let fitnessScore: number | null = null;
     let benchmarkResults: Record<string, unknown> = {};
 
-    // Parse messages to find code and fitness score
     if (state.messages && state.messages.length > 0) {
       for (const msg of state.messages) {
         const content = typeof msg.content === "string" ? msg.content : "";
-        
-        // Look for code blocks
-        const codeMatch = content.match(/```(?:typescript|ts)?\n([\s\S]+?)\n```/);
+
+        // Extract code blocks
+        const codeMatch = content.match(/```(?:typescript|javascript|ts|js)?\n([\s\S]+?)\n```/);
         if (codeMatch) {
           codeSnapshot = codeMatch[1];
         }
 
-        // Look for fitness score
-        const fitnessMatch = content.match(/Fitness score:\s*([\d.]+)/i);
+        // Extract fitness score (e.g. "Fitness score: 0.47" or "fitness_score: 0.85")
+        const fitnessMatch = content.match(/[Ff]itness\s*[Ss]core[:\s]+([\d.]+)/i);
         if (fitnessMatch) {
           fitnessScore = parseFloat(fitnessMatch[1]);
         }
 
-        // Look for benchmark results
-        const resultsMatch = content.match(/Results:\s*(\{[\s\S]+?\})/);
+        // Extract benchmark results JSON
+        const resultsMatch = content.match(/[Bb]enchmark\s*[Rr]esults?[:\s]+(\{[\s\S]+?\})/);
         if (resultsMatch) {
-          try { benchmarkResults = JSON.parse(resultsMatch[1]); } catch { benchmarkResults = { raw: resultsMatch[1] }; }
+          try {
+            benchmarkResults = JSON.parse(resultsMatch[1]);
+          } catch {
+            benchmarkResults = { raw: resultsMatch[1] };
+          }
         }
       }
     }
 
-    // Connect to database and insert record
+    // Connect to database
     const db = await getDb();
     if (!db) {
       throw new Error("Database not available");
     }
 
-    // Build metadata JSON with all evolution data
-    const metadata = JSON.stringify({
-      generationId,
-      codeSnapshot: codeSnapshot.substring(0, 1000),
-      benchmarkResults,
-      archivedAt: new Date().toISOString(),
-    });
-
+    // Insert into dgm_archive using the REAL production schema
     const insertResult = await db.insert(dgmArchive).values({
+      generationId,
       parentId,
-      fitnessScore: fitnessScore.toFixed(4), // Schema expects string
-      codeSnapshotUrl: `gen:${generationId}`,
-      metadata,
+      codeSnapshot: codeSnapshot.substring(0, 65000), // mediumtext limit safety
+      fitnessScore,
+      benchmarkResults: Object.keys(benchmarkResults).length > 0
+        ? JSON.stringify(benchmarkResults)
+        : null,
     });
 
     console.log("[ArchiveNode] Successfully archived evolution data");
     console.log("[ArchiveNode] Generation ID:", generationId);
     console.log("[ArchiveNode] Fitness Score:", fitnessScore);
-    console.log("[ArchiveNode] Insert result:", insertResult);
+    console.log("[ArchiveNode] Insert result:", JSON.stringify(insertResult).substring(0, 100));
 
     return {
       messages: [
         ...state.messages,
         {
           role: "assistant" as const,
-          content: `[ArchiveNode] Evolution data archived successfully. Generation: ${generationId}, Fitness: ${fitnessScore}`,
+          content: `[ArchiveNode] Evolution data archived successfully. Generation: ${generationId}, Fitness: ${fitnessScore ?? "N/A"}`,
         },
       ],
       currentNode: "archive",
