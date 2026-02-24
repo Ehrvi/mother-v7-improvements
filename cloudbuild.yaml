@@ -43,7 +43,8 @@ steps:
       - '--service-account=mother-cloudrun-sa@mothers-library-mcp.iam.gserviceaccount.com'
       # v46.0: Fixed Cloud SQL instance to use Sydney (australia-southeast1) for co-location
       - '--add-cloudsql-instances=mothers-library-mcp:australia-southeast1:mother-db-sydney'
-      - '--set-secrets=DATABASE_URL=mother-db-url:latest,OPENAI_API_KEY=mother-openai-api-key:latest'
+      # v50.0: Added JWT_SECRET and forge API secrets (fixes 'Zero-length key' auth bug)
+      - '--set-secrets=DATABASE_URL=mother-db-url:latest,OPENAI_API_KEY=mother-openai-api-key:latest,JWT_SECRET=mother-jwt-secret:latest,BUILT_IN_FORGE_API_URL=mother-forge-api-url:latest,BUILT_IN_FORGE_API_KEY=mother-forge-api-key:latest'
       - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA'
 
 images:
