@@ -1,4 +1,4 @@
-import { decimal, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { decimal, int, mysqlEnum, mysqlTable, text, timestamp, varchar, primaryKey } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -444,3 +444,52 @@ export const semanticCache = mysqlTable("semantic_cache", {
 
 export type SemanticCache = typeof semanticCache.$inferSelect;
 export type InsertSemanticCache = typeof semanticCache.$inferInsert;
+
+/**
+ * MOTHER v34.0: Episodic Memory
+ * Stores memories with embeddings for the MemoryAgent (A-MEM pattern)
+ */
+export const episodicMemory = mysqlTable("episodic_memory", {
+  id: int("id").autoincrement().primaryKey(),
+  content: text("content").notNull(),
+  embedding: text("embedding"), // JSON array of floats
+  metadata: text("metadata"), // JSON: source, tags, importance, etc.
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type EpisodicMemory = typeof episodicMemory.$inferSelect;
+export type InsertEpisodicMemory = typeof episodicMemory.$inferInsert;
+
+/**
+ * MOTHER v34.0: DGM Archive
+ * Stores the evolutionary lineage of agent versions (Darwin Gödel Machine)
+ */
+export const dgmArchive = mysqlTable("dgm_archive", {
+  id: int("id").autoincrement().primaryKey(),
+  parentId: int("parentId"), // References another dgmArchive.id
+  fitnessScore: varchar("fitnessScore", { length: 20 }).notNull(), // stored as string to avoid float precision issues
+  codeSnapshotUrl: varchar("codeSnapshotUrl", { length: 512 }),
+  metadata: text("metadata"), // JSON: task, changes, benchmark results, etc.
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DgmArchive = typeof dgmArchive.$inferSelect;
+export type InsertDgmArchive = typeof dgmArchive.$inferInsert;
+
+/**
+ * MOTHER v34.0: LangGraph Checkpoints
+ * Stores persistent state for the Supervisor graph (MySqlCheckpointer)
+ */
+export const langgraphCheckpoints = mysqlTable("langgraph_checkpoints", {
+  threadId: varchar("thread_id", { length: 255 }).notNull(),
+  checkpointId: varchar("checkpoint_id", { length: 255 }).notNull(),
+  parentCheckpointId: varchar("parent_checkpoint_id", { length: 255 }),
+  checkpointData: text("checkpoint_data").notNull(), // JSON serialized Checkpoint
+  metadata: text("metadata"), // JSON serialized CheckpointMetadata
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.threadId, table.checkpointId] }),
+}));
+
+export type LanggraphCheckpoint = typeof langgraphCheckpoints.$inferSelect;
+export type InsertLanggraphCheckpoint = typeof langgraphCheckpoints.$inferInsert;

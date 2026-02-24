@@ -3437,3 +3437,75 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 - [x] Add MOTHER-MasterTo-DoList(v32.0-TheCognitiveSingularity).md to repository
 - [x] Add MOTHERv32.0-TheCognitiveSingularity.md to repository
 - [x] Verify all documentation references point to Git (no Google Drive refs, references to MOTHER-TODO-MASTER.md and AWAKE-V40.md confirmed)
+
+
+---
+
+## PHASE 11: v33.0 - Production-Ready Cognitive Singularity (MASTERPROMPT Execution) (2026-02-24)
+
+### Documentation Integration
+- [x] Add MASTERPROMPT_ImplementMOTHERv33.0-TheProduction-ReadyCognitiveSingularity.md
+- [x] Add AWAKE-V41_FromVisiontoProduction-ReadyBlueprint.md
+- [x] Add AI-INSTRUCTIONS-V11_TheProduction-ReadyCognitiveSingularityDirective.md
+
+### 1.1. Foundational Refactoring: Supervisor-Worker with LangChain v1
+- [ ] Install dependencies: pnpm add @langchain/langgraph-supervisor @langchain/core langchain@^1.0.0
+- [ ] Create /server/mother/supervisor.ts using createSupervisor
+- [ ] Refactor /server/mother/code_agent.ts: DELETE existing code, rewrite using createAgent
+- [ ] Create /server/mother/memory_agent.ts using createAgent (placeholder with no tools)
+- [ ] Create /server/mother/validation_agent.ts using createAgent (placeholder with no tools)
+- [ ] Integrate workers: Import all agents and pass to createSupervisor agents array
+
+### 1.2. Production-Grade Persistence
+- [ ] Create /server/mother/checkpoint.ts with MySqlCheckpointer class extending BaseCheckpointSaver
+- [ ] Implement MySqlCheckpointer.get() method (interact with TiDB/MySQL)
+- [ ] Implement MySqlCheckpointer.put() method (interact with TiDB/MySQL)
+- [ ] Implement MySqlCheckpointer.list() method (interact with TiDB/MySQL)
+- [ ] Enable checkpointing: compile supervisor graph with new MySqlCheckpointer()
+
+### 1.3. Closing the Loop: New API Endpoints
+- [ ] Deprecate old endpoint: DELETE runCodeAgent mutation from /server/routers/mother.ts
+- [ ] Implement supervisor.evolve mutation (take goal: string, call app.invoke with thread_id)
+- [ ] Implement supervisor.getStatus query (take thread_id: string, call app.getStateHistory)
+
+### 1.4. Validation
+- [ ] Compile: Run pnpm tsc --noEmit to ensure no TypeScript errors
+- [ ] Deploy: Use gcloud builds submit to deploy v33.0 to Cloud Run
+- [ ] Test: curl/tRPC client to call supervisor.evolve with simple goal
+- [ ] Test: call supervisor.getStatus with returned thread_id to verify persistence
+
+
+---
+
+## PHASE 12: v34.0 - Verified Cognitive Singularity (MASTERPROMPT v34.0 Execution) (2026-02-24)
+
+### 1.1. Foundational Refactoring: StateGraph Supervisor with createReactAgent Workers
+- [ ] Create /server/mother/supervisor.ts using StateGraph from @langchain/langgraph
+- [ ] Define SupervisorState using Annotation.Root (messages + next field for routing)
+- [ ] Create /server/mother/memory_agent.ts using createReactAgent (placeholder tool)
+- [ ] Create /server/mother/validation_agent.ts using createReactAgent (placeholder tool)
+- [ ] Integrate workers: Import CodeAgent, MemoryAgent, ValidationAgent as StateGraph nodes
+- [ ] Implement router: Add conditional edge from START using next field
+
+### 1.2. Production-Grade Persistence and Database Schema
+- [ ] Update drizzle/schema.ts: Add episodic_memory table (id, content, embedding, created_at, metadata)
+- [ ] Update drizzle/schema.ts: Add dgm_archive table (id, parent_id, fitness_score, code_snapshot_url)
+- [ ] Run pnpm db:push to apply schema changes
+- [ ] Create /server/mother/checkpoint.ts with MySqlCheckpointer extending BaseCheckpointSaver
+- [ ] Implement MySqlCheckpointer.getTuple() method
+- [ ] Implement MySqlCheckpointer.list() method
+- [ ] Implement MySqlCheckpointer.put() method
+- [ ] Implement MySqlCheckpointer.putWrites() method
+- [ ] Implement MySqlCheckpointer.deleteThread() method
+- [ ] Enable checkpointing: Compile StateGraph with MySqlCheckpointer instance
+
+### 1.3. Closing the Loop: New API Endpoints
+- [ ] Deprecate old endpoint: DELETE runCodeAgent mutation from /server/routers/mother.ts
+- [ ] Implement supervisor.evolve mutation (take goal: string, call app.invoke, return thread_id)
+- [ ] Implement supervisor.getStatus query (take thread_id: string, call app.getStateHistory)
+
+### 1.4. Validation
+- [ ] Compile: Run pnpm tsc --noEmit to ensure no TypeScript errors
+- [ ] Deploy: Use gcloud builds submit to deploy v34.0 to Cloud Run
+- [ ] Test: curl/tRPC client to call supervisor.evolve with simple goal ("read README.md")
+- [ ] Test: call supervisor.getStatus with returned thread_id to verify persistence
