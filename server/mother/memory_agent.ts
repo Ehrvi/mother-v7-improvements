@@ -12,7 +12,10 @@
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { initChatModel } from "langchain";
+import { ChatOpenAI } from "@langchain/openai";
+import { getDb } from "../db";
+import { episodicMemory } from "../../drizzle/schema";
+import { getEmbedding, cosineSimilarity } from "./embeddings";
 
 /**
  * Placeholder tool: Store Memory
@@ -27,11 +30,25 @@ const storeMemoryTool = tool(
     console.log("[MemoryAgent] Storing memory:", content);
     console.log("[MemoryAgent] Tags:", tags);
 
-    // TODO: Implement actual memory storage
-    // const embedding = await getEmbedding(content);
-    // const memoryId = await db.insert(episodicMemory).values({ content, embedding, metadata: { tags } });
+    try {
+      // Generate embedding for the content
+      const embedding = await getEmbedding(content);
 
-    return `Memory stored successfully (placeholder). Content: "${content}", Tags: ${tags.join(", ")}`;
+      // Store in database
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      await db.insert(episodicMemory).values({
+        content,
+        embedding: JSON.stringify(embedding),
+        metadata: JSON.stringify({ tags }),
+      });
+
+      return `Memory stored successfully. Content: "${content}", Tags: ${tags.join(", ")}`;
+    } catch (error) {
+      console.error("[MemoryAgent] Error storing memory:", error);
+      return `Failed to store memory: ${error instanceof Error ? error.message : "Unknown error"}`;
+    }
   },
   {
     name: "store_memory",
@@ -44,9 +61,9 @@ const storeMemoryTool = tool(
 );
 
 /**
- * Placeholder tool: Recall Memory
+ * Real tool: Recall Memory
  * 
- * In production, this would:
+ * Implements:
  * 1. Generate embedding for the query
  * 2. Search episodic_memory table using cosine similarity
  * 3. Return top-k most relevant memories
@@ -56,11 +73,46 @@ const recallMemoryTool = tool(
     console.log("[MemoryAgent] Recalling memories for query:", query);
     console.log("[MemoryAgent] Limit:", limit);
 
-    // TODO: Implement actual memory retrieval
-    // const queryEmbedding = await getEmbedding(query);
-    // const memories = await searchEpisodicMemory(queryEmbedding, limit);
+    try {
+      // Generate embedding for the query
+      const queryEmbedding = await getEmbedding(query);
 
-    return `Found ${limit} relevant memories (placeholder). Query: "${query}"`;
+      // Search database
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      // Get all memories (simplified - in production, use vector search)
+      const memories = await db.select().from(episodicMemory).limit(100);
+
+      // Calculate cosine similarity for each memory
+      const memoriesWithSimilarity = memories.map((memory) => {
+        const memoryEmbedding = JSON.parse(memory.embedding);
+        const similarity = cosineSimilarity(queryEmbedding, memoryEmbedding);
+        return { ...memory, similarity };
+      });
+
+      // Sort by similarity and take top-k
+      const topMemories = memoriesWithSimilarity
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, limit);
+
+      if (topMemories.length === 0) {
+        return `No relevant memories found for query: "${query}"`;
+      }
+
+      // Format results
+      const results = topMemories
+        .map(
+          (m, i) =>
+            `${i + 1}. [Similarity: ${m.similarity.toFixed(3)}] ${m.content}`
+        )
+        .join("\n");
+
+      return `Found ${topMemories.length} relevant memories:\n${results}`;
+    } catch (error) {
+      console.error("[MemoryAgent] Error recalling memories:", error);
+      return `Failed to recall memories: ${error instanceof Error ? error.message : "Unknown error"}`;
+    }
   },
   {
     name: "recall_memory",
@@ -76,7 +128,7 @@ const recallMemoryTool = tool(
  * Create the Memory Agent using createReactAgent
  */
 export async function createMemoryAgent() {
-  const model = await initChatModel("gpt-4o-mini");
+  const model = new ChatOpenAI({ model: "gpt-4o-mini" });
   const tools = [storeMemoryTool, recallMemoryTool];
 
   const agent = createReactAgent({

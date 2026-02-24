@@ -18,7 +18,7 @@ async function testSupervisorEndToEnd() {
 
   // Step 1: Call supervisor.evolve
   console.log("Step 1: Calling supervisor.evolve...");
-  const evolveResponse = await fetch(`${PRODUCTION_URL}/api/trpc/mother.supervisor.evolve`, {
+  const evolveResponse = await fetch(`${PRODUCTION_URL}/api/trpc/mother.supervisor.evolve?batch=1`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -58,8 +58,8 @@ async function testSupervisorEndToEnd() {
     await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second
 
     const statusResponse = await fetch(
-      `${PRODUCTION_URL}/api/trpc/mother.supervisor.getStatus?input=${encodeURIComponent(
-        JSON.stringify({ run_id: runId })
+      `${PRODUCTION_URL}/api/trpc/mother.supervisor.getStatus?batch=1&input=${encodeURIComponent(
+        JSON.stringify({ "0": { json: { run_id: runId } } })
       )}`,
       {
         method: "GET",

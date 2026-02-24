@@ -12,14 +12,20 @@
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { initChatModel } from "langchain";
+import { ChatOpenAI } from "@langchain/openai";
+import { getDb } from "../db";
+import { dgmArchive } from "../../drizzle/schema";
+import { exec } from "child_process";
+import { promisify } from "util";
+
+const execAsync = promisify(exec);
 
 /**
- * Placeholder tool: Run Benchmark
+ * Real tool: Run Benchmark
  * 
- * In production, this would:
- * 1. Execute a subset of SWE-bench or custom benchmarks
- * 2. Measure performance metrics (latency, accuracy, etc.)
+ * Implements:
+ * 1. Execute test suite (pnpm test or custom command)
+ * 2. Measure performance metrics (pass rate, latency)
  * 3. Calculate a fitness score (0-100)
  * 4. Store results in dgm_archive table
  */
@@ -28,15 +34,75 @@ const runBenchmarkTool = tool(
     console.log("[ValidationAgent] Running benchmark:", testSuite);
     console.log("[ValidationAgent] Timeout:", timeout, "seconds");
 
-    // TODO: Implement actual benchmark execution
-    // const results = await executeBenchmark(testSuite, timeout);
-    // const fitnessScore = calculateFitnessScore(results);
-    // await db.insert(dgmArchive).values({ fitnessScore, metadata: results });
+    try {
+      // Execute benchmark command
+      let command: string;
+      if (testSuite === "unit-tests") {
+        command = "pnpm test";
+      } else if (testSuite === "swe-bench-lite") {
+        // Placeholder for SWE-bench integration
+        command = "echo 'SWE-bench not implemented yet'";
+      } else {
+        command = testSuite; // Custom command
+      }
 
-    // Placeholder: return a random fitness score
-    const mockFitnessScore = Math.floor(Math.random() * 30) + 70; // 70-100
+      const startTime = Date.now();
+      const { stdout, stderr } = await execAsync(command, {
+        timeout: timeout * 1000,
+        cwd: "/home/ubuntu/mother-interface",
+      });
+      const duration = Date.now() - startTime;
 
-    return `Benchmark completed (placeholder). Test suite: "${testSuite}", Fitness score: ${mockFitnessScore}/100`;
+      // Parse test results (simplified)
+      const passedMatch = stdout.match(/(\d+) passed/);
+      const failedMatch = stdout.match(/(\d+) failed/);
+      const passed = passedMatch ? parseInt(passedMatch[1]) : 0;
+      const failed = failedMatch ? parseInt(failedMatch[1]) : 0;
+      const total = passed + failed;
+
+      // Calculate fitness score (0-100)
+      const passRate = total > 0 ? (passed / total) * 100 : 0;
+      const fitnessScore = Math.round(passRate);
+
+      // Store in dgm_archive
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      await db.insert(dgmArchive).values({
+        fitnessScore,
+        metadata: JSON.stringify({
+          testSuite,
+          passed,
+          failed,
+          total,
+          duration,
+          timestamp: new Date().toISOString(),
+        }),
+      });
+
+      return `Benchmark completed. Test suite: "${testSuite}", Passed: ${passed}/${total}, Fitness score: ${fitnessScore}/100, Duration: ${duration}ms`;
+    } catch (error) {
+      console.error("[ValidationAgent] Error running benchmark:", error);
+
+      // Store failed benchmark
+      try {
+        const db = await getDb();
+        if (db) {
+          await db.insert(dgmArchive).values({
+            fitnessScore: 0,
+            metadata: JSON.stringify({
+              testSuite,
+              error: error instanceof Error ? error.message : "Unknown error",
+              timestamp: new Date().toISOString(),
+            }),
+          });
+        }
+      } catch (dbError) {
+        console.error("[ValidationAgent] Error storing failed benchmark:", dbError);
+      }
+
+      return `Benchmark failed: ${error instanceof Error ? error.message : "Unknown error"}`;
+    }
   },
   {
     name: "run_benchmark",
@@ -88,7 +154,7 @@ const validateCodeTool = tool(
  * Create the Validation Agent using createReactAgent
  */
 export async function createValidationAgent() {
-  const model = await initChatModel("gpt-4o-mini");
+  const model = new ChatOpenAI({ model: "gpt-4o-mini" });
   const tools = [runBenchmarkTool, validateCodeTool];
 
   const agent = createReactAgent({

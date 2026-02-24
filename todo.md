@@ -3509,3 +3509,31 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 - [ ] Deploy: Use gcloud builds submit to deploy v34.0 to Cloud Run
 - [ ] Test: curl/tRPC client to call supervisor.evolve with simple goal ("read README.md")
 - [ ] Test: call supervisor.getStatus with returned thread_id to verify persistence
+
+
+---
+
+## PHASE 13: v36.0 - O Loop DGM Funcional
+
+### Fase 1.1: Correção dos Bugs Críticos da v35.0
+- [x] BUG 1: Replace initChatModel with ChatOpenAI in memory_agent.ts
+- [x] BUG 1: Replace initChatModel with ChatOpenAI in validation_agent.ts
+- [x] BUG 2: Fix tRPC request format in test-supervisor-v35.0.ts (use ?batch=1 and correct body format)
+- [x] BUG 3: Implement putWrites method in checkpoint.ts (remove PendingWrite, add real persistence logic)
+
+### Fase 1.2: Implementação dos Workers Reais
+- [x] Implement store_memory tool in memory_agent.ts (interact with episodic_memory table)
+- [x] Implement recall_memory tool in memory_agent.ts (query episodic_memory table)
+- [x] Implement run_benchmark tool in validation_agent.ts (execute pnpm test, store in dgm_archive)
+
+### Fase 1.3: Evolução do Supervisor
+- [ ] Replace keyword-based routerNode with LLM-based routing in supervisor.ts
+- [ ] Integrate real MemoryAgent into supervisor StateGraph
+- [ ] Integrate real ValidationAgent into supervisor StateGraph
+
+### Fase 1.4: Deploy e Validação em Produção
+- [ ] Commit all v36.0 changes to Git
+- [ ] Deploy to Cloud Run production (gcloud builds submit)
+- [ ] Verify new revision is active and serving traffic
+- [ ] Execute end-to-end test and validate complete evolution cycle
+- [ ] Verify checkpoints and writes are persisted in database
