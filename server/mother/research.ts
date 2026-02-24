@@ -68,12 +68,35 @@ export function requiresResearch(query: string): boolean {
 }
 
 /**
+ * Extract English keywords from a Portuguese query for better arXiv search
+ * arXiv indexes primarily in English, so we extract technical terms
+ */
+function extractEnglishKeywords(query: string): string {
+  // Extract technical terms that are likely already in English
+  const technicalTerms = query.match(/\b[A-Z][a-zA-Z]+(?:[A-Z][a-zA-Z]+)+\b|\b(?:MemGPT|ReAct|LLM|GPT|BERT|RAG|RLHF|CoT|ToT|LoRA|PEFT|SFT|DPO|PPO|GRPO|MoE|SSM|Mamba|Transformer|Attention|Embedding|Vector|Neural|Deep|Machine|Learning|Reasoning|Memory|Agent|Cognitive|Autonomous|Reinforcement|Supervised|Unsupervised|Generative|Diffusion|Multimodal|Benchmark|Evaluation|Fine-tuning|Pre-training|Inference|Alignment|Safety|Hallucination|Grounding|Planning|Tool|Search|Retrieval|Knowledge|Graph|Chain|Thought|Prompt|Few-shot|Zero-shot|In-context|Instruction|RLHF|Constitutional|Self-play|Self-improvement|Meta-learning|Continual|Lifelong|Episodic|Semantic|Procedural|Working|Long-term|Short-term|Attention|Transformer|Encoder|Decoder|Autoregressive|Masked|Causal|Cross|Self|Multi-head|Flash|Sparse|Mixture|Expert|Router|Token|Vocabulary|Tokenizer|BPE|SentencePiece|Byte|Pair|Encoding|Decoding|Beam|Greedy|Sampling|Temperature|Top-k|Top-p|Nucleus|Repetition|Penalty|Length|Bias|Logit|Softmax|Sigmoid|ReLU|GELU|LayerNorm|RMSNorm|Dropout|Residual|Skip|Connection|Feedforward|MLP|Linear|Projection|Embedding|Positional|Rotary|ALiBi|RoPE|Sinusoidal|Learned|Absolute|Relative|Darwin|Gödel|Gödelian|Kolmogorov|Solomonoff|AIXI|AGI|ASI|Superintelligence|Consciousness|Sentience|Qualia|Emergence|Complexity|Compression|Description|Length|MDL|Minimum|Occam|Razor|Prior|Posterior|Bayesian|Frequentist|Causal|Counterfactual|Intervention|Observation|Confounder|Instrumental|Variable|Regression|Discontinuity|Difference|Differences|Synthetic|Control|Propensity|Score|Matching|Weighting|Doubly|Robust|Semiparametric|Nonparametric|Kernel|Gaussian|Process|Variational|Autoencoder|GAN|Flow|Normalizing|Score|Matching|Diffusion|Denoising|DDPM|DDIM|Stable|Latent|Consistency|Distillation|Guidance|Classifier|Free|Guidance|CFG|ControlNet|LoRA|DreamBooth|Textual|Inversion|Prompt|Tuning|Adapter|Prefix|Soft|Hard|Discrete|Continuous|Gradient|Descent|Adam|AdamW|SGD|Momentum|Nesterov|Adagrad|RMSprop|LAMB|LARS|Cosine|Linear|Warmup|Decay|Schedule|Learning|Rate|Batch|Micro|Gradient|Accumulation|Checkpointing|Mixed|Precision|BF16|FP16|FP32|INT8|INT4|Quantization|Pruning|Distillation|Compression|Efficient|Inference|Serving|Deployment|Latency|Throughput|Memory|Bandwidth|Compute|FLOPs|Parameters|Weights|Activations|KV|Cache|PagedAttention|vLLM|TensorRT|ONNX|TorchScript|Triton|CUDA|ROCm|TPU|IPU|NPU|Accelerator|Hardware|Software|Co-design|Optimization|Compilation|JIT|AOT|Tracing|Symbolic|Execution|Verification|Formal|Methods|Type|System|Dependent|Linear|Session|Effect|Monad|Functor|Applicative|Traversable|Foldable|Monoid|Semigroup|Category|Theory|Topos|Sheaf|Fibration|Adjunction|Limit|Colimit|Kan|Extension|Yoneda|Lemma|Curry|Howard|Correspondence|Propositions|Types|Proofs|Programs|Curry|Howard|Lambek|Isomorphism|BHK|Interpretation|Realizability|Dialectica|Interpretation|Forcing|Sheaf|Model|Kripke|Frame|Possible|World|Semantics|Denotational|Operational|Axiomatic|Hoare|Logic|Separation|Logic|Concurrent|Separation|Logic|Iris|Coq|Lean|Agda|Idris|Haskell|OCaml|Rust|Go|Python|JavaScript|TypeScript|C|C\+\+|Java|Scala|Kotlin|Swift|Julia|R|MATLAB|Mathematica|Wolfram|Maple|Sage|NumPy|SciPy|Pandas|Matplotlib|Seaborn|Plotly|Bokeh|Altair|Vega|D3|React|Vue|Angular|Svelte|Next|Nuxt|Remix|Astro|SvelteKit|Solid|Qwik|Fresh|Deno|Bun|Node|Express|Fastify|Hono|Elysia|Hapi|Koa|Nest|Adonis|Laravel|Django|Flask|FastAPI|Rails|Spring|Quarkus|Micronaut|Helidon|Vert|Akka|Play|Lagom|Finatra|Finagle|Thrift|gRPC|REST|GraphQL|WebSocket|SSE|WebRTC|HTTP|HTTPS|TCP|UDP|QUIC|HTTP3|TLS|SSL|mTLS|JWT|OAuth|OIDC|SAML|LDAP|Kerberos|RADIUS|TACACS|DIAMETER|RADIUS|EAP|802\.1X|WPA|WPA2|WPA3|AES|RSA|ECC|ECDSA|ECDH|X25519|Ed25519|ChaCha20|Poly1305|SHA|MD5|HMAC|PBKDF2|Argon2|bcrypt|scrypt|HKDF|PRNG|CSPRNG|HSM|TPM|SGX|TrustZone|SEV|TDX|CCA|Confidential|Computing|Homomorphic|Encryption|Secure|Multi-party|Computation|Zero|Knowledge|Proof|ZKP|SNARK|STARK|Bulletproof|Groth16|PLONK|FRI|STARKs|SNARKs|Rollup|ZK|Optimistic|Rollup|Layer|2|Sidechain|State|Channel|Payment|Channel|Lightning|Network|Plasma|Validium|Volition|Ethereum|Bitcoin|Solana|Avalanche|Polkadot|Cosmos|Near|Algorand|Cardano|Tezos|Filecoin|IPFS|Libp2p|Substrate|Ink|Solidity|Vyper|Move|Rust|Cairo|Noir|Circom|Halo2|Bellman|Arkworks|Gnark|Snarkjs|Circomlib|Openzeppelin|Hardhat|Foundry|Truffle|Brownie|Anchor|Seahorse|Neon|Helius|Metaplex|Candy|Machine|Bubblegum|Token|Metadata|Program|Library|SPL|ERC|20|721|1155|4626|2535|Diamond|Proxy|Beacon|Minimal|Clone|Create2|Assembly|Yul|Huff|Bytecode|ABI|Calldata|Memory|Storage|Stack|Gas|Opcode|EVM|SVM|MoveVM|WASM|JVM|CLR|LLVM|GCC|Clang|MSVC|ICC|PGO|LTO|BOLT|Propeller|AutoFDO|AFDO|BOLT|Propeller|AutoFDO|AFDO)\b/g);
+  
+  if (technicalTerms && technicalTerms.length > 0) {
+    // Use technical terms as the search query
+    const uniqueTerms = [...new Set(technicalTerms)].slice(0, 5);
+    return uniqueTerms.join(' ');
+  }
+  
+  // Fallback: extract words that look like proper nouns or technical terms
+  const words = query.split(/\s+/).filter(w => w.length > 3);
+  const englishLike = words.filter(w => !/[áàâãéêíóôõúçÁÀÂÃÉÊÍÓÔÕÚÇ]/.test(w));
+  return englishLike.slice(0, 6).join(' ') || query.slice(0, 100);
+}
+
+/**
  * Search arXiv for scientific papers
  * API: https://arxiv.org/help/api/user-manual
  */
 async function searchArxiv(query: string, maxResults = 3): Promise<ResearchSource[]> {
   try {
-    const encodedQuery = encodeURIComponent(query);
+    // arXiv indexes primarily in English - extract English keywords
+    const searchQuery = extractEnglishKeywords(query);
+    console.log(`[Research] arXiv search query: "${searchQuery}" (from: "${query.slice(0, 50)}...")`);
+    const encodedQuery = encodeURIComponent(searchQuery);
     const url = `https://export.arxiv.org/api/query?search_query=all:${encodedQuery}&start=0&max_results=${maxResults}&sortBy=relevance&sortOrder=descending`;
     
     const response = await fetch(url, {
