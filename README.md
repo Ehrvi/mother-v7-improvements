@@ -1,4 +1,48 @@
-# 🧠 MOTHER v7.0 - Multi-Operational Tiered Hierarchical Execution & Routing
+# MOTHER — Sistema Cognitivo Autônomo com Memória, Raciocínio e Agência
+
+- **Version:** `v41.0`
+- **Status:** `DEPLOYING ⏳`
+- **Server Region:** `australia-southeast1` (Sydney)
+- **Server URL:** `https://mother-interface-qtvghovzxa-ts.a.run.app`
+- **Active Revision:** `mother-interface-00189-lfj` (será `00190` após deploy)
+- **DGM Loop Functional:** `true` (v39.1)
+
+## Visão Final
+
+Um sistema cognitivo com memória, raciocínio e agência na vanguarda do conhecimento, capaz de auto-aperfeiçoamento contínuo (Darwin Gödel Machine).
+
+## Arquitetura de Memória e Documentação
+
+Este projeto utiliza um sistema de documentação como mecanismo de memória para evitar amnésia e regressão do agente.
+
+| Documento | Função | Tipo de Memória |
+| :--- | :--- | :--- |
+| **`README.md`** | Fonte única da verdade. Contém o estado atual, arquitetura, roadmap e infraestrutura. Deve ser lido **primeiro** por qualquer agente. | Semântica (Canônica) |
+| **`MASTER_PROMPT_V42.md`** | A constituição do projeto. Define as 3 fases de evolução com critérios de aprovação empíricos e a **Diretiva de Anti-Amnésia**. | Semântica (Diretiva) |
+| **`AWAKE-Vxx.md`** | Registro imutável de cada sessão, com o diagnóstico, o mapa do gap e a base científica utilizada. | Episódica (Registro) |
+
+## Roadmap Científico (MASTER PROMPT v42.0)
+
+| Fase | Componente | Base Científica | Status |
+| :--- | :--- | :--- | :--- |
+| **1** | **Memória Agentic** (`memory_agent.ts`) | Synapse [arXiv:2601.02744] | **MERGED ✅** (v41.0) |
+| **2** | **Agente de Código** (`code_agent.ts`) | ReAct [ICLR 2023] | **MERGED ✅** (v41.0) |
+| **3** | **Loop Evolutivo DGM** (Seleção + Mutação) | DGM [arXiv:2505.22954] | **PENDENTE** |
+
+## Histórico de Sessões (AWAKE Files)
+
+- **AWAKE-V52:** A Ressurreição do Código Perdido (Merge Estratégico v41.0)
+- **AWAKE-V51:** A Constituição Cognitiva (MASTER PROMPT v42.0)
+- **AWAKE-V50:** O Novo Padrão de Documentação
+- **AWAKE-V49:** O Loop DGM Está Vivo (v39.1)
+
+## Como Começar
+
+1.  Leia este `README.md` completo.
+2.  Leia o `MASTER_PROMPT_V42.md`.
+3.  Leia o `AWAKE-V52.md` para entender o contexto da versão atual.
+4.  Verifique o status do deploy da v41.0 e valide em produção.
+
 
 **Status:** ✅ 100% PRODUCTION READY  
 **Version:** 7.0 (Iterations 12-17 Complete)  
