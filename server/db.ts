@@ -441,3 +441,44 @@ export async function getQueryStats(periodHours: number = 24): Promise<{
     cacheHitRate,
   };
 }
+
+// ===== DGM Archive Functions (v43.0) =====
+
+/**
+ * Get DGM Archive Lineage Tree
+ * Returns all entries from dgm_archive ordered by creation date,
+ * enabling construction of the evolutionary tree (parent_id → child_id).
+ * 
+ * Scientific basis: Darwin Gödel Machine (Sakana AI, arXiv:2505.22954)
+ * The archive provides a transparent, traceable lineage of every change.
+ */
+export async function getDgmLineage(limit: number = 200): Promise<Array<{
+  id: number;
+  generationId: string;
+  parentId: string | null;
+  fitnessScore: number | null;
+  benchmarkResults: string | null;
+  createdAt: Date;
+  codeSnapshotLength: number;
+}>> {
+  const db = await getDb();
+  if (!db) {
+    return [];
+  }
+  const { dgmArchive } = await import("../drizzle/schema");
+  const { desc, sql: sqlExpr } = await import("drizzle-orm");
+  const results = await db
+    .select({
+      id: dgmArchive.id,
+      generationId: dgmArchive.generationId,
+      parentId: dgmArchive.parentId,
+      fitnessScore: dgmArchive.fitnessScore,
+      benchmarkResults: dgmArchive.benchmarkResults,
+      createdAt: dgmArchive.createdAt,
+      codeSnapshotLength: sqlExpr<number>`LENGTH(${dgmArchive.codeSnapshot})`,
+    })
+    .from(dgmArchive)
+    .orderBy(desc(dgmArchive.createdAt))
+    .limit(limit);
+  return results;
+}

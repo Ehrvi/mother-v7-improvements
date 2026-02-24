@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { publicProcedure, protectedProcedure, router } from '../_core/trpc';
 import { processQuery, getSystemStats } from '../mother/core';
 import { addKnowledge } from '../mother/knowledge';
-import { getRecentQueries, getQueryStats, getAllKnowledge } from '../db';
+import { getRecentQueries, getQueryStats, getAllKnowledge, getDgmLineage } from '../db';
 import { runCodeAgent } from '../mother/code_agent';
 import { invokeSupervisor, getSupervisorStatus } from '../mother/supervisor';
 import { randomUUID } from 'crypto';
@@ -137,6 +137,34 @@ export const motherRouter = router({
     .mutation(async ({ input, ctx }) => {
       const result = await runCodeAgent(input.task);
       return result;
+    }),
+
+  /**
+   * v43.0: DGM Lineage Dashboard
+   * Returns the evolutionary tree from dgm_archive for visualization.
+   * Scientific basis: Darwin Gödel Machine (Sakana AI, arXiv:2505.22954)
+   * "The DGM archive provides a transparent, traceable lineage of every change."
+   */
+  dgmLineage: publicProcedure
+    .input(
+      z.object({
+        limit: z.number().min(1).max(500).optional().default(200),
+      })
+    )
+    .query(async ({ input }) => {
+      const entries = await getDgmLineage(input.limit);
+      // Aggregate statistics for the dashboard
+      const fitnessScores = entries.map(e => e.fitnessScore ?? 0).filter(f => f > 0);
+      return {
+        entries,
+        total: entries.length,
+        rootCount: entries.filter(e => !e.parentId).length,
+        maxFitness: fitnessScores.length > 0 ? Math.max(...fitnessScores) : 0,
+        avgFitness: fitnessScores.length > 0
+          ? fitnessScores.reduce((sum, f) => sum + f, 0) / fitnessScores.length
+          : 0,
+        generationsWithFitness: fitnessScores.length,
+      };
     }),
 
   /**

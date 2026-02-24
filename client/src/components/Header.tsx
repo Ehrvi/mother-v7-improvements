@@ -1,11 +1,13 @@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Bot, Settings, Trash2 } from 'lucide-react';
+import { Bot, Settings, Trash2, GitBranch } from 'lucide-react';
 import { useMother } from '@/contexts/MotherContext';
 import { toast } from 'sonner';
+import { Link, useLocation } from 'react-router-dom';
 
 export default function Header() {
   const { clearMessages } = useMother();
+  const location = useLocation();
 
   const handleClearChat = () => {
     if (confirm('Are you sure you want to clear all messages?')) {
@@ -23,11 +25,13 @@ export default function Header() {
       <div className="flex items-center justify-between">
         {/* Left: Mother Avatar & Info */}
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center animate-pulse">
-            <Bot className="w-6 h-6 text-white" />
-          </div>
+          <Link to="/">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center animate-pulse cursor-pointer">
+              <Bot className="w-6 h-6 text-white" />
+            </div>
+          </Link>
           <div>
-            <h1 className="text-xl font-bold text-foreground">Mother v12.0</h1>
+            <h1 className="text-xl font-bold text-foreground">Mother v14.0</h1>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-xs border-green-500/50 text-green-400">
                 ● Operational
@@ -36,6 +40,29 @@ export default function Header() {
             </div>
           </div>
         </div>
+
+        {/* Center: Navigation */}
+        <nav className="flex items-center gap-1">
+          <Link to="/">
+            <Button
+              variant={location.pathname === '/' ? 'secondary' : 'ghost'}
+              size="sm"
+              className="text-sm"
+            >
+              Chat
+            </Button>
+          </Link>
+          <Link to="/lineage">
+            <Button
+              variant={location.pathname === '/lineage' || location.pathname === '/dgm' ? 'secondary' : 'ghost'}
+              size="sm"
+              className="text-sm flex items-center gap-1.5"
+            >
+              <GitBranch className="w-3.5 h-3.5" />
+              DGM Lineage
+            </Button>
+          </Link>
+        </nav>
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2">
