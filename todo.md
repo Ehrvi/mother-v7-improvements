@@ -3397,3 +3397,43 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 - [x] Update AI-INSTRUCTIONS-V7.md to V8 (paths corrected)
 - [x] Add AWAKE-V38.md (A Singularidade Ativa)
 - [x] Verify all documentation references point to Git (no Google Drive refs found)
+
+
+---
+
+## PHASE 10: v32.0 - The Cognitive Singularity (Multi-Agent DGM) (2026-02-24)
+
+### 1.1. Foundational Refactoring: Supervisor-Worker Pattern
+- [ ] Add psycopg2-binary dependency for Postgres connection
+- [ ] Create Supervisor Graph in /server/mother/supervisor.ts (StatefulGraph)
+- [ ] Refactor CodeAgent: Move code_agent.ts logic into CodeAgent class (worker)
+- [ ] Define SupervisorState interface (task, plan, history, DGM archive, worker states)
+- [ ] Implement basic delegation: Supervisor delegates hardcoded task to CodeAgent worker
+
+### 1.2. Persistence and State Management
+- [ ] Implement PostgresSaver from langgraph.checkpoint.postgres for TiDB/MySQL
+- [ ] Configure Supervisor graph to use Postgres checkpointer (persist state)
+- [ ] Create dgm_archive table in drizzle/schema.ts (id, parent_id, fitness_score, code_snapshot_url)
+- [ ] Create Archive Node in Supervisor graph (write results to dgm_archive table)
+
+### 1.3. Specialized Worker Agents
+- [ ] Implement MemoryAgent in /server/mother/memory_agent.ts (A-MEM pattern)
+- [ ] MemoryAgent: Interact with episodic_memory and knowledge tables
+- [ ] MemoryAgent: Retrieve relevant memories + linked memories
+- [ ] Implement ValidationAgent in /server/mother/validation_agent.ts
+- [ ] ValidationAgent: Create runBenchmark tool (execute SWE-bench subset, return JSON)
+- [ ] Integrate workers: Add MemoryAgent and ValidationAgent nodes to Supervisor graph
+
+### 1.4. Closing the Loop: Autonomous Evolution
+- [ ] Implement supervisor.evolve tRPC mutation (replaces runCodeAgent)
+- [ ] supervisor.evolve: Accept goal as input, start Supervisor graph async, return run_id
+- [ ] Implement supervisor.getStatus tRPC query (take run_id, return current state from checkpointer)
+- [ ] Implement DGM branching: Supervisor consults dgm_archive to select parent version
+- [ ] Implement Human-in-the-Loop: Add interrupt_before on final commit node
+
+### Documentation
+- [x] Add AI-INSTRUCTIONS-V10_TheCognitiveSingularityDirective.md to repository
+- [x] Add AWAKE-V40_ASingularidadeCognitiva.md to repository
+- [x] Add MOTHER-MasterTo-DoList(v32.0-TheCognitiveSingularity).md to repository
+- [x] Add MOTHERv32.0-TheCognitiveSingularity.md to repository
+- [x] Verify all documentation references point to Git (no Google Drive refs, references to MOTHER-TODO-MASTER.md and AWAKE-V40.md confirmed)
