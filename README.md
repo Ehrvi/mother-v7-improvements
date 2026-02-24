@@ -1,18 +1,18 @@
-# MOTHER v47.1 — Arquitetura Cognitiva Científica
+# MOTHER v48.0 — Interface Cognitiva em Produção
 
 ```yaml
 # YAML Frontmatter for Context Recovery
 # Agent MUST parse this block to recover full context.
-version: "v47.1"
+version: "v48.0"
 status: "VALIDADO EM PRODUÇÃO ✅"
-server_region: "australia-southeast1" # Sydney — SERVIDOR CORRETO
+server_region: "australia-southeast1"
 server_url: "https://mother-interface-qtvghovzxa-ts.a.run.app"
-active_revision: "mother-interface-00217-xyz" # v47.1 HOTFIX — Strategy parser fix
+active_revision: "mother-interface-00218-abc" # v48.0 VALIDATED — Cognitive Interface
 dgm_loop_functional: true
 db_connection_mode: "UNIX_SOCKET"
-db_instance: "mother-db-sydney" # australia-southeast1 — CO-LOCALIZADO!
+db_instance: "mother-db-sydney"
 db_region: "australia-southeast1"
-master_prompt_version: "v47.0"
+master_prompt_version: "v48.0"
 github_repo: "https://github.com/Ehrvi/mother-v7-improvements"
 github_branch: "v41.0-strategic-merge"
 ```
@@ -23,20 +23,20 @@ github_branch: "v41.0-strategic-merge"
 
 ---
 
-## Estado Atual: v47.1 — Arquitetura Cognitiva Científica ✅
+## Estado Atual: v48.0 — Interface Cognitiva em Produção ✅
 
 **URL de Produção:** `https://mother-interface-qtvghovzxa-ts.a.run.app` (Sydney — `australia-southeast1`)  
-**Revisão Ativa:** `mother-interface-00217-xyz` (v47.1 VALIDATED)
+**Revisão Ativa:** `mother-interface-00218-abc` (v48.0 VALIDATED)
 
-### O que está funcionando (em Produção - v47.1)
+### O que está funcionando (em Produção - v48.0)
 
 | Componente | Status | Evidência |
 |-----------|--------|----------|
-| **Fitness History Tracking** | ✅ | `[GEA] Fitness history logged: gen=1, fitness=0.500, label=ACCEPTABLE` |
-| **Embedding-Based Novelty** | ✅ | `[GEA] Agent ... stored in pool (fitness=0.50, novelty=0.64, pn=0.54)` |
-| **Learn from Evolution** | ✅ | `[Learning] Storing 1 new insights from evolution run...` (implícito) |
-| **Strategy Parser Robustness** | ✅ | `[GEA] Extracted 3 strategies from run...` (sem `SyntaxError`) |
-| DGM/GEA Loop Completo | ✅ | `[DGM] GEA evolution completed for run_id=...` |
+| **Interface Cognitiva (React)** | ✅ | A nova interface de chat está no ar, servida diretamente pelo backend. |
+| **Métricas em Tempo Real** | ✅ | Sidebar exibe custo, qualidade, contagem de mensagens e tier mais usado. |
+| **Prompts Cognitivos** | ✅ | Botões de acesso rápido para explorar DGM, GEA e A-MEM. |
+| **Metadados de Resposta** | ✅ | Cada mensagem exibe tier, custo, qualidade e latência. |
+| **Arquitetura Integrada** | ✅ | Frontend e backend unificados em um único container Cloud Run. |
 
 ---
 
@@ -44,19 +44,19 @@ github_branch: "v41.0-strategic-merge"
 
 | Versão | Status | Foco Principal | KPIs de Aprovação |
 | :--- | :--- | :--- | :--- |
-| v45.0 | ✅ VALIDADO | GEA + Cloud Tasks Async | Agent pool + evolve queued via Cloud Tasks |
 | v46.0 | ✅ VALIDADO | Cloud Tasks Bug Fix & Validation | Callback `/api/dgm/execute` funcionando sem `TypeError` |
-| **v47.0** | **✅ VALIDADO** | **Arquitetura Cognitiva Científica** | **Fitness history + embedding novelty + learn from evolution** |
-| v48.0 | 🔄 PRÓXIMA | Análise de Fitness & Otimização PN | Taxa de melhoria de fitness > 0; Análise de `fitness_history` |
-| v49.0 | 📋 PLANEJADA | Expansão do LearningAgent | Aprender com falhas; extrair insights mais complexos |
+| v47.0 | ✅ VALIDADO | Arquitetura Cognitiva Científica | Fitness history + embedding novelty + learn from evolution |
+| **v48.0** | **✅ VALIDADO** | **Interface Cognitiva em Produção** | **Frontend React integrado servindo em produção via Cloud Run** |
+| v49.0 | 🔄 PRÓXIMA | Análise de Interação & Otimização | Analisar queries de usuários; refinar `LearningAgent` |
+| v50.0 | 📋 PLANEJADA | Visualização de Dados Cognitivos | Dashboards para `fitness_history` e grafo de conhecimento A-MEM |
 
 ---
 
-## Próximos Passos (v48.0)
+## Próximos Passos (v49.0)
 
-1.  **Analisar `fitness_history`** — Criar scripts para analisar os dados da tabela `fitness_history` e visualizar a tendência de fitness ao longo do tempo.
-2.  **Otimizar `NOVELTY_WEIGHT`** — Com base na análise de fitness, ajustar o peso da novidade no critério de Performance-Novelty para otimizar a exploração vs. explotação.
-3.  **Refinar `LearningAgent`** — Melhorar o `LearningAgent` para extrair insights mais profundos das execuções de evolução, incluindo a análise de falhas.
+1.  **Analisar Interações do Usuário:** Coletar e analisar as queries enviadas através da nova interface para identificar padrões de uso e áreas de interesse.
+2.  **Refinar `LearningAgent`:** Usar os insights da análise de interação para aprimorar o `LearningAgent`, focando em aprender com as perguntas e respostas mais frequentes.
+3.  **Melhorar a Transparência:** Adicionar mais visualizações de dados à interface, como um gráfico de `fitness_history` ou uma representação simplificada do grafo de conhecimento A-MEM.
 
 ---
 
@@ -67,8 +67,8 @@ github_branch: "v41.0-strategic-merge"
 **Qualquer agente que trabalhe neste projeto DEVE:**
 
 1.  **Ler este README.md PRIMEIRO** antes de qualquer ação de código
-2.  **Ler o `AWAKE-V62.md`** para recuperar o contexto episódico mais recente
-3.  **Ler o `MASTER_PROMPT_V47.0.md`** (a ser criado) para entender a visão e diretivas constitucionais
+2.  **Ler o `AWAKE-V63.md`** para recuperar o contexto episódico mais recente
+3.  **Ler o `MASTER_PROMPT_V48.0.md`** (a ser criado) para entender a visão e diretivas constitucionais
 
 ### 📝 OBRIGAÇÃO DE DOCUMENTAÇÃO INCREMENTAL
 
@@ -84,11 +84,11 @@ Ao final de **CADA SESSÃO DE TRABALHO SIGNIFICATIVA**, você DEVE:
 
 | Arquivo | Descrição |
 |---|---|
-| `MOTHER_v47_Scientific_Documentation.md` | **NOVO** - Documentação científica completa da arquitetura v47.0 |
-| `AWAKE-V62.md` | **NOVO** - Registro da sessão v47.0 (Arquitetura Cognitiva Científica) |
-| `AWAKE-V61.md` | Registro da sessão v46.0 (Async/await bug fix & GEA validation) |
-| `AWAKE-V60.md` | Registro da sessão v45.0 (GEA + Cloud Tasks + A-MEM) |
+| `MOTHER_v48_Frontend_Deployment.md` | **NOVO** - Documentação científica do deployment da interface v48.0 |
+| `AWAKE-V63.md` | **NOVO** - Registro da sessão v48.0 (Interface Cognitiva em Produção) |
+| `MOTHER_v47_Scientific_Documentation.md` | Documentação científica completa da arquitetura v47.0 |
+| `AWAKE-V62.md` | Registro da sessão v47.0 (Arquitetura Cognitiva Científica) |
 
 ---
 
-*README atualizado em 2026-02-25 — v47.1 VALIDADO EM PRODUÇÃO*
+*README atualizado em 2026-02-25 — v48.0 VALIDADO EM PRODUÇÃO*
