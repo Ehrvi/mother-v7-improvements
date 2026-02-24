@@ -1,72 +1,66 @@
-# MOTHER — Sistema Cognitivo Autônomo v43.0
+# MOTHER v45.0 — Sistema Cognitivo Autônomo
 
 ```yaml
 # YAML Frontmatter for Context Recovery
 # Agent MUST parse this block to recover full context.
-version: "v44.0"
+version: "v45.0"
 status: "VALIDADO EM PRODUÇÃO ✅"
 server_region: "australia-southeast1" # Sydney — SERVIDOR CORRETO
-server_url: "https://mother-interface-233196174701.australia-southeast1.run.app"
-active_revision: "mother-interface-00204-zz2" # v43.0 VALIDATED — Sydney DB + DGM Lineage
+server_url: "https://mother-interface-qtvghovzxa-ts.a.run.app"
+active_revision: "mother-interface-00210-ql9" # v45.0 VALIDATED — GEA + Cloud Tasks
 dgm_loop_functional: true
-db_connection_mode: "UNIX_SOCKET" # mysql://mother_app:***@34.116.76.94:3306/mother_v7_prod
+db_connection_mode: "UNIX_SOCKET"
 db_instance: "mother-db-sydney" # australia-southeast1 — CO-LOCALIZADO!
-db_region: "australia-southeast1" # MESMA REGIÃO DO CLOUD RUN!
-master_prompt_version: "v45.0"
+db_region: "australia-southeast1"
+master_prompt_version: "v46.0"
 github_repo: "https://github.com/Ehrvi/mother-v7-improvements"
 github_branch: "v41.0-strategic-merge"
-last_commit: "<new_commit_sha>" # feat(v43.0): DGM Lineage Dashboard + react-router navigation
 ```
 
-> **Visão Final:** Um sistema cognitivo na vanguarda do conhecimento, capaz de auto-aperfeiçoamento contínuo através do loop Darwin Gödel Machine (DGM).
+> **Visão Final:** `Superintelligence + Scientific Method + Critical Thinking = MOTHER`
 
 **Este documento é a Memória Semântica Canônica do projeto MOTHER.** Qualquer agente que trabalhe neste projeto DEVE ler este documento primeiro para recuperar o contexto completo.
 
 ---
 
-## Estado Atual: v43.0 — Migração Sydney + DGM Lineage Dashboard ✅
+## Estado Atual: v45.0 — GEA + Cloud Tasks Async + A-MEM Zettelkasten ✅
 
-**URL de Produção:** `https://mother-interface-233196174701.australia-southeast1.run.app` (Sydney — `australia-southeast1`)  
-**Revisão Ativa:** `mother-interface-00199-4rd` (v43.0 VALIDATED — Sydney DB + DGM Lineage)  
-**Commit:** `54ee6e5` — `feat(v43.0): DGM Lineage Dashboard + react-router navigation`
+**URL de Produção:** `https://mother-interface-qtvghovzxa-ts.a.run.app` (Sydney — `australia-southeast1`)  
+**Revisão Ativa:** `mother-interface-00210-ql9` (v45.0 VALIDATED)
 
-A v43.0 completou dois objetivos críticos: (1) migração do Cloud SQL de `us-central1` para `australia-southeast1`, co-localizando banco e servidor na mesma região; (2) implementação do DGM Lineage Dashboard para visualizar a árvore evolutiva do Darwin Gödel Machine.
-
-### O que está funcionando (em Produção - v43.0)
+### O que está funcionando (em Produção - v45.0)
 
 | Componente | Status | Evidência |
 |-----------|--------|----------|
 | Servidor HTTP | ✅ | `🚀 Production server running on http://0.0.0.0:8080` |
-| Database Pool (TCP Sydney) | ✅ | `[Database] Connecting via TCP to 34.116.76.94:3306` |
-| Migrações | ✅ | `[Migrations] All migrations complete.` |
-| MySqlCheckpointer | ✅ | `[MySqlCheckpointer] putWrites called with 3 writes` |
-| LLM Router (GPT-4o) | ✅ | `[Supervisor] Router decided: validation_agent` |
-| ValidationAgent ReAct | ✅ | `[Supervisor] ValidationAgent executing (ReAct v40.0)` |
-| DGM Loop | ✅ | `evolve` endpoint retorna `{"run_id": "...", "status": "started"}` |
-| DGM Lineage Dashboard | ✅ NEW | Endpoint `mother.dgmLineage` retorna 11 gerações, maxFitness: 0.82 |
-| Banco Sydney | ✅ NEW | `mother-db-sydney` em `australia-southeast1` com 10 tabelas migradas |
+| Database (Unix Socket Sydney) | ✅ | `[Database] Connecting via unix socket: /cloudsql/mothers-library-mcp:australia-southeast1:mother-db-sydney` |
+| Migrações A-MEM | ✅ | `[Migrations] Applied: 0004_amem_zettelkasten.sql` |
+| Migrações GEA | ✅ | `[Migrations] Applied: 0005_gea_agent_pool.sql` |
+| GEA Agent Pool | ✅ NEW | `mother.supervisor.agentPool` → `{"pool_size": 0, "max_pool_size": 5}` |
+| Cloud Tasks Async | ✅ NEW | `mother.supervisor.evolve` → `{"status": "queued", "execution_mode": "cloud_tasks_async"}` |
+| DGM Lineage Dashboard | ✅ | Endpoint retorna árvore evolutiva com fitness scores reais |
 
 ---
 
-## Roadmap (MASTER PROMPT v45.0)
-
-O desenvolvimento futuro é guiado pelo `MASTER_PROMPT_V45.0.md`, que se baseia no estado da arte da pesquisa em IA de 2026.
+## Roadmap
 
 | Versão | Status | Foco Principal | KPIs de Aprovação |
 | :--- | :--- | :--- | :--- |
-| **v42.0** | ✅ VALIDADO | Loop DGM completo | DGM loop funcional em produção |
-| **v43.0** | ✅ VALIDADO | Migração Sydney + Dashboard | Banco co-localizado + Lineage endpoint operacional |
-| **v44.0** | ✅ VALIDADO | Unix socket + A-MEM (Zettelkasten) + Real Fitness Score | Conexão unix socket restaurada + MemoryAgent com notas interconectadas + Fitness score de 5 dimensões |
-| **v45.0** | 🔄 PRÓXIMA | Group-Evolving Agents (GEA) | Pool de 5+ agentes paralelos com compartilhamento de experiência |
-| **v45.0** | 📋 PLANEJADA | Group-Evolving Agents (GEA) | Pool de 5+ agentes paralelos com compartilhamento de experiência |
+| v42.0 | ✅ VALIDADO | Loop DGM completo | DGM loop funcional em produção |
+| v43.0 | ✅ VALIDADO | Migração Sydney + Dashboard | Banco co-localizado + Lineage endpoint operacional |
+| v44.0 | ✅ VALIDADO | Unix socket + A-MEM + Real Fitness Score | Unix socket + MemoryAgent Zettelkasten + Fitness 5D |
+| **v45.0** | **✅ VALIDADO** | **GEA + Cloud Tasks Async** | **Agent pool + evolve queued via Cloud Tasks** |
+| v46.0 | 🔄 PRÓXIMA | Cloud Tasks Validation + Real Fitness | Callback `/api/dgm/execute` funcionando + fitness real |
+| v47.0 | 📋 PLANEJADA | A-MEM Evolution Loop | Memórias com links + evolution history |
+| v48.0 | 📋 PLANEJADA | LearningAgent + Continuous Improvement | Taxa de melhoria de fitness > 0 entre gerações |
 
 ---
 
-## Próximos Passos (v45.0)
+## Próximos Passos (v46.0)
 
-1. **Investigar e corrigir a visibilidade dos logs do Cloud Run.**
-2. **Implementar o benchmark de performance do A-MEM Zettelkasten.**
-3. **Iniciar a implementação do `LearningAgent` para aprendizado contínuo.**
+1. **Validar Cloud Tasks callback** — verificar se `/api/dgm/execute` recebe as tasks
+2. **Implementar fitness score real** — substituir score sintético por benchmark real
+3. **Seleção de pais GEA** — Performance-Novelty criterion (arXiv:2602.04837)
 
 ---
 
@@ -77,8 +71,8 @@ O desenvolvimento futuro é guiado pelo `MASTER_PROMPT_V45.0.md`, que se baseia 
 **Qualquer agente que trabalhe neste projeto DEVE:**
 
 1. **Ler este README.md PRIMEIRO** antes de qualquer ação de código
-2. **Ler o `AWAKE-V58.md`** para recuperar o contexto episódico mais recente
-3. **Ler o `MASTER_PROMPT_V45.0.md`** para entender a visão e diretivas constitucionais
+2. **Ler o `AWAKE-V60.md`** para recuperar o contexto episódico mais recente
+3. **Ler o `MASTER_PROMPT_V46.0.md`** para entender a visão e diretivas constitucionais
 
 ### 📝 OBRIGAÇÃO DE DOCUMENTAÇÃO INCREMENTAL
 
@@ -94,13 +88,13 @@ Ao final de **CADA SESSÃO DE TRABALHO SIGNIFICATIVA**, você DEVE:
 
 | Arquivo | Descrição |
 |---|---|
+| `MASTER_PROMPT_V46.0.md` | **Constituição científica atual** — roadmap v46.0 a v48.0 |
+| `AWAKE-V60.md` | Registro da sessão v45.0 (GEA + Cloud Tasks + A-MEM) |
 | `AWAKE-V59.md` | Registro da sessão v44.0 (unix socket, A-MEM, Real Fitness Score) |
 | `AWAKE-V58.md` | Registro da sessão v43.0 (migração Sydney + DGM Lineage Dashboard) |
 | `AWAKE-V57.md` | Registro da sessão v42.0 (resposta ao agente + MASTER PROMPT v45.0) |
 | `AWAKE-V56.md` | Registro da sessão v41.0 (fix TCP connection bug) |
-| `MASTER_PROMPT_V45.0.md` | Constituição científica — roadmap v43.0 a v45.0 |
-| `MASTER_PROMPT_V44.0.md` | Constituição anterior — roadmap v42.0 a v44.0 |
 
 ---
 
-*README atualizado em 2026-02-24 — v44.0 VALIDADO EM PRODUÇÃO*
+*README atualizado em 2026-02-25 — v45.0 VALIDADO EM PRODUÇÃO*
