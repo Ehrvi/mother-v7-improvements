@@ -10,6 +10,8 @@ import { addKnowledge } from '../mother/knowledge';
 import { getRecentQueries, getQueryStats, getAllKnowledge, getDgmLineage } from '../db';
 import { runCodeAgent } from '../mother/code_agent';
 import { invokeSupervisor, getSupervisorStatus } from '../mother/supervisor';
+import { getAgentPool } from '../mother/gea_supervisor';
+import { getDb } from '../db';
 import { randomUUID } from 'crypto';
 
 export const motherRouter = router({
@@ -180,13 +182,83 @@ export const motherRouter = router({
       )
       .mutation(async ({ input }) => {
         const runId = randomUUID();
-        invokeSupervisor(input.goal, runId).catch((error) => {
-          console.error(`[Supervisor] Error in run ${runId}:`, error);
-        });
+        const SERVICE_URL = process.env.SERVICE_URL || 'https://mother-interface-qtvghovzxa-ts.a.run.app';
+        const PROJECT = process.env.GOOGLE_CLOUD_PROJECT || 'mothers-library-mcp';
+        const QUEUE = 'dgm-evolution-queue';
+        const LOCATION = 'australia-southeast1';
+
+        // v45.0: Use Cloud Tasks for true async execution (solves fire-and-forget problem)
+        try {
+          const { CloudTasksClient } = await import('@google-cloud/tasks');
+          const tasksClient = new CloudTasksClient();
+          const queuePath = tasksClient.queuePath(PROJECT, LOCATION, QUEUE);
+          const taskPayload = JSON.stringify({ run_id: runId, goal: input.goal });
+          const task = {
+            httpRequest: {
+              httpMethod: 'POST' as const,
+              url: `${SERVICE_URL}/api/dgm/execute`,
+              headers: { 'Content-Type': 'application/json' },
+              body: Buffer.from(taskPayload).toString('base64'),
+              oidcToken: {
+                serviceAccountEmail: `mother-cloudrun-sa@${PROJECT}.iam.gserviceaccount.com`,
+              },
+            },
+          };
+          const [createdTask] = await tasksClient.createTask({ parent: queuePath, task });
+
+          // Store task in dgm_task_queue for tracking
+          const db = getDb();
+          if (db) {
+            try {
+              await (db as any).$client.query(
+                `INSERT INTO dgm_task_queue (run_id, goal, status, cloud_task_name, created_at) VALUES (?, ?, 'queued', ?, NOW())`,
+                [runId, input.goal, createdTask.name || '']
+              );
+            } catch (dbErr) {
+              console.warn('[GEA] Could not store task in queue:', dbErr);
+            }
+          }
+
+          console.log(`[GEA] Task queued via Cloud Tasks: run_id=${runId}`);
+          return {
+            run_id: runId,
+            status: 'queued',
+            message: 'GEA evolution queued via Cloud Tasks. Use supervisor.getStatus to monitor progress.',
+            execution_mode: 'cloud_tasks_async',
+          };
+        } catch (cloudTasksError) {
+          // Fallback to direct execution if Cloud Tasks fails
+          console.warn('[GEA] Cloud Tasks unavailable, falling back to direct execution:', cloudTasksError);
+          invokeSupervisor(input.goal, runId).catch((error) => {
+            console.error(`[Supervisor] Error in run ${runId}:`, error);
+          });
+          return {
+            run_id: runId,
+            status: 'started',
+            message: 'Supervisor evolution started (direct mode). Use supervisor.getStatus to monitor progress.',
+            execution_mode: 'direct_fallback',
+          };
+        }
+      }),
+
+    /**
+     * v45.0: GEA Agent Pool - View current agent pool with Performance-Novelty scores
+     * Scientific basis: Group-Evolving Agents (Weng et al., arXiv:2602.04837)
+     */
+    agentPool: publicProcedure
+      .query(async () => {
+        const pool = await getAgentPool();
         return {
-          run_id: runId,
-          status: 'started',
-          message: 'Supervisor evolution started. Use supervisor.getStatus to monitor progress.',
+          pool_size: pool.length,
+          max_pool_size: 5,
+          agents: pool.map(a => ({
+            id: a.id.slice(0, 8),
+            fitness_score: a.fitnessScore,
+            novelty_score: a.noveltyScore,
+            performance_novelty_score: a.performanceNoveltyScore,
+            strategies_count: a.strategies.length,
+            created_at: a.createdAt,
+          })),
         };
       }),
 

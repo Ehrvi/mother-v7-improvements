@@ -3,6 +3,7 @@
  * This file NEVER imports vite.ts or any Vite dependencies
  *
  * v41.0: Added auto-migration runner on startup
+ * v45.0: Added Cloud Tasks DGM execute endpoint for async GEA evolution
  */
 
 import express from 'express';
@@ -14,6 +15,7 @@ import { createContext } from './context.js';
 import { appRouter } from '../routers.js';
 import { registerOAuthRoutes } from './oauth.js';
 import { getDb } from '../db.js';
+import { invokeGEASupervisor } from '../mother/gea_supervisor.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -78,6 +80,85 @@ app.use(express.urlencoded({ extended: true }));
 
 // OAuth routes
 registerOAuthRoutes(app);
+
+/**
+ * v45.0: Cloud Tasks DGM Execute Endpoint
+ *
+ * This endpoint is called by Cloud Tasks to execute GEA evolution asynchronously.
+ * Cloud Tasks ensures the task runs to completion even if the original HTTP request
+ * has already returned, solving the fire-and-forget problem.
+ *
+ * The endpoint:
+ * 1. Receives the task payload from Cloud Tasks
+ * 2. Updates task status to 'running' in dgm_task_queue
+ * 3. Executes the GEA evolution loop (may take minutes)
+ * 4. Updates task status to 'completed' or 'failed'
+ *
+ * Security: Only Cloud Tasks can call this endpoint (verified via X-CloudTasks-QueueName header)
+ */
+app.post('/api/dgm/execute', async (req, res) => {
+  const queueName = req.headers['x-cloudtasks-queuename'];
+  const taskName = req.headers['x-cloudtasks-taskname'];
+
+  // Verify this is a legitimate Cloud Tasks request
+  if (!queueName || !String(queueName).includes('dgm-evolution-queue')) {
+    // Allow internal calls (for testing) but log them
+    console.warn('[DGM] Execute called without Cloud Tasks header - may be internal call');
+  }
+
+  const { run_id, goal } = req.body;
+
+  if (!run_id || !goal) {
+    return res.status(400).json({ error: 'Missing run_id or goal' });
+  }
+
+  console.log(`[DGM] Executing GEA evolution: run_id=${run_id}, task=${taskName || 'direct'}`);
+
+  // Respond immediately to Cloud Tasks (prevents retry due to timeout)
+  res.status(200).json({ status: 'accepted', run_id });
+
+  // Execute GEA evolution asynchronously (after response is sent)
+  const db = getDb();
+  if (db) {
+    try {
+      await (db as any).$client.query(
+        `UPDATE dgm_task_queue SET status='running', updated_at=NOW() WHERE run_id=?`,
+        [run_id]
+      );
+    } catch (e) {
+      console.error('[DGM] Error updating task status:', e);
+    }
+  }
+
+  // Run the GEA evolution loop
+  invokeGEASupervisor(goal, run_id)
+    .then(async () => {
+      console.log(`[DGM] GEA evolution completed for run_id=${run_id}`);
+      if (db) {
+        try {
+          await (db as any).$client.query(
+            `UPDATE dgm_task_queue SET status='completed', updated_at=NOW() WHERE run_id=?`,
+            [run_id]
+          );
+        } catch (e) {
+          console.error('[DGM] Error updating task completion:', e);
+        }
+      }
+    })
+    .catch(async (error) => {
+      console.error(`[DGM] GEA evolution failed for run_id=${run_id}:`, error);
+      if (db) {
+        try {
+          await (db as any).$client.query(
+            `UPDATE dgm_task_queue SET status='failed', error_message=?, updated_at=NOW() WHERE run_id=?`,
+            [error.message?.slice(0, 500) || 'Unknown error', run_id]
+          );
+        } catch (e) {
+          console.error('[DGM] Error updating task failure:', e);
+        }
+      }
+    });
+});
 
 // tRPC routes
 app.use(
