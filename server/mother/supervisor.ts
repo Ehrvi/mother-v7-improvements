@@ -1,14 +1,24 @@
 /**
- * MOTHER v35.0: Supervisor - Darwin Gödel Machine (DGM) Orchestrator
- * 
+ * MOTHER v40.0: Supervisor - Darwin Gödel Machine (DGM) Orchestrator
+ *
  * This supervisor coordinates multiple worker agents (CodeAgent, MemoryAgent, ValidationAgent)
  * using LangGraph's StateGraph architecture with persistent MySQL checkpointing.
- * 
+ *
  * Architecture:
  * - StateGraph: Defines the workflow graph with conditional routing
  * - SupervisorState: Shared state with messages and next field for routing
  * - MySqlCheckpointer: Persistent state storage in TiDB/MySQL
  * - Workers: Specialized agents for code manipulation, memory management, and validation
+ *
+ * Scientific basis:
+ * - Darwin Gödel Machine (Zhang et al., arXiv:2505.22954)
+ * - ReAct: Synergizing Reasoning and Acting (Yao et al., ICLR 2023)
+ * - LangGraph multi-agent supervisor pattern
+ *
+ * v40.0 Changes:
+ * - Fixed: "Branch condition returned unknown or null destination" when router returns "END"
+ * - Integrated: Real ValidationAgent (ReAct) with empirical fitness scoring
+ * - Improved: ArchiveNode now receives fitness score from ValidationAgent output
  */
 
 import { StateGraph, Annotation, START, END } from "@langchain/langgraph";
@@ -17,10 +27,11 @@ import { MySqlCheckpointer } from "./checkpoint";
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 import { archiveNode as archiveNodeImpl } from "./archive_node";
+import { createValidationAgent } from "./validation_agent";
 
 /**
  * SupervisorState - Shared state across all nodes
- * 
+ *
  * - messages: Conversation history (LangGraph MessagesAnnotation pattern)
  * - next: Routing decision (which worker to invoke next, or "END")
  */
@@ -37,26 +48,25 @@ const SupervisorState = Annotation.Root({
 
 /**
  * Router Node - Decides which worker to invoke based on the goal
- * 
+ *
  * Uses ChatOpenAI with structured output to intelligently route between workers.
  */
 const routingSchema = z.object({
-  next: z.enum(["code_agent", "memory_agent", "validation_agent", "END"]).describe(
-    "The next worker to invoke. Choose 'code_agent' for code manipulation tasks, 'memory_agent' for storing/recalling information, 'validation_agent' for testing/benchmarking, or 'END' if the goal is already achieved."
-  ),
-  reasoning: z.string().describe("Brief explanation of why this worker was chosen"),
+  next: z
+    .enum(["code_agent", "memory_agent", "validation_agent", "END"])
+    .describe(
+      "The next worker to invoke. Choose 'code_agent' for code manipulation tasks, 'memory_agent' for storing/recalling information, 'validation_agent' for testing/benchmarking, or 'END' if the goal is already achieved."
+    ),
+  reasoning: z
+    .string()
+    .describe("Brief explanation of why this worker was chosen"),
 });
 
 async function routerNode(state: typeof SupervisorState.State) {
   const lastMessage = state.messages[state.messages.length - 1];
   const goal = lastMessage.content.toString();
 
-  // Use LLM to decide routing
-  const llm = new ChatOpenAI({
-    modelName: "gpt-4o",
-    temperature: 0,
-  });
-
+  const llm = new ChatOpenAI({ modelName: "gpt-4o", temperature: 0 });
   const structuredLLM = llm.withStructuredOutput(routingSchema);
 
   const routingDecision = await structuredLLM.invoke([
@@ -76,52 +86,97 @@ Analyze the goal and choose the most appropriate worker.`,
     },
   ]);
 
-  console.log(`[Supervisor] Router decided: ${routingDecision.next} (Reasoning: ${routingDecision.reasoning})`);
+  console.log(
+    `[Supervisor] Router decided: ${routingDecision.next} (Reasoning: ${routingDecision.reasoning})`
+  );
 
   return {
     next: routingDecision.next,
-    messages: [new AIMessage(`Routing to ${routingDecision.next}... Reasoning: ${routingDecision.reasoning}`)],
+    messages: [
+      new AIMessage(
+        `Routing to ${routingDecision.next}... Reasoning: ${routingDecision.reasoning}`
+      ),
+    ],
   };
 }
 
 /**
- * Code Agent Node - Placeholder (will be replaced with actual CodeAgent)
+ * Code Agent Node - Placeholder (will be replaced with actual ReAct CodeAgent in v40.1)
  */
 async function codeAgentNode(state: typeof SupervisorState.State) {
   console.log("[Supervisor] CodeAgent executing...");
-
-  // TODO: Replace with actual CodeAgent invocation
-  // For now, just return a placeholder response
   return {
     next: END,
-    messages: [new AIMessage("CodeAgent: Task completed (placeholder)")],
+    messages: [new AIMessage("CodeAgent: Task completed (placeholder - v40.1 will implement ReAct CodeAgent)")],
   };
 }
 
 /**
- * Memory Agent Node - Placeholder (will be replaced with actual MemoryAgent)
+ * Memory Agent Node - Placeholder (will be replaced with actual ReAct MemoryAgent in v40.2)
  */
 async function memoryAgentNode(state: typeof SupervisorState.State) {
   console.log("[Supervisor] MemoryAgent executing...");
-
-  // TODO: Replace with actual MemoryAgent invocation
   return {
     next: END,
-    messages: [new AIMessage("MemoryAgent: Task completed (placeholder)")],
+    messages: [new AIMessage("MemoryAgent: Task completed (placeholder - v40.2 will implement ReAct MemoryAgent with vector search)")],
   };
 }
 
 /**
- * Validation Agent Node - Placeholder (will be replaced with actual ValidationAgent)
+ * Validation Agent Node - REAL ReAct implementation (v40.0)
+ *
+ * Uses createValidationAgent() which implements the ReAct pattern with:
+ * - execute_code_in_sandbox: Runs code and measures empirical fitness
+ * - run_typescript_check: Static type checking
+ * - calculate_fitness_score: Normalized score aggregation
  */
 async function validationAgentNode(state: typeof SupervisorState.State) {
-  console.log("[Supervisor] ValidationAgent executing...");
+  console.log("[Supervisor] ValidationAgent executing (ReAct v40.0)...");
 
-  // TODO: Replace with actual ValidationAgent invocation
-  return {
-    next: "archive",
-    messages: [new AIMessage("ValidationAgent: Task completed (placeholder)")],
-  };
+  try {
+    const agent = await createValidationAgent();
+
+    // Extract the goal/code from the last human message
+    const lastHumanMessage = state.messages
+      .slice()
+      .reverse()
+      .find((m) => m._getType() === "human");
+
+    const goal = lastHumanMessage?.content?.toString() || "Validate the system";
+
+    const agentResult = await agent.invoke({
+      messages: [
+        new HumanMessage(
+          `Validate the following goal/code and calculate an empirical fitness score:\n\n${goal}`
+        ),
+      ],
+    });
+
+    // Extract the last AI message from the agent
+    const lastAgentMessage = agentResult.messages
+      .slice()
+      .reverse()
+      .find((m: BaseMessage) => m._getType() === "ai");
+
+    const agentResponse = lastAgentMessage?.content?.toString() || "Validation completed";
+
+    console.log("[Supervisor] ValidationAgent completed:", agentResponse.substring(0, 200));
+
+    return {
+      next: "archive",
+      messages: [new AIMessage(`ValidationAgent (ReAct): ${agentResponse}`)],
+    };
+  } catch (error) {
+    console.error("[Supervisor] ValidationAgent error:", error);
+    return {
+      next: "archive",
+      messages: [
+        new AIMessage(
+          `ValidationAgent error: ${error instanceof Error ? error.message : "Unknown error"}. Fitness score: 0.0`
+        ),
+      ],
+    };
+  }
 }
 
 /**
@@ -129,10 +184,9 @@ async function validationAgentNode(state: typeof SupervisorState.State) {
  */
 async function archiveNode(state: typeof SupervisorState.State) {
   console.log("[Supervisor] ArchiveNode executing...");
-  
-  // Convert LangGraph state to our SupervisorState format
+
   const adaptedState = {
-    messages: state.messages.map(msg => ({
+    messages: state.messages.map((msg) => ({
       role: msg._getType() === "human" ? "user" : "assistant",
       content: msg.content.toString(),
     })),
@@ -140,74 +194,63 @@ async function archiveNode(state: typeof SupervisorState.State) {
     threadId: state.messages[0]?.id || `thread-${Date.now()}`,
     parentId: null,
   };
-  
-  // Call the actual archiveNode implementation
+
   const result = await archiveNodeImpl(adaptedState);
-  
-  // Convert back to LangGraph state format
+
   return {
     next: END,
-    messages: result.messages?.slice(-1).map(msg => new AIMessage(msg.content)) || [],
+    messages:
+      result.messages?.slice(-1).map((msg) => new AIMessage(msg.content)) || [],
   };
 }
 
 /**
  * Build and compile the Supervisor graph
+ *
+ * v40.0 fix: Added END to the conditional edges map to prevent
+ * "Branch condition returned unknown or null destination" error.
  */
 export function buildSupervisorGraph() {
   const checkpointer = new MySqlCheckpointer();
 
-  // Create the StateGraph
   const workflow = new StateGraph(SupervisorState)
-    // Add nodes
     .addNode("router", routerNode)
     .addNode("code_agent", codeAgentNode)
     .addNode("memory_agent", memoryAgentNode)
     .addNode("validation_agent", validationAgentNode)
     .addNode("archive", archiveNode)
-    
-    // Add edges
+
     .addEdge(START, "router")
-    
-    // Conditional routing from router to workers
+
+    // FIX v40.0: Include END in the conditional edges map
     .addConditionalEdges("router", (state) => state.next, {
       code_agent: "code_agent",
       memory_agent: "memory_agent",
       validation_agent: "validation_agent",
+      END: END,
     })
-    
-    // Workers route to END or archive
+
     .addEdge("code_agent", END)
     .addEdge("memory_agent", END)
-    .addEdge("validation_agent", "archive") // ValidationAgent → Archive → END
+    .addEdge("validation_agent", "archive")
     .addEdge("archive", END);
 
-  // Compile with checkpointer
   const app = workflow.compile({ checkpointer });
-
   return app;
 }
 
 /**
  * Invoke the supervisor with a goal
- * 
- * @param goal - The user's goal/task
- * @param threadId - Unique thread ID for checkpointing
- * @returns The final state after execution
  */
 export async function invokeSupervisor(goal: string, threadId: string) {
   const app = buildSupervisorGraph();
 
   const config = {
-    configurable: {
-      thread_id: threadId,
-    },
+    configurable: { thread_id: threadId },
   };
 
   const result = await app.invoke(
-    {
-      messages: [new HumanMessage(goal)],
-    },
+    { messages: [new HumanMessage(goal)] },
     config
   );
 
@@ -216,17 +259,12 @@ export async function invokeSupervisor(goal: string, threadId: string) {
 
 /**
  * Get the state history for a thread
- * 
- * @param threadId - Unique thread ID
- * @returns Array of state snapshots
  */
 export async function getSupervisorStatus(threadId: string) {
   const app = buildSupervisorGraph();
 
   const config = {
-    configurable: {
-      thread_id: threadId,
-    },
+    configurable: { thread_id: threadId },
   };
 
   const stateHistory = [];
