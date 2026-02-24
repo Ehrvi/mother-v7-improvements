@@ -24,7 +24,11 @@ async function testSupervisorEndToEnd() {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      goal: "Read the file package.json and save its name field to memory",
+      "0": {
+        json: {
+          goal: "Read the file package.json and save its name field to memory",
+        },
+      },
     }),
   });
 
