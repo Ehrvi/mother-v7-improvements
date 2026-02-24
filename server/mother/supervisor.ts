@@ -1,5 +1,5 @@
 /**
- * MOTHER v40.0: Supervisor - Darwin Gödel Machine (DGM) Orchestrator
+ * MOTHER v41.0: Supervisor - Darwin Gödel Machine (DGM) Orchestrator
  *
  * This supervisor coordinates multiple worker agents (CodeAgent, MemoryAgent, ValidationAgent)
  * using LangGraph's StateGraph architecture with persistent MySQL checkpointing.
@@ -8,17 +8,22 @@
  * - StateGraph: Defines the workflow graph with conditional routing
  * - SupervisorState: Shared state with messages and next field for routing
  * - MySqlCheckpointer: Persistent state storage in TiDB/MySQL
- * - Workers: Specialized agents for code manipulation, memory management, and validation
+ * - Workers: REAL agents for code manipulation, memory management, and validation
  *
  * Scientific basis:
  * - Darwin Gödel Machine (Zhang et al., arXiv:2505.22954)
  * - ReAct: Synergizing Reasoning and Acting (Yao et al., ICLR 2023)
+ * - A-MEM: Agentic Memory for LLM Agents (Xu et al., arXiv:2502.12110)
+ * - Self-Improving Coding Agent (Robeyns et al., arXiv:2504.15228)
  * - LangGraph multi-agent supervisor pattern
  *
- * v40.0 Changes:
- * - Fixed: "Branch condition returned unknown or null destination" when router returns "END"
- * - Integrated: Real ValidationAgent (ReAct) with empirical fitness scoring
- * - Improved: ArchiveNode now receives fitness score from ValidationAgent output
+ * v41.0 Changes (Strategic Merge):
+ * - Integrated: REAL CodeAgent (v31.1) with planner-executor-analyzer loop
+ * - Integrated: REAL MemoryAgent (v35.0) with vector search on episodic_memory
+ * - Preserved: REAL ValidationAgent (ReAct v40.0) with empirical fitness scoring
+ * - Preserved: ArchiveNode with MySQL persistence
+ * - Fixed: END routing bug from v40.0
+ * - Added: Routing to code_agent and memory_agent in the DGM loop
  */
 
 import { StateGraph, Annotation, START, END } from "@langchain/langgraph";
@@ -28,6 +33,8 @@ import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 import { archiveNode as archiveNodeImpl } from "./archive_node";
 import { createValidationAgent } from "./validation_agent";
+import { createMemoryAgent } from "./memory_agent";
+import { invokeCodeAgent } from "./code_agent";
 
 /**
  * SupervisorState - Shared state across all nodes
@@ -55,7 +62,7 @@ const routingSchema = z.object({
   next: z
     .enum(["code_agent", "memory_agent", "validation_agent", "END"])
     .describe(
-      "The next worker to invoke. Choose 'code_agent' for code manipulation tasks, 'memory_agent' for storing/recalling information, 'validation_agent' for testing/benchmarking, or 'END' if the goal is already achieved."
+      "The next worker to invoke. Choose 'code_agent' for code manipulation/implementation tasks, 'memory_agent' for storing/recalling information, 'validation_agent' for testing/benchmarking/validation, or 'END' if the goal is already achieved."
     ),
   reasoning: z
     .string()
@@ -73,9 +80,9 @@ async function routerNode(state: typeof SupervisorState.State) {
     {
       role: "system",
       content: `You are a routing agent for the MOTHER DGM system. Based on the user's goal, decide which worker should handle the task:
-- code_agent: For reading, writing, or modifying files and code
-- memory_agent: For storing information or recalling past interactions
-- validation_agent: For running tests, benchmarks, or validating code quality
+- code_agent: For reading, writing, modifying files, implementing features, or any coding task
+- memory_agent: For storing information, recalling past interactions, or managing episodic memory
+- validation_agent: For running tests, benchmarks, validating code quality, or calculating fitness scores
 - END: If the goal is already achieved or doesn't require any worker
 
 Analyze the goal and choose the most appropriate worker.`,
@@ -101,25 +108,98 @@ Analyze the goal and choose the most appropriate worker.`,
 }
 
 /**
- * Code Agent Node - Placeholder (will be replaced with actual ReAct CodeAgent in v40.1)
+ * Code Agent Node - REAL implementation (v31.1)
+ * 
+ * Uses the CodeAgent from the main branch with:
+ * - Planner: LLM generates a step-by-step plan
+ * - Executor: Executes each step using the toolRegistry (read/write/exec)
+ * - Analyzer: Evaluates results and retries if needed
+ * - Episodic Memory: Searches past solutions before planning
  */
 async function codeAgentNode(state: typeof SupervisorState.State) {
-  console.log("[Supervisor] CodeAgent executing...");
-  return {
-    next: END,
-    messages: [new AIMessage("CodeAgent: Task completed (placeholder - v40.1 will implement ReAct CodeAgent)")],
-  };
+  console.log("[Supervisor] CodeAgent executing (v31.1 - Real ReAct)...");
+
+  try {
+    const lastHumanMessage = state.messages
+      .slice()
+      .reverse()
+      .find((m) => m._getType() === "human");
+
+    const task = lastHumanMessage?.content?.toString() || "Implement the requested feature";
+
+    const result = await invokeCodeAgent(task);
+
+    console.log(`[Supervisor] CodeAgent completed: success=${result.success}, status=${result.state.status}`);
+
+    return {
+      next: "validation_agent",
+      messages: [
+        new AIMessage(
+          `CodeAgent (v31.1): ${result.message}\n\nStatus: ${result.state.status}\nSteps executed: ${result.state.executedSteps?.length || 0}`
+        ),
+      ],
+    };
+  } catch (error) {
+    console.error("[Supervisor] CodeAgent error:", error);
+    return {
+      next: "validation_agent",
+      messages: [
+        new AIMessage(
+          `CodeAgent error: ${error instanceof Error ? error.message : "Unknown error"}`
+        ),
+      ],
+    };
+  }
 }
 
 /**
- * Memory Agent Node - Placeholder (will be replaced with actual ReAct MemoryAgent in v40.2)
+ * Memory Agent Node - REAL implementation (v35.0)
+ * 
+ * Uses the MemoryAgent from the main branch with:
+ * - store_memory: Generates embedding and stores in episodic_memory table
+ * - recall_memory: Semantic search using cosine similarity on embeddings
  */
 async function memoryAgentNode(state: typeof SupervisorState.State) {
-  console.log("[Supervisor] MemoryAgent executing...");
-  return {
-    next: END,
-    messages: [new AIMessage("MemoryAgent: Task completed (placeholder - v40.2 will implement ReAct MemoryAgent with vector search)")],
-  };
+  console.log("[Supervisor] MemoryAgent executing (v35.0 - Real Vector Search)...");
+
+  try {
+    const agent = await createMemoryAgent();
+
+    const lastHumanMessage = state.messages
+      .slice()
+      .reverse()
+      .find((m) => m._getType() === "human");
+
+    const goal = lastHumanMessage?.content?.toString() || "Manage memory";
+
+    const agentResult = await agent.invoke({
+      messages: [new HumanMessage(goal)],
+    });
+
+    const lastAgentMessage = agentResult.messages
+      .slice()
+      .reverse()
+      .find((m: BaseMessage) => m._getType() === "ai");
+
+    const agentResponse = lastAgentMessage?.content?.toString() || "Memory operation completed";
+
+    console.log("[Supervisor] MemoryAgent completed:", agentResponse.substring(0, 200));
+
+    return {
+      next: END,
+      messages: [new AIMessage(`MemoryAgent (v35.0): ${agentResponse}`)],
+    };
+  } catch (error) {
+    console.error("[Supervisor] MemoryAgent error:", error);
+    return {
+      next: END,
+      messages: [
+        new AIMessage(
+          `MemoryAgent error: ${error instanceof Error ? error.message : "Unknown error"}`
+        ),
+      ],
+    };
+  }
 }
 
 /**
@@ -136,7 +216,6 @@ async function validationAgentNode(state: typeof SupervisorState.State) {
   try {
     const agent = await createValidationAgent();
 
-    // Extract the goal/code from the last human message
     const lastHumanMessage = state.messages
       .slice()
       .reverse()
@@ -152,7 +231,6 @@ async function validationAgentNode(state: typeof SupervisorState.State) {
       ],
     });
 
-    // Extract the last AI message from the agent
     const lastAgentMessage = agentResult.messages
       .slice()
       .reverse()
@@ -207,8 +285,10 @@ async function archiveNode(state: typeof SupervisorState.State) {
 /**
  * Build and compile the Supervisor graph
  *
- * v40.0 fix: Added END to the conditional edges map to prevent
- * "Branch condition returned unknown or null destination" error.
+ * v41.0: Full DGM loop with real agents
+ * - code_agent → validation_agent → archive (for implementation tasks)
+ * - memory_agent → END (for memory tasks)
+ * - validation_agent → archive → END (for validation tasks)
  */
 export function buildSupervisorGraph() {
   const checkpointer = new MySqlCheckpointer();
@@ -222,7 +302,7 @@ export function buildSupervisorGraph() {
 
     .addEdge(START, "router")
 
-    // FIX v40.0: Include END in the conditional edges map
+    // v40.0 fix: Include END in the conditional edges map
     .addConditionalEdges("router", (state) => state.next, {
       code_agent: "code_agent",
       memory_agent: "memory_agent",
@@ -230,7 +310,12 @@ export function buildSupervisorGraph() {
       END: END,
     })
 
-    .addEdge("code_agent", END)
+    // code_agent routes to validation for fitness scoring
+    .addConditionalEdges("code_agent", (state) => state.next, {
+      validation_agent: "validation_agent",
+      END: END,
+    })
+
     .addEdge("memory_agent", END)
     .addEdge("validation_agent", "archive")
     .addEdge("archive", END);

@@ -1,4 +1,4 @@
-import { float, int, mediumtext, mysqlEnum, mysqlTable, primaryKey, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { decimal, float, int, mediumtext, mysqlEnum, mysqlTable, primaryKey, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -55,7 +55,7 @@ export const queries = mysqlTable("queries", {
   cacheHit: int("cacheHit").default(0), // 0 or 1 (boolean)
   
   // Episodic Memory (v30.0: Active Memory)
-  embedding: text("embedding").default(null), // JSON array of 1536 floats (text-embedding-3-small)
+  embedding: text("embedding"), // JSON array of 1536 floats (text-embedding-3-small)
   
   // Metadata
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -248,3 +248,181 @@ export const langgraphCheckpoints = mysqlTable("langgraph_checkpoints", {
 
 export type LanggraphCheckpoint = typeof langgraphCheckpoints.$inferSelect;
 export type InsertLanggraphCheckpoint = typeof langgraphCheckpoints.$inferInsert;
+
+// ===== Omniscient / Knowledge Acquisition Tables (v36.0+) =====
+
+/**
+ * MOTHER v36.0: Knowledge Areas
+ * Defines areas of knowledge for autonomous acquisition via the Omniscient module
+ */
+export const knowledgeAreas = mysqlTable("knowledge_areas", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  status: mysqlEnum("status", ["pending", "in_progress", "completed", "failed"]).default("pending").notNull(),
+  papersCount: int("papersCount").default(0),
+  chunksCount: int("chunksCount").default(0),
+  qualityScore: varchar("qualityScore", { length: 20 }),
+  cost: decimal("cost", { precision: 15, scale: 8 }).notNull().default("0.00000000"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  completedAt: timestamp("completedAt"),
+});
+
+export type KnowledgeArea = typeof knowledgeAreas.$inferSelect;
+export type InsertKnowledgeArea = typeof knowledgeAreas.$inferInsert;
+
+/**
+ * MOTHER v36.0: Papers
+ * Stores academic papers acquired by the Omniscient module
+ */
+export const papers = mysqlTable("papers", {
+  id: int("id").autoincrement().primaryKey(),
+  knowledgeAreaId: int("knowledgeAreaId").references(() => knowledgeAreas.id, { onDelete: "cascade" }),
+  arxivId: varchar("arxivId", { length: 50 }),
+  doi: varchar("doi", { length: 100 }),
+  title: text("title").notNull(),
+  authors: text("authors"),
+  abstract: text("abstract"),
+  publishedDate: timestamp("publishedDate"),
+  pdfUrl: varchar("pdfUrl", { length: 500 }),
+  status: mysqlEnum("status", ["pending", "processing", "completed", "failed"]).default("pending").notNull(),
+  citationCount: int("citationCount").default(0),
+  qualityScore: varchar("qualityScore", { length: 20 }),
+  chunksCount: int("chunksCount").default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Paper = typeof papers.$inferSelect;
+export type InsertPaper = typeof papers.$inferInsert;
+
+/**
+ * MOTHER v36.0: Paper Chunks
+ * Stores text chunks from papers with vector embeddings for semantic search
+ */
+export const paperChunks = mysqlTable("paper_chunks", {
+  id: int("id").autoincrement().primaryKey(),
+  paperId: int("paperId").references(() => papers.id, { onDelete: "cascade" }).notNull(),
+  chunkIndex: int("chunkIndex").notNull(),
+  text: text("text").notNull(),
+  embedding: text("embedding").notNull(), // JSON array of 1536 floats
+  tokenCount: int("tokenCount"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PaperChunk = typeof paperChunks.$inferSelect;
+export type InsertPaperChunk = typeof paperChunks.$inferInsert;
+
+/**
+ * MOTHER v36.0: Study Jobs
+ * Tracks async knowledge acquisition jobs
+ */
+export const studyJobs = mysqlTable("study_jobs", {
+  id: int("id").autoincrement().primaryKey(),
+  knowledgeAreaId: int("knowledgeAreaId").references(() => knowledgeAreas.id, { onDelete: "cascade" }).notNull(),
+  status: mysqlEnum("status", ["pending", "discovering", "retrieving", "processing", "indexing", "validating", "completed", "failed"]).default("pending").notNull(),
+  progress: int("progress").default(0),
+  total: int("total").default(0),
+  currentStep: varchar("currentStep", { length: 255 }),
+  errorMessage: text("errorMessage"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  completedAt: timestamp("completedAt"),
+});
+
+export type StudyJob = typeof studyJobs.$inferSelect;
+export type InsertStudyJob = typeof studyJobs.$inferInsert;
+
+/**
+ * MOTHER v36.0: Semantic Cache
+ * Stores query-response pairs with embeddings for semantic similarity search
+ */
+export const semanticCache = mysqlTable("semantic_cache", {
+  id: int("id").autoincrement().primaryKey(),
+  queryText: text("queryText").notNull(),
+  queryEmbedding: text("queryEmbedding").notNull(), // JSON array of 1536 floats
+  response: text("response").notNull(),
+  responseMetadata: text("responseMetadata"), // JSON
+  hitCount: int("hitCount").default(0),
+  lastHitAt: timestamp("lastHitAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SemanticCache = typeof semanticCache.$inferSelect;
+export type InsertSemanticCache = typeof semanticCache.$inferInsert;
+
+/**
+ * MOTHER v36.0: System Config
+ * Key-value store for dynamic system configuration
+ */
+export const systemConfig = mysqlTable("system_config", {
+  id: int("id").autoincrement().primaryKey(),
+  key: varchar("key", { length: 255 }).notNull().unique(),
+  value: text("value").notNull(),
+  description: text("description"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SystemConfig = typeof systemConfig.$inferSelect;
+export type InsertSystemConfig = typeof systemConfig.$inferInsert;
+
+/**
+ * MOTHER v36.0: Webhooks
+ * Stores webhook subscriptions for event-driven integrations
+ */
+export const webhooks = mysqlTable("webhooks", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").references(() => users.id).notNull(),
+  url: varchar("url", { length: 2048 }).notNull(),
+  events: text("events").notNull(), // JSON array
+  secret: varchar("secret", { length: 64 }).notNull(),
+  isActive: int("isActive").default(1).notNull(),
+  totalDeliveries: int("totalDeliveries").default(0),
+  successfulDeliveries: int("successfulDeliveries").default(0),
+  failedDeliveries: int("failedDeliveries").default(0),
+  lastDeliveryAt: timestamp("lastDeliveryAt"),
+  lastDeliveryStatus: mysqlEnum("lastDeliveryStatus", ["success", "failed", "pending"]),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Webhook = typeof webhooks.$inferSelect;
+export type InsertWebhook = typeof webhooks.$inferInsert;
+
+/**
+ * MOTHER v36.0: Webhook Deliveries
+ * Tracks individual webhook delivery attempts
+ */
+export const webhookDeliveries = mysqlTable("webhook_deliveries", {
+  id: int("id").autoincrement().primaryKey(),
+  webhookId: int("webhookId").references(() => webhooks.id).notNull(),
+  event: varchar("event", { length: 100 }).notNull(),
+  payload: text("payload").notNull(), // JSON
+  statusCode: int("statusCode"),
+  responseBody: text("responseBody"),
+  success: int("success").default(0).notNull(),
+  attemptCount: int("attemptCount").default(1),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type WebhookDelivery = typeof webhookDeliveries.$inferSelect;
+export type InsertWebhookDelivery = typeof webhookDeliveries.$inferInsert;
+
+/**
+ * MOTHER v36.0: A/B Test Metrics
+ * Tracks A/B test results for continuous improvement
+ */
+export const abTestMetrics = mysqlTable("ab_test_metrics", {
+  id: int("id").autoincrement().primaryKey(),
+  testName: varchar("testName", { length: 255 }).notNull(),
+  variant: varchar("variant", { length: 100 }).notNull(),
+  metric: varchar("metric", { length: 100 }).notNull(),
+  value: varchar("value", { length: 50 }).notNull(),
+  sampleSize: int("sampleSize").default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AbTestMetric = typeof abTestMetrics.$inferSelect;
+export type InsertAbTestMetric = typeof abTestMetrics.$inferInsert;

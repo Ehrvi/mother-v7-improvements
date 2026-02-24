@@ -1,3 +1,4 @@
+import { logger } from "../lib/logger";
 /**
  * ReAct (Reasoning and Acting) Implementation
  * Based on MOTHER superintelligence guidance - Iteration 12
@@ -19,7 +20,7 @@ export const toolRegistry: Tool[] = [
   {
     name: "calculate",
     description: "Performs arithmetic operations on mathematical expressions",
-    handler: async (input) => {
+    handler: async input => {
       try {
         // Safe evaluation using Function constructor (better than eval)
         const result = new Function(`return ${input.expression}`)();
@@ -32,7 +33,7 @@ export const toolRegistry: Tool[] = [
   {
     name: "search_knowledge",
     description: "Searches the knowledge base for relevant information",
-    handler: async (input) => {
+    handler: async input => {
       // Import knowledge search function
       const { queryVectorSearch } = await import("./knowledge");
       const results = await queryVectorSearch(input.query);
@@ -42,10 +43,160 @@ export const toolRegistry: Tool[] = [
   {
     name: "analyze_quality",
     description: "Analyzes the quality of a given text response",
-    handler: async (input) => {
+    handler: async input => {
       const { validateQuality } = await import("./guardian");
       const quality = await validateQuality(input.query, input.response, 1);
       return { success: true, quality };
+    },
+  },
+  // v31.0: Code manipulation tools for CodeAgent
+  {
+    name: "read_file",
+    description: "Reads the entire content of a file from the filesystem. Input: { path: string }",
+    handler: async (input: { path: string }) => {
+      const fs = await import("fs/promises");
+      try {
+        const content = await fs.readFile(input.path, "utf-8");
+        return { success: true, content };
+      } catch (error) {
+        return { success: false, error: (error as Error).message };
+      }
+    },
+  },
+  {
+    name: "write_file",
+    description: "Writes or overwrites a file on the filesystem. Input: { path: string, content: string }. For TypeScript files, validates syntax before writing.",
+    handler: async (input: { path: string; content: string }) => {
+      const fs = await import("fs/promises");
+      
+      // v31.1: Validate TypeScript syntax before writing
+      if (input.path.endsWith(".ts") || input.path.endsWith(".tsx")) {
+        const ts = await import("typescript");
+        try {
+          // Create a source file and check for syntax errors
+          const sourceFile = ts.createSourceFile(
+            input.path,
+            input.content,
+            ts.ScriptTarget.Latest,
+            true,
+            ts.ScriptKind.TS
+          );
+          
+          // Get syntax diagnostics (parse errors)
+          const diagnostics = (sourceFile as any).parseDiagnostics || [];
+          
+          if (diagnostics && diagnostics.length > 0) {
+            const errors = diagnostics
+              .map((d: any) => {
+                const message = typeof d.messageText === "string" 
+                  ? d.messageText 
+                  : d.messageText.messageText;
+                const line = d.file?.getLineAndCharacterOfPosition(d.start || 0);
+                return line 
+                  ? `Line ${line.line + 1}: ${message}`
+                  : message;
+              })
+              .join("\n");
+            
+            return { 
+              success: false, 
+              error: `TypeScript syntax validation failed:\n${errors}` 
+            };
+          }
+        } catch (validationError) {
+          // If validation itself fails, log but proceed (don't block writes)
+          console.error("[write_file] Validation error:", validationError);
+        }
+      }
+      
+      // Write the file
+      try {
+        await fs.writeFile(input.path, input.content, "utf-8");
+        return { success: true, message: `File ${input.path} written successfully.` };
+      } catch (error) {
+        return { success: false, error: (error as Error).message };
+      }
+    },
+  },
+  {
+    name: "edit_file",
+    description: "Applies a specific change to a file using a diff patch. Input: { path: string, find: string, replace: string }. Less destructive than write_file as it only modifies specific parts.",
+    handler: async (input: { path: string; find: string; replace: string }) => {
+      const fs = await import("fs/promises");
+      try {
+        // Read the current file content
+        const content = await fs.readFile(input.path, "utf-8");
+        
+        // Check if the find string exists
+        if (!content.includes(input.find)) {
+          return { 
+            success: false, 
+            error: `Could not find the specified text in ${input.path}. Make sure the 'find' string exactly matches the content.` 
+          };
+        }
+        
+        // Replace the content
+        const newContent = content.replace(input.find, input.replace);
+        
+        // Validate TypeScript syntax if applicable
+        if (input.path.endsWith(".ts") || input.path.endsWith(".tsx")) {
+          const ts = await import("typescript");
+          try {
+            const sourceFile = ts.createSourceFile(
+              input.path,
+              newContent,
+              ts.ScriptTarget.Latest,
+              true,
+              ts.ScriptKind.TS
+            );
+            
+            const diagnostics = (sourceFile as any).parseDiagnostics || [];
+            
+            if (diagnostics && diagnostics.length > 0) {
+              const errors = diagnostics
+                .map((d: any) => {
+                  const message = typeof d.messageText === "string" 
+                    ? d.messageText 
+                    : d.messageText.messageText;
+                  const line = d.file?.getLineAndCharacterOfPosition(d.start || 0);
+                  return line 
+                    ? `Line ${line.line + 1}: ${message}`
+                    : message;
+                })
+                .join("\n");
+              
+              return { 
+                success: false, 
+                error: `TypeScript syntax validation failed after edit:\n${errors}` 
+              };
+            }
+          } catch (validationError) {
+            console.error("[edit_file] Validation error:", validationError);
+          }
+        }
+        
+        // Write the modified content
+        await fs.writeFile(input.path, newContent, "utf-8");
+        return { success: true, message: `File ${input.path} edited successfully.` };
+      } catch (error) {
+        return { success: false, error: (error as Error).message };
+      }
+    },
+  },
+  {
+    name: "run_shell_command",
+    description: "Executes a shell command and returns its stdout and stderr. Input: { command: string }. Timeout: 30 seconds.",
+    handler: async (input: { command: string }) => {
+      const { exec } = await import("child_process");
+      return new Promise((resolve) => {
+        exec(input.command, { timeout: 30000 }, (error, stdout, stderr) => {
+          if (error) {
+            resolve({ success: false, error: error.message, stdout, stderr });
+          } else {
+            resolve({ success: true, stdout, stderr });
+          }
+        });
+      });
     },
   },
 ];
@@ -56,7 +207,7 @@ export const toolRegistry: Tool[] = [
  */
 export function parseAction(thought: string): Action | null {
   // Try multiple formats
-  
+
   // Format 1: action: toolName, params: {...}
   const match1 = thought.match(/action:\s*(\w+),\s*params:\s*\{([^}]*)\}/i);
   if (match1) {
@@ -66,7 +217,7 @@ export function parseAction(thought: string): Action | null {
         parameters: JSON.parse(`{${match1[2]}}`),
       };
     } catch (e) {
-      console.error("Failed to parse action params:", e);
+      logger.error("Failed to parse action params:", e);
     }
   }
 
@@ -79,7 +230,7 @@ export function parseAction(thought: string): Action | null {
         parameters: JSON.parse(`{${match2[2]}}`),
       };
     } catch (e) {
-      console.error("Failed to parse action params:", e);
+      logger.error("Failed to parse action params:", e);
     }
   }
 
@@ -91,8 +242,8 @@ export function parseAction(thought: string): Action | null {
       const params: any = {};
       const paramStr = match3[2];
       const pairs = paramStr.split(",");
-      pairs.forEach((pair) => {
-        const [key, value] = pair.split("=").map((s) => s.trim());
+      pairs.forEach(pair => {
+        const [key, value] = pair.split("=").map(s => s.trim());
         if (key && value) {
           // Remove quotes if present
           params[key] = value.replace(/['"]/g, "");
@@ -103,7 +254,7 @@ export function parseAction(thought: string): Action | null {
         parameters: params,
       };
     } catch (e) {
-      console.error("Failed to parse action params:", e);
+      logger.error("Failed to parse action params:", e);
     }
   }
 
@@ -114,16 +265,19 @@ export function parseAction(thought: string): Action | null {
  * Execute tool action and return observation
  */
 export async function executeAction(action: Action): Promise<string> {
-  const tool = toolRegistry.find((t) => t.name === action.toolName);
+  const tool = toolRegistry.find(t => t.name === action.toolName);
 
   if (!tool) {
-    return `ERROR: Tool '${action.toolName}' not found in registry. Available tools: ${toolRegistry.map((t) => t.name).join(", ")}`;
+    return `ERROR: Tool '${action.toolName}' not found in registry. Available tools: ${toolRegistry.map(t => t.name).join(", ")}`;
   }
 
   try {
-    console.log(`[ReAct] Executing tool: ${action.toolName}`, action.parameters);
+    logger.info(
+      `[ReAct] Executing tool: ${action.toolName}`,
+      action.parameters
+    );
     const result = await tool.handler(action.parameters);
-    
+
     if (result.success === false) {
       return `ERROR: ${result.error}`;
     }
@@ -147,7 +301,7 @@ export async function reasonAndAct(thoughts: string[]): Promise<string[]> {
     if (action) {
       const observation = await executeAction(action);
       observations.push(observation);
-      console.log(`[ReAct] Observation:`, observation);
+      logger.info(`[ReAct] Observation:`, observation);
     } else {
       // No action detected, just record the thought
       observations.push(`THOUGHT: ${thought}`);
@@ -169,8 +323,10 @@ export function extractThoughts(response: string): string[] {
   if (thinkingMatch) {
     const thinkingContent = thinkingMatch[1];
     // Split by numbered lines (1., 2., etc.)
-    const numberedThoughts = thinkingContent.split(/\d+\.\s+/).filter((t) => t.trim());
-    thoughts.push(...numberedThoughts.map((t) => t.trim()));
+    const numberedThoughts = thinkingContent
+      .split(/\d+\.\s+/)
+      .filter(t => t.trim());
+    thoughts.push(...numberedThoughts.map(t => t.trim()));
   }
 
   // Also look for explicit [THOUGHT] or [ACTION] markers
@@ -205,7 +361,7 @@ export async function processWithReAct(
     return { observations: [], enhancedResponse: llmResponse };
   }
 
-  console.log(`[ReAct] Extracted ${thoughts.length} thoughts from response`);
+  logger.info(`[ReAct] Extracted ${thoughts.length} thoughts from response`);
 
   // Execute ReAct loop
   const observations = await reasonAndAct(thoughts);

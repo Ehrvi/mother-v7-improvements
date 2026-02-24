@@ -57,7 +57,7 @@ export async function getDb() {
       queueLimit: 0
     });
 
-    _db = drizzle(pool);
+    _db = drizzle(pool) as any;
     console.log("[Database] Connection pool created successfully.");
   } catch (error) {
     console.error("[Database] Failed to create connection pool:", error);

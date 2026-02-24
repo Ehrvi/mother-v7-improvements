@@ -120,7 +120,7 @@ export async function searchEpisodicMemory(
     }
     
     // Fetch recent queries that have embeddings (limit to last 500 for performance)
-    const recentQueries = await db
+    const recentQueries = await (db as any)
       .select({
         query: queries.query,
         response: queries.response,
@@ -193,7 +193,7 @@ export async function generateAndStoreEmbedding(queryId: number, queryText: stri
     const isZeroVector = embedding.every(v => v === 0);
     if (isZeroVector) return;
     
-    await db
+    await (db as any)
       .update(queries)
       .set({ embedding: JSON.stringify(embedding) })
       .where(eq(queries.id, queryId));

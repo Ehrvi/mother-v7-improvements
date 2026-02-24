@@ -135,10 +135,7 @@ export const motherRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const result = await runCodeAgent({
-        task: input.task,
-        userId: ctx.user?.id,
-      });
+      const result = await runCodeAgent(input.task);
       return result;
     }),
 
