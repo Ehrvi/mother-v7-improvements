@@ -216,11 +216,12 @@ export type InsertEpisodicMemory = typeof episodicMemory.$inferInsert;
  */
 export const dgmArchive = mysqlTable("dgm_archive", {
   id: int("id").autoincrement().primaryKey(),
-  parentId: int("parent_id"), // References another dgmArchive.id (DB uses snake_case)
-  fitnessScore: varchar("fitness_score", { length: 20 }).notNull(), // DB uses snake_case
-  codeSnapshotUrl: varchar("code_snapshot_url", { length: 512 }), // DB uses snake_case
+  // IMPORTANT: DB was created with camelCase column names (migration 0002)
+  parentId: int("parentId"),
+  fitnessScore: varchar("fitnessScore", { length: 20 }).notNull(),
+  codeSnapshotUrl: varchar("codeSnapshotUrl", { length: 512 }),
   metadata: text("metadata"),
-  createdAt: timestamp("created_at").defaultNow().notNull(), // DB uses snake_case
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
 export type DgmArchive = typeof dgmArchive.$inferSelect;
