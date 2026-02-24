@@ -10,7 +10,7 @@ import { addKnowledge } from '../mother/knowledge';
 import { getRecentQueries, getQueryStats, getAllKnowledge, getDgmLineage } from '../db';
 import { runCodeAgent } from '../mother/code_agent';
 import { invokeSupervisor, getSupervisorStatus } from '../mother/supervisor';
-import { getAgentPool } from '../mother/gea_supervisor';
+import { getAgentPool, getFitnessHistory } from '../mother/gea_supervisor';
 import { getDb } from '../db';
 import { randomUUID } from 'crypto';
 
@@ -207,7 +207,8 @@ export const motherRouter = router({
           const [createdTask] = await tasksClient.createTask({ parent: queuePath, task });
 
           // Store task in dgm_task_queue for tracking
-          const db = getDb();
+          // FIX v46.0: await getDb() - getDb() is async
+          const db = await getDb();
           if (db) {
             try {
               await (db as any).$client.query(
@@ -257,8 +258,38 @@ export const motherRouter = router({
             novelty_score: a.noveltyScore,
             performance_novelty_score: a.performanceNoveltyScore,
             strategies_count: a.strategies.length,
+            strategies: a.strategies,
+            full_fitness_breakdown: a.fullFitnessBreakdown || null,
             created_at: a.createdAt,
           })),
+        };
+      }),
+
+    /**
+     * v47.0: Fitness History - Cross-generation fitness tracking
+     * Scientific basis: DGM (Zhang et al., arXiv:2505.22954) — fitness should improve
+     * monotonically across generations in a well-functioning evolutionary system.
+     */
+    fitnessHistory: publicProcedure
+      .input(
+        z.object({
+          limit: z.number().min(1).max(100).optional().default(20),
+        })
+      )
+      .query(async ({ input }) => {
+        const history = await getFitnessHistory(input.limit);
+        const avgFitness = history.length > 0
+          ? history.reduce((sum, h) => sum + h.fitnessScore, 0) / history.length
+          : 0;
+        const trend = history.length >= 2
+          ? history[0].fitnessScore - history[history.length - 1].fitnessScore
+          : 0;
+        return {
+          total_generations: history.length,
+          avg_fitness: parseFloat(avgFitness.toFixed(4)),
+          fitness_trend: parseFloat(trend.toFixed(4)),
+          trend_direction: trend > 0.01 ? 'improving' : trend < -0.01 ? 'declining' : 'stable',
+          history,
         };
       }),
 

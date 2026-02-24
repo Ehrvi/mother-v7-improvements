@@ -51,18 +51,23 @@ async function runMigrations() {
 
     for (const file of sqlFiles) {
       const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
-      const statements = sql
+      // Strip comment lines before splitting to avoid false positives
+      const sqlNoComments = sql
+        .split('\n')
+        .filter((line: string) => !line.trim().startsWith('--'))
+        .join('\n');
+      const statements = sqlNoComments
         .split(';')
         .map((s: string) => s.trim())
-        .filter((s: string) => s.length > 0 && !s.startsWith('--'));
-
+        .filter((s: string) => s.length > 0);
       for (const stmt of statements) {
         try {
           await (db as any).$client.query(stmt);
         } catch (e: any) {
-          // Ignore "already exists" errors - migrations are idempotent
-          if (!e.message?.includes('already exists') && !e.message?.includes('Duplicate')) {
-            console.warn('[Migrations] Statement warning:', e.message?.substring(0, 150));
+          // Ignore "already exists" and "Duplicate" errors - migrations are idempotent
+          const msg = e.message || '';
+          if (!msg.includes('already exists') && !msg.includes('Duplicate') && !msg.includes('duplicate')) {
+            console.warn(`[Migrations] ${file} warning:`, msg.substring(0, 200));
           }
         }
       }
@@ -118,7 +123,8 @@ app.post('/api/dgm/execute', async (req, res) => {
   res.status(200).json({ status: 'accepted', run_id });
 
   // Execute GEA evolution asynchronously (after response is sent)
-  const db = getDb();
+  // FIX v46.0: Use await getDb() - getDb() is async and returns a Promise
+  const db = await getDb();
   if (db) {
     try {
       await (db as any).$client.query(
@@ -126,7 +132,7 @@ app.post('/api/dgm/execute', async (req, res) => {
         [run_id]
       );
     } catch (e) {
-      console.error('[DGM] Error updating task status:', e);
+      console.warn('[DGM] Could not update task status (table may not exist yet):', (e as any).message);
     }
   }
 
@@ -134,27 +140,29 @@ app.post('/api/dgm/execute', async (req, res) => {
   invokeGEASupervisor(goal, run_id)
     .then(async () => {
       console.log(`[DGM] GEA evolution completed for run_id=${run_id}`);
-      if (db) {
+      const dbFinal = await getDb();
+      if (dbFinal) {
         try {
-          await (db as any).$client.query(
+          await (dbFinal as any).$client.query(
             `UPDATE dgm_task_queue SET status='completed', updated_at=NOW() WHERE run_id=?`,
             [run_id]
           );
         } catch (e) {
-          console.error('[DGM] Error updating task completion:', e);
+          console.warn('[DGM] Could not update task completion:', (e as any).message);
         }
       }
     })
     .catch(async (error) => {
       console.error(`[DGM] GEA evolution failed for run_id=${run_id}:`, error);
-      if (db) {
+      const dbErr = await getDb();
+      if (dbErr) {
         try {
-          await (db as any).$client.query(
+          await (dbErr as any).$client.query(
             `UPDATE dgm_task_queue SET status='failed', error_message=?, updated_at=NOW() WHERE run_id=?`,
             [error.message?.slice(0, 500) || 'Unknown error', run_id]
           );
         } catch (e) {
-          console.error('[DGM] Error updating task failure:', e);
+          console.warn('[DGM] Could not update task failure:', (e as any).message);
         }
       }
     });

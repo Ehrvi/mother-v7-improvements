@@ -41,7 +41,8 @@ steps:
       - '--max-instances=10'
       - '--timeout=300'
       - '--service-account=mother-cloudrun-sa@mothers-library-mcp.iam.gserviceaccount.com'
-      - '--add-cloudsql-instances=mothers-library-mcp:us-central1:mother-db'
+      # v46.0: Fixed Cloud SQL instance to use Sydney (australia-southeast1) for co-location
+      - '--add-cloudsql-instances=mothers-library-mcp:australia-southeast1:mother-db-sydney'
       - '--set-secrets=DATABASE_URL=mother-db-url:latest,OPENAI_API_KEY=mother-openai-api-key:latest'
       - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA'
 

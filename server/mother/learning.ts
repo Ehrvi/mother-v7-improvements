@@ -207,3 +207,94 @@ export function validateLearning(
   // In future: compare quality scores before/after learning
   return qualityScore > 90;
 }
+
+/**
+ * Learn from a completed DGM/GEA evolution run.
+ *
+ * v47.0 New: Lower quality threshold (60) for evolution-derived insights,
+ * since fitness scores rarely reach 95+ in early generations.
+ *
+ * Scientific basis: Continuous learning from self-improvement runs
+ * (arXiv:2507.21046, Section 3.2 — "learning from self-generated experience").
+ *
+ * @param runId - The evolution run ID
+ * @param fitnessScore - Fitness score in [0, 1]
+ * @param strategies - Strategies that contributed to success
+ * @param goal - The evolution goal
+ */
+export async function learnFromEvolutionRun(
+  runId: string,
+  fitnessScore: number,
+  strategies: string[],
+  goal: string
+): Promise<LearningResult> {
+  const EVOLUTION_QUALITY_THRESHOLD = 60; // Lower threshold for evolution runs
+
+  // Convert fitness [0,1] to quality score [0,100]
+  const qualityScore = Math.round(fitnessScore * 100);
+
+  if (qualityScore < EVOLUTION_QUALITY_THRESHOLD || strategies.length === 0) {
+    return {
+      learned: false,
+      reason: `Evolution quality ${qualityScore} < ${EVOLUTION_QUALITY_THRESHOLD} threshold or no strategies`,
+    };
+  }
+
+  const evolutionSummary = `DGM Evolution Run ${runId} achieved fitness=${fitnessScore.toFixed(3)} on goal: "${goal.slice(0, 200)}". Successful strategies: ${strategies.join('; ')}`;
+
+  // Use the standard learning pipeline with the evolution summary as the response
+  const insights = extractInsights(evolutionSummary);
+
+  if (insights.length === 0) {
+    // If no insights extracted, use the full summary as the insight
+    insights.push(evolutionSummary);
+  }
+
+  const existingKnowledge = await getAllKnowledge();
+
+  for (const insight of insights) {
+    const { isDuplicate: isDup, maxSimilarity } = await isDuplicate(insight, existingKnowledge);
+
+    if (isDup) {
+      console.log(`[Learning] Skipping duplicate evolution insight (similarity: ${maxSimilarity.toFixed(2)})`);
+      continue;
+    }
+
+    try {
+      const embedding = await getEmbedding(insight);
+      const title = `Evolution Run ${runId.slice(0, 8)}: ${generateTitle(insight)}`;
+
+      const knowledgeId = await insertKnowledge({
+        title,
+        content: insight,
+        category: 'learned',
+        tags: JSON.stringify(['auto-learned', 'dgm-evolution', `fitness-${fitnessScore.toFixed(2)}`]),
+        source: `DGM Evolution: ${goal.slice(0, 100)}`,
+        sourceType: 'learning',
+        embedding: JSON.stringify(embedding),
+        embeddingModel: 'text-embedding-3-small',
+      });
+
+      console.log(`[Learning] ✅ Evolution insight added (ID=${knowledgeId}, fitness=${fitnessScore.toFixed(2)}): "${title.slice(0, 60)}"`);
+
+      return {
+        learned: true,
+        reason: `Evolution insight added (fitness=${fitnessScore.toFixed(2)}, similarity=${maxSimilarity.toFixed(2)})`,
+        knowledgeId,
+        similarity: maxSimilarity,
+      };
+    } catch (error) {
+      console.error('[Learning] Failed to add evolution insight:', error);
+      return {
+        learned: false,
+        reason: `Insert failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  return {
+    learned: false,
+    reason: 'All evolution insights were duplicates',
+  };
+}
+
