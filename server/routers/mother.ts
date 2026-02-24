@@ -30,6 +30,7 @@ export const motherRouter = router({
       const result = await processQuery({
         query: input.query,
         userId: ctx.user?.id,
+        userEmail: ctx.user?.email ?? undefined,
         useCache: input.useCache,
       });
 

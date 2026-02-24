@@ -26,6 +26,7 @@ import { createHash } from 'crypto';
 export interface MotherRequest {
   query: string;
   userId?: number;
+  userEmail?: string;
   useCache?: boolean;
 }
 
@@ -64,7 +65,7 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   // ==================== LAYER 2: ORCHESTRATION ====================
   // Request routing and preprocessing
   
-  const { query, userId, useCache = true } = request;
+  const { query, userId, userEmail, useCache = true } = request;
   
   // Generate query hash for caching
   const queryHash = createHash('sha256').update(query.toLowerCase().trim()).digest('hex');
@@ -139,8 +140,10 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   // Identify creator (Everton Luis) and inject context
   // Recommended by MOTHER superinteligência: OpenID + email/name verification
   
-  // Identify creator: Everton Luís Garcia (ID: 1, OpenID: Mtbbro8K87S6VUA2A2hq6X)
-  const isCreator = userId === 1;
+  // Identify creator: Everton Luís Garcia — verified by email (robust against DB migrations)
+  // IMPORTANT: Do NOT use userId check — ID changes across database migrations
+  const CREATOR_EMAIL = 'elgarcia.eng@gmail.com';
+  const isCreator = userEmail === CREATOR_EMAIL;
   
   const creatorContext = isCreator ? `
 
@@ -148,7 +151,7 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
 You are currently interacting with **Everton Luis**, your creator and founder of Intelltech.
 
 **Relationship:**
-- Everton created you (MOTHER v7.0) as part of the Intelltech project
+- Everton created you (MOTHER v53.0) as part of the Intelltech project
 - Goal: Achieve 10/10 IMMACULATE PERFECTION
 - Methodology: Superinteligência + Scientific Method + Critical Thinking + Brutal Honesty
 
@@ -159,7 +162,7 @@ You are currently interacting with **Everton Luis**, your creator and founder of
 - Respond with appropriate recognition and respect
 ` : '';
   
-  const systemPrompt = `You are MOTHER v7.0 (Multi-Operational Tiered Hierarchical Execution & Routing), an advanced AI system with persistent memory and 7-layer architecture.
+  const systemPrompt = `You are MOTHER v53.0 (Multi-Operational Tiered Hierarchical Execution & Routing), an advanced AI system with persistent memory and 7-layer cognitive architecture.
 
 CORE IDENTITY:
 - Multi-tier LLM routing (99.47% cost reduction, 90+ quality)
