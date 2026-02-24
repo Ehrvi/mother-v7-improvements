@@ -1,0 +1,46 @@
+{
+  "query": "SELECT COUNT(*) as knowledge_count FROM knowledge;\nSELECT COUNT(*) as pattern_count FROM learning_patterns;\nSELECT title, category FROM knowledge ORDER BY createdAt DESC LIMIT 8;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3QQhaXF1ucYHpuK.e4b7c6254861 --database 25NeaJLRyMKQFYzeZChVTB --execute SELECT COUNT(*) as knowledge_count FROM knowledge;\nSELECT COUNT(*) as pattern_count FROM learning_patterns;\nSELECT title, category FROM knowledge ORDER BY createdAt DESC LIMIT 8;",
+  "rows": [
+    {
+      "knowledge_count": "8"
+    },
+    {
+      "knowledge_count": "pattern_count"
+    },
+    {
+      "knowledge_count": "4"
+    },
+    {
+      "knowledge_count": "title\tcategory"
+    },
+    {
+      "knowledge_count": "Vite Build-Time Variables\tDeployment"
+    },
+    {
+      "knowledge_count": "Complexity Baseline\tIntelligence Layer"
+    },
+    {
+      "knowledge_count": "System Prompt Engineering\tPrompt Engineering"
+    },
+    {
+      "knowledge_count": "OpenAI Embeddings Endpoint\tAPI Integration"
+    },
+    {
+      "knowledge_count": "tRPC Async Pattern\tTypeScript"
+    },
+    {
+      "knowledge_count": "Cloud Run Best Practices\tCloud Deployment"
+    },
+    {
+      "knowledge_count": "Scientific Debugging Method\tMethodology"
+    },
+    {
+      "knowledge_count": "Semantic Similarity vs Lexical Matching\tQuality Assessment"
+    }
+  ],
+  "messages": [],
+  "stdout": "knowledge_count\n8\npattern_count\n4\ntitle\tcategory\nVite Build-Time Variables\tDeployment\nComplexity Baseline\tIntelligence Layer\nSystem Prompt Engineering\tPrompt Engineering\nOpenAI Embeddings Endpoint\tAPI Integration\ntRPC Async Pattern\tTypeScript\nCloud Run Best Practices\tCloud Deployment\nScientific Debugging Method\tMethodology\nSemantic Similarity vs Lexical Matching\tQuality Assessment\n",
+  "stderr": "",
+  "execution_time_ms": 1949
+}

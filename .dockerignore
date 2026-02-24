@@ -1,0 +1,20 @@
+node_modules
+dist
+.git
+.gitignore
+.env
+.env.local
+.env.development
+.env.*.local
+# Allow .env.production for build-time variables
+!.env.production
+*.log
+.DS_Store
+.vscode
+.idea
+*.md
+!README.md
+.manus-logs
+screenshots
+page_texts
+console_outputs
