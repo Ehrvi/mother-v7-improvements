@@ -198,13 +198,36 @@ export const systemMetrics = mysqlTable("system_metrics", {
 
 export type SystemMetric = typeof systemMetrics.$inferSelect;
 export type InsertSystemMetric = typeof systemMetrics.$inferInsert;
-// ===== DGM Architecture Tables (v38.0) =====
+// ===== DGM Architecture Tables (v38.0+) =====
+
+/**
+ * MOTHER v44.0: Episodic Memory (A-MEM Zettelkasten)
+ * Extended with Zettelkasten-style associative memory fields.
+ * Based on: arXiv:2502.12110 (A-MEM: Agentic Memory for LLM Agents)
+ *
+ * Architecture:
+ *   - Each memory is a MemoryNote with semantic metadata
+ *   - LLM extracts keywords, context, tags on ingestion
+ *   - Semantic similarity search finds nearest neighbors
+ *   - Evolution: strengthen (add link) or update_neighbor (evolve context/tags)
+ *   - Importance score = f(recency, retrieval_count, link_density)
+ */
 export const episodicMemory = mysqlTable("episodic_memory", {
   id: int("id").autoincrement().primaryKey(),
   content: text("content").notNull(),
-  embedding: text("embedding"), // JSON array of floats
-  metadata: text("metadata"), // JSON: source, tags, importance, etc.
+  embedding: text("embedding"), // JSON array of floats (text-embedding-3-small)
+  metadata: text("metadata"), // JSON: source, run_id, agent, etc.
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  // A-MEM Zettelkasten fields (arXiv:2502.12110, Section 3)
+  keywords: text("keywords"), // JSON array: LLM-extracted semantic keywords
+  links: text("links"), // JSON array: linked memory IDs (Zettelkasten connections)
+  context: varchar("context", { length: 500 }).default("General"), // Domain/category
+  category: varchar("category", { length: 255 }).default("Uncategorized"), // High-level classification
+  tags: text("tags"), // JSON array: fine-grained classification tags
+  retrievalCount: int("retrieval_count").default(0).notNull(), // Usage statistics
+  evolutionHistory: text("evolution_history"), // JSON array: evolution log entries
+  lastAccessed: timestamp("last_accessed"), // Temporal decay tracking
+  importanceScore: float("importance_score").default(0.5), // Composite importance
 });
 
 export type EpisodicMemory = typeof episodicMemory.$inferSelect;

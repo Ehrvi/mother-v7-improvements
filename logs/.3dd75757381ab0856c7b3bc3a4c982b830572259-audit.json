@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "/home/ubuntu/mother-code/mother-interface/logs/.3dd75757381ab0856c7b3bc3a4c982b830572259-audit.json",
+    "files": [
+        {
+            "date": 1771933796609,
+            "name": "/home/ubuntu/mother-code/mother-interface/logs/application-2026-02-24.log",
+            "hash": "c78d14a9a67014ade27bd43d57d92c992457caf110066b289e08409aeac102d3"
+        }
+    ],
+    "hashType": "sha256"
+}

@@ -1,5 +1,5 @@
 /**
- * MOTHER v40.0: Validation Agent (ReAct)
+ * MOTHER v44.0: Validation Agent (ReAct) — Real Fitness Scoring
  *
  * Validates code changes and runs benchmarks to measure empirical fitness scores.
  * Part of the Darwin Gödel Machine (DGM) evolutionary loop.
@@ -7,11 +7,13 @@
  * Scientific basis:
  * - ReAct: Synergizing Reasoning and Acting in Language Models (Yao et al., ICLR 2023)
  * - Darwin Gödel Machine (Zhang et al., arXiv:2505.22954)
- * - SWE-bench evaluation framework
+ * - SWE-bench (Jimenez et al., arXiv:2310.06770) — code quality benchmarking
+ * - AgentBench (Liu et al., arXiv:2308.03688) — agent capability evaluation
  *
  * Architecture: ReAct sub-agent with real code execution tools.
  * The agent reasons about the code, executes it in a sandbox, observes the results,
- * and calculates an empirical fitness score based on actual test outcomes.
+ * and calculates an empirical 5-dimensional fitness score:
+ *   F = 0.35*correctness + 0.20*efficiency + 0.20*robustness + 0.15*maintainability + 0.10*novelty
  */
 
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
@@ -22,6 +24,7 @@ import { execSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import { calculateRealFitnessScore, formatFitnessReport } from "./fitness_scorer";
 
 // ============================================================
 // TOOL 1: Execute Code in Sandbox
@@ -177,73 +180,48 @@ const runTypeScriptCheckTool = tool(
 );
 
 // ============================================================
-// TOOL 3: Calculate Final Fitness Score
-// Aggregates results from multiple validation steps into a
-// single normalized fitness score (0.0-1.0).
+// TOOL 3: Calculate Real 5-Dimensional Fitness Score
+// Uses the fitness_scorer module for scientifically grounded
+// multi-dimensional evaluation (v44.0).
+// F = 0.35*correctness + 0.20*efficiency + 0.20*robustness + 0.15*maintainability + 0.10*novelty
 // ============================================================
 const calculateFitnessScoreTool = tool(
-  async ({ executionScore, compilationScore, codeLength, hasComments }) => {
-    console.log("[ValidationAgent] Calculating final fitness score...");
+  async ({ code, executionSuccess, executionOutput, executionTimeMs, parentId }) => {
+    console.log("[ValidationAgent] Calculating 5-dimensional fitness score (v44.0)...");
 
-    // Weighted average: execution is most important
-    const weights = {
-      execution: 0.6,
-      compilation: 0.3,
-      quality: 0.1,
-    };
+    const breakdown = await calculateRealFitnessScore(
+      code,
+      { success: executionSuccess, output: executionOutput, executionTimeMs },
+      parentId || null
+    );
 
-    // Quality score based on code characteristics
-    const qualityScore =
-      (hasComments ? 0.5 : 0.0) +
-      (codeLength > 10 && codeLength < 500 ? 0.5 : 0.0);
-
-    const finalScore =
-      executionScore * weights.execution +
-      compilationScore * weights.compilation +
-      qualityScore * weights.quality;
-
-    const normalizedScore = Math.min(1.0, Math.max(0.0, finalScore));
-
-    console.log(`[ValidationAgent] Final fitness score: ${normalizedScore.toFixed(4)}`);
+    const report = formatFitnessReport(breakdown);
+    console.log(`[ValidationAgent] ${report}`);
 
     return JSON.stringify({
-      finalFitnessScore: normalizedScore,
+      finalFitnessScore: breakdown.finalScore,
       breakdown: {
-        execution: executionScore,
-        compilation: compilationScore,
-        quality: qualityScore,
+        correctness: breakdown.correctness,
+        efficiency: breakdown.efficiency,
+        robustness: breakdown.robustness,
+        maintainability: breakdown.maintainability,
+        novelty: breakdown.novelty,
       },
-      label:
-        normalizedScore >= 0.9
-          ? "EXCELLENT"
-          : normalizedScore >= 0.7
-          ? "GOOD"
-          : normalizedScore >= 0.5
-          ? "ACCEPTABLE"
-          : "POOR",
+      label: breakdown.label,
+      details: breakdown.details,
+      report,
     });
   },
   {
     name: "calculate_fitness_score",
     description:
-      "Calculate the final normalized fitness score (0.0-1.0) from multiple validation results.",
+      "Calculate the real 5-dimensional fitness score (v44.0): correctness(35%) + efficiency(20%) + robustness(20%) + maintainability(15%) + novelty(10%)",
     schema: z.object({
-      executionScore: z
-        .number()
-        .min(0)
-        .max(1)
-        .describe("Score from code execution (0.0-1.0)"),
-      compilationScore: z
-        .number()
-        .min(0)
-        .max(1)
-        .describe("Score from TypeScript compilation (0.0-1.0)"),
-      codeLength: z
-        .number()
-        .describe("Number of lines in the code"),
-      hasComments: z
-        .boolean()
-        .describe("Whether the code has comments/documentation"),
+      code: z.string().describe("The full code to evaluate"),
+      executionSuccess: z.boolean().describe("Whether code execution succeeded"),
+      executionOutput: z.string().describe("Output from code execution"),
+      executionTimeMs: z.number().describe("Execution time in milliseconds"),
+      parentId: z.string().optional().describe("Parent generation ID for novelty calculation"),
     }),
   }
 );
@@ -273,16 +251,16 @@ export async function createValidationAgent() {
   const agent = createReactAgent({
     llm: model,
     tools,
-    messageModifier: `You are the ValidationAgent for the MOTHER DGM system.
-Your role is to empirically validate code and calculate a real fitness score.
+    messageModifier: `You are the ValidationAgent for the MOTHER DGM system (v44.0).
+Your role is to empirically validate code and calculate a real 5-dimensional fitness score.
 
 When given code to validate:
-1. Use execute_code_in_sandbox to run the code and get an execution score
-2. Use run_typescript_check if the code is TypeScript to get a compilation score
-3. Use calculate_fitness_score to compute the final normalized score
-4. Always end your response with: "Fitness score: [score]" where [score] is the final value
+1. Use execute_code_in_sandbox to run the code. Note the executionSuccess, output, and time.
+2. Use calculate_fitness_score with the FULL code content + execution results + parentId if available.
+   This computes: correctness(35%) + efficiency(20%) + robustness(20%) + maintainability(15%) + novelty(10%)
+3. Always end your response with: "Fitness score: [score]" where [score] is the finalFitnessScore value.
 
-Be precise and scientific. The fitness score must reflect actual code quality, not random values.`,
+Be precise and scientific. The fitness score is empirically calculated, not estimated.`,
   });
 
   return agent;

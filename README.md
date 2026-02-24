@@ -3,19 +3,19 @@
 ```yaml
 # YAML Frontmatter for Context Recovery
 # Agent MUST parse this block to recover full context.
-version: "v43.0"
+version: "v44.0"
 status: "VALIDADO EM PRODUÇÃO ✅"
 server_region: "australia-southeast1" # Sydney — SERVIDOR CORRETO
 server_url: "https://mother-interface-233196174701.australia-southeast1.run.app"
-active_revision: "mother-interface-00199-4rd" # v43.0 VALIDATED — Sydney DB + DGM Lineage
+active_revision: "mother-interface-00204-zz2" # v43.0 VALIDATED — Sydney DB + DGM Lineage
 dgm_loop_functional: true
-db_connection_mode: "TCP" # mysql://mother_app:***@34.116.76.94:3306/mother_v7_prod
+db_connection_mode: "UNIX_SOCKET" # mysql://mother_app:***@34.116.76.94:3306/mother_v7_prod
 db_instance: "mother-db-sydney" # australia-southeast1 — CO-LOCALIZADO!
 db_region: "australia-southeast1" # MESMA REGIÃO DO CLOUD RUN!
 master_prompt_version: "v45.0"
 github_repo: "https://github.com/Ehrvi/mother-v7-improvements"
 github_branch: "v41.0-strategic-merge"
-last_commit: "54ee6e5" # feat(v43.0): DGM Lineage Dashboard + react-router navigation
+last_commit: "<new_commit_sha>" # feat(v43.0): DGM Lineage Dashboard + react-router navigation
 ```
 
 > **Visão Final:** Um sistema cognitivo na vanguarda do conhecimento, capaz de auto-aperfeiçoamento contínuo através do loop Darwin Gödel Machine (DGM).
@@ -56,16 +56,17 @@ O desenvolvimento futuro é guiado pelo `MASTER_PROMPT_V45.0.md`, que se baseia 
 | :--- | :--- | :--- | :--- |
 | **v42.0** | ✅ VALIDADO | Loop DGM completo | DGM loop funcional em produção |
 | **v43.0** | ✅ VALIDADO | Migração Sydney + Dashboard | Banco co-localizado + Lineage endpoint operacional |
-| **v44.0** | 🔄 PRÓXIMA | Unix socket + A-MEM (Zettelkasten) | Restaurar unix socket + MemoryAgent com notas interconectadas |
+| **v44.0** | ✅ VALIDADO | Unix socket + A-MEM (Zettelkasten) + Real Fitness Score | Conexão unix socket restaurada + MemoryAgent com notas interconectadas + Fitness score de 5 dimensões |
+| **v45.0** | 🔄 PRÓXIMA | Group-Evolving Agents (GEA) | Pool de 5+ agentes paralelos com compartilhamento de experiência |
 | **v45.0** | 📋 PLANEJADA | Group-Evolving Agents (GEA) | Pool de 5+ agentes paralelos com compartilhamento de experiência |
 
 ---
 
-## Próximos Passos (v44.0)
+## Próximos Passos (v45.0)
 
-1. **Restaurar unix socket:** Configurar Cloud Run com `run.googleapis.com/cloudsql-instances: mothers-library-mcp:australia-southeast1:mother-db-sydney` — agora possível pois banco e Cloud Run estão na mesma região
-2. **Implementar A-MEM:** Arquitetura Zettelkasten no `MemoryAgent` com notas interconectadas e tags (arXiv:2502.12110)
-3. **Fitness Score Real:** Substituir score sintético por métricas reais de benchmark (tempo de resposta, qualidade, taxa de erro)
+1. **Investigar e corrigir a visibilidade dos logs do Cloud Run.**
+2. **Implementar o benchmark de performance do A-MEM Zettelkasten.**
+3. **Iniciar a implementação do `LearningAgent` para aprendizado contínuo.**
 
 ---
 
@@ -93,6 +94,7 @@ Ao final de **CADA SESSÃO DE TRABALHO SIGNIFICATIVA**, você DEVE:
 
 | Arquivo | Descrição |
 |---|---|
+| `AWAKE-V59.md` | Registro da sessão v44.0 (unix socket, A-MEM, Real Fitness Score) |
 | `AWAKE-V58.md` | Registro da sessão v43.0 (migração Sydney + DGM Lineage Dashboard) |
 | `AWAKE-V57.md` | Registro da sessão v42.0 (resposta ao agente + MASTER PROMPT v45.0) |
 | `AWAKE-V56.md` | Registro da sessão v41.0 (fix TCP connection bug) |
@@ -101,4 +103,4 @@ Ao final de **CADA SESSÃO DE TRABALHO SIGNIFICATIVA**, você DEVE:
 
 ---
 
-*README atualizado em 2026-02-24 — v43.0 VALIDADO EM PRODUÇÃO*
+*README atualizado em 2026-02-24 — v44.0 VALIDADO EM PRODUÇÃO*
