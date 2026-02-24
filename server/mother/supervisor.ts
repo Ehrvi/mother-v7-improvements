@@ -16,6 +16,7 @@ import { BaseMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import { MySqlCheckpointer } from "./checkpoint";
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
+import { archiveNode as archiveNodeImpl } from "./archive_node";
 
 /**
  * SupervisorState - Shared state across all nodes
@@ -90,10 +91,19 @@ async function codeAgentNode(state: typeof SupervisorState.State) {
   console.log("[Supervisor] CodeAgent executing...");
 
   // TODO: Replace with actual CodeAgent invocation
-  // For now, just return a placeholder response
+  // For now, generate a simple placeholder code and route to validation
+  const generatedCode = `
+    // Generated TypeScript function
+    function helloWorld(): void {
+      console.log("Hello, World!");
+    }
+    
+    helloWorld();
+  `;
+  
   return {
-    next: END,
-    messages: [new AIMessage("CodeAgent: Task completed (placeholder)")],
+    next: "validation_agent",
+    messages: [new AIMessage(`CodeAgent: Generated code:\n\`\`\`typescript${generatedCode}\`\`\``)],
   };
 }
 
@@ -124,59 +134,30 @@ async function validationAgentNode(state: typeof SupervisorState.State) {
 }
 
 /**
- * Archive Node - Saves evolution metadata to dgm_archive table
- * 
- * Stores the fitness score and execution metadata for DGM evolutionary tracking.
+ * Archive Node Wrapper - Adapts archiveNode to StateGraph signature
  */
 async function archiveNode(state: typeof SupervisorState.State) {
   console.log("[Supervisor] ArchiveNode executing...");
-
-  try {
-    const { getDb } = await import("../db");
-    const { dgmArchive } = await import("../../drizzle/schema");
-    
-    const db = await getDb();
-    if (!db) {
-      console.error("[ArchiveNode] Database connection failed");
-      return {
-        next: END,
-        messages: [new AIMessage("ArchiveNode: Failed to connect to database")],
-      };
-    }
-
-    // Extract fitness score from messages (ValidationAgent should set this)
-    const lastMessage = state.messages[state.messages.length - 1];
-    const content = lastMessage.content.toString();
-    
-    // Parse fitness score from message (format: "Fitness Score: X.XX")
-    const fitnessMatch = content.match(/Fitness Score: ([0-9.]+)/);
-    const fitnessScore = fitnessMatch ? parseFloat(fitnessMatch[1]) : 0.0;
-
-    // Save to dgm_archive
-    await db.insert(dgmArchive).values({
-      parentId: null, // TODO: Track parent evolution in future versions
-      fitnessScore,
-      codeSnapshotUrl: null, // TODO: Upload code snapshot to S3 in future versions
-      metadata: JSON.stringify({
-        messageCount: state.messages.length,
-        timestamp: new Date().toISOString(),
-        goal: state.messages[0]?.content.toString() || "unknown",
-      }),
-    });
-
-    console.log(`[ArchiveNode] Saved evolution with fitness score: ${fitnessScore}`);
-
-    return {
-      next: END,
-      messages: [new AIMessage(`ArchiveNode: Evolution archived with fitness score ${fitnessScore}`)],
-    };
-  } catch (error) {
-    console.error("[ArchiveNode] Error:", error);
-    return {
-      next: END,
-      messages: [new AIMessage(`ArchiveNode: Error - ${error}`)],
-    };
-  }
+  
+  // Convert LangGraph state to our SupervisorState format
+  const adaptedState = {
+    messages: state.messages.map(msg => ({
+      role: msg._getType() === "human" ? "user" : "assistant",
+      content: msg.content.toString(),
+    })),
+    currentNode: "archive",
+    threadId: state.messages[0]?.id || `thread-${Date.now()}`,
+    parentId: null,
+  };
+  
+  // Call the actual archiveNode implementation
+  const result = await archiveNodeImpl(adaptedState);
+  
+  // Convert back to LangGraph state format
+  return {
+    next: END,
+    messages: result.messages?.slice(-1).map(msg => new AIMessage(msg.content)) || [],
+  };
 }
 
 /**

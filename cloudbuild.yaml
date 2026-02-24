@@ -39,8 +39,8 @@ steps:
       - '--max-instances=10'
       - '--timeout=300'
       - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA'
-      # PATCH v28.5: Inject DATABASE_URL from Secret Manager
-      - '--set-secrets=DATABASE_URL=mother-db-url:latest'
+      # PATCH v28.5: Inject DATABASE_URL and OPENAI_API_KEY from Secret Manager
+      - '--set-secrets=DATABASE_URL=mother-db-url:latest,OPENAI_API_KEY=mother-openai-api-key:latest'
       # PATCH v28.5.1: Enable Cloud SQL Proxy for Unix socket connection
       - '--add-cloudsql-instances=mothers-library-mcp:us-central1:mother-db'
 

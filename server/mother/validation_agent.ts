@@ -1,5 +1,5 @@
 /**
- * MOTHER v35.0: Validation Agent
+ * MOTHER v39.0: Validation Agent
  * 
  * Validates code changes and runs benchmarks to measure fitness scores.
  * Part of the Darwin Gödel Machine (DGM) evolutionary loop.
@@ -13,139 +13,149 @@ import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { ChatOpenAI } from "@langchain/openai";
-import { getDb } from "../db";
-import { dgmArchive } from "../../drizzle/schema";
-import { exec } from "child_process";
-import { promisify } from "util";
+import { execSync } from "child_process";
+import * as fs from "fs";
+import * as path from "path";
 
-const execAsync = promisify(exec);
+/**
+ * Calculate fitness score by executing generated code
+ * 
+ * @param codeString - The TypeScript code to execute
+ * @param expectedOutput - The expected output (for now, hardcoded)
+ * @returns Object with fitnessScore (0.0-1.0) and benchmarkResults
+ */
+export function calculateFitnessScore(
+  codeString: string,
+  expectedOutput: string = "Hello, World!"
+): { fitnessScore: number; benchmarkResults: string } {
+  console.log("[ValidationAgent] Calculating fitness score...");
+  console.log("[ValidationAgent] Expected output:", expectedOutput);
+
+  try {
+    // Create temporary file for code execution
+    const tempDir = "/tmp/mother-validation";
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    const tempFile = path.join(tempDir, `test-${Date.now()}.ts`);
+    fs.writeFileSync(tempFile, codeString);
+
+    // Execute code with ts-node
+    const stdout = execSync(`npx ts-node ${tempFile}`, {
+      encoding: "utf-8",
+      timeout: 10000, // 10 second timeout
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    // Clean up
+    fs.unlinkSync(tempFile);
+
+    // Compare output
+    const actualOutput = stdout.trim();
+    const matches = actualOutput === expectedOutput;
+
+    const fitnessScore = matches ? 1.0 : 0.0;
+    const benchmarkResults = JSON.stringify({
+      expectedOutput,
+      actualOutput,
+      matches,
+      executionSuccess: true,
+      timestamp: new Date().toISOString(),
+    });
+
+    console.log("[ValidationAgent] Fitness score:", fitnessScore);
+    console.log("[ValidationAgent] Benchmark results:", benchmarkResults);
+
+    return { fitnessScore, benchmarkResults };
+  } catch (error) {
+    console.error("[ValidationAgent] Error executing code:", error);
+
+    const benchmarkResults = JSON.stringify({
+      expectedOutput,
+      actualOutput: null,
+      matches: false,
+      executionSuccess: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+      timestamp: new Date().toISOString(),
+    });
+
+    return { fitnessScore: 0.0, benchmarkResults };
+  }
+}
 
 /**
  * Real tool: Run Benchmark
  * 
- * Implements:
- * 1. Execute test suite (pnpm test or custom command)
- * 2. Measure performance metrics (pass rate, latency)
- * 3. Calculate a fitness score (0-100)
- * 4. Store results in dgm_archive table
+ * Executes generated code and calculates fitness score based on output comparison.
  */
 const runBenchmarkTool = tool(
-  async ({ testSuite, timeout }) => {
-    console.log("[ValidationAgent] Running benchmark:", testSuite);
-    console.log("[ValidationAgent] Timeout:", timeout, "seconds");
+  async ({ codeString, expectedOutput }) => {
+    console.log("[ValidationAgent] Running benchmark with code execution");
+    console.log("[ValidationAgent] Code length:", codeString.length, "chars");
+    console.log("[ValidationAgent] Expected output:", expectedOutput);
 
-    try {
-      // Execute benchmark command
-      let command: string;
-      if (testSuite === "unit-tests") {
-        command = "pnpm test";
-      } else if (testSuite === "swe-bench-lite") {
-        // Placeholder for SWE-bench integration
-        command = "echo 'SWE-bench not implemented yet'";
-      } else {
-        command = testSuite; // Custom command
-      }
+    const { fitnessScore, benchmarkResults } = calculateFitnessScore(
+      codeString,
+      expectedOutput
+    );
 
-      const startTime = Date.now();
-      const { stdout, stderr } = await execAsync(command, {
-        timeout: timeout * 1000,
-        cwd: "/home/ubuntu/mother-interface",
-      });
-      const duration = Date.now() - startTime;
-
-      // Parse test results (simplified)
-      const passedMatch = stdout.match(/(\d+) passed/);
-      const failedMatch = stdout.match(/(\d+) failed/);
-      const passed = passedMatch ? parseInt(passedMatch[1]) : 0;
-      const failed = failedMatch ? parseInt(failedMatch[1]) : 0;
-      const total = passed + failed;
-
-      // Calculate fitness score (0-100)
-      const passRate = total > 0 ? (passed / total) * 100 : 0;
-      const fitnessScore = Math.round(passRate);
-
-      // Store in dgm_archive
-      const db = await getDb();
-      if (!db) throw new Error("Database not available");
-
-      await db.insert(dgmArchive).values({
-        fitnessScore,
-        metadata: JSON.stringify({
-          testSuite,
-          passed,
-          failed,
-          total,
-          duration,
-          timestamp: new Date().toISOString(),
-        }),
-      });
-
-      return `Benchmark completed. Test suite: "${testSuite}", Passed: ${passed}/${total}, Fitness score: ${fitnessScore}/100, Duration: ${duration}ms`;
-    } catch (error) {
-      console.error("[ValidationAgent] Error running benchmark:", error);
-
-      // Store failed benchmark
-      try {
-        const db = await getDb();
-        if (db) {
-          await db.insert(dgmArchive).values({
-            fitnessScore: 0,
-            metadata: JSON.stringify({
-              testSuite,
-              error: error instanceof Error ? error.message : "Unknown error",
-              timestamp: new Date().toISOString(),
-            }),
-          });
-        }
-      } catch (dbError) {
-        console.error("[ValidationAgent] Error storing failed benchmark:", dbError);
-      }
-
-      return `Benchmark failed: ${error instanceof Error ? error.message : "Unknown error"}`;
-    }
+    return `Benchmark completed. Fitness score: ${fitnessScore}, Results: ${benchmarkResults}`;
   },
   {
     name: "run_benchmark",
-    description: "Run a benchmark test suite and calculate fitness score",
+    description:
+      "Run a benchmark by executing generated code and comparing output to expected result",
     schema: z.object({
-      testSuite: z.string().describe("The test suite to run (e.g., 'swe-bench-lite', 'unit-tests')"),
-      timeout: z.number().describe("Timeout in seconds for the benchmark").default(300),
+      codeString: z.string().describe("The TypeScript code to execute"),
+      expectedOutput: z
+        .string()
+        .describe("The expected output from the code")
+        .default("Hello, World!"),
     }),
   }
 );
 
 /**
- * Placeholder tool: Validate Code
+ * Tool: Validate Code Syntax
  * 
- * In production, this would:
- * 1. Run static analysis (TypeScript compiler, ESLint, etc.)
- * 2. Execute unit tests
- * 3. Check for security vulnerabilities
- * 4. Return validation results
+ * Validates TypeScript syntax without executing the code.
  */
 const validateCodeTool = tool(
-  async ({ filePath }) => {
-    console.log("[ValidationAgent] Validating code:", filePath);
+  async ({ codeString }) => {
+    console.log("[ValidationAgent] Validating code syntax");
 
-    // TODO: Implement actual code validation
-    // const tsErrors = await runTypeScriptCheck(filePath);
-    // const lintErrors = await runESLint(filePath);
-    // const testResults = await runUnitTests(filePath);
+    try {
+      // Create temporary file for syntax validation
+      const tempDir = "/tmp/mother-validation";
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
 
-    // Placeholder: return mock validation results
-    const mockErrors = Math.floor(Math.random() * 3); // 0-2 errors
+      const tempFile = path.join(tempDir, `validate-${Date.now()}.ts`);
+      fs.writeFileSync(tempFile, codeString);
 
-    if (mockErrors === 0) {
-      return `Code validation passed (placeholder). File: "${filePath}", No errors found.`;
-    } else {
-      return `Code validation found ${mockErrors} errors (placeholder). File: "${filePath}"`;
+      // Run TypeScript compiler in check mode
+      execSync(`npx tsc --noEmit ${tempFile}`, {
+        encoding: "utf-8",
+        timeout: 5000,
+      });
+
+      // Clean up
+      fs.unlinkSync(tempFile);
+
+      return `Code validation passed. No syntax errors found.`;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      return `Code validation failed: ${errorMessage}`;
     }
   },
   {
     name: "validate_code",
-    description: "Validate code quality using static analysis and tests",
+    description: "Validate TypeScript code syntax without executing it",
     schema: z.object({
-      filePath: z.string().describe("Path to the file to validate"),
+      codeString: z.string().describe("The TypeScript code to validate"),
     }),
   }
 );

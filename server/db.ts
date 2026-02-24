@@ -1,5 +1,6 @@
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
 import {
   InsertUser,
   users,
@@ -23,15 +24,63 @@ import { ENV } from "./_core/env";
 import { logger } from "./lib/logger";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _pool: mysql.Pool | null = null;
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      const dbUrl = process.env.DATABASE_URL;
+      
+      // Parse DATABASE_URL manually to handle unix_socket
+      // Format: mysql://user:pass@/dbname?unix_socket=/path/to/socket
+      const url = new URL(dbUrl);
+      const socketPath = url.searchParams.get('unix_socket');
+      
+      let poolConfig: mysql.PoolOptions;
+      
+      if (socketPath) {
+        // Cloud SQL unix socket connection
+        poolConfig = {
+          socketPath: socketPath,
+          user: url.username,
+          password: url.password,
+          database: url.pathname.substring(1), // Remove leading '/'
+          waitForConnections: true,
+          connectionLimit: 10,
+          queueLimit: 0,
+        };
+        logger.info("[Database] Using unix socket connection:", socketPath);
+      } else {
+        // Standard TCP connection (fallback)
+        poolConfig = {
+          host: url.hostname,
+          port: parseInt(url.port) || 3306,
+          user: url.username,
+          password: url.password,
+          database: url.pathname.substring(1),
+          waitForConnections: true,
+          connectionLimit: 10,
+          queueLimit: 0,
+        };
+        logger.info("[Database] Using TCP connection:", url.hostname);
+      }
+      
+      // Create mysql2 pool with parsed config
+      _pool = mysql.createPool(poolConfig);
+      
+      // Test connection
+      const connection = await _pool.getConnection();
+      connection.release();
+      
+      // Create drizzle instance with pool
+      _db = drizzle(_pool);
+      
+      logger.info("[Database] Connection pool created successfully");
     } catch (error) {
-      logger.warn("[Database] Failed to connect:", error);
+      logger.error("[Database] Failed to connect:", error);
       _db = null;
+      _pool = null;
     }
   }
   return _db;
