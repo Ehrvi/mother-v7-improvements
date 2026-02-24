@@ -256,22 +256,22 @@ class SDKServer {
     } as GetUserInfoWithJwtResponse;
   }
 
-  async authenticateRequest(req: Request): Promise<User> {
+    async authenticateRequest(req: Request): Promise<User> {
     // Regular authentication flow
     const cookies = this.parseCookies(req.headers.cookie);
     const sessionCookie = cookies.get(COOKIE_NAME);
     const session = await this.verifySession(sessionCookie);
-
     if (!session) {
       throw ForbiddenError("Invalid session cookie");
     }
-
     const sessionUserId = session.openId;
     const signedInAt = new Date();
     let user = await db.getUserByOpenId(sessionUserId);
-
-    // If user not in DB, sync from OAuth server automatically
-    if (!user) {
+    // Native auth users (openId starts with 'native_') are managed locally.
+    // Skip OAuth sync for them — they exist in our DB only.
+    const isNativeUser = sessionUserId.startsWith('native_');
+    // If user not in DB and not a native user, sync from OAuth server automatically
+    if (!user && !isNativeUser) {
       try {
         const userInfo = await this.getUserInfoWithJwt(sessionCookie ?? "");
         await db.upsertUser({
@@ -287,16 +287,17 @@ class SDKServer {
         throw ForbiddenError("Failed to sync user info");
       }
     }
-
     if (!user) {
       throw ForbiddenError("User not found");
     }
-
-    await db.upsertUser({
-      openId: user.openId,
-      lastSignedIn: signedInAt,
-    });
-
+    // Only update lastSignedIn for non-native users to avoid excessive DB writes
+    // (native users update lastSignedIn on each login already)
+    if (!isNativeUser) {
+      await db.upsertUser({
+        openId: user.openId,
+        lastSignedIn: signedInAt,
+      });
+    }
     return user;
   }
 }

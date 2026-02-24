@@ -15,25 +15,33 @@ export default function Login() {
 
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: async () => {
+      setSuccessMsg('Login realizado com sucesso! Redirecionando...');
       await utils.auth.me.invalidate();
-      window.location.href = '/';
+      // Small delay so user sees the success message
+      setTimeout(() => { window.location.href = '/'; }, 800);
     },
-    onError: (err) => setError(err.message),
+    onError: (err) => {
+      setError(err.message || 'Erro ao fazer login. Verifique suas credenciais.');
+    },
   });
 
   const registerMutation = trpc.auth.register.useMutation({
     onSuccess: async (data) => {
       if (data.isFirstUser) {
+        setSuccessMsg('Conta criada com sucesso! Bem-vindo, Administrador. Redirecionando...');
         await utils.auth.me.invalidate();
-        window.location.href = '/';
+        setTimeout(() => { window.location.href = '/'; }, 1200);
       } else {
         setSuccessMsg(data.message);
         setMode('login');
         setPassword('');
         setConfirmPassword('');
+        setName('');
       }
     },
-    onError: (err) => setError(err.message),
+    onError: (err) => {
+      setError(err.message || 'Erro ao criar conta. Tente novamente.');
+    },
   });
 
   const isPending = loginMutation.isPending || registerMutation.isPending;
@@ -430,7 +438,7 @@ export default function Login() {
           )}
           <br />
           <span style={{ color: '#33334a', marginTop: 8, display: 'block' }}>
-            MOTHER v49.0 · Sistema Cognitivo Autônomo
+            MOTHER v51.0 · Sistema Cognitivo Autônomo
           </span>
         </div>
       </div>

@@ -45,7 +45,8 @@ steps:
       - '--add-cloudsql-instances=mothers-library-mcp:australia-southeast1:mother-db-sydney'
       # v50.0: Added JWT_SECRET and forge API secrets (fixes 'Zero-length key' auth bug)
       - '--set-secrets=DATABASE_URL=mother-db-url:latest,OPENAI_API_KEY=mother-openai-api-key:latest,JWT_SECRET=mother-jwt-secret:latest,BUILT_IN_FORGE_API_URL=mother-forge-api-url:latest,BUILT_IN_FORGE_API_KEY=mother-forge-api-key:latest'
-      - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA'
+      # v51.0: Added VITE_APP_ID (fixes 'Session payload missing required fields' auth bug)
+      - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA,VITE_APP_ID=mother-interface'
 
 images:
   - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-interface:latest'
