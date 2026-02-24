@@ -41,9 +41,18 @@ async function testSupervisorEndToEnd() {
   const evolveResult = await evolveResponse.json();
   console.log("✅ supervisor.evolve response:", JSON.stringify(evolveResult, null, 2));
 
-  const runId = evolveResult.result?.data?.run_id;
+  // Parse run_id from tRPC batch response
+  let runId: string | undefined;
+  
+  if (Array.isArray(evolveResult) && evolveResult[0]?.result?.data?.json) {
+    runId = evolveResult[0].result.data.json.run_id;
+  } else if (evolveResult.result?.data?.json) {
+    runId = evolveResult.result.data.json.run_id;
+  }
+  
   if (!runId) {
     console.error("❌ No run_id returned from supervisor.evolve");
+    console.error("Response:", JSON.stringify(evolveResult, null, 2));
     return;
   }
 
