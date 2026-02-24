@@ -278,7 +278,9 @@ Return ONLY the JSON array, no other text.
       `)
     ]);
 
-    const content = response.content.toString().trim();
+    let content = response.content.toString().trim();
+    // Strip markdown code blocks if LLM wraps JSON in ```json ... ```
+    content = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
     const strategies = JSON.parse(content);
     return Array.isArray(strategies) ? strategies : [];
   } catch (error) {
