@@ -1,5 +1,5 @@
 /**
- * MOTHER v31.0 - CodeAgent Implementation
+ * MOTHER v31.1 - CodeAgent Implementation (with Retry Logic and Rollback)
  * 
  * Implements the third pillar of the cognitive architecture: Agency.
  * The CodeAgent is an autonomous agent capable of modifying the MOTHER codebase
@@ -47,8 +47,13 @@ export interface AgentState {
   
   // Output
   finalCode: string | null;
-  status: "planning" | "executing" | "analyzing" | "completed" | "failed";
+  status: "planning" | "executing" | "analyzing" | "completed" | "failed" | "retrying";
   message: string;
+  
+  // v31.1: Retry and rollback
+  retryCount: number;
+  maxRetries: number;
+  gitCommitHash: string | null;
 }
 
 /**
@@ -56,6 +61,25 @@ export interface AgentState {
  */
 async function generatePlan(task: string): Promise<Array<{ tool: string; input: any; description: string }>> {
   logger.info(`[CodeAgent] Planner: Generating plan for task: "${task}"`);
+  
+  // v32.0: Consult episodic memory for similar past solutions
+  let memoryContext = "";
+  try {
+    const { searchEpisodicMemory } = await import("../db-episodic-memory");
+    const pastSolutions = await searchEpisodicMemory(task, 3);
+    
+    if (pastSolutions.length > 0) {
+      logger.info(`[CodeAgent] Planner: Found ${pastSolutions.length} similar past solutions in memory`);
+      memoryContext = "\n\nPast Solutions (from episodic memory):\n" + 
+        pastSolutions
+          .map((sol, i) => `${i + 1}. Query: "${sol.query}"\n   Response: "${sol.response}"\n   Similarity: ${sol.similarity.toFixed(3)}`)
+          .join("\n\n");
+    } else {
+      logger.info("[CodeAgent] Planner: No similar past solutions found in memory");
+    }
+  } catch (error) {
+    logger.warn("[CodeAgent] Planner: Failed to query episodic memory:", error);
+  }
   
   const toolDescriptions = toolRegistry
     .map(t => `- ${t.name}: ${t.description}`)
@@ -66,7 +90,7 @@ async function generatePlan(task: string): Promise<Array<{ tool: string; input: 
 Task: ${task}
 
 Available Tools:
-${toolDescriptions}
+${toolDescriptions}${memoryContext}
 
 Generate a step-by-step plan to accomplish this task. Each step should specify:
 1. The tool to use
@@ -144,17 +168,38 @@ async function executeStep(step: { tool: string; input: any; description: string
 }
 
 /**
- * Analyzer: Analyzes the result and decides whether to continue or fail
+ * Analyzer: Analyzes the result and decides whether to continue, retry, or fail
+ * v31.1: Enhanced with retry decision logic
  */
-function analyzeResult(result: any, stepIndex: number, totalSteps: number): {
+function analyzeResult(
+  result: any, 
+  stepIndex: number, 
+  totalSteps: number, 
+  retryCount: number, 
+  maxRetries: number
+): {
   shouldContinue: boolean;
+  shouldRetry: boolean;
   message: string;
 } {
   if (!result.success) {
     logger.warn(`[CodeAgent] Analyzer: Step ${stepIndex + 1} failed`);
+    
+    // v31.1: Decide whether to retry
+    if (retryCount < maxRetries) {
+      logger.info(`[CodeAgent] Analyzer: Retry ${retryCount + 1}/${maxRetries} for step ${stepIndex + 1}`);
+      return {
+        shouldContinue: false,
+        shouldRetry: true,
+        message: `Step ${stepIndex + 1} failed, retrying (${retryCount + 1}/${maxRetries}): ${result.error}`,
+      };
+    }
+    
+    // Max retries exceeded, fail
     return {
       shouldContinue: false,
-      message: `Task failed at step ${stepIndex + 1}: ${result.error}`,
+      shouldRetry: false,
+      message: `Task failed at step ${stepIndex + 1} after ${maxRetries} retries: ${result.error}`,
     };
   }
   
@@ -162,6 +207,7 @@ function analyzeResult(result: any, stepIndex: number, totalSteps: number): {
     logger.info("[CodeAgent] Analyzer: All steps completed successfully");
     return {
       shouldContinue: false,
+      shouldRetry: false,
       message: "Task completed successfully",
     };
   }
@@ -169,6 +215,7 @@ function analyzeResult(result: any, stepIndex: number, totalSteps: number): {
   logger.info(`[CodeAgent] Analyzer: Step ${stepIndex + 1}/${totalSteps} succeeded, continuing`);
   return {
     shouldContinue: true,
+    shouldRetry: false,
     message: `Step ${stepIndex + 1}/${totalSteps} completed`,
   };
 }
@@ -191,9 +238,40 @@ export async function runCodeAgent(task: string): Promise<AgentState> {
     finalCode: null,
     status: "planning",
     message: "Initializing...",
+    retryCount: 0,
+    maxRetries: 2, // v31.1: Allow up to 2 retries per step
+    gitCommitHash: null,
   };
   
   try {
+    // v31.1: Create Git commit before starting (for rollback)
+    try {
+      const { exec } = await import("child_process");
+      const { promisify } = await import("util");
+      const execAsync = promisify(exec);
+      
+      // Check if we're in a git repository
+      try {
+        await execAsync("git rev-parse --git-dir", { cwd: "/home/ubuntu/mother-interface" });
+        
+        // Create a commit with current state
+        await execAsync(
+          'git add -A && git commit -m "CodeAgent: Pre-execution state (v31.1)" --allow-empty',
+          { cwd: "/home/ubuntu/mother-interface" }
+        );
+        
+        // Get the commit hash
+        const { stdout } = await execAsync("git rev-parse HEAD", { cwd: "/home/ubuntu/mother-interface" });
+        state.gitCommitHash = stdout.trim();
+        
+        logger.info(`[CodeAgent] Git commit created: ${state.gitCommitHash}`);
+      } catch (gitError) {
+        logger.warn("[CodeAgent] Not in a git repository or git commit failed, proceeding without rollback capability");
+      }
+    } catch (error) {
+      logger.warn("[CodeAgent] Git setup failed, proceeding without rollback capability:", error);
+    }
+    
     // Phase 1: Planning
     state.status = "planning";
     state.plan = await generatePlan(task);
@@ -228,11 +306,43 @@ export async function runCodeAgent(task: string): Promise<AgentState> {
         
         // Phase 3: Analysis
         state.status = "analyzing";
-        const analysis = analyzeResult(result, i, state.plan.length);
+        const analysis = analyzeResult(result, i, state.plan.length, state.retryCount, state.maxRetries);
+        
+        // v31.1: Handle retry logic
+        if (analysis.shouldRetry) {
+          state.status = "retrying";
+          state.message = analysis.message;
+          state.retryCount++;
+          i--; // Retry the same step
+          continue;
+        }
+        
+        // Reset retry count on success
+        if (result.success) {
+          state.retryCount = 0;
+        }
         
         if (!analysis.shouldContinue) {
           state.status = result.success ? "completed" : "failed";
           state.message = analysis.message;
+          
+          // v31.1: Rollback on failure
+          if (!result.success && state.gitCommitHash) {
+            logger.warn("[CodeAgent] Task failed, rolling back to pre-execution state");
+            try {
+              const { exec } = await import("child_process");
+              const { promisify } = await import("util");
+              const execAsync = promisify(exec);
+              
+              await execAsync(`git reset --hard ${state.gitCommitHash}`, { cwd: "/home/ubuntu/mother-interface" });
+              logger.info("[CodeAgent] Rollback successful");
+              state.message += " (rolled back to pre-execution state)";
+            } catch (rollbackError) {
+              logger.error("[CodeAgent] Rollback failed:", rollbackError);
+              state.message += " (WARNING: rollback failed)";
+            }
+          }
+          
           break;
         }
         

@@ -65,12 +65,119 @@ export const toolRegistry: Tool[] = [
   },
   {
     name: "write_file",
-    description: "Writes or overwrites a file on the filesystem. Input: { path: string, content: string }",
+    description: "Writes or overwrites a file on the filesystem. Input: { path: string, content: string }. For TypeScript files, validates syntax before writing.",
     handler: async (input: { path: string; content: string }) => {
       const fs = await import("fs/promises");
+      
+      // v31.1: Validate TypeScript syntax before writing
+      if (input.path.endsWith(".ts") || input.path.endsWith(".tsx")) {
+        const ts = await import("typescript");
+        try {
+          // Create a source file and check for syntax errors
+          const sourceFile = ts.createSourceFile(
+            input.path,
+            input.content,
+            ts.ScriptTarget.Latest,
+            true,
+            ts.ScriptKind.TS
+          );
+          
+          // Get syntax diagnostics (parse errors)
+          const diagnostics = (sourceFile as any).parseDiagnostics || [];
+          
+          if (diagnostics && diagnostics.length > 0) {
+            const errors = diagnostics
+              .map((d: any) => {
+                const message = typeof d.messageText === "string" 
+                  ? d.messageText 
+                  : d.messageText.messageText;
+                const line = d.file?.getLineAndCharacterOfPosition(d.start || 0);
+                return line 
+                  ? `Line ${line.line + 1}: ${message}`
+                  : message;
+              })
+              .join("\n");
+            
+            return { 
+              success: false, 
+              error: `TypeScript syntax validation failed:\n${errors}` 
+            };
+          }
+        } catch (validationError) {
+          // If validation itself fails, log but proceed (don't block writes)
+          console.error("[write_file] Validation error:", validationError);
+        }
+      }
+      
+      // Write the file
       try {
         await fs.writeFile(input.path, input.content, "utf-8");
         return { success: true, message: `File ${input.path} written successfully.` };
+      } catch (error) {
+        return { success: false, error: (error as Error).message };
+      }
+    },
+  },
+  {
+    name: "edit_file",
+    description: "Applies a specific change to a file using a diff patch. Input: { path: string, find: string, replace: string }. Less destructive than write_file as it only modifies specific parts.",
+    handler: async (input: { path: string; find: string; replace: string }) => {
+      const fs = await import("fs/promises");
+      try {
+        // Read the current file content
+        const content = await fs.readFile(input.path, "utf-8");
+        
+        // Check if the find string exists
+        if (!content.includes(input.find)) {
+          return { 
+            success: false, 
+            error: `Could not find the specified text in ${input.path}. Make sure the 'find' string exactly matches the content.` 
+          };
+        }
+        
+        // Replace the content
+        const newContent = content.replace(input.find, input.replace);
+        
+        // Validate TypeScript syntax if applicable
+        if (input.path.endsWith(".ts") || input.path.endsWith(".tsx")) {
+          const ts = await import("typescript");
+          try {
+            const sourceFile = ts.createSourceFile(
+              input.path,
+              newContent,
+              ts.ScriptTarget.Latest,
+              true,
+              ts.ScriptKind.TS
+            );
+            
+            const diagnostics = (sourceFile as any).parseDiagnostics || [];
+            
+            if (diagnostics && diagnostics.length > 0) {
+              const errors = diagnostics
+                .map((d: any) => {
+                  const message = typeof d.messageText === "string" 
+                    ? d.messageText 
+                    : d.messageText.messageText;
+                  const line = d.file?.getLineAndCharacterOfPosition(d.start || 0);
+                  return line 
+                    ? `Line ${line.line + 1}: ${message}`
+                    : message;
+                })
+                .join("\n");
+              
+              return { 
+                success: false, 
+                error: `TypeScript syntax validation failed after edit:\n${errors}` 
+              };
+            }
+          } catch (validationError) {
+            console.error("[edit_file] Validation error:", validationError);
+          }
+        }
+        
+        // Write the modified content
+        await fs.writeFile(input.path, newContent, "utf-8");
+        return { success: true, message: `File ${input.path} edited successfully.` };
       } catch (error) {
         return { success: false, error: (error as Error).message };
       }

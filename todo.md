@@ -3279,3 +3279,68 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 - [x] Document all discovered issues and failures
 - [x] Provide scientific analysis of Cloud Run limitations
 - [x] Create comprehensive future roadmap (v18.1, v19.0, v20.0, v21.0)
+
+
+---
+
+## PHASE 7: v31.1 & v32.0 - COGNITIVE ARCHITECTURE COMPLETION
+
+### FASE 1: v31.1 - Robustez do CodeAgent
+
+#### Passo 2.1: Validação de Sintaxe e edit_file
+- [ ] Instalar dependências: typescript, diff-match-patch
+- [ ] Modificar write_file em /server/mother/react.ts para validar sintaxe TypeScript
+- [ ] Adicionar ferramenta edit_file ao toolRegistry usando diff-match-patch
+
+#### Passo 2.2: Retry Logic e Rollback com Git
+- [ ] Modificar code_agent.ts para incluir try-catch no executor
+- [ ] Implementar decisão do Analyzer (revise_plan vs fail)
+- [ ] Adicionar git commit antes de modificações
+- [ ] Adicionar git reset --hard em caso de falha irrecuperável
+
+### FASE 2: v32.0 - Autonomia Completa
+
+#### Passo 2.3: Orquestrador Autônomo
+- [ ] Instalar dependências: node-cron, @google-cloud/monitoring
+- [ ] Criar /server/mother/autonomy_orchestrator.ts
+- [ ] Implementar checkSLOs() para monitorar Four Golden Signals
+- [ ] Implementar gatilho que gera tarefa para CodeAgent em caso de violação
+- [ ] Agendar execução periódica (5 minutos) com node-cron
+
+#### Passo 2.4: Loop Cognitivo Completo
+- [ ] Modificar orquestrador para invocar runCodeAgent com tarefa gerada
+- [ ] Modificar planner do code_agent.ts para consultar memória (search_episodic_memory) como primeiro passo
+- [ ] Implementar canary deployment no orquestrador (deploy com tag candidate + 10% tráfego)
+- [ ] Implementar validação de métricas (10-15 minutos)
+- [ ] Implementar promoção (100% tráfego) ou rollback (0% tráfego + delete)
+- [ ] Registrar resultado (sucesso/falha + solução) na memória episódica
+
+### Testes
+
+#### Teste v31.1
+- [ ] Criar teste com erro de sintaxe intencional
+- [ ] Verificar que write_file rejeita código inválido
+- [ ] Verificar que retry logic funciona
+- [ ] Verificar que rollback funciona em caso de falha
+
+#### Teste v32.0
+- [ ] Adicionar setTimeout(3000) em processQuery para simular latência
+- [ ] Fazer deploy e aguardar detecção pelo orquestrador (5-10 min)
+- [ ] Verificar que CodeAgent é acionado
+- [ ] Verificar que memória é consultada
+- [ ] Verificar que canary deployment é criado
+- [ ] Verificar que latência cai e deploy é promovido
+- [ ] Verificar que solução é registrada na memória
+
+### Documentação
+
+- [ ] Gerar README-V31.1.md com melhorias de robustez
+- [ ] Gerar README-V32.0.md com arquitetura do loop de auto-melhoria
+- [ ] Gerar AWAKE-V36.md com visão da Singularidade Interna
+- [ ] Atualizar AI-INSTRUCTIONS.md com status v31.1 & v32.0
+
+### Deploy
+
+- [ ] Commit e push para GitHub
+- [ ] Criar checkpoint v31.1 & v32.0
+- [ ] Deploy para produção (Cloud Run)
