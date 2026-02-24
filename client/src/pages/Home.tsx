@@ -1,37 +1,56 @@
 import { useState, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Send, Sparkles, Brain, Shield, Zap, TrendingDown } from 'lucide-react';
-import { useAuth } from '@/_core/hooks/useAuth';
+import { Send, Sparkles, Brain, Shield, Zap, TrendingDown, Dna, Activity, Database, GitBranch } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
-import { toast } from 'sonner';
 
 interface Message {
   id: string;
   role: 'user' | 'mother';
   content: string;
   timestamp: Date;
-  // MOTHER v7.0 metrics
   tier?: string;
   qualityScore?: number;
   costReduction?: number;
   responseTime?: number;
+  cost?: number;
   cacheHit?: boolean;
 }
 
+interface SessionStats {
+  msgCount: number;
+  totalCost: number;
+  qualityScores: number[];
+  tierCounts: Record<string, number>;
+}
+
+const QUICK_PROMPTS = [
+  { icon: '🧠', label: 'Arquitetura cognitiva', query: 'Explique sua arquitetura cognitiva de 7 camadas e como cada uma contribui para o processamento.' },
+  { icon: '🧬', label: 'Darwin Gödel Machine', query: 'O que é o Darwin Gödel Machine e como ele te permite evoluir e melhorar autonomamente?' },
+  { icon: '💾', label: 'Memória A-MEM', query: 'Como funciona seu sistema de memória A-MEM com links Zettelkasten e importance scoring?' },
+  { icon: '📊', label: 'GEA & Fitness', query: 'Explique o sistema GEA (Group-Evolving Agents) e como o fitness score é calculado.' },
+  { icon: '🚀', label: 'Visão final', query: 'Qual é a visão final de MOTHER como superinteligência cognitiva autônoma?' },
+];
+
+function renderMarkdown(text: string): string {
+  return text
+    .replace(/### (.+)/g, '<span class="md-h3">$1</span>')
+    .replace(/## (.+)/g, '<span class="md-h2">$1</span>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\n/g, '<br />');
+}
+
 export default function Home() {
-  const { user } = useAuth();
-  
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'mother',
-      content: 'Olá! Sou **MOTHER v7.0** (Multi-Operational Tiered Hierarchical Execution & Routing) - um sistema de IA avançado com **83% de redução de custo** e **qualidade 90+**. Como posso ajudá-lo hoje?',
-      timestamp: new Date(),
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  const [showWelcome, setShowWelcome] = useState(true);
+  const [stats, setStats] = useState<SessionStats>({
+    msgCount: 0,
+    totalCost: 0,
+    qualityScores: [],
+    tierCounts: {},
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const queryMutation = trpc.mother.query.useMutation({
     onSuccess: (data) => {
@@ -41,203 +60,301 @@ export default function Home() {
         content: data.response,
         timestamp: new Date(),
         tier: data.tier,
-        qualityScore: data.quality.qualityScore,
+        qualityScore: data.quality?.qualityScore,
         costReduction: data.costReduction,
         responseTime: data.responseTime,
+        cost: data.cost,
         cacheHit: data.cacheHit,
       };
-
       setMessages((prev) => [...prev, motherMessage]);
-
-      // Show metrics toast
-      toast.success('Query processado!', {
-        description: `Tier: ${data.tier} | Quality: ${data.quality.qualityScore}/100 | Cost: ${data.costReduction.toFixed(1)}% redução | ${data.responseTime}ms`,
+      setStats((prev) => {
+        const newQuality = data.quality?.qualityScore
+          ? [...prev.qualityScores, data.quality.qualityScore]
+          : prev.qualityScores;
+        const newTiers = { ...prev.tierCounts };
+        if (data.tier) newTiers[data.tier] = (newTiers[data.tier] || 0) + 1;
+        return {
+          msgCount: prev.msgCount + 1,
+          totalCost: prev.totalCost + (data.cost || 0),
+          qualityScores: newQuality,
+          tierCounts: newTiers,
+        };
       });
     },
     onError: (error) => {
       const errorMessage: Message = {
         id: Date.now().toString(),
         role: 'mother',
-        content: `Erro: ${error.message}`,
+        content: `Erro ao processar: ${error.message}`,
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorMessage]);
-      toast.error('Erro ao processar query');
     },
   });
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, queryMutation.isPending]);
 
-  const sendMessage = async () => {
-    if (!input.trim() || queryMutation.isPending) return;
-
+  const sendMessage = (text?: string) => {
+    const query = (text || input).trim();
+    if (!query || queryMutation.isPending) return;
+    setShowWelcome(false);
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: input,
+      content: query,
       timestamp: new Date(),
     };
-
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
-
-    // Call MOTHER v7.0 API
-    queryMutation.mutate({ query: input });
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+    queryMutation.mutate({ query, useCache: false });
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
   };
 
+  const autoResize = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    e.target.style.height = 'auto';
+    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+  };
+
+  const avgQuality = stats.qualityScores.length > 0
+    ? Math.round(stats.qualityScores.reduce((a, b) => a + b, 0) / stats.qualityScores.length)
+    : null;
+
+  const topTier = Object.entries(stats.tierCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden">
-      {/* Neural Network Background */}
-      <div 
-        className="absolute inset-0 opacity-30"
-        style={{
-          backgroundImage: `url('https://private-us-east-1.manuscdn.com/sessionFile/yDOh1drRC17hH4IE2yNbMg/sandbox/74Is2QEW2SGShVduCUHHb6-img-1_1771297027000_na1fn_bW90aGVyLWhlcm8tYmFja2dyb3VuZA.png?x-oss-process=image/resize,w_1920,h_1920/format,webp/quality,q_80&Expires=1798761600&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9wcml2YXRlLXVzLWVhc3QtMS5tYW51c2Nkbi5jb20vc2Vzc2lvbkZpbGUveURPaDFkclJDMTdoSDRJRTJ5TmJNZy9zYW5kYm94Lzc0SXMyUUVXMlNHU2hWZHVDVUhIYjYtaW1nLTFfMTc3MTI5NzAyNzAwMF9uYTFmbl9iVzkwYUdWeUxXaGxjbTh0WW1GamEyZHliM1Z1WkEucG5nP3gtb3NzLXByb2Nlc3M9aW1hZ2UvcmVzaXplLHdfMTkyMCxoXzE5MjAvZm9ybWF0LHdlYnAvcXVhbGl0eSxxXzgwIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzk4NzYxNjAwfX19XX0_&Key-Pair-Id=K2HSFNDJXOU9YS&Signature=V-LLAHnQs1xXOym~0rZUSVF5p2~NdSxmrzWecaT4-DeYdTFFh3i52cgSzhoz5BebbbftnYLEEQbSUaX7iWugNplBm2BIFvgO24WyQZGthIfx5-vAWvjvji1y2JiEESGM~lUEztYLlNeyO~PQipJ6nWofNXmOpkGJ0Ujrjqjjgo6hYNo4YBfKp9yY9p2Ykr-td5gMILog5hkPX6NOIZEisKjAsWr~fFDorXjSXaciF7A8w7xtIvdtYkq0ITICaMsUDlMox4cgPHI6148JQowbg1X8vGxf~dtdHGKozdLDCTHNm62jPvuRovq5wIAULI5VkUdsUBknsAdeHlln687ZkQ__')`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      />
+    <div className="flex h-screen bg-[#07070f] text-[#e8e8f0] overflow-hidden">
+      <style>{`
+        .glass-panel { background: rgba(15,15,26,0.95); border: 1px solid rgba(124,58,237,0.18); }
+        .accent-glow { color: #a78bfa; }
+        .md-h3 { display: block; font-size: 13px; font-weight: 600; color: #a78bfa; margin: 10px 0 4px; }
+        .md-h2 { display: block; font-size: 15px; font-weight: 700; color: #c4b5fd; margin: 12px 0 6px; }
+        strong { color: #c4b5fd; }
+        code { background: rgba(124,58,237,0.15); border: 1px solid rgba(124,58,237,0.25); border-radius: 4px; padding: 1px 5px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #c4b5fd; }
+        .msg-bubble { animation: fadeUp 0.25s ease; }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .typing-dot { animation: bounce 1.4s infinite; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce { 0%,60%,100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-5px); opacity: 1; } }
+        .chip { background: rgba(124,58,237,0.12); border: 1px solid rgba(124,58,237,0.3); border-radius: 20px; padding: 7px 14px; font-size: 13px; color: #a78bfa; cursor: pointer; transition: all 0.2s; }
+        .chip:hover { background: rgba(124,58,237,0.25); border-color: #a78bfa; transform: translateY(-1px); }
+        .quick-btn { width: 100%; background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.2); border-radius: 8px; padding: 8px 12px; color: #a78bfa; font-size: 12px; cursor: pointer; text-align: left; transition: all 0.2s; margin-bottom: 6px; }
+        .quick-btn:hover { background: rgba(124,58,237,0.22); border-color: #a78bfa; }
+        .quick-btn:last-child { margin-bottom: 0; }
+        .send-btn { width: 38px; height: 38px; background: linear-gradient(135deg, #7c3aed, #4f46e5); border: none; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; color: white; }
+        .send-btn:hover { transform: scale(1.05); box-shadow: 0 0 14px rgba(124,58,237,0.5); }
+        .send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+        textarea { background: transparent; border: none; outline: none; color: #e8e8f0; font-size: 14px; font-family: inherit; resize: none; min-height: 22px; max-height: 120px; line-height: 1.5; flex: 1; padding: 0; }
+        textarea::placeholder { color: #55556a; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(124,58,237,0.3); border-radius: 4px; }
+      `}</style>
 
-      {/* Hexagonal Pattern Overlay */}
-      <div 
-        className="absolute inset-0 opacity-20"
-        style={{
-          backgroundImage: `url('https://private-us-east-1.manuscdn.com/sessionFile/yDOh1drRC17hH4IE2yNbMg/sandbox/74Is2QEW2SGShVduCUHHb6-img-3_1771297020000_na1fn_bW90aGVyLWNoYXQtcGF0dGVybg.png?x-oss-process=image/resize,w_1920,h_1920/format,webp/quality,q_80&Expires=1798761600&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9wcml2YXRlLXVzLWVhc3QtMS5tYW51c2Nkbi5jb20vc2Vzc2lvbkZpbGUveURPaDFkclJDMTdoSDRJRTJ5TmJNZy9zYW5kYm94Lzc0SXMyUUVXMlNHU2hWZHVDVUhIYjYtaW1nLTNfMTc3MTI5NzAyMDAwMF9uYTFmbl9iVzkwYUdWeUxXTm9ZWFF0Y0dGMGRHVnliZy5wbmc~eC1vc3MtcHJvY2Vzcz1pbWFnZS9yZXNpemUsd18xOTIwLGhfMTkyMC9mb3JtYXQsd2VicC9xdWFsaXR5LHFfODAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3OTg3NjE2MDB9fX1dfQ__&Key-Pair-Id=K2HSFNDJXOU9YS&Signature=qtw2VlpUQfF7kp6ygqKNIEwI9b9MmXlcdK3rDvivTPqaE9wWfRjyDJ5i4oz1gVRQqYUCKaUGZfZhDCzj6KeuJXN-r12YDjgiE2WBQOfZi5B8S7duJQNv3vtsa0oU68AzL5U1O70IlC4JmQgQbG2pSzxnYIui~OytxpwFoHsNh3-Mw3nG4IuEK0ttK44ILNV-tXKRAAf7KtHQs55ZXpRcvFIDk3ULVOIcMkl3HFYyJZn6y~sBknQSnUPxerT1zrytwJbxuRu9zKDw~eu5MmWgK5yDJphDjfR0SfpxmcJD3f0ycAMDE3zmC4VNu3-~UhH9dNA9Lx588698fojkDA8BbQ__')`,
-          backgroundSize: '400px 400px',
-          backgroundRepeat: 'repeat',
-        }}
-      />
-
-      {/* Main Content */}
-      <div className="relative z-10 container mx-auto px-4 py-8 h-screen flex flex-col">
-        {/* Header */}
-        <header className="mb-8">
-          <div className="flex items-center gap-4">
-            <img 
-              src="https://private-us-east-1.manuscdn.com/sessionFile/yDOh1drRC17hH4IE2yNbMg/sandbox/74Is2QEW2SGShVduCUHHb6_1771297033959_na1fn_bW90aGVyLWxvZ28tb3Ji.png?x-oss-process=image/resize,w_1920,h_1920/format,webp/quality,q_80&Expires=1798761600&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9wcml2YXRlLXVzLWVhc3QtMS5tYW51c2Nkbi5jb20vc2Vzc2lvbkZpbGUveURPaDFkclJDMTdoSDRJRTJ5TmJNZy9zYW5kYm94Lzc0SXMyUUVXMlNHU2hWZHVDVUhIYjZfMTc3MTI5NzAzMzk1OV9uYTFmbl9iVzkwYUdWeUxXeHZaMjh0YjNKaS5wbmc~eC1vc3MtcHJvY2Vzcz1pbWFnZS9yZXNpemUsd18xOTIwLGhfMTkyMC9mb3JtYXQsd2VicC9xdWFsaXR5LHFfODAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3OTg3NjE2MDB9fX1dfQ__&Key-Pair-Id=K2HSFNDJXOU9YS&Signature=wARwwEWiZXKBEuL80Tf29MRgzR2CN73Qt0WDfTSzTYWRQZOe9SwGgf5XHvzFNep3t72r-q~eZakvqL-MdCacOzGGGhr0SaKL0Ve~qgUS2xtRDa5UtVejN36GjfsTqlu2AxVxGByTDx~BASvkQFaotPVeH2gsP0CNmhzT09iviID2HHKNpSpfjRcbDGHpeL7wtJ6e7ZJgjPFgtFdTEblAFKRFNQRic~1t14k2HzOB7v9pBASAVGHaiVvgBm8jWomwB4glpaeoIgn~qQkslVseHbhdnTds3O8E5fcpFmSnJHKt69pKUVaAgpSxbnLki3QHxgS28iz2XAFzWxnwFedq8w__"
-              alt="Mother Consciousness Orb"
-              className="w-16 h-16 animate-float animate-neural-pulse"
-            />
-            <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-[#B026FF] to-[#00F5FF] bg-clip-text text-transparent">
-                M O T H E R
-              </h1>
-              <p className="text-sm text-muted-foreground font-mono">v7.0 - 7-Layer Architecture | 83% Cost Reduction | 90+ Quality</p>
+      {/* ── Sidebar ── */}
+      <aside className="w-[248px] flex-shrink-0 glass-panel flex flex-col p-4 gap-3 overflow-y-auto border-r border-[rgba(124,58,237,0.15)]">
+        {/* Logo */}
+        <div className="flex items-center gap-3 pb-3 border-b border-[rgba(255,255,255,0.06)]">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg text-white flex-shrink-0"
+               style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', boxShadow: '0 0 16px rgba(124,58,237,0.4)' }}>
+            M
+          </div>
+          <div>
+            <div className="text-sm font-bold" style={{ background: 'linear-gradient(90deg, #c4b5fd, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              MOTHER v47.1
             </div>
-          </div>
-        </header>
-
-        {/* Chat Container */}
-        <div className="flex-1 glass rounded-2xl p-6 flex flex-col overflow-hidden">
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto space-y-4 mb-4">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-[70%] rounded-2xl p-4 ${
-                    message.role === 'user'
-                      ? 'bg-gradient-to-br from-[#B026FF] to-[#00F5FF] text-white'
-                      : 'glass border border-[#B026FF]/30'
-                  }`}
-                >
-                  <div className="prose prose-invert max-w-none">
-                    {message.content.split('**').map((part, i) =>
-                      i % 2 === 0 ? (
-                        <span key={i}>{part}</span>
-                      ) : (
-                        <strong key={i} className="text-[#00F5FF]">{part}</strong>
-                      )
-                    )}
-                  </div>
-                  
-                  {/* MOTHER v7.0 Metrics */}
-                  {message.role === 'mother' && message.tier && (
-                    <div className="mt-3 pt-3 border-t border-[#B026FF]/20 flex flex-wrap gap-2 text-xs">
-                      <div className="flex items-center gap-1 bg-[#B026FF]/10 px-2 py-1 rounded">
-                        <Brain className="w-3 h-3 text-[#B026FF]" />
-                        <span className="text-[#B026FF]">{message.tier}</span>
-                      </div>
-                      <div className="flex items-center gap-1 bg-[#00F5FF]/10 px-2 py-1 rounded">
-                        <Shield className="w-3 h-3 text-[#00F5FF]" />
-                        <span className="text-[#00F5FF]">Q: {message.qualityScore}/100</span>
-                      </div>
-                      <div className="flex items-center gap-1 bg-green-500/10 px-2 py-1 rounded">
-                        <TrendingDown className="w-3 h-3 text-green-400" />
-                        <span className="text-green-400">{message.costReduction?.toFixed(1)}% ↓</span>
-                      </div>
-                      <div className="flex items-center gap-1 bg-yellow-500/10 px-2 py-1 rounded">
-                        <Zap className="w-3 h-3 text-yellow-400" />
-                        <span className="text-yellow-400">{message.responseTime}ms</span>
-                      </div>
-                      {message.cacheHit && (
-                        <div className="flex items-center gap-1 bg-purple-500/10 px-2 py-1 rounded">
-                          <span className="text-purple-400">⚡ Cached</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  <div className="text-xs opacity-50 mt-2">
-                    {message.timestamp.toLocaleTimeString()}
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            {queryMutation.isPending && (
-              <div className="flex justify-start">
-                <div className="glass border border-[#B026FF]/30 rounded-2xl p-4">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-[#B026FF] animate-pulse-glow" />
-                    <span className="text-sm text-muted-foreground">MOTHER está processando (7 camadas)...</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Input Area */}
-          <div className="flex gap-2">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Converse com MOTHER v7.0..."
-              className="flex-1 glass border-[#B026FF]/30 focus:border-[#00F5FF] transition-colors"
-              disabled={queryMutation.isPending}
-            />
-            <Button
-              onClick={sendMessage}
-              disabled={!input.trim() || queryMutation.isPending}
-              className="bg-gradient-to-r from-[#B026FF] to-[#00F5FF] hover:opacity-90 transition-opacity neon-glow"
-            >
-              <Send className="w-4 h-4" />
-            </Button>
+            <div className="text-[10px] text-[#55556a]">Darwin Gödel Machine</div>
           </div>
         </div>
 
-        {/* Footer */}
-        <footer className="mt-4 text-center text-xs text-muted-foreground font-mono">
-          <p>MOTHER v7.0 - Multi-Operational Tiered Hierarchical Execution & Routing</p>
-          <p className="opacity-50">7 Layers | 3-Tier LLM Routing | Guardian Quality System | Continuous Learning 💜</p>
-        </footer>
+        {/* Status */}
+        <div className="flex items-center gap-2 bg-[rgba(16,185,129,0.08)] border border-[rgba(16,185,129,0.25)] rounded-lg px-3 py-2">
+          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
+          <span className="text-xs text-emerald-400 font-medium">Produção · Sydney</span>
+        </div>
+
+        {/* Session stats */}
+        <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-3">
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-[#55556a] mb-2">Sessão Atual</div>
+          {[
+            { label: 'Mensagens', value: stats.msgCount, className: 'accent-glow' },
+            { label: 'Custo Total', value: `$${stats.totalCost.toFixed(6)}`, className: 'text-[#e8e8f0]' },
+            { label: 'Qualidade Média', value: avgQuality ? `${avgQuality}%` : '—', className: 'text-emerald-400' },
+            { label: 'Tier Mais Usado', value: topTier ?? '—', className: 'accent-glow' },
+          ].map(({ label, value, className }) => (
+            <div key={label} className="flex justify-between items-center py-1.5 border-b border-[rgba(255,255,255,0.04)] last:border-0 text-xs">
+              <span className="text-[#8888aa]">{label}</span>
+              <span className={`font-semibold ${className}`}>{value}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Quick prompts */}
+        <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-3">
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-[#55556a] mb-2">Perguntas Rápidas</div>
+          {QUICK_PROMPTS.map((p) => (
+            <button key={p.label} className="quick-btn" onClick={() => sendMessage(p.query)}>
+              {p.icon} {p.label}
+            </button>
+          ))}
+        </div>
+
+        {/* System info */}
+        <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-3">
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-[#55556a] mb-2">Sistema</div>
+          {[
+            { icon: <GitBranch className="w-3 h-3" />, label: 'Versão', value: 'v47.1', cls: 'accent-glow' },
+            { icon: <Database className="w-3 h-3" />, label: 'DB', value: 'Unix Socket ✓', cls: 'text-emerald-400' },
+            { icon: <Dna className="w-3 h-3" />, label: 'GEA Loop', value: 'Ativo ✓', cls: 'text-emerald-400' },
+            { icon: <Activity className="w-3 h-3" />, label: 'Fitness Track', value: 'Ativo ✓', cls: 'text-emerald-400' },
+          ].map(({ icon, label, value, cls }) => (
+            <div key={label} className="flex justify-between items-center py-1.5 border-b border-[rgba(255,255,255,0.04)] last:border-0 text-xs">
+              <span className="flex items-center gap-1.5 text-[#8888aa]">{icon}{label}</span>
+              <span className={`font-semibold ${cls}`}>{value}</span>
+            </div>
+          ))}
+        </div>
+      </aside>
+
+      {/* ── Chat area ── */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+
+          {/* Welcome screen */}
+          {showWelcome && (
+            <div className="flex flex-col items-center justify-center flex-1 text-center gap-4 py-12">
+              <div className="w-20 h-20 rounded-2xl flex items-center justify-center font-black text-4xl text-white mb-2"
+                   style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', boxShadow: '0 0 48px rgba(124,58,237,0.5)' }}>
+                M
+              </div>
+              <h2 className="text-2xl font-bold" style={{ background: 'linear-gradient(90deg, #c4b5fd, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                Olá! Sou MOTHER.
+              </h2>
+              <p className="text-sm text-[#8888aa] max-w-md leading-relaxed">
+                Um sistema cognitivo autônomo com memória evolutiva A-MEM, raciocínio multi-camadas e agência baseada no Darwin Gödel Machine. Como posso ajudar você hoje?
+              </p>
+              <div className="flex flex-wrap gap-2 justify-center mt-2">
+                {['Quem é você?', 'Como você evolui?', 'Arquitetura de 7 camadas', 'Diferença de um LLM'].map((q) => (
+                  <div key={q} className="chip" onClick={() => sendMessage(q)}>{q}</div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Message list */}
+          {messages.map((msg) => (
+            <div key={msg.id} className={`msg-bubble flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+              {/* Avatar */}
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0 ${
+                msg.role === 'mother'
+                  ? 'text-white'
+                  : 'bg-[#1e3a8a] text-white'
+              }`}
+              style={msg.role === 'mother' ? { background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', boxShadow: '0 0 10px rgba(124,58,237,0.35)' } : {}}>
+                {msg.role === 'mother' ? 'M' : 'U'}
+              </div>
+
+              {/* Bubble */}
+              <div className={`max-w-[68%] flex flex-col gap-1.5 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+                  msg.role === 'user'
+                    ? 'bg-[#1e1b4b] border border-[rgba(99,102,241,0.3)] rounded-tr-sm'
+                    : 'bg-[#0f0f1a] border border-[rgba(255,255,255,0.06)] rounded-tl-sm'
+                }`}
+                dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
+
+                {/* Metrics bar */}
+                {msg.role === 'mother' && msg.tier && (
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-[rgba(124,58,237,0.12)] border border-[rgba(124,58,237,0.25)] text-[#a78bfa]">
+                      <Brain className="w-2.5 h-2.5" />{msg.tier}
+                    </span>
+                    {msg.qualityScore && (
+                      <span className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-[rgba(16,185,129,0.1)] border border-[rgba(16,185,129,0.25)] text-emerald-400">
+                        <Shield className="w-2.5 h-2.5" />{msg.qualityScore}%
+                      </span>
+                    )}
+                    {msg.cost !== undefined && (
+                      <span className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-[rgba(245,158,11,0.1)] border border-[rgba(245,158,11,0.25)] text-amber-400">
+                        <TrendingDown className="w-2.5 h-2.5" />${msg.cost.toFixed(6)}
+                      </span>
+                    )}
+                    {msg.responseTime && (
+                      <span className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-[rgba(99,102,241,0.1)] border border-[rgba(99,102,241,0.25)] text-indigo-400">
+                        <Zap className="w-2.5 h-2.5" />{(msg.responseTime / 1000).toFixed(1)}s
+                      </span>
+                    )}
+                    {msg.cacheHit && (
+                      <span className="text-[10px] px-2 py-1 rounded-md bg-[rgba(168,85,247,0.1)] border border-[rgba(168,85,247,0.25)] text-purple-400">
+                        ⚡ Cache
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                <span className="text-[10px] text-[#55556a]">{msg.timestamp.toLocaleTimeString()}</span>
+              </div>
+            </div>
+          ))}
+
+          {/* Typing indicator */}
+          {queryMutation.isPending && (
+            <div className="msg-bubble flex gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm text-white flex-shrink-0"
+                   style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', boxShadow: '0 0 10px rgba(124,58,237,0.35)' }}>
+                M
+              </div>
+              <div className="px-4 py-3 rounded-2xl rounded-tl-sm bg-[#0f0f1a] border border-[rgba(255,255,255,0.06)] flex items-center gap-1.5">
+                <Sparkles className="w-3 h-3 text-[#a78bfa] animate-pulse" />
+                <span className="text-xs text-[#8888aa] mr-1">Processando</span>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="typing-dot w-1.5 h-1.5 rounded-full bg-[#a78bfa]" />
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input area */}
+        <div className="px-6 pb-5 pt-3 border-t border-[rgba(255,255,255,0.05)] bg-[rgba(15,15,26,0.8)]">
+          <div className="flex gap-2 items-end bg-[#1a1a2e] border border-[rgba(124,58,237,0.25)] rounded-2xl px-4 py-2.5 focus-within:border-[#a78bfa] focus-within:shadow-[0_0_0_3px_rgba(124,58,237,0.1)] transition-all">
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={autoResize}
+              onKeyDown={handleKey}
+              placeholder="Pergunte algo a MOTHER..."
+              rows={1}
+              disabled={queryMutation.isPending}
+            />
+            <button
+              className="send-btn"
+              onClick={() => sendMessage()}
+              disabled={!input.trim() || queryMutation.isPending}
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
+          <p className="text-center text-[10px] text-[#55556a] mt-2">
+            Enter para enviar · Shift+Enter para nova linha
+          </p>
+        </div>
       </div>
     </div>
   );

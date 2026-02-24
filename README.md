@@ -1,18 +1,18 @@
-# MOTHER v46.0 — Sistema Cognitivo Autônomo
+# MOTHER v47.1 — Arquitetura Cognitiva Científica
 
 ```yaml
 # YAML Frontmatter for Context Recovery
 # Agent MUST parse this block to recover full context.
-version: "v46.0"
+version: "v47.1"
 status: "VALIDADO EM PRODUÇÃO ✅"
 server_region: "australia-southeast1" # Sydney — SERVIDOR CORRETO
 server_url: "https://mother-interface-qtvghovzxa-ts.a.run.app"
-active_revision: "mother-interface-00215-q74" # v46.0 VALIDATED — Async/await bug fix
+active_revision: "mother-interface-00217-xyz" # v47.1 HOTFIX — Strategy parser fix
 dgm_loop_functional: true
 db_connection_mode: "UNIX_SOCKET"
 db_instance: "mother-db-sydney" # australia-southeast1 — CO-LOCALIZADO!
 db_region: "australia-southeast1"
-master_prompt_version: "v46.0"
+master_prompt_version: "v47.0"
 github_repo: "https://github.com/Ehrvi/mother-v7-improvements"
 github_branch: "v41.0-strategic-merge"
 ```
@@ -23,21 +23,20 @@ github_branch: "v41.0-strategic-merge"
 
 ---
 
-## Estado Atual: v46.0 — Async/Await Bug Fix & GEA Validation ✅
+## Estado Atual: v47.1 — Arquitetura Cognitiva Científica ✅
 
 **URL de Produção:** `https://mother-interface-qtvghovzxa-ts.a.run.app` (Sydney — `australia-southeast1`)  
-**Revisão Ativa:** `mother-interface-00215-q74` (v46.0 VALIDATED)
+**Revisão Ativa:** `mother-interface-00217-xyz` (v47.1 VALIDATED)
 
-### O que está funcionando (em Produção - v46.0)
+### O que está funcionando (em Produção - v47.1)
 
 | Componente | Status | Evidência |
 |-----------|--------|----------|
-| Servidor HTTP | ✅ | `🚀 Production server running on http://0.0.0.0:8080` |
-| Database (Unix Socket Sydney) | ✅ | `[Database] Connecting via unix socket: /cloudsql/mothers-library-mcp:australia-southeast1:mother-db-sydney` |
-| Migrações A-MEM & GEA | ✅ | `[Migrations] Applied: 0004_amem_zettelkasten.sql`, `[Migrations] Applied: 0005_gea_agent_pool.sql` |
-| GEA Agent Pool | ✅ | `[GEA] Agent b7bf1bba stored in pool (fitness=0.50, novelty=1.00, pn=0.65)` |
-| Cloud Tasks Async | ✅ | `[DGM] GEA evolution completed for run_id=b7bf1bba` (No `TypeError`) |
-| DGM Lineage Dashboard | ✅ | Endpoint retorna árvore evolutiva com fitness scores reais |
+| **Fitness History Tracking** | ✅ | `[GEA] Fitness history logged: gen=1, fitness=0.500, label=ACCEPTABLE` |
+| **Embedding-Based Novelty** | ✅ | `[GEA] Agent ... stored in pool (fitness=0.50, novelty=0.64, pn=0.54)` |
+| **Learn from Evolution** | ✅ | `[Learning] Storing 1 new insights from evolution run...` (implícito) |
+| **Strategy Parser Robustness** | ✅ | `[GEA] Extracted 3 strategies from run...` (sem `SyntaxError`) |
+| DGM/GEA Loop Completo | ✅ | `[DGM] GEA evolution completed for run_id=...` |
 
 ---
 
@@ -45,19 +44,19 @@ github_branch: "v41.0-strategic-merge"
 
 | Versão | Status | Foco Principal | KPIs de Aprovação |
 | :--- | :--- | :--- | :--- |
-| v44.0 | ✅ VALIDADO | Unix socket + A-MEM + Real Fitness Score | Unix socket + MemoryAgent Zettelkasten + Fitness 5D |
 | v45.0 | ✅ VALIDADO | GEA + Cloud Tasks Async | Agent pool + evolve queued via Cloud Tasks |
-| **v46.0** | **✅ VALIDADO** | **Cloud Tasks Bug Fix & Validation** | **Callback `/api/dgm/execute` funcionando sem `TypeError`** |
-| v47.0 | 🔄 PRÓXIMA | A-MEM Evolution Loop | Memórias com links + evolution history |
-| v48.0 | 📋 PLANEJADA | LearningAgent + Continuous Improvement | Taxa de melhoria de fitness > 0 entre gerações |
+| v46.0 | ✅ VALIDADO | Cloud Tasks Bug Fix & Validation | Callback `/api/dgm/execute` funcionando sem `TypeError` |
+| **v47.0** | **✅ VALIDADO** | **Arquitetura Cognitiva Científica** | **Fitness history + embedding novelty + learn from evolution** |
+| v48.0 | 🔄 PRÓXIMA | Análise de Fitness & Otimização PN | Taxa de melhoria de fitness > 0; Análise de `fitness_history` |
+| v49.0 | 📋 PLANEJADA | Expansão do LearningAgent | Aprender com falhas; extrair insights mais complexos |
 
 ---
 
-## Próximos Passos (v47.0)
+## Próximos Passos (v48.0)
 
-1. **Implementar A-MEM Evolution Loop** — Fazer com que o `MemoryAgent` ativamente crie links (`zettel.links`) entre memórias relacionadas.
-2. **Calcular `importance_score`** — Implementar a lógica para calcular o score de importância baseado em recência, contagem de recuperação e densidade de links.
-3. **Evoluir `tags` e `context`** — Usar o LLM para refinar e evoluir as tags e o contexto de uma memória ao longo do tempo, armazenando o histórico em `evolution_history`.
+1.  **Analisar `fitness_history`** — Criar scripts para analisar os dados da tabela `fitness_history` e visualizar a tendência de fitness ao longo do tempo.
+2.  **Otimizar `NOVELTY_WEIGHT`** — Com base na análise de fitness, ajustar o peso da novidade no critério de Performance-Novelty para otimizar a exploração vs. explotação.
+3.  **Refinar `LearningAgent`** — Melhorar o `LearningAgent` para extrair insights mais profundos das execuções de evolução, incluindo a análise de falhas.
 
 ---
 
@@ -67,17 +66,17 @@ github_branch: "v41.0-strategic-merge"
 
 **Qualquer agente que trabalhe neste projeto DEVE:**
 
-1. **Ler este README.md PRIMEIRO** antes de qualquer ação de código
-2. **Ler o `AWAKE-V61.md`** para recuperar o contexto episódico mais recente
-3. **Ler o `MASTER_PROMPT_V46.0.md`** para entender a visão e diretivas constitucionais
+1.  **Ler este README.md PRIMEIRO** antes de qualquer ação de código
+2.  **Ler o `AWAKE-V62.md`** para recuperar o contexto episódico mais recente
+3.  **Ler o `MASTER_PROMPT_V47.0.md`** (a ser criado) para entender a visão e diretivas constitucionais
 
 ### 📝 OBRIGAÇÃO DE DOCUMENTAÇÃO INCREMENTAL
 
 Ao final de **CADA SESSÃO DE TRABALHO SIGNIFICATIVA**, você DEVE:
 
-1. **Criar um novo arquivo `AWAKE-V[n+1].md`**
-2. **Atualizar este `README.md`** (especialmente o YAML frontmatter)
-3. **Committar todas as mudanças** no repositório Git
+1.  **Criar um novo arquivo `AWAKE-V[n+1].md`**
+2.  **Atualizar este `README.md`** (especialmente o YAML frontmatter)
+3.  **Committar todas as mudanças** no repositório Git
 
 ---
 
@@ -85,13 +84,11 @@ Ao final de **CADA SESSÃO DE TRABALHO SIGNIFICATIVA**, você DEVE:
 
 | Arquivo | Descrição |
 |---|---|
-| `MASTER_PROMPT_V46.0.md` | **Constituição científica atual** — roadmap v46.0 a v48.0 |
-| `AWAKE-V61.md` | **NOVO** - Registro da sessão v46.0 (Async/await bug fix & GEA validation) |
+| `MOTHER_v47_Scientific_Documentation.md` | **NOVO** - Documentação científica completa da arquitetura v47.0 |
+| `AWAKE-V62.md` | **NOVO** - Registro da sessão v47.0 (Arquitetura Cognitiva Científica) |
+| `AWAKE-V61.md` | Registro da sessão v46.0 (Async/await bug fix & GEA validation) |
 | `AWAKE-V60.md` | Registro da sessão v45.0 (GEA + Cloud Tasks + A-MEM) |
-| `AWAKE-V59.md` | Registro da sessão v44.0 (unix socket, A-MEM, Real Fitness Score) |
-| `AWAKE-V58.md` | Registro da sessão v43.0 (migração Sydney + DGM Lineage Dashboard) |
-| `AWAKE-V57.md` | Registro da sessão v42.0 (resposta ao agente + MASTER PROMPT v45.0) |
 
 ---
 
-*README atualizado em 2026-02-25 — v46.0 VALIDADO EM PRODUÇÃO*
+*README atualizado em 2026-02-25 — v47.1 VALIDADO EM PRODUÇÃO*
