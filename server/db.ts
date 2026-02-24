@@ -25,6 +25,9 @@ import { ENV } from './_core/env';
 let _db: ReturnType<typeof drizzle> | null = null;
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
+// Supports two DATABASE_URL formats:
+//   1. Unix socket (Cloud SQL Auth Proxy): mysql://user:pass@/dbname?unix_socket=/cloudsql/...
+//   2. TCP (direct connection): mysql://user:pass@host:3306/dbname
 export async function getDb() {
   if (_db) {
     return _db;
@@ -43,20 +46,39 @@ export async function getDb() {
     const url = new URL(rawUrl);
     const socketPath = url.searchParams.get("unix_socket");
 
-    if (!socketPath) {
-        throw new Error("Missing 'unix_socket' parameter in DATABASE_URL");
+    let poolConfig: Record<string, unknown>;
+
+    if (socketPath) {
+      // Mode 1: Unix socket (Cloud SQL Auth Proxy)
+      console.log("[Database] Connecting via unix socket:", socketPath);
+      poolConfig = {
+        user: decodeURIComponent(url.username),
+        password: decodeURIComponent(url.password),
+        database: url.pathname.slice(1), // remove leading '/'
+        socketPath: socketPath,
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0
+      };
+    } else {
+      // Mode 2: TCP connection (direct host:port)
+      const host = url.hostname === 'localhost' ? process.env.DB_HOST || url.hostname : url.hostname;
+      const port = url.port ? parseInt(url.port) : 3306;
+      console.log(`[Database] Connecting via TCP to ${host}:${port}`);
+      poolConfig = {
+        host,
+        port,
+        user: decodeURIComponent(url.username),
+        password: decodeURIComponent(url.password),
+        database: url.pathname.slice(1), // remove leading '/'
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0,
+        connectTimeout: 30000
+      };
     }
 
-    const pool = createPool({
-      user: decodeURIComponent(url.username),
-      password: decodeURIComponent(url.password),
-      database: url.pathname.slice(1), // remove leading '/'
-      socketPath: socketPath,
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0
-    });
-
+    const pool = createPool(poolConfig as any);
     _db = drizzle(pool) as any;
     console.log("[Database] Connection pool created successfully.");
   } catch (error) {
