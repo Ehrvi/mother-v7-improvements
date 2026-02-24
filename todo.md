@@ -3364,3 +3364,36 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 - [x] Verify all AWAKE documents have correct Git references
 - [x] Test GCP authentication (service account activated)
 - [x] Save checkpoint with updated documentation
+
+
+---
+
+## PHASE 9: v31.0 & v32.0 Implementation (Master Plan - 2026-02-24)
+
+### Phase 1: Implement v31.0 - CodeAgent with LangGraph
+- [ ] Install dependencies (@langchain/langgraph, zod-to-json-schema, diff-match-patch)
+- [ ] Create server/mother/tools.ts with read_file, write_file, edit_file, run_shell_command
+- [ ] Create server/mother/code_agent.ts with StateGraph (Planner, Executor, Validator nodes)
+- [ ] Create tRPC endpoint runCodeAgent in server/routers/mother.ts
+- [ ] Integrate memory: Planner node calls search_episodic_memory
+- [ ] Create validation test: CodeAgent reads, modifies, and validates TypeScript file
+
+### Phase 2: Implement v32.0 - Autonomous Loop
+- [ ] Install dependencies (node-cron, @google-cloud/monitoring)
+- [ ] Create server/mother/autonomy_orchestrator.ts
+- [ ] Implement checkSLOs() with Google Cloud Monitoring API (run.googleapis.com/request_latencies)
+- [ ] Implement trigger logic: runCodeAgent when P99 latency SLO breached
+- [ ] Schedule checkSLOs() every 5 minutes using node-cron
+- [ ] Implement canaryDeploy() with gcloud run services update-traffic (10% split)
+- [ ] Implement validation & rollback: monitor canary 15min → promote (100%) or rollback (0% + delete)
+- [ ] Implement memory loop: log autonomous operation result (success/failure) to episodic memory
+
+### Phase 3: Critical Backfill & Validation
+- [ ] Backfill embeddings: generate embeddings for all 488 historical queries in production
+- [ ] Test auto-repair: introduce setTimeout(3000) in processQuery, deploy, validate autonomous fix within 15-20min
+
+### Documentation
+- [x] Add MOTHER-TODO-MASTER.md to repository
+- [x] Update AI-INSTRUCTIONS-V7.md to V8 (paths corrected)
+- [x] Add AWAKE-V38.md (A Singularidade Ativa)
+- [x] Verify all documentation references point to Git (no Google Drive refs found)
