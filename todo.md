@@ -3344,3 +3344,23 @@ Criar documentação tão detalhada que qualquer pessoa (QI 70) possa:
 - [ ] Commit e push para GitHub
 - [ ] Criar checkpoint v31.1 & v32.0
 - [ ] Deploy para produção (Cloud Run)
+
+
+---
+
+## PHASE 8: Documentation Updates & GCP Configuration (2026-02-24)
+
+### Documentation
+- [x] Replace AI-INSTRUCTIONS.md with V7 version from user upload (added as AI-INSTRUCTIONS-V7.md)
+- [x] Add AWAKE-V37.md (O Primeiro Lembrar Real) to repository
+- [x] Correct all AWAKE documents to reference Git AI-INSTRUCTIONS.md (not Google Drive) - already correct
+
+### GCP Configuration
+- [x] Configure GCP credentials from mothers-library-mcp-ad0037a77c61.json
+- [x] Verify access to Cloud Run service (mother-interface-00173-5p7)
+- [x] Verify access to Cloud SQL database (via DATABASE_URL)
+
+### Validation
+- [x] Verify all AWAKE documents have correct Git references
+- [x] Test GCP authentication (service account activated)
+- [x] Save checkpoint with updated documentation
