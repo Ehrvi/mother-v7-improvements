@@ -14,6 +14,8 @@
 import { StateGraph, Annotation, START, END } from "@langchain/langgraph";
 import { BaseMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import { MySqlCheckpointer } from "./checkpoint";
+import { ChatOpenAI } from "@langchain/openai";
+import { z } from "zod";
 
 /**
  * SupervisorState - Shared state across all nodes
@@ -35,29 +37,49 @@ const SupervisorState = Annotation.Root({
 /**
  * Router Node - Decides which worker to invoke based on the goal
  * 
- * This is a simplified router. In production, you would use an LLM to analyze
- * the goal and decide which worker is best suited for the task.
+ * Uses ChatOpenAI with structured output to intelligently route between workers.
  */
+const routingSchema = z.object({
+  next: z.enum(["code_agent", "memory_agent", "validation_agent", "END"]).describe(
+    "The next worker to invoke. Choose 'code_agent' for code manipulation tasks, 'memory_agent' for storing/recalling information, 'validation_agent' for testing/benchmarking, or 'END' if the goal is already achieved."
+  ),
+  reasoning: z.string().describe("Brief explanation of why this worker was chosen"),
+});
+
 async function routerNode(state: typeof SupervisorState.State) {
   const lastMessage = state.messages[state.messages.length - 1];
-  const goal = lastMessage.content.toString().toLowerCase();
+  const goal = lastMessage.content.toString();
 
-  // Simple keyword-based routing (replace with LLM-based routing in production)
-  let nextWorker = "code_agent"; // default
+  // Use LLM to decide routing
+  const llm = new ChatOpenAI({
+    modelName: "gpt-4o",
+    temperature: 0,
+  });
 
-  if (goal.includes("memory") || goal.includes("remember") || goal.includes("recall")) {
-    nextWorker = "memory_agent";
-  } else if (goal.includes("validate") || goal.includes("test") || goal.includes("benchmark")) {
-    nextWorker = "validation_agent";
-  } else if (goal.includes("code") || goal.includes("file") || goal.includes("modify")) {
-    nextWorker = "code_agent";
-  }
+  const structuredLLM = llm.withStructuredOutput(routingSchema);
 
-  console.log(`[Supervisor] Router decided: ${nextWorker}`);
+  const routingDecision = await structuredLLM.invoke([
+    {
+      role: "system",
+      content: `You are a routing agent for the MOTHER DGM system. Based on the user's goal, decide which worker should handle the task:
+- code_agent: For reading, writing, or modifying files and code
+- memory_agent: For storing information or recalling past interactions
+- validation_agent: For running tests, benchmarks, or validating code quality
+- END: If the goal is already achieved or doesn't require any worker
+
+Analyze the goal and choose the most appropriate worker.`,
+    },
+    {
+      role: "user",
+      content: `Goal: ${goal}`,
+    },
+  ]);
+
+  console.log(`[Supervisor] Router decided: ${routingDecision.next} (Reasoning: ${routingDecision.reasoning})`);
 
   return {
-    next: nextWorker,
-    messages: [new AIMessage(`Routing to ${nextWorker}...`)],
+    next: routingDecision.next,
+    messages: [new AIMessage(`Routing to ${routingDecision.next}... Reasoning: ${routingDecision.reasoning}`)],
   };
 }
 
@@ -96,9 +118,65 @@ async function validationAgentNode(state: typeof SupervisorState.State) {
 
   // TODO: Replace with actual ValidationAgent invocation
   return {
-    next: END,
+    next: "archive",
     messages: [new AIMessage("ValidationAgent: Task completed (placeholder)")],
   };
+}
+
+/**
+ * Archive Node - Saves evolution metadata to dgm_archive table
+ * 
+ * Stores the fitness score and execution metadata for DGM evolutionary tracking.
+ */
+async function archiveNode(state: typeof SupervisorState.State) {
+  console.log("[Supervisor] ArchiveNode executing...");
+
+  try {
+    const { getDb } = await import("../db");
+    const { dgmArchive } = await import("../../drizzle/schema");
+    
+    const db = await getDb();
+    if (!db) {
+      console.error("[ArchiveNode] Database connection failed");
+      return {
+        next: END,
+        messages: [new AIMessage("ArchiveNode: Failed to connect to database")],
+      };
+    }
+
+    // Extract fitness score from messages (ValidationAgent should set this)
+    const lastMessage = state.messages[state.messages.length - 1];
+    const content = lastMessage.content.toString();
+    
+    // Parse fitness score from message (format: "Fitness Score: X.XX")
+    const fitnessMatch = content.match(/Fitness Score: ([0-9.]+)/);
+    const fitnessScore = fitnessMatch ? parseFloat(fitnessMatch[1]) : 0.0;
+
+    // Save to dgm_archive
+    await db.insert(dgmArchive).values({
+      parentId: null, // TODO: Track parent evolution in future versions
+      fitnessScore,
+      codeSnapshotUrl: null, // TODO: Upload code snapshot to S3 in future versions
+      metadata: JSON.stringify({
+        messageCount: state.messages.length,
+        timestamp: new Date().toISOString(),
+        goal: state.messages[0]?.content.toString() || "unknown",
+      }),
+    });
+
+    console.log(`[ArchiveNode] Saved evolution with fitness score: ${fitnessScore}`);
+
+    return {
+      next: END,
+      messages: [new AIMessage(`ArchiveNode: Evolution archived with fitness score ${fitnessScore}`)],
+    };
+  } catch (error) {
+    console.error("[ArchiveNode] Error:", error);
+    return {
+      next: END,
+      messages: [new AIMessage(`ArchiveNode: Error - ${error}`)],
+    };
+  }
 }
 
 /**
@@ -114,6 +192,7 @@ export function buildSupervisorGraph() {
     .addNode("code_agent", codeAgentNode)
     .addNode("memory_agent", memoryAgentNode)
     .addNode("validation_agent", validationAgentNode)
+    .addNode("archive", archiveNode)
     
     // Add edges
     .addEdge(START, "router")
@@ -125,10 +204,11 @@ export function buildSupervisorGraph() {
       validation_agent: "validation_agent",
     })
     
-    // All workers route to END
+    // Workers route to END or archive
     .addEdge("code_agent", END)
     .addEdge("memory_agent", END)
-    .addEdge("validation_agent", END);
+    .addEdge("validation_agent", "archive") // ValidationAgent → Archive → END
+    .addEdge("archive", END);
 
   // Compile with checkpointer
   const app = workflow.compile({ checkpointer });

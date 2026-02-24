@@ -257,12 +257,13 @@ export const motherRouter = router({
         }
 
         const latestState = stateHistory[0];
-        const isComplete = latestState.next?.includes("__end__") || false;
+        const isComplete = Array.isArray(latestState.next) && latestState.next.length === 0;
+        const currentNode = latestState.values.next;
 
         return {
           run_id: input.run_id,
           status: isComplete ? "completed" : "running",
-          current_node: latestState.next,
+          current_node: currentNode,
           message_count: latestState.values.messages?.length || 0,
           history: stateHistory.map((state) => ({
             checkpoint_id: state.config.configurable?.checkpoint_id,
