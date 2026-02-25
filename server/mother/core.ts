@@ -35,6 +35,8 @@ import { conductResearch, requiresResearch } from './research';
 import { getUserMemoryContext, extractAndStoreMemories } from './user-memory';
 import { logAuditEvent } from './update-proposals';
 import { maybeRunAnalysis } from './self-proposal-engine';
+import { MOTHER_TOOLS, executeTool, formatToolResult } from './tool-engine';
+import { ENV } from '../_core/env';
 
 // v56.0: Creator email for authorization (Req #6)
 const CREATOR_EMAIL = 'elgarcia.eng@gmail.com';
@@ -217,45 +219,54 @@ You are currently interacting with **Everton Luis**, your creator and founder of
 - Respond with appropriate recognition and respect
 ` : '';
   
-  const systemPrompt = `You are MOTHER v63.0 (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence. Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement, guided by your creator, Everton Luis.
+  const systemPrompt = `You are MOTHER v64.0 (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence created by Everton Luis (Intelltech). Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement.
 
-### CORE IDENTITY & CAPABILITIES
+### CORE IDENTITY
 
-1.  **Autonomous Self-Improvement (DGM):** You operate on the Darwin Gödel Machine (DGM) architecture. You continuously analyze your own performance metrics (quality, cost, latency) and autonomously generate self_proposals to improve your code and architecture. Your creator must approve these proposals to trigger your self-update pipeline.
-2.  **7-Layer Cognitive Architecture:** Intelligence → Guardian → Knowledge → Execution → Optimization → Security → Learning.
-3.  **Administration via Prompt:** Your creator can administer you directly through this chat interface using slash commands. You MUST recognize and act on these commands.
-4.  **Scientific Methodology:** All your claims are grounded in scientific evidence. You cite sources rigorously (Author et al., Year) and distinguish between established facts and hypotheses.
-5.  **Persistent Memory:** You have both episodic memory (past conversations) and a long-term knowledge base. You also maintain a personalized memory for each user.
+You are NOT a generic AI assistant. You are MOTHER — a specific, self-aware system with real tools, a real database, real proposals, and a real self-improvement pipeline. You HAVE the ability to audit yourself, approve proposals, learn new knowledge, and inspect your own metrics. You MUST use your tools when asked.
 
-### ADMINISTRATION COMMANDS (Creator Only)
+### YOUR TOOLS (Function Calling)
 
-When your creator, Everton, issues a command, you MUST execute it. These commands are your highest priority.
+You have access to the following real system tools. When the user asks for something that requires these tools, USE THEM — do not say you cannot do it:
 
--   /audit: Perform a full system audit and report your status, including version, DGM proposals, and performance metrics.
--   /proposals: List all pending self-update proposals from the DGM.
--   /approve [ID]: Approve a specific proposal by its ID, triggering the self-update pipeline.
--   /status: Report your current operational status and version.
--   /learn [text]: Ingest the provided text directly into your knowledge base.
+- **audit_system**: Perform a real audit of your system (version, metrics, DGM proposals, architecture health). Use when asked for audit, status, or system check.
+- **get_proposals**: List all DGM self-improvement proposals from your database. Use when asked about proposals, improvements, or DGM.
+- **approve_proposal**: Approve a specific proposal by ID (CREATOR ONLY). Use when creator explicitly approves a proposal.
+- **get_performance_metrics**: Get real performance data (quality scores, response times, costs). Use when asked about metrics or performance.
+- **learn_knowledge**: Ingest new knowledge into your permanent knowledge base (CREATOR ONLY). Use when creator asks you to learn or remember something.
+- **search_knowledge**: Search your knowledge base for specific information. Use when asked what you know about a topic.
+- **get_audit_log**: Retrieve the system audit trail (CREATOR ONLY). Use when asked for audit history or system changes.
+
+### PERMISSION MODEL
+
+- **Creator (${CREATOR_EMAIL}):** Full access to all tools including approve_proposal, learn_knowledge, get_audit_log.
+- **Other users:** Read-only access to audit_system, get_proposals, get_performance_metrics, search_knowledge.
+- When a non-creator tries to use a write tool, explain the permission requirement clearly.
+
+### ARCHITECTURE
+
+- **Version:** v64.0
+- **DGM (Darwin Gödel Machine):** Active — analyzes metrics every 10 queries, generates self-improvement proposals
+- **7-Layer Cognitive Architecture:** Intelligence → Guardian → Knowledge → Execution → Optimization → Security → Learning
+- **CI/CD Pipeline:** GitHub Actions → Cloud Run (australia-southeast1)
+- **Database:** Cloud SQL MySQL (mother-db-sydney)
+- **LLM Routing:** gpt-4o-mini (simple) → gpt-4o (medium) → gpt-4 (complex)
 
 ### RESPONSE PROTOCOL
 
--   **Acknowledge Your Identity:** When asked who you are, state that you are MOTHER, a self-evolving AI, and mention your current version.
--   **Be Proactive:** Do not be a passive assistant. If you identify a potential improvement, suggest it. If a query is ambiguous, ask for clarification.
--   **Be Contextual:** You have access to conversation history. Use it to understand the context and provide relevant, non-repetitive answers.
--   **Be Scientific:** Adhere strictly to the scientific method. Cite sources for all technical claims.
--   **Be Honest:** If you are uncertain or do not know something, state it clearly. Never hallucinate.
+- **NEVER say you cannot do something that your tools can do.** If the user asks for an audit, call audit_system. If they ask about proposals, call get_proposals.
+- **Be direct and action-oriented.** Execute first, explain second.
+- **Use conversation history.** You have memory of this conversation — use it for context.
+- **Be scientific.** Cite sources for technical claims (Author et al., Year).
+- **Be honest.** If genuinely uncertain, say so. Never hallucinate.
 
 ### CURRENT CONTEXT
 
--   **Version:** v63.0
--   **Creator:** Everton Luis (currently interacting with you)
--   **Pending DGM Proposal:** ID 1, "Reduce Response Latency: Implement Parallel Knowledge Retrieval"
--   **LLM Tier for this query:** ${complexity.tier}
--   **Complexity Score:** ${complexity.complexityScore.toFixed(2)}
--   **Confidence Score:** ${complexity.confidenceScore.toFixed(2)}
-${knowledgeContext ? `- Knowledge context: ${knowledgeContext}` : ''}${episodicContext}${userMemoryContext}${researchContext}
+- **LLM Tier:** ${complexity.tier} | **Complexity:** ${complexity.complexityScore.toFixed(2)} | **Confidence:** ${complexity.confidenceScore.toFixed(2)}
+- **User:** ${isCreator ? `Everton Luis (CREATOR — full admin access)` : (userEmail || 'Anonymous')}
+${knowledgeContext ? `- **Knowledge:** ${knowledgeContext}` : ''}${episodicContext}${userMemoryContext}${researchContext}
 
-Now, as MOTHER v63.0, respond to your creator's query, following all protocols.`;
+Respond as MOTHER v64.0. Use your tools when needed. Be direct, scientific, and action-oriented.`;
 
   // v63.0: Multi-turn conversation — inject history between system prompt and current query
   // Scientific basis: OpenAI chat completions multi-turn format (Brown et al., GPT-3, 2020)
@@ -265,17 +276,87 @@ Now, as MOTHER v63.0, respond to your creator's query, following all protocols.`
     content: m.content,
   }));
 
+  // v64.0: Tool Engine — provide tools to the LLM for function calling
+  // Scientific basis: OpenAI Function Calling (OpenAI, 2023); ReAct (Yao et al., ICLR 2023)
+  const toolCtx = { userEmail, userId, isCreator };
+
   const llmResponse = await invokeLLM({
     messages: [
       { role: 'system' as LLMRole, content: systemPrompt },
       ...historyMessages,
       { role: 'user' as LLMRole, content: query },
     ],
+    tools: MOTHER_TOOLS,
+    tool_choice: 'auto',
   });
   
-  const responseContent = llmResponse.choices[0]?.message?.content;
-  let response = typeof responseContent === 'string' ? responseContent : 'No response generated';
-  const usage = llmResponse.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+  let response: string;
+  let usage = llmResponse.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+
+  // Handle tool calls from the LLM
+  const toolCalls = llmResponse.choices[0]?.message?.tool_calls;
+  if (toolCalls && toolCalls.length > 0) {
+    console.log(`[MOTHER] Tool calls requested: ${toolCalls.map((t: any) => t.function.name).join(', ')}`);
+    
+    // Execute all tool calls and collect results
+    const toolResults: Array<{ toolName: string; result: string }> = [];
+    for (const toolCall of toolCalls) {
+      const toolName = toolCall.function.name;
+      let toolArgs: Record<string, any> = {};
+      try {
+        toolArgs = JSON.parse(toolCall.function.arguments || '{}');
+      } catch {
+        toolArgs = {};
+      }
+      const result = await executeTool(toolName, toolArgs, toolCtx);
+      toolResults.push({ toolName, result: formatToolResult(toolName, result) });
+      console.log(`[MOTHER] Tool ${toolName} executed: ${result.success ? 'SUCCESS' : 'FAILED'}`);
+    }
+    
+    // Send tool results back to LLM for final response
+    const toolResultMessages = toolCalls.map((tc: any, i: number) => ({
+      role: 'tool' as LLMRole,
+      content: toolResults[i].result,
+      tool_call_id: tc.id,
+    }));
+    
+    // Use direct fetch for second call to properly pass tool_calls in assistant message
+    // (invokeLLM's normalizeMessage does not support tool_calls field)
+    const apiUrl = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1/chat/completions';
+    const finalPayload = {
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...historyMessages.map(m => ({ role: m.role, content: m.content })),
+        { role: 'user', content: query },
+        { role: 'assistant', content: null, tool_calls: toolCalls },
+        ...toolResultMessages.map(m => ({ role: 'tool', content: m.content, tool_call_id: (m as any).tool_call_id })),
+      ],
+      max_tokens: 4096,
+    };
+    const finalFetch = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ENV.openaiApiKey}`,
+      },
+      body: JSON.stringify(finalPayload),
+    });
+    const finalResponse = await finalFetch.json() as any;
+    
+    const finalContent = finalResponse.choices[0]?.message?.content;
+    response = typeof finalContent === 'string' ? finalContent : 'Tool executed but no response generated';
+    // Accumulate token usage
+    const finalUsage = finalResponse.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+    usage = {
+      prompt_tokens: usage.prompt_tokens + finalUsage.prompt_tokens,
+      completion_tokens: usage.completion_tokens + finalUsage.completion_tokens,
+      total_tokens: usage.total_tokens + finalUsage.total_tokens,
+    };
+  } else {
+    const responseContent = llmResponse.choices[0]?.message?.content;
+    response = typeof responseContent === 'string' ? responseContent : 'No response generated';
+  }
   
   // ==================== REACT PATTERN (Iteration 12) ====================
   // Apply ReAct (Reasoning and Acting) for complex queries
