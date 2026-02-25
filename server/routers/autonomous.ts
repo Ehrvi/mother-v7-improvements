@@ -11,6 +11,7 @@ import { router, publicProcedure, protectedProcedure } from '../_core/trpc';
 import { execSync } from 'child_process';
 import { getSelfProposals } from '../mother/self-proposal-engine';
 import { executeAutonomousUpdate } from '../mother/autonomous-update-job';
+import { triggerSweAgentJob } from '../mother/update-proposals';
 import { getDb } from '../db';
 
 const CREATOR_EMAIL = 'elgarcia.eng@gmail.com';
@@ -60,7 +61,14 @@ export const autonomousRouter = router({
         ]
       );
       
-      return { success: true, message: `Proposal ${input.proposalId} approved` };
+      // PROMETHEUS: Auto-dispatch SWE-Agent job immediately after approval
+      // Closes the loop: Approve → SWE-Agent → Code change → PR → CI/CD → Deploy
+      // Scientific basis: DGM (Zhang et al., 2025), SWE-agent (Xia et al., 2025)
+      triggerSweAgentJob(input.proposalId).catch((err: Error) => {
+        console.error(`[Prometheus] SWE-Agent dispatch failed (non-blocking): ${err.message}`);
+      });
+
+      return { success: true, message: `Proposal ${input.proposalId} approved. SWE-Agent dispatched.` };
     }),
 
   // ============================================================

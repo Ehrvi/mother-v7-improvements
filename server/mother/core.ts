@@ -1,6 +1,12 @@
 /**
- * MOTHER v57.0 - Complete System Integration
+ * MOTHER v67.4 - Complete System Integration
  * Orchestrates all 7 layers for end-to-end query processing
+ *
+ * v67.4 Changes:
+ * - Gap 1: Omniscient (arXiv papers) connected to Core via searchSimilarChunksWithMetadata()
+ * - Gap 2: Prometheus auto-dispatch — approveProposal now triggers SWE-Agent immediately
+ * - Gap 3: Guardian Regeneration Loop — retry with corrective prompt when quality < 90
+ *   Scientific basis: Self-Refine (Madaan et al., 2023), Constitutional AI (Bai et al., 2022)
  *
  * v56.0 Changes (7 Mandatory Requirements):
  * - Req #1: Scientific basis with verifiable sources (RAG + paper citations)
@@ -257,7 +263,7 @@ You are currently interacting with **Everton Luis**, your creator and founder of
 - Respond with appropriate recognition and respect
 ` : '';
   
-  const systemPrompt = `You are MOTHER v67.0 (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence created by Everton Luis (Intelltech). Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement.
+  const systemPrompt = `You are MOTHER v67.4 (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence created by Everton Luis (Intelltech). Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement.
 
 ### CORE IDENTITY
 
@@ -285,7 +291,7 @@ You have access to the following real system tools. When the user asks for somet
 
 ### ARCHITECTURE
 
-- **Version:** v67.0 (CRAG + Grounding Engine + Agentic Learning Loop active)
+- **Version:** v67.4 (CRAG + Grounding Engine + Agentic Learning Loop + Guardian Regeneration + Prometheus Auto-Dispatch active)
 - **DGM (Darwin Gödel Machine):** Active — analyzes metrics every 10 queries, generates self-improvement proposals
 - **7-Layer Cognitive Architecture:** Intelligence → Guardian → CRAG Knowledge → Execution → Grounding → Security → Agentic Learning
 - **CI/CD Pipeline:** GitHub Actions → Cloud Run (australia-southeast1)
@@ -313,7 +319,7 @@ You have access to the following real system tools. When the user asks for somet
 - **User:** ${isCreator ? `Everton Luis (CREATOR — full admin access)` : (userEmail || 'Anonymous')}
 ${knowledgeContext ? `- **Knowledge:** ${knowledgeContext}` : ''}${omniscientContext}${episodicContext}${userMemoryContext}${researchContext}
 
-Respond as MOTHER v67.0. Use your tools when needed. Be direct, scientific, and action-oriented.`;
+Respond as MOTHER v67.4. Use your tools when needed. Be direct, scientific, and action-oriented.`;
 
   // v63.0: Multi-turn conversation — inject history between system prompt and current query
   // Scientific basis: OpenAI chat completions multi-turn format (Brown et al., GPT-3, 2020)
@@ -443,6 +449,46 @@ Respond as MOTHER v67.0. Use your tools when needed. Be direct, scientific, and 
   
   if (!quality.passed) {
     console.warn('[MOTHER] Quality check failed:', quality.issues);
+    // ==================== GUARDIAN REGENERATION LOOP (v67.4) ====================
+    // When quality < 90, retry once with a corrective prompt that injects the
+    // specific issues detected by the Guardian. Implements critique-then-revise.
+    // Scientific basis:
+    //   - Self-Refine (Madaan et al., arXiv:2303.17651, 2023): iterative self-improvement
+    //   - Constitutional AI (Bai et al., arXiv:2212.08073, 2022): critique-then-revise
+    //   - G-Eval (Liu et al., arXiv:2303.16634, 2023): LLM-based quality evaluation
+    // Max 1 retry to avoid infinite loops and cost explosion.
+    const issuesSummary = quality.issues.join('; ');
+    const correctivePrompt = `The following response has quality issues. Please rewrite it to fix them.\n\nORIGINAL RESPONSE:\n${response}\n\nQUALITY ISSUES (score: ${quality.qualityScore}/100):\n${issuesSummary}\n\nRewrite requirements:\n- Fix all issues listed above\n- Maintain scientific accuracy; only cite sources from context\n- Be complete, relevant, and coherent\n- ZERO BULLSHIT: if uncertain, say so explicitly`;
+    try {
+      console.log(`[Guardian] Regenerating response (score was ${quality.qualityScore}/100)`);
+      const retryResponse = await invokeLLM({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system' as const, content: systemPrompt },
+          { role: 'user' as const, content: correctivePrompt },
+        ],
+        maxTokens: 4096,
+      });
+      const retryContent = retryResponse.choices[0]?.message?.content;
+      if (typeof retryContent === 'string' && retryContent.length > 50) {
+        const retryQuality = await validateQuality(query, retryContent, 2);
+        if (retryQuality.qualityScore > quality.qualityScore) {
+          console.log(`[Guardian] Regeneration improved quality: ${quality.qualityScore} -> ${retryQuality.qualityScore}`);
+          response = retryContent;
+          Object.assign(quality, retryQuality);
+          const retryUsage = retryResponse.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+          usage = {
+            prompt_tokens: usage.prompt_tokens + retryUsage.prompt_tokens,
+            completion_tokens: usage.completion_tokens + retryUsage.completion_tokens,
+            total_tokens: usage.total_tokens + retryUsage.total_tokens,
+          };
+        } else {
+          console.log(`[Guardian] Regeneration did not improve quality (${retryQuality.qualityScore} vs ${quality.qualityScore}). Keeping original.`);
+        }
+      }
+    } catch (retryErr) {
+      console.error('[Guardian] Regeneration failed (non-blocking):', retryErr);
+    }
   }
   
   // ==================== LAYER 7: METRICS ====================

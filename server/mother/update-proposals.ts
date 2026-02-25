@@ -407,7 +407,7 @@ function mapRowToProposal(row: any): UpdateProposal {
 // Falls back to inline execution if Cloud Run Job is not configured.
 // Scientific basis: DGM (Zhang et al., 2025); SWE-agent (Xia et al., 2025)
 // ============================================================
-async function triggerSweAgentJob(proposalId: number): Promise<void> {
+export async function triggerSweAgentJob(proposalId: number): Promise<void> {
   const projectId = process.env.GCLOUD_PROJECT || 'mothers-library-mcp';
   const region = process.env.GCLOUD_REGION || 'australia-southeast1';
   const jobName = process.env.SWE_AGENT_JOB_NAME || 'mother-swe-agent-job';
