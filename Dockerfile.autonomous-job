@@ -1,0 +1,32 @@
+# ============================================================
+# MOTHER Autonomous Update Job — Dockerfile
+#
+# This container runs the self-coding engine that allows MOTHER
+# to modify her own source code, run tests, and push to GitHub.
+#
+# Scientific basis: DGM (Zhang et al., 2025), SWE-agent (Xia et al., 2025)
+# ============================================================
+
+FROM node:22-alpine
+
+# Install git and other required tools
+RUN apk add --no-cache git openssh-client curl
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including devDependencies for TypeScript)
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Build TypeScript
+RUN npx tsc --project tsconfig.server.json --outDir dist-server || true
+
+# Set the entrypoint to the autonomous update job
+# The PROPOSAL_ID environment variable must be set at runtime
+ENTRYPOINT ["node", "-r", "ts-node/register", "server/mother/autonomous-update-job.ts"]

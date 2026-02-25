@@ -1,0 +1,81 @@
+# ============================================================
+# Cloud Build: Autonomous Update Job Deployment
+# 
+# This pipeline builds and deploys the MOTHER Autonomous Update Job
+# as a Cloud Run Job. The job is triggered by MOTHER herself when
+# a self-proposal is approved.
+#
+# Scientific basis: DGM (Zhang et al., 2025), SWE-agent (Xia et al., 2025)
+# ============================================================
+
+steps:
+  # Build the Autonomous Update Job Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-autonomous-job:latest'
+      - '-t'
+      - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-autonomous-job:$BUILD_ID'
+      - '-f'
+      - 'Dockerfile.autonomous-job'
+      - '.'
+    timeout: 1200s
+
+  # Push the image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-autonomous-job:latest'
+
+  # Create/Update the Cloud Run Job
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'jobs'
+      - 'replace'
+      - '--format=yaml'
+      - '--region=australia-southeast1'
+    stdin: |
+      apiVersion: run.googleapis.com/v1
+      kind: Job
+      metadata:
+        name: mother-autonomous-update-job
+        namespace: mothers-library-mcp
+      spec:
+        template:
+          spec:
+            template:
+              spec:
+                serviceAccountName: mother-cloudrun-sa@mothers-library-mcp.iam.gserviceaccount.com
+                containers:
+                  - image: australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-autonomous-job:latest
+                    env:
+                      - name: DATABASE_URL
+                        valueFrom:
+                          secretKeyRef:
+                            name: mother-db-url
+                            key: latest
+                      - name: OPENAI_API_KEY
+                        valueFrom:
+                          secretKeyRef:
+                            name: mother-openai-api-key
+                            key: latest
+                      - name: GITHUB_TOKEN
+                        valueFrom:
+                          secretKeyRef:
+                            name: mother-github-token
+                            key: latest
+                      - name: GITHUB_REPO_URL
+                        value: https://github.com/Ehrvi/mother-v7-improvements.git
+                    resources:
+                      limits:
+                        cpu: '2'
+                        memory: 2Gi
+                timeout: 600s
+                maxRetries: 1
+
+images:
+  - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-autonomous-job:latest'
+timeout: 1800s

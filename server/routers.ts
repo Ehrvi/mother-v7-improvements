@@ -5,6 +5,7 @@ import { motherRouter } from "./routers/mother";
 import { selfAuditRouter } from "./routers/self-audit";
 import { nativeAuthRouter } from "./routers/auth";
 import { proposalsRouter } from "./routers/proposals";
+import { autonomousRouter } from "./routers/autonomous";
 import { publicProcedure, router } from "./_core/trpc";
 
 export const appRouter = router({
@@ -37,6 +38,10 @@ export const appRouter = router({
 
   // MOTHER v56.0: Update Proposals & Authorization (Req #5, #6, #7)
   proposals: proposalsRouter,
+
+  // MOTHER v61.0: Autonomous Self-Update Engine (DGM Loop)
+  // Scientific basis: Darwin Gödel Machine (Zhang et al., 2025 arXiv:2505.22954)
+  autonomous: autonomousRouter,
 });
 
 export type AppRouter = typeof appRouter;
