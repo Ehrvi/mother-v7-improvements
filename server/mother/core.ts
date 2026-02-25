@@ -34,6 +34,7 @@ import { createHash } from 'crypto';
 import { conductResearch, requiresResearch } from './research';
 import { getUserMemoryContext, extractAndStoreMemories } from './user-memory';
 import { logAuditEvent } from './update-proposals';
+import { maybeRunAnalysis } from './self-proposal-engine';
 
 // v56.0: Creator email for authorization (Req #6)
 const CREATOR_EMAIL = 'elgarcia.eng@gmail.com';
@@ -426,6 +427,11 @@ Now respond to the user's query following these standards.`;
     const { sql } = require("drizzle-orm");
     db.execute(sql`INSERT IGNORE INTO system_metrics (endpoint, response_time, tokens_used, cost, quality_score, tier, created_at) VALUES (${"mother.query"}, ${responseTime}, ${usage.total_tokens}, ${(cost ?? 0).toString()}, ${quality.qualityScore ?? 0}, ${complexity.tier}, NOW())`).catch(() => {});
   }).catch(() => {});
+
+  // ==================== v59.0: SELF-PROPOSAL ENGINE ====================
+  // After every 10 queries, MOTHER analyzes her own metrics and proposes improvements
+  // Scientific basis: DGM (Zhang et al., 2025 arXiv:2505.22954)
+  maybeRunAnalysis().catch(() => {}); // Fire-and-forget, never blocks response
 
   // ==================== RETURN RESPONSE ====================
   
