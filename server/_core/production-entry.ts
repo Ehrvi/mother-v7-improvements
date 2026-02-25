@@ -40,10 +40,27 @@ const PORT = parseInt(process.env.PORT || '8080', 10);
  * re-run, but tracking ensures correctness for all migration types.
  */
 async function runMigrations() {
+  // Retry with exponential backoff — Cloud SQL Proxy socket may not be ready immediately
+  let db = null;
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    db = await getDb();
+    if (db) {
+      try {
+        await (db as any).$client.query('SELECT 1');
+        break; // Connection is live
+      } catch (e) {
+        db = null;
+        console.log(`[Migrations] DB not ready (attempt ${attempt}/5), retrying in ${attempt * 2}s...`);
+        await new Promise(r => setTimeout(r, attempt * 2000));
+      }
+    } else {
+      console.log(`[Migrations] DB not available (attempt ${attempt}/5), retrying in ${attempt * 2}s...`);
+      await new Promise(r => setTimeout(r, attempt * 2000));
+    }
+  }
   try {
-    const db = await getDb();
     if (!db) {
-      console.log('[Migrations] DB not available, skipping');
+      console.log('[Migrations] DB not available after 5 attempts, skipping');
       return;
     }
 
