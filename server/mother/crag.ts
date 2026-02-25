@@ -85,10 +85,10 @@ export async function cragRetrieve(
     correctiveSearchTriggered = true;
     try {
       const webResults = await conductResearch(effectiveQuery);
-      if (webResults && webResults.length > 0) {
-        const webDocs: CRAGDocument[] = webResults.map((r: { content: string; source?: string; url?: string }) => ({
-          content: r.content || '',
-          source: r.source || r.url || 'web_search',
+      if (webResults && webResults.sources && webResults.sources.length > 0) {
+        const webDocs: CRAGDocument[] = webResults.sources.map((r: { snippet: string; url?: string; title?: string }) => ({
+          content: r.snippet || '',
+          source: r.url || r.title || 'web_search',
           sourceType: 'web_search' as const,
           relevanceScore: 0.7, // Assume moderate relevance for web results
           isGrounded: true,
@@ -163,7 +163,7 @@ Return ONLY the JSON object.`;
       maxTokens: 200,
     });
 
-    const content = typeof result === 'string' ? result : result?.content || '';
+    const content = typeof result === 'string' ? result : (result?.choices?.[0]?.message?.content as string) || '';
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
@@ -270,7 +270,7 @@ Return ONLY the JSON array.`;
         maxTokens: 100,
       });
 
-      const content = typeof result === 'string' ? result : result?.content || '';
+      const content = typeof result === 'string' ? result : (result?.choices?.[0]?.message?.content as string) || '';
       const jsonMatch = content.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
         const scores = JSON.parse(jsonMatch[0]);

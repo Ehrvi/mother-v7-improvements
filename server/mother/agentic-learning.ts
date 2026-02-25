@@ -185,7 +185,7 @@ Be conservative. Only suggest learning when there is a CLEAR opportunity. Return
       maxTokens: 800,
     });
 
-    const content = typeof result === 'string' ? result : result?.content || '';
+    const content = typeof result === 'string' ? result : (result?.choices?.[0]?.message?.content as string) || '';
     const jsonMatch = content.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);

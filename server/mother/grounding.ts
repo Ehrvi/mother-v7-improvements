@@ -151,7 +151,7 @@ Example: ["The Transformer was proposed by Vaswani et al. in 2017", "BERT uses b
       maxTokens: 500,
     });
 
-    const content = typeof result === 'string' ? result : result?.content || '';
+    const content = typeof result === 'string' ? result : (result?.choices?.[0]?.message?.content as string) || '';
     const jsonMatch = content.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
@@ -199,7 +199,7 @@ Return ONLY the JSON array. Be strict: only mark as grounded if there is clear, 
       maxTokens: 1000,
     });
 
-    const content = typeof result === 'string' ? result : result?.content || '';
+    const content = typeof result === 'string' ? result : (result?.choices?.[0]?.message?.content as string) || '';
     const jsonMatch = content.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
