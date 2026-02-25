@@ -23,6 +23,7 @@
 import { getDb } from '../db';
 import { getEmbedding } from './embeddings';
 import { sql } from 'drizzle-orm';
+import pdfParse from 'pdf-parse';
 
 // ==================== TYPES ====================
 
@@ -134,8 +135,7 @@ async function downloadAndExtractPdf(pdfUrl: string): Promise<string | null> {
     
     console.log(`[PaperIngest] PDF downloaded: ${(pdfBuffer.length / 1024).toFixed(1)}KB`);
     
-    const pdfParse = await import('pdf-parse');
-    const data = await pdfParse.default(pdfBuffer);
+    const data = await pdfParse(pdfBuffer);
     
     const text = data.text?.trim() || '';
     console.log(`[PaperIngest] Extracted ${text.length} chars from ${data.numpages} pages`);
