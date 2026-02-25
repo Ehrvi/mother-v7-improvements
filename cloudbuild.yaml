@@ -53,3 +53,5 @@ images:
   - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-interface:$BUILD_ID'
 
 timeout: 1800s
+options:
+  logging: CLOUD_LOGGING_ONLY
