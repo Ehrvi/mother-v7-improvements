@@ -199,17 +199,34 @@ export async function rejectProposal(
 
 /**
  * Get all pending proposals
+ * v63.0: Queries BOTH update_proposals (manual) and self_proposals (DGM autonomous)
  */
 export async function getPendingProposals(): Promise<UpdateProposal[]> {
   try {
     const db = await getDb();
     if (!db) return [];
 
-    const [rows] = await (db as any).$client.query(
-      `SELECT * FROM update_proposals WHERE status = 'pending' ORDER BY created_at DESC`
-    );
+    // Query update_proposals (manual proposals)
+    const [manualRows] = await (db as any).$client.query(
+      `SELECT id, 'mother' as proposed_by, title, description, '' as rationale,
+              '' as affected_modules, 'medium' as estimated_impact,
+              status, NULL as approved_by_email, NULL as approved_at,
+              NULL as rejected_reason, NULL as implementation_notes,
+              created_at, updated_at
+       FROM update_proposals WHERE status = 'pending' ORDER BY created_at DESC`
+    ).catch(() => [[]]);
 
-    return (rows || []).map(mapRowToProposal);
+    // Query self_proposals (DGM autonomous proposals)
+    const [dgmRows] = await (db as any).$client.query(
+      `SELECT id, 'mother' as proposed_by, title, description, hypothesis as rationale,
+              metric_trigger as affected_modules, 'high' as estimated_impact,
+              status, approved_by as approved_by_email, approved_at,
+              NULL as rejected_reason, fitness_function as implementation_notes,
+              created_at, updated_at
+       FROM self_proposals WHERE status = 'pending' ORDER BY created_at DESC`
+    ).catch(() => [[]]);
+
+    return [...(manualRows || []), ...(dgmRows || [])].map(mapRowToProposal);
   } catch (error) {
     console.error('[Proposals] Failed to get pending proposals:', error);
     return [];
@@ -218,21 +235,45 @@ export async function getPendingProposals(): Promise<UpdateProposal[]> {
 
 /**
  * Get all proposals with optional status filter
+ * v63.0: Queries BOTH update_proposals (manual) and self_proposals (DGM autonomous)
+ * Scientific basis: DGM (Zhang et al., 2025) — autonomous proposals are first-class citizens
  */
 export async function getProposals(status?: ProposalStatus, limit = 20): Promise<UpdateProposal[]> {
   try {
     const db = await getDb();
     if (!db) return [];
 
-    const whereClause = status ? 'WHERE status = ?' : '';
-    const params = status ? [status, limit] : [limit];
+    const whereClause = status ? `WHERE status = '${status}'` : '';
 
-    const [rows] = await (db as any).$client.query(
-      `SELECT * FROM update_proposals ${whereClause} ORDER BY created_at DESC LIMIT ?`,
-      params
-    );
+    // Query update_proposals (manual proposals)
+    const [manualRows] = await (db as any).$client.query(
+      `SELECT id, 'mother' as proposed_by, title, description, '' as rationale,
+              '' as affected_modules, 'medium' as estimated_impact,
+              status, NULL as approved_by_email, NULL as approved_at,
+              NULL as rejected_reason, NULL as implementation_notes,
+              created_at, updated_at
+       FROM update_proposals ${whereClause} ORDER BY created_at DESC LIMIT ?`,
+      [Math.ceil(limit / 2)]
+    ).catch(() => [[]]);
 
-    return (rows || []).map(mapRowToProposal);
+    // Query self_proposals (DGM autonomous proposals)
+    const [dgmRows] = await (db as any).$client.query(
+      `SELECT id, 'mother' as proposed_by, title, description, hypothesis as rationale,
+              metric_trigger as affected_modules, 'high' as estimated_impact,
+              status, approved_by as approved_by_email, approved_at,
+              NULL as rejected_reason, fitness_function as implementation_notes,
+              created_at, updated_at
+       FROM self_proposals ${whereClause} ORDER BY created_at DESC LIMIT ?`,
+      [limit]
+    ).catch(() => [[]]);
+
+    // Merge and sort by created_at descending
+    const all = [...(manualRows || []), ...(dgmRows || [])]
+      .map(mapRowToProposal)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, limit);
+
+    return all;
   } catch (error) {
     console.error('[Proposals] Failed to get proposals:', error);
     return [];
