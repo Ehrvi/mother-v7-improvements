@@ -26,6 +26,7 @@ import { assessComplexity, getModelForTier, calculateCost, calculateBaselineCost
 import { validateQuality, type GuardianResult } from './guardian';
 import { getKnowledgeContext } from './knowledge';
 import { cragRetrieve } from './crag';
+import { searchSimilarChunksWithMetadata } from '../omniscient/search';
 import { groundResponse, needsGrounding } from './grounding';
 import { agenticLearningLoop } from './agentic-learning';
 import { insertQuery, getCacheEntry, insertCacheEntry, getDb } from '../db';
@@ -139,6 +140,28 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
     knowledgeContext = await getKnowledgeContext(query);
   }
   
+  // ==================== LAYER 5.3: OMNISCIENT (arXiv Papers) ====================
+  // Semantic search over permanently indexed scientific papers
+  // Scientific basis: Dense Passage Retrieval (Karpukhin et al., EMNLP 2020)
+  let omniscientContext = '';
+  try {
+    const paperResults = await searchSimilarChunksWithMetadata(query, 5, 0.55);
+    if (paperResults.length > 0) {
+      omniscientContext = `\n\n## 📚 OMNISCIENT — INDEXED SCIENTIFIC PAPERS (${paperResults.length} results)\n` +
+        paperResults.map((r, i) => {
+          const citation = r.paperAuthors && r.paperTitle
+            ? `(${r.paperAuthors.split(',')[0].trim()} et al., ${r.paperTitle})`
+            : r.paperTitle || 'Unknown paper';
+          return `[Paper ${i+1} | Similarity: ${r.similarity.toFixed(3)} | ${citation}]\n${r.content.slice(0, 500)}`;
+        }).join('\n\n');
+      console.log(`[MOTHER] Omniscient: ${paperResults.length} paper chunks injected (top similarity: ${paperResults[0].similarity.toFixed(3)})`);
+    } else {
+      console.log('[MOTHER] Omniscient: No indexed papers found for this query (0 chunks above threshold)');
+    }
+  } catch (err) {
+    console.error('[MOTHER] Omniscient search failed (non-blocking):', err);
+  }
+
   // ==================== LAYER 5.4: SCIENTIFIC RESEARCH (v54.0) ====================
   // Autonomous web search and scientific literature retrieval
   // Scientific basis: ReAct (Yao et al., ICLR 2023), WebGPT (Nakano et al., 2021)
@@ -288,7 +311,7 @@ You have access to the following real system tools. When the user asks for somet
 
 - **LLM Tier:** ${complexity.tier} | **Complexity:** ${complexity.complexityScore.toFixed(2)} | **Confidence:** ${complexity.confidenceScore.toFixed(2)}
 - **User:** ${isCreator ? `Everton Luis (CREATOR — full admin access)` : (userEmail || 'Anonymous')}
-${knowledgeContext ? `- **Knowledge:** ${knowledgeContext}` : ''}${episodicContext}${userMemoryContext}${researchContext}
+${knowledgeContext ? `- **Knowledge:** ${knowledgeContext}` : ''}${omniscientContext}${episodicContext}${userMemoryContext}${researchContext}
 
 Respond as MOTHER v67.0. Use your tools when needed. Be direct, scientific, and action-oriented.`;
 
