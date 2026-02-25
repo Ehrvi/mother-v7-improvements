@@ -23,7 +23,11 @@
 import { getDb } from '../db';
 import { getEmbedding } from './embeddings';
 import { sql } from 'drizzle-orm';
-import pdfParse from 'pdf-parse';
+import { createRequire } from 'module';
+
+// pdf-parse is a CommonJS module - must use createRequire in ESM context
+const require = createRequire(import.meta.url);
+const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string; numpages: number }>;
 
 // ==================== TYPES ====================
 
