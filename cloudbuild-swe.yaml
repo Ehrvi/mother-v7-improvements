@@ -1,0 +1,66 @@
+# Cloud Build config for the MOTHER SWE-Agent Cloud Run Job
+# Builds from Dockerfile.swe and creates the mother-swe-agent image
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.swe'
+      - '-t'
+      - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-swe-agent:latest'
+      - '-t'
+      - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-swe-agent:$BUILD_ID'
+      - '.'
+    timeout: 1200s
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-swe-agent:latest'
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-swe-agent:$BUILD_ID'
+  # Create/update the Cloud Run Job after building the image
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'jobs'
+      - 'create'
+      - 'mother-swe-agent-job'
+      - '--image=australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-swe-agent:latest'
+      - '--region=australia-southeast1'
+      - '--project=mothers-library-mcp'
+      - '--service-account=mother-cloudrun-sa@mothers-library-mcp.iam.gserviceaccount.com'
+      - '--add-cloudsql-instances=mothers-library-mcp:australia-southeast1:mother-db-sydney,mothers-library-mcp:us-central1:mother-db'
+      - '--set-secrets=DATABASE_URL=mother-db-url:latest,OPENAI_API_KEY=mother-openai-api-key:latest,GITHUB_TOKEN=mother-github-token:latest'
+      - '--set-env-vars=AUTONOMOUS_JOB_MODE=true,GITHUB_REPO_URL=https://github.com/Ehrvi/mother-v7-improvements.git'
+      - '--memory=2Gi'
+      - '--cpu=2'
+      - '--task-timeout=1800'
+      - '--max-retries=1'
+    allowFailure: true  # Job may already exist; update step below handles that case
+  # Update the job if it already exists
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'jobs'
+      - 'update'
+      - 'mother-swe-agent-job'
+      - '--image=australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-swe-agent:latest'
+      - '--region=australia-southeast1'
+      - '--project=mothers-library-mcp'
+      - '--service-account=mother-cloudrun-sa@mothers-library-mcp.iam.gserviceaccount.com'
+      - '--add-cloudsql-instances=mothers-library-mcp:australia-southeast1:mother-db-sydney,mothers-library-mcp:us-central1:mother-db'
+      - '--set-secrets=DATABASE_URL=mother-db-url:latest,OPENAI_API_KEY=mother-openai-api-key:latest,GITHUB_TOKEN=mother-github-token:latest'
+      - '--set-env-vars=AUTONOMOUS_JOB_MODE=true,GITHUB_REPO_URL=https://github.com/Ehrvi/mother-v7-improvements.git'
+      - '--memory=2Gi'
+      - '--cpu=2'
+      - '--task-timeout=1800'
+      - '--max-retries=1'
+    allowFailure: true
+images:
+  - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-swe-agent:latest'
+  - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-swe-agent:$BUILD_ID'
+timeout: 1800s

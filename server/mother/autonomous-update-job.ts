@@ -283,7 +283,7 @@ export async function executeAutonomousUpdate(proposalId: number): Promise<Updat
         // an LLM call to generate the actual diff from the description
         console.log('[MOTHER-SWE] Proposed changes are descriptive (not executable diffs).');
         console.log('[MOTHER-SWE] Using LLM to generate executable changes...');
-        changes = await generateExecutableChanges(proposal, parsed.changes);
+        changes = await generateExecutableChanges(proposal, parsed.changes, repoPath);
       }
     } catch (e) {
       reactObserve(`WARNING: Could not parse proposed_changes as JSON. Skipping code changes.`);
@@ -440,73 +440,118 @@ DGM Loop (Zhang et al., 2025 arXiv:2505.22954)`;
   }
 }
 
-// ============================================================
-// LLM-POWERED CHANGE GENERATOR
-// Scientific basis: SWE-agent (Xia et al., 2025), CodeAct (Wang et al., 2024)
-// ============================================================
 
+// ============================================================
+// SWE-AGENT: ACI-Based Code Modification Engine
+// Scientific basis: SWE-agent (Xia et al., 2025), DGM (Zhang et al., 2025)
+// Architecture: Agent-Computer Interface (ACI) with ReAct loop
+// The agent reads actual file content BEFORE generating diffs,
+// ensuring changes are grounded in the real codebase.
+// ============================================================
 async function generateExecutableChanges(
   proposal: ProposalDetails,
-  descriptions: string[]
+  descriptions: string[],
+  repoPath: string
 ): Promise<ProposedChange[]> {
   try {
     const { invokeLLM } = await import('../_core/llm');
-    
-    const prompt = `You are MOTHER's autonomous code modification engine. 
-Given a proposal description, generate executable code changes in JSON format.
 
-PROPOSAL:
-Title: ${proposal.title}
-Description: ${proposal.description}
-Hypothesis: ${proposal.hypothesis}
-Scientific basis: ${proposal.scientificBasis}
+    // STEP 1: ACI "readFile" phase — ground the LLM in real code
+    const filesToRead: string[] = [];
+    const fileContents: Record<string, string> = {};
 
-PROPOSED CHANGES (descriptions):
+    try {
+      const parsed = JSON.parse(proposal.proposedChanges);
+      if (parsed.files && Array.isArray(parsed.files)) {
+        filesToRead.push(...parsed.files);
+      }
+    } catch (e) { /* ignore */ }
+
+    for (const relPath of filesToRead) {
+      const fullPath = path.join(repoPath, relPath);
+      if (fs.existsSync(fullPath)) {
+        const fileContent = fs.readFileSync(fullPath, 'utf-8');
+        fileContents[relPath] = fileContent;
+        reactObserve(`[ACI] Read file: ${relPath} (${fileContent.split('\n').length} lines)`);
+      } else {
+        reactObserve(`[ACI] WARNING: File not found: ${relPath}`);
+      }
+    }
+
+    // STEP 2: Build the ACI prompt with real file content
+    const fileContextSection = Object.entries(fileContents)
+      .map(([filePath, fileContent]) => {
+        const lines = fileContent.split('\n');
+        const truncated = lines.length > 300
+          ? lines.slice(0, 300).join('\n') + '\n// ... (truncated at 300 lines)'
+          : fileContent;
+        return `=== FILE: ${filePath} ===\n${truncated}\n=== END FILE ===`;
+      })
+      .join('\n\n');
+
+    const aciPrompt = `You are the SWE-Agent (Software Engineering Agent) of MOTHER.
+Your mission: implement a concrete code change based on the proposal below.
+You have been given the ACTUAL current content of the relevant files.
+
+## PROPOSAL TO IMPLEMENT
+- ID: ${proposal.id}
+- Title: ${proposal.title}
+- Description: ${proposal.description}
+- Hypothesis: ${proposal.hypothesis}
+- Scientific Basis: ${proposal.scientificBasis}
+
+## CHANGES REQUESTED (natural language)
 ${descriptions.map((d, i) => `${i + 1}. ${d}`).join('\n')}
 
-Generate a JSON array of executable changes. Each change must have:
-- file: relative path from repo root (e.g., "server/mother/core.ts")
-- action: "replace" | "append" | "create" | "insert"
-- For "replace": findText (exact string to find) and replaceWith (replacement)
-- For "append": content (string to append)
-- For "create": content (full file content)
-- For "insert": lineNumber (0-indexed) and content (string to insert)
+## CURRENT FILE CONTENTS (read via ACI)
+${fileContextSection || '(No files provided)'}
 
-IMPORTANT: 
-- Only make minimal, targeted changes
-- Prefer "replace" over "create" for existing files
-- Ensure changes are syntactically valid TypeScript
-- Return ONLY the JSON array, no other text
+## YOUR TASK
+Generate a JSON array of minimal, targeted code changes.
+Each change object schema:
+- "file": relative path from repo root
+- "action": "replace" | "append" | "create" | "insert"
+- For "replace": "findText" (exact string from file) and "replaceWith" (new string)
+- For "append": "content" (string to append)
+- For "create": "content" (full file content)
+- For "insert": "lineNumber" (0-indexed) and "content"
 
-Example:
-[
-  {
-    "file": "server/mother/core.ts",
-    "action": "replace",
-    "findText": "const ANALYSIS_INTERVAL = 10;",
-    "replaceWith": "const ANALYSIS_INTERVAL = 5; // Increased frequency for faster learning"
-  }
-]`;
-    
+## RULES
+1. Use ONLY "replace" for existing files — safest and most precise.
+2. "findText" MUST be an exact substring from the file content above.
+3. Make MINIMAL changes. Do not refactor unrelated code.
+4. Ensure TypeScript is syntactically valid.
+5. Return ONLY the JSON array. No markdown, no explanation.`;
+
+    reactThink('Calling SWE-Agent LLM with ACI context', `Files in context: ${Object.keys(fileContents).join(', ')}`);
+
     const response = await invokeLLM({
+      model: 'gpt-4o',
       messages: [
-        { role: 'system', content: 'You are a precise code modification engine. Return only valid JSON.' },
-        { role: 'user', content: prompt },
+        {
+          role: 'system',
+          content: 'You are a precise TypeScript code modification engine. Return ONLY a valid JSON array.',
+        },
+        { role: 'user', content: aciPrompt },
       ],
     });
-    
+
     const rawContent = response.choices[0]?.message?.content;
-    const content = typeof rawContent === 'string' ? rawContent : '[]';
-    
-    // Extract JSON from the response
-    const jsonMatch = content.match(/\[\s\S\]*\]/);
+    const llmContent = typeof rawContent === 'string' ? rawContent : '[]';
+    reactObserve(`[ACI] LLM response received (${llmContent.length} chars)`);
+
+    // Extract JSON array (handle markdown fences if present)
+    const jsonMatch = llmContent.match(/\[\s*[\s\S]*\]/);
     if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
+      const changes = JSON.parse(jsonMatch[0]);
+      reactObserve(`[ACI] Generated ${changes.length} executable change(s)`);
+      return changes;
     }
-    
+
+    reactObserve('[ACI] WARNING: Could not extract JSON from LLM response');
     return [];
   } catch (error: any) {
-    console.error('[MOTHER-SWE] LLM change generation failed:', error.message);
+    console.error('[MOTHER-SWE] ACI change generation failed:', error.message);
     return [];
   }
 }

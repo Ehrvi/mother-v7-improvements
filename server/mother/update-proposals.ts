@@ -15,6 +15,7 @@
  */
 
 import { getDb } from '../db';
+import { execSync } from 'child_process';
 
 // The ONLY authorized email for approving updates
 export const CREATOR_EMAIL = 'elgarcia.eng@gmail.com';
@@ -146,7 +147,17 @@ export async function approveProposal(
       success: true,
     });
 
-    return { success: true, reason: 'Proposal approved by creator' };
+    // ============================================================
+    // TRIGGER: Dispatch the SWE-Agent Cloud Run Job
+    // Scientific basis: DGM (Zhang et al., 2025) — approval gates the
+    // autonomous improvement loop. After approval, the job executes
+    // the proposed code changes, compiles, and opens a PR.
+    // ============================================================
+    triggerSweAgentJob(proposalId).catch(err => {
+      console.error(`[Proposals] SWE-Agent job trigger failed (non-blocking): ${err.message}`);
+    });
+
+    return { success: true, reason: 'Proposal approved by creator. SWE-Agent job dispatched.' };
   } catch (error) {
     console.error('[Proposals] Failed to approve proposal:', error);
     return { success: false, reason: `DB error: ${error}` };
@@ -388,4 +399,64 @@ function mapRowToProposal(row: any): UpdateProposal {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+// ============================================================
+// SWE-AGENT JOB TRIGGER
+// Dispatches the Cloud Run Job to execute the approved proposal.
+// Falls back to inline execution if Cloud Run Job is not configured.
+// Scientific basis: DGM (Zhang et al., 2025); SWE-agent (Xia et al., 2025)
+// ============================================================
+async function triggerSweAgentJob(proposalId: number): Promise<void> {
+  const projectId = process.env.GCLOUD_PROJECT || 'mothers-library-mcp';
+  const region = process.env.GCLOUD_REGION || 'australia-southeast1';
+  const jobName = process.env.SWE_AGENT_JOB_NAME || 'mother-swe-agent-job';
+  const useCloudRunJob = process.env.USE_CLOUD_RUN_JOB === 'true';
+
+  console.log(`[SWE-Trigger] Dispatching SWE-Agent for proposal ${proposalId}`);
+  console.log(`[SWE-Trigger] Mode: ${useCloudRunJob ? 'Cloud Run Job' : 'Inline (fallback)'}`);
+
+  if (useCloudRunJob) {
+    // PRIMARY: Trigger the Cloud Run Job (isolated, scalable, production-grade)
+    const command = [
+      'gcloud run jobs execute', jobName,
+      `--region=${region}`,
+      `--project=${projectId}`,
+      `--update-env-vars=PROPOSAL_ID=${proposalId},AUTONOMOUS_JOB_MODE=true`,
+      '--async',
+    ].join(' ');
+
+    console.log(`[SWE-Trigger] Executing: ${command}`);
+    execSync(command, { stdio: 'pipe' });
+    console.log(`[SWE-Trigger] ✅ Cloud Run Job dispatched for proposal ${proposalId}`);
+
+    await logAuditEvent({
+      action: 'SWE_AGENT_JOB_DISPATCHED',
+      actorType: 'system',
+      targetType: 'proposal',
+      targetId: String(proposalId),
+      details: `Cloud Run Job '${jobName}' dispatched for proposal ${proposalId}`,
+      success: true,
+    });
+  } else {
+    // FALLBACK: Run inline (async, non-blocking) — used when Cloud Run Job is not set up
+    console.log(`[SWE-Trigger] ⚠️  USE_CLOUD_RUN_JOB not set. Running inline (non-blocking).`);
+    const { executeAutonomousUpdate } = await import('./autonomous-update-job');
+    executeAutonomousUpdate(proposalId)
+      .then(result => {
+        console.log(`[SWE-Trigger] Inline job completed: ${result.success ? '✅' : '❌'} ${result.message}`);
+      })
+      .catch(err => {
+        console.error(`[SWE-Trigger] Inline job error: ${err.message}`);
+      });
+
+    await logAuditEvent({
+      action: 'SWE_AGENT_INLINE_STARTED',
+      actorType: 'system',
+      targetType: 'proposal',
+      targetId: String(proposalId),
+      details: `Inline SWE-Agent started for proposal ${proposalId} (Cloud Run Job not configured)`,
+      success: true,
+    });
+  }
 }
