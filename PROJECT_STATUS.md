@@ -1,8 +1,20 @@
-# PROJECT_STATUS.md — MOTHER Production Status
+> **Last Updated:** 2026-02-25 10:45 GMT+11
 
-**Last Updated:** 2026-02-25  
-**Current Version:** v64.0  
-**Status:** PRODUCTION — OPERATIONAL
+# PROJECT STATUS: MOTHER v65.1
+
+**Current Version:** v65.1
+**Status:** BUILD IN PROGRESS
+
+---
+
+## v65.1 HOTFIX: Critical Migration Failure
+
+**v65.0** introduced a major UI enhancement with a new right-side panel for the **Knowledge Map** and **DGM Proposals**. However, a **critical bug** was discovered during deployment: the DGM proposals list was empty.
+
+- **Root Cause:** The database migration (`0020`) responsible for adding the SM-2 re-proposal columns failed silently. It used `ADD COLUMN IF NOT EXISTS` syntax, which is incompatible with the production MySQL 8.0 database.
+- **Fix (v65.1):** A new, MySQL 8.0-compatible migration (`0021`) was created. It uses simple `ALTER TABLE ADD COLUMN` statements, which are idempotent because the migration runner correctly ignores "Duplicate column name" errors.
+
+**Current Build:** `v65.1` (Build ID: `bc00c0d5-2e0f-418b-a5ca-ee67d7c1efe4`) is in progress.
 
 ---
 
@@ -12,14 +24,14 @@
 |-------|-------|
 | **Production URL** | https://mother-interface-qtvghovzxa-ts.a.run.app |
 | **Cloud Run Service** | `mother-interface` |
-| **Active Revision** | `mother-interface-00266-q9b` |
+| **Active Revision** | `mother-interface-00293-wuf` (v65.0 - buggy) |
 | **Region** | `australia-southeast1` (Sydney) |
 | **GCP Project** | `mothers-library-mcp` |
-| **Docker Image** | `gcr.io/mothers-library-mcp/mother-interface:v64.1` |
+| **Docker Image** | `australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-interface` |
 | **Database** | Cloud SQL MySQL — `mother-db` |
 | **DB Instance** | `mothers-library-mcp:australia-southeast1:mother-db` |
 | **GitHub Repo** | `github.com/Ehrvi/mother-v7-improvements` (branch: `master`) |
-| **CI/CD** | GitHub Actions → Cloud Run (⚠️ not triggering — use manual deploy below) |
+| **CI/CD** | GitHub Actions → Cloud Run (manual trigger for now) |
 
 ---
 
@@ -34,57 +46,33 @@
 
 ---
 
-## Manual Deploy Process (CI/CD Fallback)
-
-```bash
-# 1. Build image
-gcloud builds submit \
-  --tag gcr.io/mothers-library-mcp/mother-interface:v<VERSION> \
-  --project=mothers-library-mcp \
-  --timeout=10m .
-
-# 2. Deploy to Cloud Run
-gcloud run deploy mother-interface \
-  --image=gcr.io/mothers-library-mcp/mother-interface:v<VERSION> \
-  --region=australia-southeast1 \
-  --project=mothers-library-mcp
-
-# 3. Verify
-gcloud run services describe mother-interface \
-  --region=australia-southeast1 \
-  --project=mothers-library-mcp \
-  --format="value(status.latestReadyRevisionName)"
-```
-
----
-
-## System Architecture
+## System Architecture (Post v65.1)
 
 ```
 User Browser
     ↓ HTTPS
-Cloud Run (australia-southeast1) — mother-interface-00266-q9b
+Cloud Run (australia-southeast1) — mother-interface-XXXXX
     ↓ tRPC API (/api/trpc/*)
     ├── auth.* (login, register, logout)
     ├── mother.query (main AI endpoint)
-    │     ├── Complexity Router (gpt-4o-mini / gpt-4o / gpt-4)
+    │     ├── Complexity Router (gpt-4o-mini / gpt-4o)
     │     ├── Tool Engine v64.0 (7 callable tools)
     │     ├── Episodic Memory (vector similarity search)
     │     ├── Knowledge Base (153 chunks indexed)
     │     └── DGM Self-Proposal Engine
-    ├── proposals.* (list, approve, reject)
-    ├── supervisor.* (GEA evolution)
-    └── gea.* (agent pool, fitness history)
+    ├── proposals.* (list, listWithReproposal, approve, reject)
+    ├── knowledge.* (areasWithWisdom)
+    └── ...
     ↓ Cloud SQL Proxy
 Cloud SQL MySQL (mother-db)
-    ├── users (creator: ID 7, role: admin)
-    ├── queries (75 logged)
-    ├── self_proposals (1 pending)
-    ├── knowledge (153 chunks)
-    ├── episodic_memory (embeddings)
+    ├── users
+    ├── queries
+    ├── self_proposals (with SM-2 re-proposal columns)
+    ├── knowledge
+    ├── episodic_memory
     ├── audit_log
-    ├── system_config (version: v64.0)
-    └── migrations_applied (19 migrations tracked — never re-run)
+    ├── system_config
+    └── migrations_applied (21 migrations tracked)
 ```
 
 ---
@@ -103,58 +91,14 @@ Cloud SQL MySQL (mother-db)
 
 ---
 
-## Administrative Commands (via Chat Prompt)
-
-| Command / Natural Language | Action |
-|---------------------------|--------|
-| `/status` or "qual seu status?" | System status report |
-| `/audit` or "faça uma auditoria" | Full system audit |
-| `/proposals` or "mostre as propostas" | List DGM proposals |
-| `/approve 1` or "aprove a proposta 1" | Approve proposal ID 1 |
-| `/learn [text]` | Ingest knowledge |
-| Any natural language | MOTHER decides which tool to call |
-
----
-
-## Critical Fixes Applied (Cumulative)
-
-| Version | Fix | Impact |
-|---------|-----|--------|
-| v63.0 | Migration tracking (Flyway pattern) | Users no longer wiped on deploy |
-| v63.0 | DGM SQL column name fix | Proposals now generated autonomously |
-| v63.0 | Creator auto-admin on registration | First user always gets admin role |
-| v63.0 | Conversation history (multi-turn) | Stateful dialogue enabled |
-| v63.0 | openId generation for seeded accounts | Session auth works for migrated users |
-| v64.0 | **Tool Engine** — 7 callable tools | MOTHER executes real actions via NL |
-| v64.0 | gpt-4o forced for tool calling | Consistent function calling behavior |
-| v64.0 | Episodic memory contamination override | Old "cannot do" responses ignored |
-
----
-
-## Current Metrics (Production)
-
-| Metric | Value | Target |
-|--------|-------|--------|
-| Total Queries Logged | 75 | — |
-| Average Quality Score | 97.5% | >95% ✅ |
-| Average Response Time | 8,247ms | <3,000ms ⚠️ |
-| Tier 1 (gpt-4o-mini) | 61.3% | — |
-| Tier 2 (gpt-4o) | 21.3% | — |
-| Tier 3 (gpt-4) | 17.3% | — |
-| DGM Proposals Generated | 1 | — |
-| DGM Proposals Pending | 1 | 0 (approve!) |
-| Knowledge Chunks | 153 | — |
-
----
-
 ## Pending Actions (Priority Order)
 
-1. **[CRITICAL]** Approve DGM Proposal ID 1 — "Reduce Response Latency: Implement Parallel Knowledge Retrieval" → say "aprove a proposta 1" in MOTHER's chat
-2. **[HIGH]** Fix CI/CD pipeline — GitHub Actions not triggering on push to master
-3. **[HIGH]** Reduce avg response time from 8,247ms to <3,000ms
-4. **[MEDIUM]** Change creator password from `Mother@2026Temp!` to a permanent secure password
-5. **[LOW]** Add knowledge area visualization to sidebar
-6. **[LOW]** Implement `/learn` command via chat UI
+1.  **[IN PROGRESS]** Monitor v65.1 build and deploy.
+2.  **[CRITICAL]** Verify v65.1 deployment fixes the DGM proposals UI.
+3.  **[CRITICAL]** Approve DGM Proposal ID 1 — "Reduce Response Latency: Implement Parallel Knowledge Retrieval" → say "aprove a proposta 1" in MOTHER's chat.
+4.  **[HIGH]** Fix CI/CD pipeline — GitHub Actions not triggering on push to master.
+5.  **[HIGH]** Reduce avg response time from 8,247ms to <3,000ms (subject of Proposal ID 1).
+6.  **[MEDIUM]** Change creator password from `Mother@2026Temp!` to a permanent secure password.
 
 ---
 
@@ -163,9 +107,8 @@ Cloud SQL MySQL (mother-db)
 ```
 MOTHER-v7.0/
 ├── MILESTONES/
-│   ├── AWAKE-V77.md  (v63.0 — Auth Fixed & DGM Active)
-│   ├── AWAKE-V78.md  (v63.0 — Conversation + Admin Commands)
-│   ├── AWAKE-V79.md  (v64.0 — Tool Engine & Administrative Intelligence)
+│   ├── AWAKE-V79.md  (v64.0 — Tool Engine)
+│   ├── AWAKE-V80.md  (v65.1 — UI Panel & Migration Fix)
 │   ├── PROJECT_STATUS.md  (this file — always current)
 │   └── README.md  (canonical memory)
 └── auto-start-superinteligencia.sh
@@ -173,5 +116,4 @@ MOTHER-v7.0/
 
 ---
 
-*This document is the single source of truth for MOTHER's production state.*  
-*Update after every significant deployment.*
+*This document is the single source of truth for MOTHER's production state.*
