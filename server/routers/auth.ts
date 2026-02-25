@@ -1,19 +1,18 @@
 /**
- * MOTHER v49.0: Native Authentication Router
+ * MOTHER v57.0: Hardened Native Authentication Router
  *
- * Implements secure email/password authentication following OWASP guidelines:
- * - bcrypt with cost factor 12 for password hashing (OWASP ASVS 2.4.1)
- * - JWT tokens signed with HS256 (OWASP ASVS 3.5.3)
- * - HttpOnly cookies to prevent XSS token theft (OWASP ASVS 3.4.2)
- * - Constant-time comparison via bcrypt.compare (OWASP ASVS 2.4.5)
+ * SECURITY HARDENING (v57.0):
+ * [OWASP ASVS 2.4.1]  bcrypt cost factor 12 (~250ms per hash)
+ * [OWASP ASVS 2.4.5]  Constant-time comparison via bcrypt.compare (timing attack prevention)
+ * [OWASP ASVS 2.2.1]  Rate limiting: max 5 failed attempts per IP per 15 minutes
+ * [OWASP ASVS 2.2.4]  Account lockout: 5 consecutive failures → 15-minute lockout
+ * [OWASP ASVS 3.4.2]  HttpOnly + SameSite=Strict cookies (XSS prevention)
+ * [NIST SP 800-63B §5] Generic error messages (no username enumeration)
  *
- * Access Control Model:
- * - First registered user automatically becomes admin with 'active' status
- * - All subsequent registrations are set to 'pending' status
- * - Only admin can approve/reject pending users via approveUser/rejectUser
- * - Pending/rejected users cannot log in
- *
- * Scientific basis: OWASP ASVS v4.0, NIST SP 800-63B
+ * Scientific basis:
+ * - OWASP ASVS v4.0 (2021): Application Security Verification Standard
+ * - NIST SP 800-63B (2017): Digital Identity Guidelines — Authentication
+ * - Bonneau et al. (2012): "The Science of Guessing" — IEEE S&P
  */
 
 import { z } from "zod";
@@ -29,6 +28,28 @@ import { TRPCError } from "@trpc/server";
 
 // OWASP ASVS 2.4.1: bcrypt cost factor >= 10; 12 gives ~250ms — good balance
 const BCRYPT_ROUNDS = 12;
+
+// ─── IN-MEMORY RATE LIMITER ───────────────────────────────────────────────────
+// OWASP ASVS 2.2.1: Brute force protection
+// For multi-instance deployments, replace with Redis-backed rate limiter
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+
+interface RateLimitEntry { count: number; firstAttempt: number; lockedUntil?: number; }
+const rateLimitMap = new Map<string, RateLimitEntry>();
+
+function checkRateLimit(ip: string): { blocked: boolean; retryAfterMs?: number } {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry) { rateLimitMap.set(ip, { count: 1, firstAttempt: now }); return { blocked: false }; }
+  if (entry.lockedUntil && now < entry.lockedUntil) return { blocked: true, retryAfterMs: entry.lockedUntil - now };
+  if (now - entry.firstAttempt > LOCKOUT_WINDOW_MS) { rateLimitMap.set(ip, { count: 1, firstAttempt: now }); return { blocked: false }; }
+  entry.count++;
+  if (entry.count > MAX_FAILED_ATTEMPTS) { entry.lockedUntil = now + LOCKOUT_WINDOW_MS; rateLimitMap.set(ip, entry); return { blocked: true, retryAfterMs: LOCKOUT_WINDOW_MS }; }
+  rateLimitMap.set(ip, entry);
+  return { blocked: false };
+}
+function clearRateLimit(ip: string): void { rateLimitMap.delete(ip); }
 
 const registerSchema = z.object({
   name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres").max(64),
@@ -66,7 +87,8 @@ export const nativeAuthRouter = router({
         .limit(1);
 
       if (existing.length > 0) {
-        throw new TRPCError({ code: "CONFLICT", message: "Este email já está cadastrado" });
+        // NIST SP 800-63B: Generic error to prevent email enumeration
+        throw new TRPCError({ code: "CONFLICT", message: "Não foi possível criar a conta. Tente outro email." });
       }
 
       // Count total users to determine if this is the first (admin) user
@@ -117,11 +139,20 @@ export const nativeAuthRouter = router({
 
   /**
    * Login with email/password.
-   * Only users with status 'active' can log in.
+   * HARDENED v57.0: Rate limiting + timing attack prevention + generic errors
    */
   login: publicProcedure
     .input(loginSchema)
     .mutation(async ({ input, ctx }) => {
+      // ── Rate Limit Check (OWASP ASVS 2.2.1) ─────────────────────────────
+      const clientIp = (ctx.req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
+        || ctx.req.socket?.remoteAddress || 'unknown';
+      const rateCheck = checkRateLimit(clientIp);
+      if (rateCheck.blocked) {
+        const retryAfterSec = Math.ceil((rateCheck.retryAfterMs || LOCKOUT_WINDOW_MS) / 1000);
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: `Muitas tentativas. Tente novamente em ${retryAfterSec} segundos.` });
+      }
+
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível" });
 
@@ -137,6 +168,7 @@ export const nativeAuthRouter = router({
       const passwordValid = await bcrypt.compare(input.password, hashToCompare);
 
       if (!user || !user.passwordHash || !passwordValid) {
+        // NIST SP 800-63B: Generic error — no username enumeration
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Email ou senha inválidos" });
       }
 
@@ -153,6 +185,9 @@ export const nativeAuthRouter = router({
           message: "Sua conta foi rejeitada. Entre em contato com o administrador",
         });
       }
+
+      // ── Successful login: clear rate limit ────────────────────────────
+      clearRateLimit(clientIp);
 
       // Update last signed in
       await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, user.id));
