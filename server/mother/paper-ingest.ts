@@ -23,11 +23,9 @@
 import { getDb } from '../db';
 import { getEmbedding } from './embeddings';
 import { sql } from 'drizzle-orm';
-import { createRequire } from 'module';
+import { PDFParse } from 'pdf-parse';
 
-// pdf-parse is a CommonJS module - must use createRequire in ESM context
-const require = createRequire(import.meta.url);
-const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string; numpages: number }>;
+// pdf-parse v2 API: PDFParse class with options in constructor, getText() returns { pages: [{text}] }
 
 // ==================== TYPES ====================
 
@@ -139,10 +137,16 @@ async function downloadAndExtractPdf(pdfUrl: string): Promise<string | null> {
     
     console.log(`[PaperIngest] PDF downloaded: ${(pdfBuffer.length / 1024).toFixed(1)}KB`);
     
-    const data = await pdfParse(pdfBuffer);
+    const parser = new PDFParse({ data: pdfBuffer });
+    await parser.load();
+    const result = await parser.getText() as { pages?: Array<{ text: string }> };
     
-    const text = data.text?.trim() || '';
-    console.log(`[PaperIngest] Extracted ${text.length} chars from ${data.numpages} pages`);
+    // pdf-parse v2 returns { pages: [{ text: '...' }] }
+    const text = result?.pages
+      ? result.pages.map((p: { text: string }) => p.text).join('\n\n').trim()
+      : '';
+    const numPages = result?.pages?.length ?? 0;
+    console.log(`[PaperIngest] Extracted ${text.length} chars from ${numPages} pages`);
     
     if (text.length < 200) {
       console.warn('[PaperIngest] Extracted text too short — likely image-based PDF');
