@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Sparkles, Brain, Shield, Zap, TrendingDown, Dna, Activity, Database, GitBranch } from 'lucide-react';
+import RightPanel from '@/components/RightPanel';
 import { trpc } from '@/lib/trpc';
 
 interface Message {
@@ -379,6 +380,7 @@ export default function Home() {
           </p>
         </div>
       </div>
+      <RightPanel />
     </div>
   );
 }

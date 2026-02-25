@@ -1,10 +1,13 @@
 /**
- * MOTHER v56.0 - Update Proposals Router
+ * MOTHER v65.0 - Update Proposals Router
  * Implements Req #5 (interactive proposals), Req #6 (creator-only authorization)
+ * v65.0: Added SM-2 re-proposal scheduling and knowledge wisdom endpoints
  *
  * Scientific basis:
  * - RBAC (Ferraiolo & Kuhn, NIST 1992): Role-based access control
  * - Human-in-the-Loop AI (Amershi et al., CHI 2019): Creator approval gate
+ * - SM-2 Algorithm (Wozniak, 1990): Spaced repetition for re-proposal timing
+ * - Knowledge Wisdom Formula: W(d) = K_MOTHER(d) / K_SoA(d) × 100%
  */
 
 import { z } from 'zod';
@@ -20,6 +23,11 @@ import {
   CREATOR_EMAIL,
 } from '../mother/update-proposals';
 import { getUserMemoryStats } from '../mother/user-memory';
+import {
+  getProposalsWithReproposal,
+  getKnowledgeWisdomStats,
+  calculateReproposalSchedule,
+} from '../mother/reproposal-engine';
 
 export const proposalsRouter = router({
   /**
@@ -35,6 +43,23 @@ export const proposalsRouter = router({
     .query(async ({ input }) => {
       return await getProposals(input.status, input.limit);
     }),
+
+  /**
+   * List proposals with SM-2 re-proposal metadata
+   * Scientific basis: SM-2 Algorithm (Wozniak, 1990)
+   */
+  listWithReproposal: publicProcedure.query(async () => {
+    return await getProposalsWithReproposal();
+  }),
+
+  /**
+   * Get knowledge wisdom statistics
+   * Formula: W(d) = K_MOTHER(d) / K_SoA(d) × 100%
+   * Scientific basis: Chase & Simon (1973), Ericsson (2006)
+   */
+  knowledgeWisdom: publicProcedure.query(async () => {
+    return await getKnowledgeWisdomStats();
+  }),
 
   /**
    * Get pending proposals (requires auth)
@@ -92,6 +117,7 @@ export const proposalsRouter = router({
 
   /**
    * Reject a proposal — ONLY the creator can do this
+   * v65.0: Now schedules SM-2 re-proposal automatically
    */
   reject: protectedProcedure
     .input(
@@ -106,6 +132,63 @@ export const proposalsRouter = router({
         ctx.user.email ?? '',
         input.reason
       );
+
+      if (result.success) {
+        try {
+          // Get current rejection count
+          const { getDb } = await import('../db');
+          const db = await getDb();
+          if (db) {
+            const [rows] = await (db as any).$client.query(
+              `SELECT rejection_count, ef_factor FROM self_proposals WHERE id = ?`,
+              [input.proposalId]
+            );
+            const current = (rows as any[])[0];
+            const currentRejectionCount = (current?.rejection_count || 0) + 1;
+            const currentEF = current?.ef_factor || 2.5;
+
+            // Calculate SM-2 re-proposal schedule
+            const schedule = calculateReproposalSchedule(
+              currentRejectionCount,
+              currentEF,
+              input.reason,
+              new Date()
+            );
+
+            // Update with SM-2 schedule
+            await (db as any).$client.query(
+              `UPDATE self_proposals SET
+                 rejection_count = ?,
+                 rejection_reason = ?,
+                 next_reproposal_at = ?,
+                 ef_factor = ?,
+                 improvement_notes = ?
+               WHERE id = ?`,
+              [
+                currentRejectionCount,
+                input.reason,
+                schedule.nextAt,
+                schedule.efFactor,
+                schedule.improvementSuggestion,
+                input.proposalId,
+              ]
+            );
+
+            return {
+              ...result,
+              schedule: {
+                nextReproposalAt: schedule.nextAt,
+                intervalDays: schedule.intervalDays,
+                requiresImprovement: schedule.requiresImprovement,
+                improvementSuggestion: schedule.improvementSuggestion,
+              },
+            };
+          }
+        } catch (scheduleError) {
+          console.error('[MOTHER] SM-2 scheduling failed:', scheduleError);
+        }
+      }
+
       return result;
     }),
 
@@ -156,8 +239,7 @@ export const proposalsRouter = router({
    * Get user memory statistics
    * Req #4: Per-user personalized memory
    */
-  userMemoryStats: protectedProcedure
-    .query(async ({ ctx }) => {
-      return await getUserMemoryStats(ctx.user.id);
-    }),
+  userMemoryStats: protectedProcedure.query(async ({ ctx }) => {
+    return await getUserMemoryStats(ctx.user.id);
+  }),
 });
