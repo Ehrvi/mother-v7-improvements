@@ -1,20 +1,20 @@
-# MOTHER v53.0 — UI/UX Critical Fixes & Creator Recognition
+# MOTHER v56.0 — Scientific Cognitive System
 
 ```yaml
 # YAML Frontmatter for Context Recovery
 # Agent MUST parse this block to recover full context.
-version: "v53.0"
+version: "v56.0"
 status: "VALIDADO EM PRODUÇÃO ✅"
 server_region: "australia-southeast1"
 server_url: "https://mother-interface-qtvghovzxa-ts.a.run.app"
-active_revision: "mother-interface-00224-xyz" # v53.0 VALIDATED — UI/UX Critical Fixes & Creator Recognition
+active_revision: "mother-interface-00237-tlg" # v56.0 VALIDATED — Scientific Cognitive System
 dgm_loop_functional: true
 db_connection_mode: "UNIX_SOCKET"
 db_instance: "mother-db-sydney"
 db_region: "australia-southeast1"
-master_prompt_version: "v53.0"
+master_prompt_version: "v56.0"
 github_repo: "https://github.com/Ehrvi/mother-v7-improvements"
-github_branch: "v41.0-strategic-merge"
+github_branch: "master"
 ```
 
 > **Visão Final:** `Superintelligence + Scientific Method + Critical Thinking = MOTHER`
@@ -23,19 +23,21 @@ github_branch: "v41.0-strategic-merge"
 
 ---
 
-## Estado Atual: v53.0 — UI/UX Critical Fixes & Creator Recognition ✅
+## Estado Atual: v56.0 — Scientific Cognitive System ✅
 
 **URL de Produção:** `https://mother-interface-qtvghovzxa-ts.a.run.app` (Sydney — `australia-southeast1`)  
-**Revisão Ativa:** `mother-interface-00224-xyz` (v53.0 VALIDATED)
+**Revisão Ativa:** `mother-interface-00237-tlg` (v56.0 VALIDATED)
 
-### O que está funcionando (em Produção - v53.0)
+### O que está funcionando (em Produção - v56.0)
 
 | Componente | Status | Evidência |
 |-----------|--------|----------|
-| **Correção de Layout CSS** | ✅ | O layout da interface (sidebar e chat) foi corrigido movendo o estilo `glass-panel` para o CSS global, garantindo a renderização correta pelo Tailwind v4. |
-| **Reconhecimento do Criador** | ✅ | MOTHER agora reconhece **Everton Garcia** como seu criador, utilizando uma verificação robusta por email (`elgarcia.eng@gmail.com`) em vez de `userId`, que era instável. |
-| **Display de Versão** | ✅ | A interface exibe corretamente a versão **v53.0** em todos os componentes relevantes. |
-| **Autenticação Nativa** | ✅ | O sistema de login, cadastro e aprovação de admin continua 100% funcional. |
+| **Base Científica** | ✅ | O sistema agora exige citações para alegações factuais e declara incerteza. |
+| **Aprendizado Gradual** | ✅ | O limiar de aprendizado foi reduzido para 75, aumentando a aquisição de conhecimento. |
+| **Memória Personalizada** | ✅ | MOTHER agora possui memória episódica por usuário, inspirada no MemGPT. |
+| **Propostas de Atualização** | ✅ | Usuários podem propor atualizações, mas apenas o criador pode aprovar (RBAC). |
+| **Auto-Atualização Autônoma** | ✅ | Um sistema seguro de migração e propostas permite a evolução autônoma. |
+| **Display de Versão** | ✅ | A interface exibe corretamente a versão **v56.0**. |
 
 ---
 
@@ -43,19 +45,19 @@ github_branch: "v41.0-strategic-merge"
 
 | Versão | Status | Foco Principal | KPIs de Aprovação |
 | :--- | :--- | :--- | :--- |
-| v51.0 | ✅ VALIDADO | Auth Bug Fix & UX Improvements | Resolução do erro "Session payload missing required fields" |
-| v52.0 | ✅ VALIDADO | Final Auth Fix & Visual Validation | Prova visual e técnica de que o sistema de login está 100% funcional |
-| **v53.0** | **✅ VALIDADO** | **UI/UX Critical Fixes & Creator Recognition** | **Correção do layout, identidade do criador e versão da UI** |
-| v54.0 | 🔄 PRÓXIMA | Visualização de Dados Cognitivos | Dashboards para `fitness_history` e grafo de conhecimento A-MEM |
-| v55.0 | 📋 PLANEJADA | Otimização de Performance do Frontend | Análise de bundle, code splitting e otimização de renderização. |
+| v53.0 | ✅ VALIDADO | UI/UX Critical Fixes & Creator Recognition | Correção do layout, identidade do criador e versão da UI |
+| v54.0 | ✅ VALIDADO | Visualização de Dados Cognitivos | Dashboards para `fitness_history` e grafo de conhecimento A-MEM |
+| v55.0 | ✅ VALIDADO | Otimização de Performance do Frontend | Análise de bundle, code splitting e otimização de renderização. |
+| **v56.0** | **✅ VALIDADO** | **Scientific Cognitive System** | **Implementação dos 7 mandatos para superinteligência.** |
+| v57.0 | 🔄 PRÓXIMA | Resolução de Débitos Técnicos | Correção dos erros de DB preexistentes (`knowledge`, `langgraph_checkpoints`). |
 
 ---
 
-## Próximos Passos (v54.0)
+## Próximos Passos (v57.0)
 
-1.  **Dashboard de Fitness History:** Criar um componente React para visualizar os dados de `fitnessHistory`, mostrando a evolução do sistema ao longo do tempo.
-2.  **Visualização do Grafo A-MEM:** Desenvolver uma representação gráfica simplificada do grafo de conhecimento da memória A-MEM para entender as conexões entre os conceitos aprendidos.
-3.  **Análise de Performance:** Utilizar ferramentas como o Lighthouse e o profiler do React para identificar gargalos de performance na interface.
+1.  **Investigar e corrigir o erro `ER_NO_SUCH_TABLE`** para as tabelas `knowledge` e `langgraph_checkpoints`.
+2.  **Refatorar o código de acesso ao banco de dados** para garantir que todas as queries sejam robustas a tabelas inexistentes durante a inicialização.
+3.  **Criar um dashboard de monitoramento de saúde do sistema** para identificar e diagnosticar rapidamente problemas de banco de dados.
 
 ---
 
@@ -66,8 +68,8 @@ github_branch: "v41.0-strategic-merge"
 **Qualquer agente que trabalhe neste projeto DEVE:**
 
 1.  **Ler este README.md PRIMEIRO** antes de qualquer ação de código
-2.  **Ler o `AWAKE-V68.md`** para recuperar o contexto episódico mais recente
-3.  **Ler o `MASTER_PROMPT_V53.0.md`** (a ser criado) para entender a visão e diretivas constitucionais
+2.  **Ler o `AWAKE-V71.md`** para recuperar o contexto episódico mais recente
+3.  **Ler o `MASTER_PROMPT_V56.0.md`** (a ser criado) para entender a visão e diretivas constitucionais
 
 ### 📝 OBRIGAÇÃO DE DOCUMENTAÇÃO INCREMENTAL
 
@@ -83,10 +85,10 @@ Ao final de **CADA SESSÃO DE TRABALHO SIGNIFICATIVA**, você DEVE:
 
 | Arquivo | Descrição |
 |---|---|
-| `AWAKE-V68_MOTHERv53.0-UI-UX-Fixes.md` | **NOVO** - Documentação dos fixes críticos de UI/UX e reconhecimento do criador (v53.0) |
+| `AWAKE-V71.md` | **NOVO** - Documentação da evolução para v56.0 (Scientific Cognitive System) |
+| `AWAKE-V68_MOTHERv53.0-UI-UX-Fixes.md` | Documentação dos fixes críticos de UI/UX e reconhecimento do criador (v53.0) |
 | `MOTHER_v52_Final_Auth_Fix_and_Validation.md` | Documentação científica da correção final do bug de autenticação v52.0 |
-| `AWAKE-V67.md` | Registro da sessão v52.0 (Final Auth Fix & Visual Validation) |
 
 ---
 
-*README atualizado em 2026-02-25 — v53.0 VALIDADO EM PRODUÇÃO*
+*README atualizado em 2026-02-25 — v56.0 VALIDADO EM PRODUÇÃO*
