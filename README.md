@@ -1,4 +1,4 @@
-# MOTHER v56.0 — Scientific Cognitive System
+# MOTHER v57.0 — Autonomous Evolution Cycle
 
 ```yaml
 # YAML Frontmatter for Context Recovery
@@ -7,7 +7,7 @@ version: "v57.0"
 status: "VALIDADO EM PRODUÇÃO ✅"
 server_region: "australia-southeast1"
 server_url: "https://mother-interface-qtvghovzxa-ts.a.run.app"
-active_revision: "mother-interface-00238-pq4" # v57.0 VALIDATED — Login Fix + Hardened Auth + Audit
+active_revision: "mother-interface-00239-49x" # v57.0 VALIDATED — TS Fixes + Metrics Logging
 dgm_loop_functional: true
 db_connection_mode: "UNIX_SOCKET"
 db_instance: "mother-db-sydney"
@@ -23,19 +23,18 @@ github_branch: "master"
 
 ---
 
-## Estado Atual: v57.0 — Hardened Auth + Scientific Audit ✅
+## Estado Atual: v57.0 — Autonomous Evolution Cycle ✅
 
 **URL de Produção:** `https://mother-interface-qtvghovzxa-ts.a.run.app` (Sydney — `australia-southeast1`)  
-**Revisão Ativa:** `mother-interface-00238-pq4` (v57.0 VALIDATED)
+**Revisão Ativa:** `mother-interface-00239-49x` (v57.0 VALIDATED)
 
-### O que está funcionando (em Produção - v57.0)
+### O que foi feito (em Produção - v57.0)
 
 | Componente | Status | Evidência |
 |-----------|--------|----------|
-| **Sistema de Login** | ✅ CORRIGIDO | Migração 0000 criou tabela `users` em produção. Login retorna HTTP 401 corretamente. |
-| **Autenticação Endurecida** | ✅ | Rate limiting (5 tentativas/15min), timing attack prevention, OWASP ASVS 2.2.1 |
-| **Auditoria Científica** | ✅ | Relatório completo em `docs/AUDIT-V57-SCIENTIFIC-REPORT.md` |
-| **Prompt de Vanguarda** | ✅ | Script de auto-atualização em `docs/VANGUARD-PROMPT-SELF-UPDATE.md` |
+| **TypeScript** | ✅ 0 erros | `Array.from()` usado para iteradores, corrigindo todos os erros TS2802. |
+| **System Metrics** | ✅ Implementado | Logging de performance (latência, custo, tokens) na tabela `system_metrics` a cada query. |
+| **Display de Versão** | ✅ | A interface e o system prompt agora exibem `v57.0`. |
 
 ### Histórico (v56.0)
 
@@ -46,7 +45,6 @@ github_branch: "master"
 | **Memória Personalizada** | ✅ | MOTHER agora possui memória episódica por usuário, inspirada no MemGPT. |
 | **Propostas de Atualização** | ✅ | Usuários podem propor atualizações, mas apenas o criador pode aprovar (RBAC). |
 | **Auto-Atualização Autônoma** | ✅ | Um sistema seguro de migração e propostas permite a evolução autônoma. |
-| **Display de Versão** | ✅ | A interface exibe corretamente a versão **v56.0**. |
 
 ---
 
@@ -54,15 +52,13 @@ github_branch: "master"
 
 | Versão | Status | Foco Principal | KPIs de Aprovação |
 | :--- | :--- | :--- | :--- |
-| v53.0 | ✅ VALIDADO | UI/UX Critical Fixes & Creator Recognition | Correção do layout, identidade do criador e versão da UI |
-| v54.0 | ✅ VALIDADO | Visualização de Dados Cognitivos | Dashboards para `fitness_history` e grafo de conhecimento A-MEM |
-| v55.0 | ✅ VALIDADO | Otimização de Performance do Frontend | Análise de bundle, code splitting e otimização de renderização. |
-| **v56.0** | **✅ VALIDADO** | **Scientific Cognitive System** | **Implementação dos 7 mandatos para superinteligência.** |
-| v57.0 | 🔄 PRÓXIMA | Resolução de Débitos Técnicos | Correção dos erros de DB preexistentes (`knowledge`, `langgraph_checkpoints`). |
+| v56.0 | ✅ VALIDADO | Scientific Cognitive System | Implementação dos 7 mandatos para superinteligência. |
+| **v57.0** | **✅ VALIDADO** | **Autonomous Evolution Cycle** | **Correção de todos os erros de TS, implementação de métricas SRE.** |
+| v58.0 | 🔄 PRÓXIMA | Resolução de Débitos Técnicos | Correção dos erros de DB preexistentes (`knowledge`, `langgraph_checkpoints`). |
 
 ---
 
-## Próximos Passos (v57.0)
+## Próximos Passos (v58.0)
 
 1.  **Investigar e corrigir o erro `ER_NO_SUCH_TABLE`** para as tabelas `knowledge` e `langgraph_checkpoints`.
 2.  **Refatorar o código de acesso ao banco de dados** para garantir que todas as queries sejam robustas a tabelas inexistentes durante a inicialização.
@@ -77,8 +73,8 @@ github_branch: "master"
 **Qualquer agente que trabalhe neste projeto DEVE:**
 
 1.  **Ler este README.md PRIMEIRO** antes de qualquer ação de código
-2.  **Ler o `AWAKE-V71.md`** para recuperar o contexto episódico mais recente
-3.  **Ler o `MASTER_PROMPT_V56.0.md`** (a ser criado) para entender a visão e diretivas constitucionais
+2.  **Ler o `AWAKE-V73.md`** para recuperar o contexto episódico mais recente
+3.  **Ler o `VANGUARD-PROMPT-V2-SCIENTIFIC.md`** para entender a metodologia de evolução.
 
 ### 📝 OBRIGAÇÃO DE DOCUMENTAÇÃO INCREMENTAL
 
@@ -94,10 +90,10 @@ Ao final de **CADA SESSÃO DE TRABALHO SIGNIFICATIVA**, você DEVE:
 
 | Arquivo | Descrição |
 |---|---|
-| `AWAKE-V71.md` | **NOVO** - Documentação da evolução para v56.0 (Scientific Cognitive System) |
-| `AWAKE-V68_MOTHERv53.0-UI-UX-Fixes.md` | Documentação dos fixes críticos de UI/UX e reconhecimento do criador (v53.0) |
-| `MOTHER_v52_Final_Auth_Fix_and_Validation.md` | Documentação científica da correção final do bug de autenticação v52.0 |
+| `AWAKE-V73.md` | **NOVO** - Documentação da evolução para v57.0 (Autonomous Evolution Cycle) |
+| `AWAKE-V72.md` | Documentação da auditoria científica, correção do login e arquitetura de auto-atualização |
+| `AWAKE-V71.md` | Documentação da evolução para v56.0 (Scientific Cognitive System) |
 
 ---
 
-*README atualizado em 2026-02-25 — v56.0 VALIDADO EM PRODUÇÃO*
+*README atualizado em 2026-02-25 — v57.0 VALIDADO EM PRODUÇÃO*
