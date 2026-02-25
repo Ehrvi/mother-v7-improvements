@@ -41,12 +41,13 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 # Build the main app (needed for shared modules)
 RUN pnpm run build
-# Build the SWE-Agent job as a standalone bundle
+# Build the SWE-Agent job as a standalone ESM bundle
+# Must use --format=esm because package.json has "type": "module"
 RUN npx esbuild server/mother/autonomous-update-job.ts \
     --platform=node \
     --packages=external \
     --bundle \
-    --format=cjs \
+    --format=esm \
     --outfile=dist/swe-agent-job.js
 
 # Production stage — minimal image with only what the job needs
