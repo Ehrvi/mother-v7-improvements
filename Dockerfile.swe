@@ -39,7 +39,15 @@ COPY patches ./patches
 RUN pnpm install --frozen-lockfile
 
 COPY . .
+# Build the main app (needed for shared modules)
 RUN pnpm run build
+# Build the SWE-Agent job as a standalone bundle
+RUN npx esbuild server/mother/autonomous-update-job.ts \
+    --platform=node \
+    --packages=external \
+    --bundle \
+    --format=cjs \
+    --outfile=dist/swe-agent-job.js
 
 # Production stage — minimal image with only what the job needs
 FROM base AS prod-deps
@@ -71,4 +79,4 @@ USER nodejs
 
 # Cloud Run Job entry point: run the autonomous update job
 # PROPOSAL_ID and AUTONOMOUS_JOB_MODE are injected as env vars by the job trigger
-CMD ["node", "dist/server/mother/autonomous-update-job.js"]
+CMD ["node", "dist/swe-agent-job.js"]
