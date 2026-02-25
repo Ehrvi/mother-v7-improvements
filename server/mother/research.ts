@@ -281,6 +281,9 @@ async function searchWithOpenAI(query: string): Promise<string> {
 /**
  * Main research function - orchestrates all search sources
  * Returns synthesized research results with citations
+ * 
+ * v55.0: After finding arXiv papers, triggers async ingestion pipeline:
+ * PDF download → text extraction → chunking → embedding → DB indexing
  */
 export async function conductResearch(query: string): Promise<ResearchResult> {
   console.log(`[Research] Conducting research for: ${query.slice(0, 100)}`);
@@ -300,6 +303,22 @@ export async function conductResearch(query: string): Promise<ResearchResult> {
   if (wikiResults.status === 'fulfilled') sources.push(...wikiResults.value);
   if (ddgResults.status === 'fulfilled') sources.push(...ddgResults.value);
   if (openAIResult.status === 'fulfilled') openAISearchResult = openAIResult.value;
+  
+  // v55.0: Trigger async paper ingestion for arXiv results
+  // This runs in background — does NOT block the response to the user
+  // Pipeline: arXiv metadata → PDF download → text extraction → chunking → embedding → DB
+  const arxivSources = sources.filter(s => s.type === 'arxiv');
+  if (arxivSources.length > 0) {
+    const arxivUrls = arxivSources.map(s => s.url);
+    console.log(`[Research] Triggering async paper ingestion for ${arxivUrls.length} arXiv papers`);
+    import('./paper-ingest').then(({ ingestPapersFromSearch }) => {
+      ingestPapersFromSearch(arxivUrls).catch(err => {
+        console.error('[Research] Background paper ingestion failed:', err);
+      });
+    }).catch(err => {
+      console.error('[Research] Failed to import paper-ingest module:', err);
+    });
+  }
   
   console.log(`[Research] Found ${sources.length} sources, OpenAI search: ${openAISearchResult ? 'yes' : 'no'}`);
   

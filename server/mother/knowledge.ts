@@ -269,20 +269,42 @@ export async function queryRealTimeAPIs(query: string): Promise<KnowledgeResult[
 }
 
 /**
- * Source 4: External Knowledge Bases
- * Specialized domain knowledge
- * Phase 2: Integrate knowledge graphs
+ * Source 4: Indexed Academic Papers (paper_chunks vector search)
+ * 
+ * Searches the `paper_chunks` table using cosine similarity over OpenAI embeddings.
+ * Papers are ingested by the paper-ingest pipeline (v55.0) whenever MOTHER
+ * performs a research query that returns arXiv results.
+ * 
+ * Scientific basis:
+ * - RAG (Lewis et al., NeurIPS 2020): Retrieval-Augmented Generation
+ * - Neutrino (TechRxiv 2025): Structure-aware RAG for scientific literature
+ * - text-embedding-3-small: 62.3% MTEB score, 1536 dims
  */
 export async function queryExternalKnowledge(query: string): Promise<KnowledgeResult[]> {
-  // Phase 1: Placeholder
-  // Phase 2: Integrate knowledge graphs
-  // - Domain-specific databases
-  // - Academic papers
-  // - Technical documentation
-  // - etc.
-  
-  console.log('[Knowledge] External knowledge not yet implemented (Phase 2)');
-  return [];
+  try {
+    const { searchPaperChunks } = await import('./paper-ingest');
+    const chunks = await searchPaperChunks(query, 5);
+    
+    if (chunks.length === 0) {
+      return [];
+    }
+    
+    console.log(`[Knowledge] Source 4 (Papers): ${chunks.length} relevant chunks found`);
+    
+    return chunks.map(chunk => ({
+      content: `[Paper: ${chunk.title} | arXiv:${chunk.arxivId}]\n${chunk.text}`,
+      source: {
+        name: `arXiv:${chunk.arxivId}`,
+        type: 'external' as const,
+        priority: 4,
+      },
+      confidence: chunk.similarity,
+      relevance: chunk.similarity,
+    }));
+  } catch (error) {
+    console.error('[Knowledge] Source 4 (Papers) query failed:', error);
+    return [];
+  }
 }
 
 /**
