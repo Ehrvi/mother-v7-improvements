@@ -511,11 +511,13 @@ Example:
   }
 }
 
-// ============================================================
+/// ============================================================
 // ENTRY POINT: When run as a Cloud Run Job
+// ESM-compatible entry point check (no require.main in ESM)
 // ============================================================
-
-if (require.main === module) {
+// Only auto-execute when PROPOSAL_ID is set (Cloud Run Job mode)
+// This prevents crash when imported as a module in the main server
+if (process.env.PROPOSAL_ID && process.env.AUTONOMOUS_JOB_MODE === 'true') {
   const proposalId = parseInt(process.env.PROPOSAL_ID || '0', 10);
   
   if (!proposalId) {

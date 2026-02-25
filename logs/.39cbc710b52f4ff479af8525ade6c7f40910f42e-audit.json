@@ -9,6 +9,11 @@
             "date": 1771933796611,
             "name": "/home/ubuntu/mother-code/mother-interface/logs/error-2026-02-24.log",
             "hash": "19628a73666a53859abb44eb8857ca73a71d1fc0d2330ce9b404c32cd02ef2ef"
+        },
+        {
+            "date": 1771997672208,
+            "name": "/home/ubuntu/mother-code/mother-interface/logs/error-2026-02-25.log",
+            "hash": "61792d1192253a7085b130a2553317406c3548f3736600a0ddba2021d433c794"
         }
     ],
     "hashType": "sha256"
