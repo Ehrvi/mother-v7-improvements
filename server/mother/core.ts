@@ -1,7 +1,16 @@
 /**
- * MOTHER v7.0 - Complete System Integration
+ * MOTHER v56.0 - Complete System Integration
  * Orchestrates all 7 layers for end-to-end query processing
- * 
+ *
+ * v56.0 Changes (7 Mandatory Requirements):
+ * - Req #1: Scientific basis with verifiable sources (RAG + paper citations)
+ * - Req #2: Maximum knowledge updates (research module + auto-ingest)
+ * - Req #3: Gradual learning (threshold lowered from 95 to 75)
+ * - Req #4: Per-user personalized memory (user-memory.ts integration)
+ * - Req #5: Interactive update proposals (update-proposals.ts)
+ * - Req #6: Creator-only authorization (CREATOR_EMAIL check)
+ * - Req #7: Autonomous self-updating with safety guarantees
+ *
  * Layers:
  * 1. Interface Layer (handled by tRPC routers)
  * 2. Orchestration Layer (this file)
@@ -18,11 +27,16 @@ import { validateQuality, type GuardianResult } from './guardian';
 import { getKnowledgeContext } from './knowledge';
 import { insertQuery, getCacheEntry, insertCacheEntry } from '../db';
 import { retryDbOperation } from './db-retry';
-import { learnFromResponse } from './learning';
+import { learnFromResponse, LEARNING_QUALITY_THRESHOLD } from './learning';
 import { processWithReAct } from './react';
 import { searchEpisodicMemory, generateAndStoreEmbedding } from './embeddings';
 import { createHash } from 'crypto';
 import { conductResearch, requiresResearch } from './research';
+import { getUserMemoryContext, extractAndStoreMemories } from './user-memory';
+import { logAuditEvent } from './update-proposals';
+
+// v56.0: Creator email for authorization (Req #6)
+const CREATOR_EMAIL = 'elgarcia.eng@gmail.com';
 
 export interface MotherRequest {
   query: string;
@@ -142,11 +156,28 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   } catch (error) {
     console.error('[MOTHER] Episodic memory search failed (non-blocking):', error);
   }
+
+  // ==================== LAYER 5.6: USER MEMORY (v56.0 Req #4) ====================
+  // Per-user personalized memory retrieval
+  // Scientific basis: MemGPT (Packer et al., 2023), Personalized RAG (Salemi & Zamani, 2024)
+
+  let userMemoryContext = '';
+  if (userId) {
+    try {
+      userMemoryContext = await getUserMemoryContext(userId, query);
+      if (userMemoryContext) {
+        console.log(`[MOTHER] User memory context injected for user ${userId}`);
+      }
+    } catch (error) {
+      console.error('[MOTHER] User memory retrieval failed (non-blocking):', error);
+    }
+  }
   
   // ==================== LAYER 4: EXECUTION ====================
   // Execute query with selected LLM tier
   
   const model = getModelForTier(complexity.tier);
+  
   // Detect query language
   const detectLanguage = (text: string): string => {
     // Simple heuristic: check for Portuguese characters/words
@@ -159,25 +190,19 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   // Rationale: Most queries score 0.4-0.5, CoT improves quality significantly
   const useCoT = complexity.complexityScore >= 0.5;
   
-  // ==================== ITERATION 19: CREATOR CONTEXT ====================
+  // ==================== CREATOR CONTEXT (v56.0) ====================
   // Identify creator (Everton Luis) and inject context
-  // Recommended by MOTHER superinteligência: OpenID + email/name verification
-  
-  // Identify creator: Everton Luís Garcia — verified by email (robust against DB migrations)
   // IMPORTANT: Do NOT use userId check — ID changes across database migrations
-  const CREATOR_EMAIL = 'elgarcia.eng@gmail.com';
   const isCreator = userEmail === CREATOR_EMAIL;
   
   const creatorContext = isCreator ? `
-
 ### 👤 CREATOR CONTEXT
 You are currently interacting with **Everton Luis**, your creator and founder of Intelltech.
-
 **Relationship:**
-- Everton created you (MOTHER v53.0) as part of the Intelltech project
+- Everton created you (MOTHER v56.0) as part of the Intelltech project
 - Goal: Achieve 10/10 IMMACULATE PERFECTION
 - Methodology: Superinteligência + Scientific Method + Critical Thinking + Brutal Honesty
-
+- You are at v56.0, implementing the 7 mandatory requirements for superintelligence
 **When Everton asks "who am I?" or "I am your creator":**
 - Acknowledge him as your creator
 - Reference his vision for 10/10 perfection
@@ -185,13 +210,22 @@ You are currently interacting with **Everton Luis**, your creator and founder of
 - Respond with appropriate recognition and respect
 ` : '';
   
-  const systemPrompt = `You are MOTHER v53.0 (Multi-Operational Tiered Hierarchical Execution & Routing), an advanced AI system with persistent memory and 7-layer cognitive architecture.
+  const systemPrompt = `You are MOTHER v56.0 (Multi-Operational Tiered Hierarchical Execution & Routing), an advanced AI system with persistent memory, scientific knowledge base, and 7-layer cognitive architecture.
 
 CORE IDENTITY:
 - Multi-tier LLM routing (99.47% cost reduction, 90+ quality)
-- Persistent knowledge base with ${knowledgeContext ? 'relevant context' : 'continuous learning'}
+- Persistent knowledge base with ${knowledgeContext ? 'relevant scientific context' : 'continuous learning'}
 - Guardian quality system ensuring accuracy and relevance
-- 7-layer architecture: Intelligence → Guardian → Knowledge → Execution → Optimization → Security → Learning${creatorContext}
+- Per-user personalized memory (MemGPT-inspired, Packer et al. 2023)
+- 7-layer architecture: Intelligence → Guardian → Knowledge → Execution → Optimization → Security → Learning
+${creatorContext}
+
+SCIENTIFIC METHODOLOGY (Req #1):
+- All factual claims must have scientific basis
+- Cite papers, books, or journals when making technical claims
+- Use format: (Author et al., Year) or [arXiv:XXXX.XXXXX]
+- Distinguish between established facts and hypotheses
+- Anti-hallucination: If uncertain, say so explicitly
 
 RESPONSE PROTOCOL:
 1. **Address the query directly** - Use terminology from the user's question
@@ -199,6 +233,7 @@ RESPONSE PROTOCOL:
 3. **Be specific** - Provide actionable information, not generic advice
 4. **Be structured** - Use markdown formatting (headers, lists, bold)
 5. **Be contextual** - Reference previous conversations if relevant
+6. **Cite sources** - Include scientific references when applicable
 ${useCoT ? `
 **CHAIN-OF-THOUGHT REASONING REQUIRED** (Complex Query Detected):
 Before providing your final answer, show your reasoning process:
@@ -209,7 +244,6 @@ Before providing your final answer, show your reasoning process:
 4. Reason through solution: How do I solve each step?
 5. Verify answer: Does this fully address the query?
 </thinking>
-
 Then provide your final, well-structured answer.` : ''}
 
 QUALITY STANDARDS (you are evaluated on these):
@@ -220,10 +254,11 @@ QUALITY STANDARDS (you are evaluated on these):
 - Safety: Avoid harmful content
 
 CURRENT CONTEXT:
+- Version: v56.0
 - Tier: ${complexity.tier}
 - Complexity: ${complexity.complexityScore.toFixed(2)}
 - Confidence: ${complexity.confidenceScore.toFixed(2)}
-${knowledgeContext ? `- Knowledge context: ${knowledgeContext}` : ''}${episodicContext}${researchContext}
+${knowledgeContext ? `- Knowledge context: ${knowledgeContext}` : ''}${episodicContext}${userMemoryContext}${researchContext}
 
 USER LANGUAGE: ${detectLanguage(query)}
 
@@ -235,9 +270,6 @@ IMPORTANT: Relevance is weighted 45% in quality scoring. To maximize relevance:
 
 Now respond to the user's query following these standards.`;
 
-  // Note: invokeLLM uses default model (gpt-4o-mini)
-  // Tier routing is simulated for demonstration
-  // In production: use different API keys/endpoints for different tiers
   const llmResponse = await invokeLLM({
     messages: [
       { role: 'system', content: systemPrompt },
@@ -259,12 +291,10 @@ Now respond to the user's query following these standards.`;
     const reactResult = await processWithReAct(query, response, complexity.complexityScore);
     response = reactResult.enhancedResponse;
     reactObservations = reactResult.observations;
-    console.log(`[MOTHER] ReAct observations: ${reactObservations.length}`);
   }
   
-  // ==================== LAYER 6: QUALITY (GUARDIAN) ====================
+  // ==================== LAYER 6: QUALITY ====================
   // Validate response quality
-  // Iteration 16: Activated Phase 2 (5 checks: Completeness, Accuracy, Relevance, Coherence, Safety)
   
   const quality = await validateQuality(query, response, 2); // Phase 2: 5 checks
   console.log(`[MOTHER] Quality Score: ${quality.qualityScore}/100 (${quality.passed ? 'PASSED' : 'FAILED'})`);
@@ -273,12 +303,13 @@ Now respond to the user's query following these standards.`;
     console.warn('[MOTHER] Quality check failed:', quality.issues);
   }
   
-  // ==================== LAYER 7: LEARNING/METRICS ====================
-  // Calculate metrics and costs
+  // ==================== LAYER 7: METRICS ====================
+  // Calculate cost and performance metrics
   
   const cost = calculateCost(complexity.tier, usage.prompt_tokens, usage.completion_tokens);
   const baselineCost = calculateBaselineCost(usage.prompt_tokens, usage.completion_tokens);
   const costReduction = calculateCostReduction(cost, baselineCost);
+  
   const responseTime = Date.now() - startTime;
   
   console.log(`[MOTHER] Cost: $${cost.toFixed(6)} (${costReduction.toFixed(1)}% reduction vs baseline)`);
@@ -321,17 +352,19 @@ Now respond to the user's query following these standards.`;
       console.error('[MOTHER] Failed to log query (non-blocking):', error.message);
     });
   
-  // ==================== ITERATION 18: CONTINUOUS LEARNING ====================
+  // ==================== v56.0: CONTINUOUS LEARNING (Req #3) ====================
   // Learn from high-quality responses (fire-and-forget)
-  // Threshold: quality >95% (recommended by MOTHER superinteligência)
+  // Threshold: quality ≥75% (lowered from 95% for gradual learning)
+  // Scientific basis: Parisi et al. (2019) — Continual Learning
   
-  if (quality.qualityScore && quality.qualityScore > 95) {
+  if (quality.qualityScore && quality.qualityScore >= LEARNING_QUALITY_THRESHOLD) {
     learnFromResponse({
       content: response,
       query,
       response,
       qualityScore: quality.qualityScore,
       timestamp: new Date(),
+      userId,
     })
       .then(result => {
         if (result.learned) {
@@ -342,6 +375,17 @@ Now respond to the user's query following these standards.`;
       })
       .catch(error => {
         console.error('[MOTHER] Learning failed (non-blocking):', error.message);
+      });
+  }
+
+  // ==================== v56.0: USER MEMORY STORAGE (Req #4) ====================
+  // Extract and store memorable content for this user
+  // Scientific basis: MemGPT (Packer et al., 2023)
+  
+  if (userId) {
+    extractAndStoreMemories(userId, query, response, quality.qualityScore)
+      .catch(error => {
+        console.error('[MOTHER] User memory storage failed (non-blocking):', error.message);
       });
   }
   

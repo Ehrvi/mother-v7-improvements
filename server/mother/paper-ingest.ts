@@ -138,7 +138,7 @@ async function downloadAndExtractPdf(pdfUrl: string): Promise<string | null> {
     console.log(`[PaperIngest] PDF downloaded: ${(pdfBuffer.length / 1024).toFixed(1)}KB`);
     
     const parser = new PDFParse({ data: pdfBuffer });
-    await parser.load();
+    await (parser as any).load();
     const result = await parser.getText() as { pages?: Array<{ text: string }> };
     
     // pdf-parse v2 returns { pages: [{ text: '...' }] }

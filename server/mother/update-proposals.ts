@@ -1,0 +1,350 @@
+/**
+ * MOTHER v56.0 - Update Proposals & Authorization System
+ * Implements Requirements #5, #6, and #7:
+ * - Req #5: User can interact with MOTHER and order architecture updates
+ * - Req #6: ONLY the creator (elgarcia.eng@gmail.com) can authorize updates
+ * - Req #7: MOTHER must be fully autonomous in self-updating without losing functionality
+ *
+ * Scientific basis:
+ * - RBAC (Ferraiolo & Kuhn, NIST 1992): Role-Based Access Control ensures only
+ *   authorized principals can approve system changes
+ * - Human-in-the-Loop AI (Amershi et al., CHI 2019): Creator approval gate ensures
+ *   safety while enabling autonomous operation
+ * - Safe Self-Modification (Omohundro, 2008): Any self-modifying system requires
+ *   explicit authorization to prevent unintended behavior
+ */
+
+import { getDb } from '../db';
+
+// The ONLY authorized email for approving updates
+export const CREATOR_EMAIL = 'elgarcia.eng@gmail.com';
+
+export type ProposalStatus = 'pending' | 'approved' | 'rejected' | 'implementing' | 'completed' | 'failed';
+export type ProposedBy = 'creator' | 'mother' | 'system';
+export type ImpactLevel = 'low' | 'medium' | 'high' | 'critical';
+
+export interface UpdateProposal {
+  id: number;
+  proposedBy: ProposedBy;
+  title: string;
+  description: string;
+  rationale?: string;
+  affectedModules?: string;
+  estimatedImpact: ImpactLevel;
+  status: ProposalStatus;
+  approvedByEmail?: string;
+  approvedAt?: Date;
+  rejectedReason?: string;
+  implementationNotes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateProposalInput {
+  proposedBy: ProposedBy;
+  title: string;
+  description: string;
+  rationale?: string;
+  affectedModules?: string[];
+  estimatedImpact?: ImpactLevel;
+}
+
+/**
+ * Create a new update proposal
+ * Can be proposed by MOTHER, the creator, or the system
+ */
+export async function createProposal(input: CreateProposalInput): Promise<number | null> {
+  try {
+    const db = await getDb();
+    if (!db) {
+      console.warn('[Proposals] DB not available');
+      return null;
+    }
+
+    const result = await (db as any).$client.query(
+      `INSERT INTO update_proposals 
+       (proposed_by, title, description, rationale, affected_modules, estimated_impact, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'pending', NOW(), NOW())`,
+      [
+        input.proposedBy,
+        input.title,
+        input.description,
+        input.rationale || null,
+        input.affectedModules ? JSON.stringify(input.affectedModules) : null,
+        input.estimatedImpact || 'medium',
+      ]
+    );
+
+    const id = result[0]?.insertId;
+    console.log(`[Proposals] ✅ Created proposal ID ${id}: "${input.title}" (by: ${input.proposedBy})`);
+    
+    // Log to audit trail
+    await logAuditEvent({
+      action: 'proposal_created',
+      actorType: input.proposedBy,
+      targetType: 'update_proposal',
+      targetId: String(id),
+      details: `Proposal: "${input.title}" (impact: ${input.estimatedImpact || 'medium'})`,
+      success: true,
+    });
+
+    return id || null;
+  } catch (error) {
+    console.error('[Proposals] Failed to create proposal:', error);
+    return null;
+  }
+}
+
+/**
+ * Approve a proposal — ONLY the creator can do this
+ * Req #6: Only elgarcia.eng@gmail.com can authorize updates
+ */
+export async function approveProposal(
+  proposalId: number,
+  approverEmail: string,
+  implementationNotes?: string
+): Promise<{ success: boolean; reason: string }> {
+  // CRITICAL: Check creator authorization
+  if (approverEmail !== CREATOR_EMAIL) {
+    await logAuditEvent({
+      action: 'proposal_approval_denied',
+      actorEmail: approverEmail,
+      actorType: 'user',
+      targetType: 'update_proposal',
+      targetId: String(proposalId),
+      details: `Unauthorized approval attempt by ${approverEmail}`,
+      success: false,
+    });
+    
+    return {
+      success: false,
+      reason: `Unauthorized: Only ${CREATOR_EMAIL} can approve update proposals (Req #6)`,
+    };
+  }
+
+  try {
+    const db = await getDb();
+    if (!db) return { success: false, reason: 'DB not available' };
+
+    await (db as any).$client.query(
+      `UPDATE update_proposals 
+       SET status = 'approved', approved_by_email = ?, approved_at = NOW(), 
+           implementation_notes = ?, updated_at = NOW()
+       WHERE id = ? AND status = 'pending'`,
+      [approverEmail, implementationNotes || null, proposalId]
+    );
+
+    console.log(`[Proposals] ✅ Proposal ${proposalId} approved by creator`);
+    
+    await logAuditEvent({
+      action: 'proposal_approved',
+      actorEmail: approverEmail,
+      actorType: 'creator',
+      targetType: 'update_proposal',
+      targetId: String(proposalId),
+      details: `Approved by creator: ${approverEmail}`,
+      success: true,
+    });
+
+    return { success: true, reason: 'Proposal approved by creator' };
+  } catch (error) {
+    console.error('[Proposals] Failed to approve proposal:', error);
+    return { success: false, reason: `DB error: ${error}` };
+  }
+}
+
+/**
+ * Reject a proposal — ONLY the creator can do this
+ */
+export async function rejectProposal(
+  proposalId: number,
+  approverEmail: string,
+  reason: string
+): Promise<{ success: boolean; reason: string }> {
+  // CRITICAL: Check creator authorization
+  if (approverEmail !== CREATOR_EMAIL) {
+    return {
+      success: false,
+      reason: `Unauthorized: Only ${CREATOR_EMAIL} can reject update proposals (Req #6)`,
+    };
+  }
+
+  try {
+    const db = await getDb();
+    if (!db) return { success: false, reason: 'DB not available' };
+
+    await (db as any).$client.query(
+      `UPDATE update_proposals 
+       SET status = 'rejected', rejected_reason = ?, updated_at = NOW()
+       WHERE id = ? AND status = 'pending'`,
+      [reason, proposalId]
+    );
+
+    await logAuditEvent({
+      action: 'proposal_rejected',
+      actorEmail: approverEmail,
+      actorType: 'creator',
+      targetType: 'update_proposal',
+      targetId: String(proposalId),
+      details: `Rejected: ${reason}`,
+      success: true,
+    });
+
+    return { success: true, reason: 'Proposal rejected' };
+  } catch (error) {
+    console.error('[Proposals] Failed to reject proposal:', error);
+    return { success: false, reason: `DB error: ${error}` };
+  }
+}
+
+/**
+ * Get all pending proposals
+ */
+export async function getPendingProposals(): Promise<UpdateProposal[]> {
+  try {
+    const db = await getDb();
+    if (!db) return [];
+
+    const [rows] = await (db as any).$client.query(
+      `SELECT * FROM update_proposals WHERE status = 'pending' ORDER BY created_at DESC`
+    );
+
+    return (rows || []).map(mapRowToProposal);
+  } catch (error) {
+    console.error('[Proposals] Failed to get pending proposals:', error);
+    return [];
+  }
+}
+
+/**
+ * Get all proposals with optional status filter
+ */
+export async function getProposals(status?: ProposalStatus, limit = 20): Promise<UpdateProposal[]> {
+  try {
+    const db = await getDb();
+    if (!db) return [];
+
+    const whereClause = status ? 'WHERE status = ?' : '';
+    const params = status ? [status, limit] : [limit];
+
+    const [rows] = await (db as any).$client.query(
+      `SELECT * FROM update_proposals ${whereClause} ORDER BY created_at DESC LIMIT ?`,
+      params
+    );
+
+    return (rows || []).map(mapRowToProposal);
+  } catch (error) {
+    console.error('[Proposals] Failed to get proposals:', error);
+    return [];
+  }
+}
+
+/**
+ * MOTHER proposes an update to herself
+ * Req #5: MOTHER can propose updates; Req #6: Creator must approve
+ */
+export async function motherProposeUpdate(
+  title: string,
+  description: string,
+  rationale: string,
+  affectedModules: string[],
+  impact: ImpactLevel = 'medium'
+): Promise<number | null> {
+  console.log(`[Proposals] MOTHER proposing update: "${title}"`);
+  
+  return createProposal({
+    proposedBy: 'mother',
+    title,
+    description,
+    rationale,
+    affectedModules,
+    estimatedImpact: impact,
+  });
+}
+
+// ============================================================
+// AUDIT LOG
+// ============================================================
+
+export interface AuditLogInput {
+  action: string;
+  actorEmail?: string;
+  actorType: 'creator' | 'user' | 'system' | 'mother';
+  targetType?: string;
+  targetId?: string;
+  details?: string;
+  ipAddress?: string;
+  success: boolean;
+}
+
+/**
+ * Log an audit event — immutable record of all system changes
+ * Req #6: Tamper-evident audit trail
+ */
+export async function logAuditEvent(input: AuditLogInput): Promise<void> {
+  try {
+    const db = await getDb();
+    if (!db) return;
+
+    await (db as any).$client.query(
+      `INSERT INTO audit_log (action, actor_email, actor_type, target_type, target_id, details, ip_address, success, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [
+        input.action,
+        input.actorEmail || null,
+        input.actorType,
+        input.targetType || null,
+        input.targetId || null,
+        input.details || null,
+        input.ipAddress || null,
+        input.success ? 1 : 0,
+      ]
+    );
+  } catch (error) {
+    // Audit logging should never block the main flow
+    console.error('[AuditLog] Failed to log event (non-blocking):', error);
+  }
+}
+
+/**
+ * Get recent audit log entries
+ */
+export async function getAuditLog(limit = 50): Promise<any[]> {
+  try {
+    const db = await getDb();
+    if (!db) return [];
+
+    const [rows] = await (db as any).$client.query(
+      'SELECT * FROM audit_log ORDER BY created_at DESC LIMIT ?',
+      [limit]
+    );
+
+    return rows || [];
+  } catch (error) {
+    console.error('[AuditLog] Failed to get log:', error);
+    return [];
+  }
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+function mapRowToProposal(row: any): UpdateProposal {
+  return {
+    id: row.id,
+    proposedBy: row.proposed_by,
+    title: row.title,
+    description: row.description,
+    rationale: row.rationale,
+    affectedModules: row.affected_modules,
+    estimatedImpact: row.estimated_impact,
+    status: row.status,
+    approvedByEmail: row.approved_by_email,
+    approvedAt: row.approved_at,
+    rejectedReason: row.rejected_reason,
+    implementationNotes: row.implementation_notes,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}

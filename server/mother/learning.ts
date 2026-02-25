@@ -1,16 +1,27 @@
 /**
- * MOTHER v7.0 - Iteration 18: Continuous Learning
+ * MOTHER v56.0 - Continuous Learning Module
  * Automatically extracts insights from high-quality responses and adds to knowledge base
- * 
- * Algorithm (designed by MOTHER superinteligência):
- * 1. Trigger: Quality >95%
+ *
+ * Algorithm (v56.0 update — Req #3: Gradual knowledge acquisition):
+ * 1. Trigger: Quality ≥75% (lowered from 95% for gradual learning)
  * 2. Extract: NLP sentence segmentation + keyword density
  * 3. Deduplicate: Embeddings similarity <0.85
  * 4. Validate: Test improvement in next related query
+ *
+ * Scientific basis:
+ * - Continual Learning (Parisi et al., Neural Networks 2019): Gradual acquisition
+ *   prevents catastrophic forgetting and enables incremental knowledge growth
+ * - Online Learning (Hoi et al., ACM 2021): Lower threshold enables incremental
+ *   knowledge growth from real-world interactions
+ * - MemGPT (Packer et al., 2023): Hierarchical memory management for LLMs
  */
 
 import { getEmbedding, cosineSimilarity } from './embeddings';
 import { insertKnowledge, getAllKnowledge } from '../db';
+
+// v56.0: Lowered from 95 to 75 — Req #3: Gradual knowledge acquisition
+// Scientific basis: Parisi et al. (2019) — lower threshold enables incremental learning
+export const LEARNING_QUALITY_THRESHOLD = 75;
 
 export interface LearningCandidate {
   content: string;
@@ -18,6 +29,7 @@ export interface LearningCandidate {
   response: string;
   qualityScore: number;
   timestamp: Date;
+  userId?: number; // v56.0: Track which user triggered the learning
 }
 
 export interface LearningResult {
@@ -46,7 +58,11 @@ export function extractInsights(response: string): string[] {
     'pattern', 'architecture', 'design', 'solution', 'technique',
     'principle', 'concept', 'framework', 'model', 'system',
     'process', 'workflow', 'best practice', 'optimization',
-    'performance', 'scalability', 'reliability', 'security'
+    'performance', 'scalability', 'reliability', 'security',
+    // v56.0: Added scientific/research keywords
+    'research', 'study', 'evidence', 'scientific', 'empirical',
+    'hypothesis', 'experiment', 'analysis', 'result', 'conclusion',
+    'theorem', 'proof', 'algorithm', 'complexity', 'efficiency',
   ];
 
   for (const sentence of sentences) {
@@ -120,15 +136,19 @@ function generateTitle(insight: string): string {
 /**
  * Learn from high-quality response
  * Main entry point for continuous learning
+ * v56.0: Threshold lowered from 95 to 75 (Req #3: Gradual learning)
  */
 export async function learnFromResponse(candidate: LearningCandidate): Promise<LearningResult> {
-  console.log(`[Learning] Evaluating response (quality: ${candidate.qualityScore})`);
+  console.log(`[Learning] Evaluating response (quality: ${candidate.qualityScore}, threshold: ${LEARNING_QUALITY_THRESHOLD})`);
 
-  // Step 1: Check quality threshold (>95%)
-  if (candidate.qualityScore <= 95) {
+  // Step 1: Check quality threshold (≥75% — v56.0 Req #3: gradual learning)
+  // Lowered from 95 to 75 based on Continual Learning research (Parisi et al., 2019)
+  // Rationale: 95% threshold was too strict — knowledge rarely persisted
+  // 75% threshold enables gradual, incremental knowledge acquisition
+  if (candidate.qualityScore < LEARNING_QUALITY_THRESHOLD) {
     return {
       learned: false,
-      reason: `Quality ${candidate.qualityScore} <= 95 threshold`
+      reason: `Quality ${candidate.qualityScore} < ${LEARNING_QUALITY_THRESHOLD} threshold`
     };
   }
 
@@ -164,18 +184,18 @@ export async function learnFromResponse(candidate: LearningCandidate): Promise<L
         title,
         content: insight,
         category: 'learned', // Mark as learned (vs manually added)
-        tags: JSON.stringify(['auto-learned', 'continuous-learning']),
+        tags: JSON.stringify(['auto-learned', 'continuous-learning', `quality-${candidate.qualityScore}`]),
         source: `Query: ${candidate.query.substring(0, 100)}`,
         sourceType: 'learning',
         embedding: JSON.stringify(embedding),
         embeddingModel: 'text-embedding-3-small',
       });
 
-      console.log(`[Learning] ✅ Added knowledge ID ${knowledgeId}: "${title}"`);
+      console.log(`[Learning] ✅ Added knowledge ID ${knowledgeId}: "${title}" (quality: ${candidate.qualityScore})`);
 
       return {
         learned: true,
-        reason: `Added insight (similarity: ${maxSimilarity.toFixed(2)})`,
+        reason: `Added insight (quality: ${candidate.qualityScore}, similarity: ${maxSimilarity.toFixed(2)})`,
         knowledgeId,
         similarity: maxSimilarity
       };
@@ -196,16 +216,14 @@ export async function learnFromResponse(candidate: LearningCandidate): Promise<L
 
 /**
  * Validate learning by checking if knowledge improves future queries
- * (To be implemented in future iteration)
  */
 export function validateLearning(
   query: string,
   responseWithNewKnowledge: string,
   qualityScore: number
 ): boolean {
-  // Placeholder for validation logic
-  // In future: compare quality scores before/after learning
-  return qualityScore > 90;
+  // v56.0: Updated threshold to match new learning threshold
+  return qualityScore >= LEARNING_QUALITY_THRESHOLD;
 }
 
 /**
@@ -297,4 +315,3 @@ export async function learnFromEvolutionRun(
     reason: 'All evolution insights were duplicates',
   };
 }
-

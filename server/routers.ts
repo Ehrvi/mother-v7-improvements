@@ -4,6 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { motherRouter } from "./routers/mother";
 import { selfAuditRouter } from "./routers/self-audit";
 import { nativeAuthRouter } from "./routers/auth";
+import { proposalsRouter } from "./routers/proposals";
 import { publicProcedure, router } from "./_core/trpc";
 
 export const appRouter = router({
@@ -33,6 +34,9 @@ export const appRouter = router({
 
   // MOTHER Self-Audit System
   selfAudit: selfAuditRouter,
+
+  // MOTHER v56.0: Update Proposals & Authorization (Req #5, #6, #7)
+  proposals: proposalsRouter,
 });
 
 export type AppRouter = typeof appRouter;
