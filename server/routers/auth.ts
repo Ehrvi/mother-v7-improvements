@@ -26,6 +26,10 @@ import { users } from "../../drizzle/schema";
 import { eq, count } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
+// v63.0: Creator email always gets admin role + active status
+// Req #6: Only the creator can authorize updates — they must always have admin access
+const CREATOR_EMAIL = 'elgarcia.eng@gmail.com';
+
 // OWASP ASVS 2.4.1: bcrypt cost factor >= 10; 12 gives ~250ms — good balance
 const BCRYPT_ROUNDS = 12;
 
@@ -95,6 +99,11 @@ export const nativeAuthRouter = router({
       const [{ total }] = await db.select({ total: count() }).from(users);
       const isFirstUser = total === 0;
 
+      // v63.0: Creator email ALWAYS gets admin + active, regardless of registration order
+      const isCreator = input.email === CREATOR_EMAIL;
+      const userRole = (isFirstUser || isCreator) ? "admin" : "user";
+      const userStatus = (isFirstUser || isCreator) ? "active" : "pending";
+
       // Hash password with bcrypt (OWASP ASVS 2.4.1)
       const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
 
@@ -108,13 +117,13 @@ export const nativeAuthRouter = router({
         email: input.email,
         passwordHash,
         loginMethod: "email_password",
-        role: isFirstUser ? "admin" : "user",
-        status: isFirstUser ? "active" : "pending",
+        role: userRole,
+        status: userStatus,
         lastSignedIn: new Date(),
       });
 
-      if (isFirstUser) {
-        // First user: create session and log them in immediately
+      if (isFirstUser || isCreator) {
+        // First user OR creator: create session and log them in immediately
         const sessionToken = await sdk.createSessionToken(openId, {
           name: input.name,
           expiresInMs: ONE_YEAR_MS,
@@ -122,10 +131,14 @@ export const nativeAuthRouter = router({
         const cookieOptions = getSessionCookieOptions(ctx.req);
         ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
 
+        const welcomeMsg = isCreator
+          ? "Bem-vindo, Everton! Sua conta de criador foi ativada com privilégios de administrador."
+          : "Bem-vindo, Administrador! Sua conta foi criada com sucesso.";
+
         return {
           success: true,
           isFirstUser: true,
-          message: "Bem-vindo, Administrador! Sua conta foi criada com sucesso.",
+          message: welcomeMsg,
         } as const;
       }
 

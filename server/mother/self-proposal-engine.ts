@@ -76,16 +76,17 @@ export async function readSystemMetrics(): Promise<SystemMetricsSummary | null> 
     if (!db) return null;
 
     // Read from queries table (last 24h)
+    // v63.0 FIX: Use camelCase column names matching the actual DB schema
     const [queryStats] = await (db as any).$client.query(`
       SELECT 
-        AVG(CAST(quality_score AS FLOAT)) as avg_quality,
-        AVG(response_time) as avg_response_time,
+        AVG(CAST(qualityScore AS FLOAT)) as avg_quality,
+        AVG(responseTime) as avg_response_time,
         AVG(CAST(cost AS FLOAT)) as avg_cost,
         COUNT(*) as total_queries,
-        SUM(CASE WHEN tier = 'tier-1' THEN 1 ELSE 0 END) / COUNT(*) * 100 as tier1_pct,
-        SUM(cache_hit) / COUNT(*) as cache_hit_rate
+        SUM(CASE WHEN tier = 'gpt-4o-mini' THEN 1 ELSE 0 END) / COUNT(*) * 100 as tier1_pct,
+        SUM(cacheHit) / COUNT(*) as cache_hit_rate
       FROM queries
-      WHERE created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+      WHERE createdAt > DATE_SUB(NOW(), INTERVAL 24 HOUR)
     `);
 
     // Read knowledge count
@@ -94,9 +95,10 @@ export async function readSystemMetrics(): Promise<SystemMetricsSummary | null> 
     `).catch(() => [[{ count: 0 }]]);
 
     // Read learning rate (queries that triggered learning)
+    // v63.0 FIX: Use camelCase column names matching the actual DB schema
     const [learningStats] = await (db as any).$client.query(`
       SELECT COUNT(*) as learned_count FROM knowledge
-      WHERE created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+      WHERE createdAt > DATE_SUB(NOW(), INTERVAL 24 HOUR)
     `).catch(() => [[{ learned_count: 0 }]]);
 
     const stats = queryStats[0] || {};
