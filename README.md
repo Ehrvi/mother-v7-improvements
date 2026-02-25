@@ -1,110 +1,198 @@
-# MOTHER v63.0 — Self-Identity & Creator Administration
+# MOTHER v67.0
 
 ```yaml
 # YAML Frontmatter for Context Recovery
 # Agent MUST parse this block to recover full context.
-version: "v63.0"
-status: "VALIDADO EM PRODUÇÃO ✅"
+version: "v67.0"
+status: "PRODUCTION — HEALTHY"
 server_region: "australia-southeast1"
 server_url: "https://mother-interface-qtvghovzxa-ts.a.run.app"
-active_revision: "mother-interface-00260-zpx" # v63.0 VALIDATED
-dgm_loop_functional: true
-self_proposal_engine_active: true
-autonomous_update_pipeline: true
-creator_administration_active: true
-multi_turn_conversation_active: true
-guardian_version: "v60.0"
+github_repo: "https://github.com/Ehrvi/mother-v7-improvements"
+github_branch: "master"
 db_connection_mode: "UNIX_SOCKET"
 db_instance: "mother-db-sydney"
 db_region: "australia-southeast1"
-master_prompt_version: "v63.0"
-github_repo: "https://github.com/Ehrvi/mother-v7-improvements"
-github_branch: "master"
-critical_fix: "MOTHER now has self-identity, multi-turn conversation, and creator admin commands"
+kra_version: "v1.0"
+crag_active: true
+grounding_engine_active: true
+agentic_learning_loop_active: true
+self_repair_script: "server/mother/self-repair.ts"
+swe_agent_job: "mother-swe-agent-job"
+zero_bullshit_policy: true
+latest_awake: "AWAKE-V80.md"
 ```
 
-> **Visão Final:** `Superintelligence + Scientific Method + Critical Thinking = MOTHER`
+> **Visão Final:** `Superintelligence + Scientific Method + Critical Thinking + ZERO BULLSHIT = MOTHER`
 
 **Este documento é a Memória Semântica Canônica do projeto MOTHER.** Qualquer agente que trabalhe neste projeto DEVE ler este documento primeiro para recuperar o contexto completo.
 
 ---
 
-## Estado Atual: v63.0 — Self-Identity & Creator Administration ✅
+## Estado Atual: v67.0 — Knowledge Repair Architecture (KRA v1.0)
 
-**URL de Produção:** `https://mother-interface-qtvghovzxa-ts.a.run.app` (Sydney — `australia-southeast1`)  
-**Revisão Ativa:** `mother-interface-00260-zpx` (v63.0 VALIDATED)  
-**Build GitHub Actions:** `7b3855a` — SUCCESS
+**URL de Produção:** `https://mother-interface-qtvghovzxa-ts.a.run.app`  
+**Região:** `australia-southeast1` (Sydney)
 
-### O que foi feito (v63.0)
+### O que foi feito (v67.0)
 
-| Componente | Status | Evidência |
-|-----------|--------|----------|
-| **System Identity** | ✅ Implementado | `core.ts`: `systemPrompt` reescrito com identidade, capacidades e comandos. |
-| **Multi-Turn Chat** | ✅ Implementado | `core.ts` e `Home.tsx` agora passam `conversationHistory` a cada query. |
-| **Admin Commands** | ✅ Implementado | `mother.ts` agora parseia e executa `/audit`, `/proposals`, `/approve`, etc. |
-| **Admin UI Panel** | ✅ Criado | `Home.tsx`: Novo painel na sidebar para acesso rápido aos comandos de admin. |
-| **Unified Proposals** | ✅ Implementado | `update-proposals.ts`: `getProposals` agora busca de `self_proposals` e `update_proposals`. |
+| Componente | Status | Arquivo |
+|-----------|--------|---------|
+| **CRAG Pipeline** | Implementado | `server/mother/crag.ts` |
+| **Grounding Engine** | Implementado | `server/mother/grounding.ts` |
+| **Agentic Learning Loop** | Implementado | `server/mother/agentic-learning.ts` |
+| **Self-Repair Script** | Implementado | `server/mother/self-repair.ts` |
+| **force_study tool** | Implementado | `server/mother/tool-engine.ts` |
+| **self_repair tool** | Implementado | `server/mother/tool-engine.ts` |
+| **ZERO BULLSHIT Policy** | Ativo | `server/mother/core.ts` (v67.0 system prompt) |
 
-### Histórico (v62.0)
+### O que foi feito (v66.0 — Project Prometheus)
 
-| Componente | Status | Evidência |
-|-----------|--------|----------|
-| **GitHub Actions CI/CD** | ✅ Ativado | `.github/workflows/deploy.yaml` agora faz deploy automático para Cloud Run. |
+| Componente | Status | Arquivo |
+|-----------|--------|---------|
+| **SWE-Agent ACI Engine** | Implementado | `server/mother/autonomous-update-job.ts` |
+| **Approval Trigger** | Implementado | `server/mother/update-proposals.ts` |
+| **Cloud Run Job** | Criado em GCP | `mother-swe-agent-job` |
+| **Primeiro commit autônomo** | SHA: `10d86009` | `feature/auto-proposal-1-1772023397323` |
 
-### Histórico (v61.0)
+### O que foi feito (v65.4)
 
-| Componente | Status | Evidência |
-|-----------|--------|----------|
-| **Autonomous Update Job** | ✅ Implementado | `autonomous-update-job.ts` — DGM-SWE hybrid coding agent (ReAct loop) |
-| **ESM Crash Fix** | ✅ Corrigido | `require.main === module` → env var check (ESM-compatible) |
-
----
-
-## Roadmap
-
-| Versão | Status | Foco Principal | KPIs de Aprovação |
-| :--- | :--- | :--- | :--- |
-| v61.0 | ✅ VALIDADO | Autonomous Self-Update Pipeline | ESM crash fixed, pipeline ativo |
-| v62.0 | ✅ VALIDADO | GitHub Actions CI/CD Ativo | Pipeline completo: TypeScript → Docker → Cloud Run |
-| **v63.0** | **✅ VALIDADO** | **Self-Identity & Creator Admin** | **MOTHER se reconhece, conversa com memória e aceita comandos.** |
+| Fix | Migration | Status |
+|-----|-----------|--------|
+| DGM Panel vazio | 0021 | Corrigido |
+| Connection lost no deploy | N/A | Corrigido |
+| Knowledge Map vazio (collation) | N/A | Corrigido |
+| Domínios duplicados | 0022 | Corrigido |
+| Migration runner frágil | N/A | Corrigido |
 
 ---
 
-## Próximos Passos (v64.0)
+## Arquitetura
 
-1. **Executar o primeiro ciclo autônomo real**: Aprovar a Proposta DGM ID 1 ("Reduce Response Latency") e verificar se o pipeline autônomo a implementa e faz deploy com sucesso.
-2. **Implementar Real-Time Knowledge API**: Integrar Perplexity/Tavily para respostas em tempo real.
-3. **Melhorar a Qualidade da Conversa**: Implementar um sistema de gerenciamento de diálogo mais sofisticado para conversas mais longas e complexas.
+### Camadas do Sistema
+
+| Camada | Arquivos | Descrição |
+|--------|----------|-----------|
+| **Intelligence** | `core.ts` | Multi-tier LLM routing, system prompt, ZERO BULLSHIT policy |
+| **Knowledge** | `knowledge.ts`, `crag.ts` | CRAG retrieval pipeline, vector search, knowledge base |
+| **Grounding** | `grounding.ts` | Anti-hallucination citation verification |
+| **Learning** | `agentic-learning.ts` | Learns from every interaction |
+| **Self-Improvement** | `self-proposal-engine.ts`, `reproposal-engine.ts` | DGM proposals + SM-2 re-proposal |
+| **Self-Modification** | `autonomous-update-job.ts` | SWE-Agent: reads code, generates diffs, compiles, commits |
+| **Self-Repair** | `self-repair.ts` | System audit + 8-domain knowledge bootstrap |
+| **Memory** | `episodic-memory.ts`, `user-memory.ts` | Long-term episodic and user memory |
+| **Research** | `research.ts`, `paper-ingest.ts` | arXiv paper ingestion and synthesis |
+| **Tools** | `tool-engine.ts` | OpenAI Function Calling tools |
+| **Guardian** | `guardian.ts` | Quality scoring and response validation |
+
+### CRAG Pipeline
+
+```
+Query
+  ↓
+Vector Search (knowledge + paper_chunks)
+  ↓
+Relevance Scoring (0.0 – 1.0)
+  ↓ [if score < 0.5]
+Corrective Web Search (arXiv + research engine)
+  ↓
+Document Decomposition → Knowledge Strips
+  ↓
+Context Recomposition
+  ↓
+Grounding Engine → Citation Verification
+  ↓
+Response with verified citations only
+```
+
+### Self-Improvement Loop
+
+```
+User/DGM generates proposal
+         ↓
+Creator approves (UI or /approve command)
+         ↓
+approveProposal() → triggerSweAgentJob()
+         ↓
+Cloud Run Job: mother-swe-agent-job
+         ↓
+[OBSERVE] Fetch proposal → [THINK] Parse changes
+[ACT]     Clone repo → create branch
+[OBSERVE] Read target file(s)
+[THINK]   LLM generates executable diffs (ACI prompt)
+[ACT]     Apply diffs → TypeScript compile
+[ACT]     git commit → git push
+         ↓
+GitHub branch: feature/auto-proposal-{id}-{timestamp}
+```
 
 ---
 
-## Instruções para Agentes
+## Admin Tools
 
-### 🚨 DIRETIVA PRIMÁRIA: ANTI-AMNÉSIA
+| Tool | Permission | Description |
+|------|-----------|-------------|
+| `audit_system` | All | Comprehensive system audit |
+| `get_proposals` | All | List DGM proposals |
+| `get_performance_metrics` | All | Performance stats |
+| `search_knowledge` | All | Search knowledge base |
+| `approve_proposal` | Creator | Approve a DGM proposal |
+| `learn_knowledge` | Creator | Add knowledge directly |
+| `force_study` | Creator | Study a topic on demand (arXiv ingestion) |
+| `self_repair` | Creator | Full system audit + 8-domain knowledge bootstrap |
+| `get_audit_log` | Creator | System audit trail |
 
-**Qualquer agente que trabalhe neste projeto DEVE:**
+### Slash Commands
 
-1. **Ler este README.md PRIMEIRO** antes de qualquer ação de código
-2. **Ler o `AWAKE-V78.md`** para recuperar o contexto episódico mais recente
+| Command | Description |
+|---------|-------------|
+| `/audit` | System audit |
+| `/proposals` | List proposals |
+| `/approve {id}` | Approve proposal |
+| `/status` | System status |
 
-### 📝 OBRIGAÇÃO DE DOCUMENTAÇÃO INCREMENTAL
+---
 
-Ao final de **CADA SESSÃO DE TRABALHO SIGNIFICATIVA**, você DEVE:
+## Deployment
 
-1. **Criar um novo arquivo `AWAKE-V[n+1].md`**
-2. **Atualizar este `README.md`** (especialmente o YAML frontmatter)
-3. **Committar todas as mudanças** no repositório Git
+```bash
+# Build and deploy (uses cloudbuild.yaml)
+gcloud builds submit --config=cloudbuild.yaml --project=mothers-library-mcp
+
+# Manual deploy with full Cloud SQL config (REQUIRED)
+gcloud run deploy mother-interface \
+  --image=australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-interface:latest \
+  --region=australia-southeast1 \
+  --set-cloudsql-instances=mothers-library-mcp:australia-southeast1:mother-db-sydney,mothers-library-mcp:us-central1:mother-db \
+  --set-secrets=DATABASE_URL=MOTHER_DATABASE_URL:latest,OPENAI_API_KEY=MOTHER_OPENAI_KEY:latest,GITHUB_TOKEN=mother-github-token:latest \
+  --project=mothers-library-mcp
+```
 
 ---
 
 ## Documentação
 
-| Arquivo | Descrição |
-|---|---|
-| `AWAKE-V78.md` | **NOVO** - v63.0: Self-Identity, Multi-Turn Conversation, Creator Admin Commands |
-| `AWAKE-V77.md` | v63.0: Correção crítica do sistema de autenticação e DGM |
-| `AWAKE-V76.md` | v62.0: GitHub Actions CI/CD ativo + pipeline autônomo completo |
+| Arquivo | Versão | Milestone |
+|---------|--------|-----------|
+| `AWAKE-V80.md` | v65.4–v67.0 | DGM Panel, Project Prometheus, KRA v1.0 |
+| `AWAKE-V79.md` | v64.0 | Tool Engine & Administrative Intelligence |
+| `KRA_v1.0_Specification.md` | v67.0 | Knowledge Repair Architecture specification |
+| `MOTHER_Self-Improvement_Strategy.md` | v66.0 | Project Prometheus strategy and SWE-Agent prompt |
 
 ---
 
-*README atualizado em 2026-02-25 — v63.0 VALIDADO EM PRODUÇÃO*
+## Referências Científicas
+
+- Zhang et al. (2025). "Darwin Gödel Machine." arXiv:2505.22954.
+- Xia et al. (2025). "SWE-agent." arXiv:2405.15793.
+- Yan et al. (2024). "Corrective Retrieval Augmented Generation." arXiv:2401.15884.
+- Asai et al. (2023). "Self-RAG." arXiv:2310.11511.
+- Min et al. (2023). "FActScoring." EMNLP 2023.
+- Park et al. (2023). "Generative Agents." UIST 2023.
+- Packer et al. (2023). "MemGPT." arXiv:2310.08560.
+- Yao et al. (2023). "ReAct." ICLR 2023.
+- Parisi et al. (2019). "Continual Lifelong Learning with Neural Networks." Neural Networks, 113, 54–71.
+- Wozniak, P. (1990). "Optimization of Learning." SuperMemo World. (SM-2 Algorithm)
+
+---
+
+*README atualizado em 2026-02-25 — MOTHER v67.0 KRA v1.0*
