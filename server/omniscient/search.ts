@@ -1,68 +1,34 @@
 /**
  * MOTHER Omniscient - Vector Search
  * 
- * Provides semantic search capabilities using cosine similarity
+ * Provides semantic search capabilities using cosine similarity.
+ * Uses the shared DB pool from db.ts to support both Unix socket (Cloud SQL)
+ * and TCP connections — fixing the "Invalid URL" error on Cloud Run.
  */
 
-import { drizzle } from 'drizzle-orm/mysql2';
-import { eq, desc, sql } from 'drizzle-orm';
-import mysql from 'mysql2/promise';
+import { eq, sql } from 'drizzle-orm';
 import { paperChunks } from '../../drizzle/schema';
 import { generateEmbedding, deserializeEmbedding } from './embeddings';
+import { getDb } from '../db';
 
 /**
  * Calculate cosine similarity between two vectors
- * 
- * Formula: cos(θ) = (A · B) / (||A|| × ||B||)
- * 
- * Where:
- * - A · B is the dot product
- * - ||A|| and ||B|| are the magnitudes (Euclidean norms)
- * 
- * Result range: [-1, 1]
- * - 1: Vectors point in the same direction (identical)
- * - 0: Vectors are orthogonal (unrelated)
- * - -1: Vectors point in opposite directions
- * 
- * @param vec1 - First vector
- * @param vec2 - Second vector
- * @returns Cosine similarity score
- * 
- * @example
- * const vec1 = [1, 0, 0];
- * const vec2 = [1, 0, 0];
- * console.log(cosineSimilarity(vec1, vec2)); // 1.0 (identical)
- * 
- * const vec3 = [0, 1, 0];
- * console.log(cosineSimilarity(vec1, vec3)); // 0.0 (orthogonal)
  */
 export function cosineSimilarity(vec1: number[], vec2: number[]): number {
   if (vec1.length !== vec2.length) {
     throw new Error(`Vector dimensions mismatch: ${vec1.length} vs ${vec2.length}`);
   }
-  
-  // Calculate dot product (A · B)
   let dotProduct = 0;
-  for (let i = 0; i < vec1.length; i++) {
-    dotProduct += vec1[i] * vec2[i];
-  }
-  
-  // Calculate magnitudes (||A|| and ||B||)
   let magnitude1 = 0;
   let magnitude2 = 0;
   for (let i = 0; i < vec1.length; i++) {
+    dotProduct += vec1[i] * vec2[i];
     magnitude1 += vec1[i] * vec1[i];
     magnitude2 += vec2[i] * vec2[i];
   }
   magnitude1 = Math.sqrt(magnitude1);
   magnitude2 = Math.sqrt(magnitude2);
-  
-  // Avoid division by zero
-  if (magnitude1 === 0 || magnitude2 === 0) {
-    return 0;
-  }
-  
-  // Calculate cosine similarity
+  if (magnitude1 === 0 || magnitude2 === 0) return 0;
   return dotProduct / (magnitude1 * magnitude2);
 }
 
@@ -81,31 +47,7 @@ export interface SearchResult {
 }
 
 /**
- * Search for similar chunks using vector similarity
- * 
- * Strategy:
- * 1. Generate embedding for query
- * 2. Retrieve all chunks from database
- * 3. Calculate cosine similarity for each chunk
- * 4. Sort by similarity (descending)
- * 5. Return top K results
- * 
- * Note: This is a naive implementation (O(n) complexity).
- * For production with millions of chunks, use:
- * - Vector databases (Pinecone, Weaviate, Qdrant)
- * - Approximate nearest neighbor (ANN) algorithms (FAISS, HNSW)
- * - Database extensions (pgvector for PostgreSQL)
- * 
- * @param query - Search query
- * @param topK - Number of results to return
- * @param minSimilarity - Minimum similarity threshold (0-1)
- * @returns Array of search results
- * 
- * @example
- * const results = await searchSimilarChunks('quantum computing', 5, 0.7);
- * for (const result of results) {
- *   console.log(`${result.similarity.toFixed(3)}: ${result.content.substring(0, 100)}...`);
- * }
+ * Search for similar chunks using vector similarity (basic, no metadata)
  */
 export async function searchSimilarChunks(
   query: string,
@@ -113,78 +55,47 @@ export async function searchSimilarChunks(
   minSimilarity: number = 0.5
 ): Promise<SearchResult[]> {
   console.log(`[Search] Query: "${query}" (top ${topK}, min similarity: ${minSimilarity})`);
-  
-  // 1. Generate embedding for query
   const startTime = Date.now();
+
+  const db = await getDb();
+  if (!db) {
+    console.error('[Search] DB not available');
+    return [];
+  }
+
   const queryEmbedding = await generateEmbedding(query);
-  const embeddingTime = Date.now() - startTime;
-  console.log(`[Search] Query embedding generated in ${embeddingTime}ms`);
-  
-  // 2. Retrieve all chunks from database
-  const connection = await mysql.createConnection(process.env.DATABASE_URL!);
-  const db = drizzle(connection);
-  
-  const chunks = await db
-    .select()
-    .from(paperChunks)
-    .execute();
-  
+  console.log(`[Search] Query embedding generated in ${Date.now() - startTime}ms`);
+
+  const chunks = await db.select().from(paperChunks).execute();
   console.log(`[Search] Retrieved ${chunks.length} chunks from database`);
-  
-  // 3. Calculate cosine similarity for each chunk
+
   const results: SearchResult[] = [];
-  
   for (const chunk of chunks) {
     try {
       const chunkEmbedding = deserializeEmbedding(chunk.embedding);
       const similarity = cosineSimilarity(queryEmbedding, chunkEmbedding);
-      
-      // Filter by minimum similarity
       if (similarity >= minSimilarity) {
         results.push({
           chunkId: String(chunk.id),
           paperId: String(chunk.paperId),
           chunkIndex: chunk.chunkIndex,
-          content: chunk.text, // Column is 'text' not 'content'
+          content: chunk.text,
           similarity,
         });
       }
     } catch (error) {
       console.error(`[Search] Error processing chunk ${chunk.id}:`, error);
-      // Skip invalid chunks
     }
   }
-  
-  // 4. Sort by similarity (descending)
+
   results.sort((a, b) => b.similarity - a.similarity);
-  
-  // 5. Return top K results
   const topResults = results.slice(0, topK);
-  
-  const searchTime = Date.now() - startTime;
-  console.log(`[Search] Found ${results.length} matching chunks, returning top ${topResults.length} (${searchTime}ms total)`);
-  
-  await connection.end();
-  
+  console.log(`[Search] Found ${results.length} matching chunks, returning top ${topResults.length} (${Date.now() - startTime}ms total)`);
   return topResults;
 }
 
 /**
- * Search for similar chunks with paper metadata
- * 
- * Same as searchSimilarChunks, but joins with papers table to include metadata
- * 
- * @param query - Search query
- * @param topK - Number of results to return
- * @param minSimilarity - Minimum similarity threshold (0-1)
- * @returns Array of search results with paper metadata
- * 
- * @example
- * const results = await searchSimilarChunksWithMetadata('quantum computing', 5, 0.7);
- * for (const result of results) {
- *   console.log(`${result.similarity.toFixed(3)}: ${result.paperTitle}`);
- *   console.log(`  ${result.content.substring(0, 100)}...`);
- * }
+ * Search for similar chunks with paper metadata (JOIN with papers table)
  */
 export async function searchSimilarChunksWithMetadata(
   query: string,
@@ -192,45 +103,41 @@ export async function searchSimilarChunksWithMetadata(
   minSimilarity: number = 0.5
 ): Promise<SearchResult[]> {
   console.log(`[Search] Query with metadata: "${query}" (top ${topK}, min similarity: ${minSimilarity})`);
-  
-  // 1. Generate embedding for query
   const startTime = Date.now();
+
+  const db = await getDb();
+  if (!db) {
+    console.error('[Search] DB not available');
+    return [];
+  }
+
   const queryEmbedding = await generateEmbedding(query);
-  const embeddingTime = Date.now() - startTime;
-  console.log(`[Search] Query embedding generated in ${embeddingTime}ms`);
-  
-  // 2. Retrieve all chunks with paper metadata (JOIN)
-  const connection = await mysql.createConnection(process.env.DATABASE_URL!);
-  const db = drizzle(connection);
-  
+  console.log(`[Search] Query embedding generated in ${Date.now() - startTime}ms`);
+
   const { papers } = await import('../../drizzle/schema');
-  
+
   const chunks = await db
     .select({
       chunkId: paperChunks.id,
       paperId: paperChunks.paperId,
       chunkIndex: paperChunks.chunkIndex,
-      content: paperChunks.text, // Column is 'text' not 'content'
+      content: paperChunks.text,
       embedding: paperChunks.embedding,
       paperTitle: papers.title,
       paperAuthors: papers.authors,
-      paperUrl: papers.pdfUrl, // Column is 'pdfUrl' not 'url'
+      paperUrl: papers.pdfUrl,
     })
     .from(paperChunks)
     .leftJoin(papers, eq(paperChunks.paperId, papers.id))
     .execute();
-  
+
   console.log(`[Search] Retrieved ${chunks.length} chunks with metadata from database`);
-  
-  // 3. Calculate cosine similarity for each chunk
+
   const results: SearchResult[] = [];
-  
   for (const chunk of chunks) {
     try {
       const chunkEmbedding = deserializeEmbedding(chunk.embedding);
       const similarity = cosineSimilarity(queryEmbedding, chunkEmbedding);
-      
-      // Filter by minimum similarity
       if (similarity >= minSimilarity) {
         results.push({
           chunkId: String(chunk.chunkId),
@@ -245,58 +152,37 @@ export async function searchSimilarChunksWithMetadata(
       }
     } catch (error) {
       console.error(`[Search] Error processing chunk ${chunk.chunkId}:`, error);
-      // Skip invalid chunks
     }
   }
-  
-  // 4. Sort by similarity (descending)
+
   results.sort((a, b) => b.similarity - a.similarity);
-  
-  // 5. Return top K results
   const topResults = results.slice(0, topK);
-  
-  const searchTime = Date.now() - startTime;
-  console.log(`[Search] Found ${results.length} matching chunks, returning top ${topResults.length} (${searchTime}ms total)`);
-  
-  await connection.end();
-  
+  console.log(`[Search] Found ${results.length} matching chunks, returning top ${topResults.length} (${Date.now() - startTime}ms total)`);
   return topResults;
 }
 
 /**
- * Get search statistics
- * 
- * @returns Search statistics
+ * Get search statistics using shared DB pool
  */
 export async function getSearchStatistics() {
-  const connection = await mysql.createConnection(process.env.DATABASE_URL!);
-  const db = drizzle(connection);
-  
+  const db = await getDb();
+  if (!db) return { totalChunks: 0, totalPapers: 0, avgChunksPerPaper: 0 };
+
   const { papers } = await import('../../drizzle/schema');
-  
+
   const [chunkCount] = await db
     .select({ count: sql<number>`count(*)` })
     .from(paperChunks)
     .execute();
-  
+
   const [paperCount] = await db
     .select({ count: sql<number>`count(*)` })
     .from(papers)
     .execute();
-  
-  await connection.end();
-  
+
   return {
     totalChunks: chunkCount.count,
     totalPapers: paperCount.count,
     avgChunksPerPaper: chunkCount.count / (paperCount.count || 1),
   };
 }
-
-/**
- * TODO (Phase 6): Implement approximate nearest neighbor (ANN) for large-scale search
- * TODO (Phase 6): Implement caching for frequent queries
- * TODO (Phase 6): Implement filtering by paper metadata (date, authors, category)
- * TODO (Phase 6): Implement re-ranking with LLM (semantic relevance)
- * TODO (Phase 6): Implement search analytics (query logs, popular queries)
- */
