@@ -2,12 +2,12 @@ name: MOTHER Autonomous Deploy Pipeline
 
 # ============================================================
 # MOTHER Autonomous CI/CD Pipeline
-# Scientific basis: SWE-agent (Xia et al., 2025), DGM (Zhang et al., 2025)
+# Scientific basis: SWE-agent (Yang et al., 2024), DGM (Zhang et al., 2025)
 #
 # Triggers:
-#   1. Push to master: Full build + deploy to Cloud Run (production)
-#   2. Push to autonomous/*: Test + auto-merge to master
-#   3. workflow_dispatch: Manual trigger for testing
+#   1. Push to master: TypeScript check + Cloud Run deploy
+#   2. Push to autonomous/*: TypeScript check + auto-merge to master
+#   3. workflow_dispatch: Manual trigger
 # ============================================================
 
 on:
@@ -32,6 +32,7 @@ env:
 jobs:
   # ============================================================
   # JOB 1: TypeScript Compilation Check
+  # Uses npm (native to GitHub Actions runner) for reliability
   # ============================================================
   typecheck:
     name: TypeScript Check
@@ -40,26 +41,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 'latest'
-
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: npm install --legacy-peer-deps
 
       - name: TypeScript compilation check
-        run: pnpm run build
+        run: npm run build
         env:
           NODE_ENV: production
 
       - name: Report success
-        run: echo "✅ TypeScript compilation successful"
+        run: echo "✅ TypeScript compilation successful — 0 errors"
 
   # ============================================================
   # JOB 2: Auto-merge autonomous branches (if tests pass)
@@ -157,5 +153,4 @@ jobs:
             echo "❌ Health check failed!"
             exit 1
           fi
-          echo "✅ Deployment verified successfully!"
-          echo "MOTHER v$(date +%Y%m%d) is live at $URL"
+          echo "✅ MOTHER is live at $URL"
