@@ -250,7 +250,7 @@ async function searchWithOpenAI(query: string): Promise<string> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini-search-preview',
+        model: 'gpt-4o-mini',
         tools: [{ type: 'web_search_preview' }],
         input: `Pesquise informações científicas e atualizadas sobre: ${query}. 
         Foque em: estado da arte, papers recentes, fontes confiáveis.

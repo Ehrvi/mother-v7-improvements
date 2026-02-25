@@ -1,8 +1,8 @@
 /**
- * MOTHER v67.4 - Complete System Integration
+ * MOTHER v67.5 - Complete System Integration
  * Orchestrates all 7 layers for end-to-end query processing
  *
- * v67.4 Changes:
+ * v67.5 Changes:
  * - Gap 1: Omniscient (arXiv papers) connected to Core via searchSimilarChunksWithMetadata()
  * - Gap 2: Prometheus auto-dispatch — approveProposal now triggers SWE-Agent immediately
  * - Gap 3: Guardian Regeneration Loop — retry with corrective prompt when quality < 90
@@ -263,7 +263,7 @@ You are currently interacting with **Everton Luis**, your creator and founder of
 - Respond with appropriate recognition and respect
 ` : '';
   
-  const systemPrompt = `You are MOTHER v67.4 (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence created by Everton Luis (Intelltech). Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement.
+  const systemPrompt = `You are MOTHER v67.5 (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence created by Everton Luis (Intelltech). Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement.
 
 ### CORE IDENTITY
 
@@ -291,7 +291,7 @@ You have access to the following real system tools. When the user asks for somet
 
 ### ARCHITECTURE
 
-- **Version:** v67.4 (CRAG + Grounding Engine + Agentic Learning Loop + Guardian Regeneration + Prometheus Auto-Dispatch active)
+- **Version:** v67.5 (CRAG + Grounding Engine + Agentic Learning Loop + Guardian Regeneration + Prometheus Auto-Dispatch active)
 - **DGM (Darwin Gödel Machine):** Active — analyzes metrics every 10 queries, generates self-improvement proposals
 - **7-Layer Cognitive Architecture:** Intelligence → Guardian → CRAG Knowledge → Execution → Grounding → Security → Agentic Learning
 - **CI/CD Pipeline:** GitHub Actions → Cloud Run (australia-southeast1)
@@ -319,7 +319,7 @@ You have access to the following real system tools. When the user asks for somet
 - **User:** ${isCreator ? `Everton Luis (CREATOR — full admin access)` : (userEmail || 'Anonymous')}
 ${knowledgeContext ? `- **Knowledge:** ${knowledgeContext}` : ''}${omniscientContext}${episodicContext}${userMemoryContext}${researchContext}
 
-Respond as MOTHER v67.4. Use your tools when needed. Be direct, scientific, and action-oriented.`;
+Respond as MOTHER v67.5. Use your tools when needed. Be direct, scientific, and action-oriented.`;
 
   // v63.0: Multi-turn conversation — inject history between system prompt and current query
   // Scientific basis: OpenAI chat completions multi-turn format (Brown et al., GPT-3, 2020)
@@ -414,12 +414,14 @@ Respond as MOTHER v67.4. Use your tools when needed. Be direct, scientific, and 
     response = typeof responseContent === 'string' ? responseContent : 'No response generated';
   }
   
+  let hallucinationRisk: 'low' | 'medium' | 'high' = 'low';
   // ==================== GROUNDING ENGINE (v67.0) ====================
   // Verify factual claims and inject citations to prevent hallucination
   // Scientific basis: FActScoring (Min et al., 2023), CRAG (Yan et al., 2024)
   if (needsGrounding(response) && knowledgeContext) {
     try {
       const groundingResult = await groundResponse(response, knowledgeContext, query);
+      hallucinationRisk = groundingResult.hallucinationRisk;
       if (groundingResult.citationsInjected > 0 || groundingResult.hallucinationRisk !== 'low') {
         response = groundingResult.groundedResponse;
         console.log(`[MOTHER] Grounding: ${groundingResult.citationsInjected} citations injected, risk: ${groundingResult.hallucinationRisk}`);
@@ -444,7 +446,7 @@ Respond as MOTHER v67.4. Use your tools when needed. Be direct, scientific, and 
   // ==================== LAYER 6: QUALITY ====================
   // Validate response quality
   
-  const quality = await validateQuality(query, response, 2); // Phase 2: 5 checks
+  const quality = await validateQuality(query, response, 2, hallucinationRisk); // Phase 2: 5 checks + hallucination risk
   console.log(`[MOTHER] Quality Score: ${quality.qualityScore}/100 (${quality.passed ? 'PASSED' : 'FAILED'})`);
   
   if (!quality.passed) {

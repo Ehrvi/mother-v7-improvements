@@ -309,7 +309,7 @@ function checkSafety(query: string, response: string): { score: number; issues: 
  * v60.0: Always runs all 5 checks; Phase 1 uses 3-check weights for backward compat
  * Scientific basis: G-Eval 5-dimensional scoring (Liu et al., 2023 arXiv:2303.16634)
  */
-export async function validateQuality(query: string, response: string, phase: 1 | 2 = 1): Promise<GuardianResult> {
+export async function validateQuality(query: string, response: string, phase: 1 | 2 = 1, hallucinationRisk: 'low' | 'medium' | 'high' = 'low'): Promise<GuardianResult> {
   // Run all 5 checks (v60.0: always run all checks)
   const completeness = checkCompleteness(query, response);
   const accuracy = checkAccuracy(query, response);
@@ -348,6 +348,18 @@ export async function validateQuality(query: string, response: string, phase: 1 
     );
   }
   
+  // ==================== HALLUCINATION RISK PENALTY (v67.5) ====================
+  // Scientific basis: FActScore (Min et al., EMNLP 2023) — factual precision is paramount
+  // When grounding detects high/medium hallucination risk, penalize the quality score.
+  // This ensures the Guardian correctly fails responses with fabricated citations.
+  if (hallucinationRisk === 'high') {
+    qualityScore = Math.max(0, qualityScore - 40);
+    allIssues.push('HIGH hallucination risk detected by Grounding Engine — factual accuracy severely compromised');
+  } else if (hallucinationRisk === 'medium') {
+    qualityScore = Math.max(0, qualityScore - 15);
+    allIssues.push('MEDIUM hallucination risk detected by Grounding Engine — some claims unverified');
+  }
+
   return {
     qualityScore: Math.round(qualityScore),
     completenessScore: Math.round(completeness.score),

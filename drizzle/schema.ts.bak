@@ -307,19 +307,19 @@ export type InsertKnowledgeArea = typeof knowledgeAreas.$inferInsert;
  */
 export const papers = mysqlTable("papers", {
   id: int("id").autoincrement().primaryKey(),
-  knowledgeAreaId: int("knowledge_area_id").references(() => knowledgeAreas.id, { onDelete: "cascade" }),
-  arxivId: varchar("arxiv_id", { length: 50 }),
+  knowledgeAreaId: int("knowledgeAreaId").references(() => knowledgeAreas.id, { onDelete: "cascade" }),
+  arxivId: varchar("arxivId", { length: 50 }),
   doi: varchar("doi", { length: 100 }),
   title: text("title").notNull(),
   authors: text("authors"),
   abstract: text("abstract"),
-  publishedDate: timestamp("published_date"),
-  pdfUrl: varchar("pdf_url", { length: 500 }),
+  publishedDate: timestamp("publishedDate"),
+  pdfUrl: varchar("pdfUrl", { length: 500 }),
   status: mysqlEnum("status", ["pending", "processing", "completed", "failed"]).default("pending").notNull(),
-  citationCount: int("citation_count").default(0),
-  qualityScore: varchar("quality_score", { length: 20 }),
-  chunksCount: int("chunks_count").default(0),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  citationCount: int("citationCount").default(0),
+  qualityScore: varchar("qualityScore", { length: 20 }),
+  chunksCount: int("chunksCount").default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
 export type Paper = typeof papers.$inferSelect;
@@ -331,12 +331,12 @@ export type InsertPaper = typeof papers.$inferInsert;
  */
 export const paperChunks = mysqlTable("paper_chunks", {
   id: int("id").autoincrement().primaryKey(),
-  paperId: int("paper_id").references(() => papers.id, { onDelete: "cascade" }).notNull(),
-  chunkIndex: int("chunk_index").notNull(),
-  text: text("content").notNull(),
+  paperId: int("paperId").references(() => papers.id, { onDelete: "cascade" }).notNull(),
+  chunkIndex: int("chunkIndex").notNull(),
+  text: text("text").notNull(),
   embedding: text("embedding").notNull(), // JSON array of 1536 floats
-  tokenCount: int("token_count"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  tokenCount: int("tokenCount"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
 export type PaperChunk = typeof paperChunks.$inferSelect;
