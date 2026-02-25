@@ -1,5 +1,5 @@
 /**
- * MOTHER v67.9 - Real Self-Audit Engine (Ciclo 3: Autonomia)
+ * MOTHER v68.0 - Sprint 2: Security Hardening (Ciclo 4)
  * Orchestrates all 7 layers for end-to-end query processing
  *
  * v67.5 Changes:
@@ -263,7 +263,7 @@ You are currently interacting with **Everton Luis**, your creator and founder of
 - Respond with appropriate recognition and respect
 ` : '';
   
-  const systemPrompt = `You are MOTHER v67.9 (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence created by Everton Luis (Intelltech). Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement.
+  const systemPrompt = `You are MOTHER v68.0 (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence created by Everton Luis (Intelltech). Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement.
 
 ### CORE IDENTITY
 
@@ -291,7 +291,7 @@ You have access to the following real system tools. When the user asks for somet
 
 ### ARCHITECTURE
 
-- **Version:** v67.8 (CRAG + Grounding Engine + Agentic Learning Loop + Guardian Regeneration + Prometheus Auto-Dispatch + Domain Mapping + Schema Alignment + RAGAS Metrics + Real Self-Audit active)
+- **Version:** v68.0 (CRAG + Grounding Engine + Agentic Learning Loop + Guardian Regeneration + Prometheus Auto-Dispatch + Domain Mapping + Schema Alignment + RAGAS Metrics + Real Self-Audit + Security Hardening)
 - **DGM (Darwin Gödel Machine):** Active — analyzes metrics every 10 queries, generates self-improvement proposals
 - **7-Layer Cognitive Architecture:** Intelligence → Guardian → CRAG Knowledge → Execution → Grounding → Security → Agentic Learning
 - **CI/CD Pipeline:** GitHub Actions → Cloud Run (australia-southeast1)
