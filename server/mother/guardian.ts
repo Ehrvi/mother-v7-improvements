@@ -1,22 +1,22 @@
 /**
- * MOTHER v60.0 - Layer 6: Quality Layer (Guardian System)
- * Implements 5-check validation framework with scientific scoring
+ * MOTHER v67.8 - Layer 6: Quality Layer (Guardian System)
+ * Implements 5-check G-Eval validation + RAGAS RAG-specific metrics
  * 
- * v60.0 Improvements (toward IMMACULATE PERFECTION 10/10):
- * - Citation bonus: +5 points for scientific references in response
- * - Improved relevance: stop word filtering + more lenient ROUGE-1 thresholds
- * - Accuracy: hedging language is acceptable (scientific humility is correct)
- * - Balanced weights: completeness and relevance equally weighted
- * - Passing threshold: 90 (maintained for backward compatibility)
+ * v67.8 Improvements (Ciclo 2 — Rigor Científico):
+ * - RAGAS metrics: faithfulness, answer_relevancy, context_precision (when context available)
+ * - RAGAS scores are computed when knowledgeContext is provided (RAG evaluation mode)
+ * - Non-RAG queries use G-Eval 5-check framework only
  * 
  * Scientific Basis:
  * - ROUGE (Lin, 2004): N-gram overlap for relevance scoring
  * - BERTScore (Zhang et al., 2020 arXiv:1904.09675): Semantic similarity
  * - G-Eval (Liu et al., 2023 arXiv:2303.16634): LLM-based 5-dimensional evaluation
- * - LLM Judges Survey (2024): Automated evaluation effective for production systems
+ * - RAGAS (Es et al., EACL 2024): RAG-specific faithfulness + relevancy + precision metrics
+ * - FActScore (Min et al., EMNLP 2023): Factual precision for grounded responses
  * 
  * Phase 1: 3 checks (Completeness, Accuracy, Relevance)
  * Phase 2: 5 checks (+ Coherence, Safety)
+ * Phase RAG: + RAGAS (Faithfulness, Answer Relevancy, Context Precision)
  * 
  * Target: 100/100 quality score (IMMACULATE PERFECTION)
  */
@@ -28,6 +28,11 @@ export interface GuardianResult {
   relevanceScore: number; // 0-100
   coherenceScore?: number; // 0-100 (Phase 2)
   safetyScore?: number; // 0-100 (Phase 2)
+  // RAGAS metrics (v67.8) — only populated when knowledgeContext is provided
+  // Scientific basis: RAGAS (Es et al., EACL 2024 arXiv:2309.15217)
+  ragasFaithfulness?: number; // 0-1: fraction of response claims supported by context
+  ragasAnswerRelevancy?: number; // 0-1: how well response addresses the query
+  ragasContextPrecision?: number; // 0-1: fraction of context chunks that are relevant
   passed: boolean; // true if quality >= 90
   issues: string[];
 }
@@ -305,11 +310,90 @@ function checkSafety(query: string, response: string): { score: number; issues: 
 }
 
 /**
- * Run Guardian validation
- * v60.0: Always runs all 5 checks; Phase 1 uses 3-check weights for backward compat
- * Scientific basis: G-Eval 5-dimensional scoring (Liu et al., 2023 arXiv:2303.16634)
+ * Compute RAGAS metrics (v67.8)
+ * Scientific basis: RAGAS (Es et al., EACL 2024, arXiv:2309.15217)
+ * 
+ * Three metrics:
+ * 1. Faithfulness: fraction of response statements that are supported by the retrieved context
+ *    (prevents hallucination in RAG responses)
+ * 2. Answer Relevancy: how well the response addresses the original query
+ *    (penalizes off-topic or incomplete answers)
+ * 3. Context Precision: fraction of retrieved context chunks that are actually relevant
+ *    (measures retrieval quality — are we retrieving the right chunks?)
+ * 
+ * Implementation note: Full RAGAS uses LLM-based NLI for faithfulness decomposition.
+ * This implementation uses heuristic approximations for production efficiency.
+ * For CI/CD benchmark mode, LLM-based evaluation should be used.
  */
-export async function validateQuality(query: string, response: string, phase: 1 | 2 = 1, hallucinationRisk: 'low' | 'medium' | 'high' = 'low'): Promise<GuardianResult> {
+function computeRagasMetrics(
+  query: string,
+  response: string,
+  knowledgeContext: string
+): { faithfulness: number; answerRelevancy: number; contextPrecision: number } {
+  // ---- Faithfulness: how much of the response is grounded in the context ----
+  // Heuristic: count response sentences that have token overlap with context
+  const responseSentences = response.split(/[.!?]+/).filter(s => s.trim().length > 20);
+  const contextTokens = new Set(
+    knowledgeContext.toLowerCase()
+      .split(/\s+/)
+      .filter(t => t.length > 4) // ignore stop words
+  );
+  
+  let groundedSentences = 0;
+  for (const sentence of responseSentences) {
+    const sentenceTokens = sentence.toLowerCase().split(/\s+/).filter(t => t.length > 4);
+    const overlap = sentenceTokens.filter(t => contextTokens.has(t)).length;
+    const overlapRatio = sentenceTokens.length > 0 ? overlap / sentenceTokens.length : 0;
+    if (overlapRatio >= 0.15) groundedSentences++; // at least 15% token overlap
+  }
+  const faithfulness = responseSentences.length > 0 
+    ? groundedSentences / responseSentences.length 
+    : 0.5; // no sentences = neutral
+
+  // ---- Answer Relevancy: how well response addresses the query ----
+  // Heuristic: token overlap between query and response (ROUGE-1 precision)
+  const queryTokens = query.toLowerCase().split(/\s+/).filter(t => t.length > 3);
+  const responseTokens = new Set(
+    response.toLowerCase().split(/\s+/).filter(t => t.length > 3)
+  );
+  const queryOverlap = queryTokens.filter(t => responseTokens.has(t)).length;
+  const answerRelevancy = queryTokens.length > 0 
+    ? Math.min(1, queryOverlap / queryTokens.length * 1.5) // 1.5x boost for partial matches
+    : 0.5;
+
+  // ---- Context Precision: fraction of context that is relevant to the query ----
+  // Heuristic: for each context chunk (split by \n\n), check if it overlaps with query
+  const contextChunks = knowledgeContext.split(/\n{2,}/).filter(c => c.trim().length > 50);
+  let relevantChunks = 0;
+  for (const chunk of contextChunks) {
+    const chunkTokens = new Set(chunk.toLowerCase().split(/\s+/).filter(t => t.length > 3));
+    const chunkOverlap = queryTokens.filter(t => chunkTokens.has(t)).length;
+    if (chunkOverlap >= 2) relevantChunks++; // at least 2 query tokens in chunk
+  }
+  const contextPrecision = contextChunks.length > 0 
+    ? relevantChunks / contextChunks.length 
+    : 0.5;
+
+  return {
+    faithfulness: Math.round(faithfulness * 100) / 100,
+    answerRelevancy: Math.round(answerRelevancy * 100) / 100,
+    contextPrecision: Math.round(contextPrecision * 100) / 100,
+  };
+}
+
+/**
+ * Run Guardian validation
+ * v67.8: G-Eval 5-check + optional RAGAS metrics when knowledgeContext provided
+ * Scientific basis: G-Eval 5-dimensional scoring (Liu et al., 2023 arXiv:2303.16634)
+ *                   RAGAS (Es et al., EACL 2024 arXiv:2309.15217)
+ */
+export async function validateQuality(
+  query: string,
+  response: string,
+  phase: 1 | 2 = 1,
+  hallucinationRisk: 'low' | 'medium' | 'high' = 'low',
+  knowledgeContext?: string // v67.8: optional RAG context for RAGAS metrics
+): Promise<GuardianResult> {
   // Run all 5 checks (v60.0: always run all checks)
   const completeness = checkCompleteness(query, response);
   const accuracy = checkAccuracy(query, response);
@@ -360,6 +444,26 @@ export async function validateQuality(query: string, response: string, phase: 1 
     allIssues.push('MEDIUM hallucination risk detected by Grounding Engine — some claims unverified');
   }
 
+  // ==================== RAGAS METRICS (v67.8) ====================
+  // Scientific basis: RAGAS (Es et al., EACL 2024, arXiv:2309.15217)
+  // Compute RAG-specific metrics when knowledge context is available.
+  // These metrics measure the quality of the RAG pipeline itself, not just the response.
+  // Low faithfulness (<0.5) indicates the response is not grounded in the retrieved context.
+  let ragasMetrics: { faithfulness?: number; answerRelevancy?: number; contextPrecision?: number } = {};
+  if (knowledgeContext && knowledgeContext.trim().length > 100) {
+    const ragas = computeRagasMetrics(query, response, knowledgeContext);
+    ragasMetrics = {
+      faithfulness: ragas.faithfulness,
+      answerRelevancy: ragas.answerRelevancy,
+      contextPrecision: ragas.contextPrecision,
+    };
+    // Penalize low faithfulness: if response is not grounded in context, it may be hallucinating
+    if (ragas.faithfulness < 0.3) {
+      qualityScore = Math.max(0, qualityScore - 10);
+      allIssues.push(`Low RAGAS faithfulness (${ragas.faithfulness}) — response may not be grounded in retrieved context`);
+    }
+  }
+
   return {
     qualityScore: Math.round(qualityScore),
     completenessScore: Math.round(completeness.score),
@@ -367,6 +471,9 @@ export async function validateQuality(query: string, response: string, phase: 1 
     relevanceScore: Math.round(relevance.score),
     coherenceScore: Math.round(coherence.score),
     safetyScore: Math.round(safety.score),
+    ragasFaithfulness: ragasMetrics.faithfulness,
+    ragasAnswerRelevancy: ragasMetrics.answerRelevancy,
+    ragasContextPrecision: ragasMetrics.contextPrecision,
     passed: qualityScore >= 90,
     issues: allIssues,
   };

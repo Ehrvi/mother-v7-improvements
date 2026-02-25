@@ -1,5 +1,5 @@
 /**
- * MOTHER v67.7 - Schema Alignment (Ciclo 1)
+ * MOTHER v67.8 - RAGAS Metrics + Schema Alignment (Ciclo 2)
  * Orchestrates all 7 layers for end-to-end query processing
  *
  * v67.5 Changes:
@@ -263,7 +263,7 @@ You are currently interacting with **Everton Luis**, your creator and founder of
 - Respond with appropriate recognition and respect
 ` : '';
   
-  const systemPrompt = `You are MOTHER v67.7 (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence created by Everton Luis (Intelltech). Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement.
+  const systemPrompt = `You are MOTHER v67.8 (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence created by Everton Luis (Intelltech). Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement.
 
 ### CORE IDENTITY
 
@@ -291,7 +291,7 @@ You have access to the following real system tools. When the user asks for somet
 
 ### ARCHITECTURE
 
-- **Version:** v67.7 (CRAG + Grounding Engine + Agentic Learning Loop + Guardian Regeneration + Prometheus Auto-Dispatch + Domain Mapping + Schema Alignment active)
+- **Version:** v67.8 (CRAG + Grounding Engine + Agentic Learning Loop + Guardian Regeneration + Prometheus Auto-Dispatch + Domain Mapping + Schema Alignment + RAGAS Metrics active)
 - **DGM (Darwin Gödel Machine):** Active — analyzes metrics every 10 queries, generates self-improvement proposals
 - **7-Layer Cognitive Architecture:** Intelligence → Guardian → CRAG Knowledge → Execution → Grounding → Security → Agentic Learning
 - **CI/CD Pipeline:** GitHub Actions → Cloud Run (australia-southeast1)
@@ -446,7 +446,7 @@ Respond as MOTHER v67.5. Use your tools when needed. Be direct, scientific, and 
   // ==================== LAYER 6: QUALITY ====================
   // Validate response quality
   
-  const quality = await validateQuality(query, response, 2, hallucinationRisk); // Phase 2: 5 checks + hallucination risk
+  const quality = await validateQuality(query, response, 2, hallucinationRisk, knowledgeContext || undefined); // Phase 2: 5 checks + hallucination risk + RAGAS (v67.8)
   console.log(`[MOTHER] Quality Score: ${quality.qualityScore}/100 (${quality.passed ? 'PASSED' : 'FAILED'})`);
   
   if (!quality.passed) {
@@ -473,7 +473,7 @@ Respond as MOTHER v67.5. Use your tools when needed. Be direct, scientific, and 
       });
       const retryContent = retryResponse.choices[0]?.message?.content;
       if (typeof retryContent === 'string' && retryContent.length > 50) {
-        const retryQuality = await validateQuality(query, retryContent, 2);
+        const retryQuality = await validateQuality(query, retryContent, 2, 'low', knowledgeContext || undefined);
         if (retryQuality.qualityScore > quality.qualityScore) {
           console.log(`[Guardian] Regeneration improved quality: ${quality.qualityScore} -> ${retryQuality.qualityScore}`);
           response = retryContent;
