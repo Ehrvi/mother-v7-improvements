@@ -4,6 +4,11 @@
  *
  * v41.0: Added auto-migration runner on startup
  * v45.0: Added Cloud Tasks DGM execute endpoint for async GEA evolution
+ * v63.0: CRITICAL FIX — Added migration tracking table to prevent re-running
+ *        migrations on every deployment. Without tracking, migrations like
+ *        0008 and 0009 (DELETE FROM users WHERE loginMethod='email_password')
+ *        were wiping all users on every deploy, causing persistent login failures.
+ *        Scientific basis: Flyway/Liquibase migration tracking pattern.
  */
 
 import express from 'express';
@@ -24,9 +29,15 @@ const app = express();
 const PORT = parseInt(process.env.PORT || '8080', 10);
 
 /**
- * Auto-run SQL migrations on startup
- * Reads all .sql files from drizzle/migrations and applies them safely
- * Uses IF NOT EXISTS so re-runs are idempotent
+ * Auto-run SQL migrations on startup with TRACKING.
+ *
+ * v63.0 FIX: Each migration is now tracked in `migrations_applied` table.
+ * A migration only runs if it has NOT been recorded in that table.
+ * This is the standard Flyway/Liquibase pattern and prevents destructive
+ * migrations (like DELETE FROM users) from running on every deployment.
+ *
+ * Migrations that use IF NOT EXISTS / INSERT IGNORE are still safe to
+ * re-run, but tracking ensures correctness for all migration types.
  */
 async function runMigrations() {
   try {
@@ -35,6 +46,17 @@ async function runMigrations() {
       console.log('[Migrations] DB not available, skipping');
       return;
     }
+
+    // STEP 1: Create the tracking table if it doesn't exist
+    await (db as any).$client.query(`
+      CREATE TABLE IF NOT EXISTS \`migrations_applied\` (
+        \`id\` int NOT NULL AUTO_INCREMENT,
+        \`filename\` varchar(255) NOT NULL,
+        \`applied_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (\`id\`),
+        UNIQUE KEY \`migrations_applied_filename_unique\` (\`filename\`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
 
     const migrationsDir = process.env.NODE_ENV === 'production'
       ? '/app/drizzle/migrations'
@@ -45,11 +67,23 @@ async function runMigrations() {
       return;
     }
 
+    // STEP 2: Get list of already-applied migrations
+    const [appliedRows] = await (db as any).$client.query(
+      'SELECT filename FROM `migrations_applied`'
+    );
+    const appliedSet = new Set((appliedRows as any[]).map((r: any) => r.filename));
+
     const sqlFiles = fs.readdirSync(migrationsDir)
       .filter((f: string) => f.endsWith('.sql'))
       .sort();
 
     for (const file of sqlFiles) {
+      // STEP 3: Skip if already applied
+      if (appliedSet.has(file)) {
+        console.log(`[Migrations] Skipped (already applied): ${file}`);
+        continue;
+      }
+
       const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
       // Strip comment lines before splitting to avoid false positives
       const sqlNoComments = sql
@@ -60,6 +94,7 @@ async function runMigrations() {
         .split(';')
         .map((s: string) => s.trim())
         .filter((s: string) => s.length > 0);
+
       for (const stmt of statements) {
         try {
           await (db as any).$client.query(stmt);
@@ -71,6 +106,17 @@ async function runMigrations() {
           }
         }
       }
+
+      // STEP 4: Record this migration as applied
+      try {
+        await (db as any).$client.query(
+          'INSERT IGNORE INTO `migrations_applied` (`filename`) VALUES (?)',
+          [file]
+        );
+      } catch (e: any) {
+        console.warn(`[Migrations] Could not record migration ${file}:`, e.message);
+      }
+
       console.log(`[Migrations] Applied: ${file}`);
     }
     console.log('[Migrations] All migrations complete.');
