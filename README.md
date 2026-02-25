@@ -3,16 +3,16 @@
 ```yaml
 # YAML Frontmatter for Context Recovery
 # Agent MUST parse this block to recover full context.
-version: "v56.0"
+version: "v57.0"
 status: "VALIDADO EM PRODUÇÃO ✅"
 server_region: "australia-southeast1"
 server_url: "https://mother-interface-qtvghovzxa-ts.a.run.app"
-active_revision: "mother-interface-00237-tlg" # v56.0 VALIDATED — Scientific Cognitive System
+active_revision: "mother-interface-00238-pq4" # v57.0 VALIDATED — Login Fix + Hardened Auth + Audit
 dgm_loop_functional: true
 db_connection_mode: "UNIX_SOCKET"
 db_instance: "mother-db-sydney"
 db_region: "australia-southeast1"
-master_prompt_version: "v56.0"
+master_prompt_version: "v57.0"
 github_repo: "https://github.com/Ehrvi/mother-v7-improvements"
 github_branch: "master"
 ```
@@ -23,12 +23,21 @@ github_branch: "master"
 
 ---
 
-## Estado Atual: v56.0 — Scientific Cognitive System ✅
+## Estado Atual: v57.0 — Hardened Auth + Scientific Audit ✅
 
 **URL de Produção:** `https://mother-interface-qtvghovzxa-ts.a.run.app` (Sydney — `australia-southeast1`)  
-**Revisão Ativa:** `mother-interface-00237-tlg` (v56.0 VALIDATED)
+**Revisão Ativa:** `mother-interface-00238-pq4` (v57.0 VALIDATED)
 
-### O que está funcionando (em Produção - v56.0)
+### O que está funcionando (em Produção - v57.0)
+
+| Componente | Status | Evidência |
+|-----------|--------|----------|
+| **Sistema de Login** | ✅ CORRIGIDO | Migração 0000 criou tabela `users` em produção. Login retorna HTTP 401 corretamente. |
+| **Autenticação Endurecida** | ✅ | Rate limiting (5 tentativas/15min), timing attack prevention, OWASP ASVS 2.2.1 |
+| **Auditoria Científica** | ✅ | Relatório completo em `docs/AUDIT-V57-SCIENTIFIC-REPORT.md` |
+| **Prompt de Vanguarda** | ✅ | Script de auto-atualização em `docs/VANGUARD-PROMPT-SELF-UPDATE.md` |
+
+### Histórico (v56.0)
 
 | Componente | Status | Evidência |
 |-----------|--------|----------|
