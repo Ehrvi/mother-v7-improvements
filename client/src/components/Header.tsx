@@ -31,7 +31,7 @@ export default function Header() {
             </div>
           </Link>
           <div>
-            <h1 className="text-xl font-bold text-foreground">MOTHER v56.0</h1>
+            <h1 className="text-xl font-bold text-foreground">MOTHER v57.0</h1>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-xs border-green-500/50 text-green-400">
                 ● Operational

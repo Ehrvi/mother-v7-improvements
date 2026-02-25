@@ -89,10 +89,10 @@ export async function fetchArxivMetadata(arxivUrl: string): Promise<ArxivPaperMe
     const id = entry.match(/<id>([\s\S]*?)<\/id>/)?.[1]?.trim() || '';
     
     const authorMatches = entry.matchAll(/<author>[\s\S]*?<name>([\s\S]*?)<\/name>[\s\S]*?<\/author>/g);
-    const authors = [...authorMatches].map(m => m[1].trim());
+    const authors = Array.from(authorMatches).map(m => m[1].trim());
     
     const categoryMatches = entry.matchAll(/term="([^"]+)"/g);
-    const categories = [...categoryMatches].map(m => m[1]).filter(c => c.includes('.'));
+    const categories = Array.from(categoryMatches).map(m => m[1]).filter(c => c.includes('.'));
     
     const idMatch = id.match(/abs\/(.+)$/);
     const paperId = idMatch?.[1] || cleanId;

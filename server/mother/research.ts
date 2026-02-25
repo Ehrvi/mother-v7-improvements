@@ -77,7 +77,7 @@ function extractEnglishKeywords(query: string): string {
   
   if (technicalTerms && technicalTerms.length > 0) {
     // Use technical terms as the search query
-    const uniqueTerms = [...new Set(technicalTerms)].slice(0, 5);
+    const uniqueTerms = Array.from(new Set(technicalTerms)).slice(0, 5);
     return uniqueTerms.join(' ');
   }
   

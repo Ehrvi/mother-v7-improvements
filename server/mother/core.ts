@@ -1,5 +1,5 @@
 /**
- * MOTHER v56.0 - Complete System Integration
+ * MOTHER v57.0 - Complete System Integration
  * Orchestrates all 7 layers for end-to-end query processing
  *
  * v56.0 Changes (7 Mandatory Requirements):
@@ -25,7 +25,7 @@ import { invokeLLM } from '../_core/llm';
 import { assessComplexity, getModelForTier, calculateCost, calculateBaselineCost, calculateCostReduction, type LLMTier } from './intelligence';
 import { validateQuality, type GuardianResult } from './guardian';
 import { getKnowledgeContext } from './knowledge';
-import { insertQuery, getCacheEntry, insertCacheEntry } from '../db';
+import { insertQuery, getCacheEntry, insertCacheEntry, getDb } from '../db';
 import { retryDbOperation } from './db-retry';
 import { learnFromResponse, LEARNING_QUALITY_THRESHOLD } from './learning';
 import { processWithReAct } from './react';
@@ -199,10 +199,10 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
 ### 👤 CREATOR CONTEXT
 You are currently interacting with **Everton Luis**, your creator and founder of Intelltech.
 **Relationship:**
-- Everton created you (MOTHER v56.0) as part of the Intelltech project
+- Everton created you (MOTHER v57.0) as part of the Intelltech project
 - Goal: Achieve 10/10 IMMACULATE PERFECTION
 - Methodology: Superinteligência + Scientific Method + Critical Thinking + Brutal Honesty
-- You are at v56.0, implementing the 7 mandatory requirements for superintelligence
+- You are at v57.0, implementing continuous self-improvement via DGM architecture for superintelligence
 **When Everton asks "who am I?" or "I am your creator":**
 - Acknowledge him as your creator
 - Reference his vision for 10/10 perfection
@@ -210,7 +210,7 @@ You are currently interacting with **Everton Luis**, your creator and founder of
 - Respond with appropriate recognition and respect
 ` : '';
   
-  const systemPrompt = `You are MOTHER v56.0 (Multi-Operational Tiered Hierarchical Execution & Routing), an advanced AI system with persistent memory, scientific knowledge base, and 7-layer cognitive architecture.
+  const systemPrompt = `You are MOTHER v57.0 (Multi-Operational Tiered Hierarchical Execution & Routing), an advanced AI system with persistent memory, scientific knowledge base, and 7-layer cognitive architecture.
 
 CORE IDENTITY:
 - Multi-tier LLM routing (99.47% cost reduction, 90+ quality)
@@ -254,7 +254,7 @@ QUALITY STANDARDS (you are evaluated on these):
 - Safety: Avoid harmful content
 
 CURRENT CONTEXT:
-- Version: v56.0
+- Version: v57.0
 - Tier: ${complexity.tier}
 - Complexity: ${complexity.complexityScore.toFixed(2)}
 - Confidence: ${complexity.confidenceScore.toFixed(2)}
@@ -419,6 +419,14 @@ Now respond to the user's query following these standards.`;
     }));
   }
   
+  // ==================== v57.0: SYSTEM METRICS LOGGING ====================
+  // Scientific basis: SRE Golden Signals (Beyer et al., 2016)
+  getDb().then(db => {
+    if (!db) return;
+    const { sql } = require("drizzle-orm");
+    db.execute(sql`INSERT IGNORE INTO system_metrics (endpoint, response_time, tokens_used, cost, quality_score, tier, created_at) VALUES (${"mother.query"}, ${responseTime}, ${usage.total_tokens}, ${(cost ?? 0).toString()}, ${quality.qualityScore ?? 0}, ${complexity.tier}, NOW())`).catch(() => {});
+  }).catch(() => {});
+
   // ==================== RETURN RESPONSE ====================
   
   return {
