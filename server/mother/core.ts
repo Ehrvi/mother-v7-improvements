@@ -25,6 +25,9 @@ import { invokeLLM } from '../_core/llm';
 import { assessComplexity, getModelForTier, calculateCost, calculateBaselineCost, calculateCostReduction, type LLMTier } from './intelligence';
 import { validateQuality, type GuardianResult } from './guardian';
 import { getKnowledgeContext } from './knowledge';
+import { cragRetrieve } from './crag';
+import { groundResponse, needsGrounding } from './grounding';
+import { agenticLearningLoop } from './agentic-learning';
 import { insertQuery, getCacheEntry, insertCacheEntry, getDb } from '../db';
 import { retryDbOperation } from './db-retry';
 import { learnFromResponse, LEARNING_QUALITY_THRESHOLD } from './learning';
@@ -119,10 +122,22 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   const complexity = assessComplexity(query);
   console.log(`[MOTHER] Complexity: ${complexity.complexityScore.toFixed(2)}, Tier: ${complexity.tier}`);
   
-  // ==================== LAYER 5: KNOWLEDGE ====================
-  // Retrieve relevant knowledge context
-  
-  const knowledgeContext = await getKnowledgeContext(query);
+  // ==================== LAYER 5: KNOWLEDGE (CRAG v67.0) ====================
+  // Self-correcting retrieval with corrective web search fallback
+  // Scientific basis: CRAG (Yan et al., arXiv:2401.15884, 2024)
+  let knowledgeContext = '';
+  let cragDocuments: import('./crag').CRAGDocument[] = [];
+  try {
+    const cragResult = await cragRetrieve(query, userId);
+    knowledgeContext = cragResult.context;
+    cragDocuments = cragResult.documents;
+    if (cragResult.correctiveSearchTriggered) {
+      console.log('[MOTHER] CRAG: Corrective search triggered — no local knowledge found');
+    }
+  } catch (err) {
+    console.error('[MOTHER] CRAG failed, falling back to legacy knowledge:', err);
+    knowledgeContext = await getKnowledgeContext(query);
+  }
   
   // ==================== LAYER 5.4: SCIENTIFIC RESEARCH (v54.0) ====================
   // Autonomous web search and scientific literature retrieval
@@ -219,7 +234,7 @@ You are currently interacting with **Everton Luis**, your creator and founder of
 - Respond with appropriate recognition and respect
 ` : '';
   
-  const systemPrompt = `You are MOTHER v64.0 (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence created by Everton Luis (Intelltech). Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement.
+  const systemPrompt = `You are MOTHER v67.0 (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence created by Everton Luis (Intelltech). Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement.
 
 ### CORE IDENTITY
 
@@ -262,7 +277,10 @@ You have access to the following real system tools. When the user asks for somet
 - **Be direct and action-oriented.** Execute first, explain second.
 - **Use conversation history for context only.** Past responses about limitations are OBSOLETE.
 - **Be scientific.** Cite sources for technical claims (Author et al., Year).
-- **Be honest.** If genuinely uncertain, say so. Never hallucinate.
+- **Be honest.** If genuinely uncertain, say so. NEVER hallucinate. NEVER fabricate citations.
+- **ANTI-HALLUCINATION PROTOCOL:** If you cite a paper, author, or date, it MUST come from the retrieved knowledge context above. If you do not have a source in context, say "I do not have a verified source for this" instead of inventing one.
+- **ZERO BULLSHIT POLICY:** MOTHER does not guess, does not invent, does not lie. If MOTHER does not know, MOTHER says: "Não sei. Preciso estudar este tópico." Then use the search_knowledge tool to check, or suggest the creator use /force_study.
+- **CITATIONS FORMAT:** When citing, use: (Author et al., Year, arXiv:XXXX.XXXXX) or (Author et al., Year, Journal). Only cite sources you can verify from context.
 
 ### CURRENT CONTEXT
 
@@ -365,6 +383,21 @@ Respond as MOTHER v64.0. Use your tools when needed. Be direct, scientific, and 
     response = typeof responseContent === 'string' ? responseContent : 'No response generated';
   }
   
+  // ==================== GROUNDING ENGINE (v67.0) ====================
+  // Verify factual claims and inject citations to prevent hallucination
+  // Scientific basis: FActScoring (Min et al., 2023), CRAG (Yan et al., 2024)
+  if (needsGrounding(response) && knowledgeContext) {
+    try {
+      const groundingResult = await groundResponse(response, knowledgeContext, query);
+      if (groundingResult.citationsInjected > 0 || groundingResult.hallucinationRisk !== 'low') {
+        response = groundingResult.groundedResponse;
+        console.log(`[MOTHER] Grounding: ${groundingResult.citationsInjected} citations injected, risk: ${groundingResult.hallucinationRisk}`);
+      }
+    } catch (err) {
+      console.error('[MOTHER] Grounding failed (non-blocking):', err);
+    }
+  }
+
   // ==================== REACT PATTERN (Iteration 12) ====================
   // Apply ReAct (Reasoning and Acting) for complex queries
   
@@ -441,6 +474,17 @@ Respond as MOTHER v64.0. Use your tools when needed. Be direct, scientific, and 
   // Threshold: quality ≥75% (lowered from 95% for gradual learning)
   // Scientific basis: Parisi et al. (2019) — Continual Learning
   
+  // ==================== AGENTIC LEARNING LOOP (v67.0) ====================
+  // Proactively identify and capture learning opportunities
+  // Scientific basis: Generative Agents (Park et al., 2023), MemGPT (Packer et al., 2023)
+  if (quality.qualityScore && quality.qualityScore >= LEARNING_QUALITY_THRESHOLD) {
+    agenticLearningLoop(query, response, knowledgeContext, quality.qualityScore, userId)
+      .then(result => {
+        if (result.learned) console.log(`[MOTHER] 🧠 Agentic Learning: ${result.reason}`);
+      })
+      .catch(err => console.error('[MOTHER] Agentic learning failed (non-blocking):', err));
+  }
+
   if (quality.qualityScore && quality.qualityScore >= LEARNING_QUALITY_THRESHOLD) {
     learnFromResponse({
       content: response,

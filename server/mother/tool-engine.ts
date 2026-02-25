@@ -144,6 +144,39 @@ export const MOTHER_TOOLS = [
   {
     type: 'function' as const,
     function: {
+      name: 'self_repair',
+      description: 'Run a comprehensive self-audit and repair of MOTHER\'s knowledge systems. Checks database health, CRAG pipeline, grounding engine, learning loop, and bootstraps all 8 knowledge domains. REQUIRES CREATOR PERMISSION. Use this when the user asks MOTHER to audit herself, fix herself, run self-repair, or when the system seems broken.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'force_study',
+      description: 'Force MOTHER to proactively study a topic by searching arXiv, ingesting scientific papers, and storing a research summary. REQUIRES CREATOR PERMISSION. Use this when the user asks MOTHER to study, learn about, or research a specific topic in depth. This is the admin command to fill knowledge gaps.',
+      parameters: {
+        type: 'object',
+        properties: {
+          topic: {
+            type: 'string',
+            description: 'The topic or subject MOTHER should study (e.g., "quantum computing", "transformer architecture", "CRISPR gene editing").',
+          },
+          depth: {
+            type: 'number',
+            description: 'Number of papers to ingest (1-10). Default: 5.',
+          },
+        },
+        required: ['topic'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
       name: 'get_audit_log',
       description: 'Retrieve the system audit log showing all administrative actions, proposal approvals, and security events. REQUIRES CREATOR PERMISSION. Use this when the user asks for the audit trail or history of system changes.',
       parameters: {
@@ -404,6 +437,54 @@ export async function executeTool(
       };
     } catch (error) {
       return { success: false, error: `Audit log retrieval failed: ${error}` };
+    }
+  }
+
+  if (toolName === 'self_repair') {
+    try {
+      const { runSelfRepair } = await import('./self-repair');
+      const result = await runSelfRepair();
+      await logAuditEvent({
+        action: 'TOOL_SELF_REPAIR',
+        actorEmail: ctx.userEmail,
+        actorType: 'creator',
+        targetType: 'system',
+        targetId: 'mother',
+        details: result.summary,
+        success: result.overallHealth !== 'critical',
+      });
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: `Self-repair failed: ${error}` };
+    }
+  }
+
+  if (toolName === 'force_study') {
+    try {
+      const { forceStudy } = await import('./agentic-learning');
+      const topic = toolArgs.topic;
+      const depth = toolArgs.depth || 5;
+      const result = await forceStudy(topic, depth);
+      await logAuditEvent({
+        action: 'TOOL_FORCE_STUDY',
+        actorEmail: ctx.userEmail,
+        actorType: 'creator',
+        targetType: 'knowledge',
+        targetId: topic,
+        details: `Force studied: "${topic}" | Papers: ${result.papersIngested} | Knowledge entries: ${result.knowledgeAdded}`,
+        success: true,
+      });
+      return {
+        success: true,
+        data: {
+          topic,
+          papersIngested: result.papersIngested,
+          knowledgeEntriesAdded: result.knowledgeAdded,
+          message: `Successfully studied "${topic}". Ingested ${result.papersIngested} papers and added ${result.knowledgeAdded} knowledge entries.`,
+        },
+      };
+    } catch (error) {
+      return { success: false, error: `Force study failed: ${error}` };
     }
   }
 
