@@ -13,25 +13,146 @@ import { invokeSupervisor, getSupervisorStatus } from '../mother/supervisor';
 import { getAgentPool, getFitnessHistory } from '../mother/gea_supervisor';
 import { getDb } from '../db';
 import { randomUUID } from 'crypto';
+import { getProposals, approveProposal, logAuditEvent, CREATOR_EMAIL as CREATOR } from '../mother/update-proposals';
 
 export const motherRouter = router({
   /**
-   * Main query endpoint
-   * Processes a query through all 7 MOTHER layers
+   * Main query endpoint — v63.0
+   * Processes a query through all 7 MOTHER layers.
+   * Supports multi-turn conversation history and admin slash commands.
    */
   query: publicProcedure
     .input(
       z.object({
-        query: z.string().min(1).max(5000),
+        query: z.string().min(1).max(10000),
         useCache: z.boolean().optional().default(true),
+        conversationHistory: z.array(
+          z.object({
+            role: z.enum(['user', 'assistant']),
+            content: z.string(),
+          })
+        ).optional().default([]),
       })
     )
     .mutation(async ({ input, ctx }) => {
+      const userEmail = ctx.user?.email ?? undefined;
+      const isCreator = userEmail === CREATOR;
+      const query = input.query.trim();
+
+      // ==================== ADMIN COMMAND HANDLER (v63.0) ====================
+      // Slash commands for creator administration via prompt
+      // Scientific basis: CLI-first design (Raymond, The Art of Unix Programming, 2003)
+      if (isCreator && query.startsWith('/')) {
+        const parts = query.split(' ');
+        const cmd = parts[0].toLowerCase();
+        const args = parts.slice(1).join(' ');
+
+        // /status — Current operational status
+        if (cmd === '/status') {
+          const stats = await getSystemStats();
+          const response = [
+            '## ⚙️ MOTHER v63.0 — System Status',
+            '',
+            `- **Version:** v63.0`,
+            `- **Total Queries Processed:** ${stats.totalQueries ?? 'N/A'}`,
+            `- **Average Quality Score:** ${stats.avgQuality?.toFixed(1) ?? 'N/A'}/100`,
+            `- **Avg Response Time:** ${stats.avgResponseTime?.toFixed(0) ?? 'N/A'}ms`,
+            `- **Cache Hit Rate:** ${stats.cacheHitRate?.toFixed(1) ?? 'N/A'}%`,
+            `- **DGM Status:** Active`,
+            '',
+            '_Use `/proposals` to see pending self-update proposals._',
+          ].join('\n');
+          return { response, tier: 'gpt-4o-mini' as const, complexityScore: 0, confidenceScore: 1, quality: { passed: true, qualityScore: 100, issues: [] }, responseTime: 0, tokensUsed: 0, cost: 0, costReduction: 0, cacheHit: false, queryId: -1 };
+        }
+
+        // /proposals — List all pending DGM proposals
+        if (cmd === '/proposals') {
+          const proposals = await getProposals(undefined, 20);
+          const pending = proposals.filter(p => p.status === 'pending');
+          let response = `## 🧠 DGM Self-Update Proposals (${pending.length} pending)\n\n`;
+          if (pending.length === 0) {
+            response += '_No pending proposals. MOTHER will generate new ones after 10 more queries._';
+          } else {
+            pending.forEach(p => {
+              response += `### Proposal ID ${p.id}: ${p.title}\n`;
+              response += `- **Description:** ${p.description}\n`;
+              response += `- **Metric Trigger:** ${p.affectedModules ?? 'N/A'}\n`;
+              response += `- **Status:** ${p.status}\n\n`;
+            });
+            response += `_Use \`/approve [ID]\` to approve a proposal._`;
+          }
+          return { response, tier: 'gpt-4o-mini' as const, complexityScore: 0, confidenceScore: 1, quality: { passed: true, qualityScore: 100, issues: [] }, responseTime: 0, tokensUsed: 0, cost: 0, costReduction: 0, cacheHit: false, queryId: -1 };
+        }
+
+        // /approve [ID] — Approve a DGM proposal
+        if (cmd === '/approve') {
+          const proposalId = parseInt(args, 10);
+          if (isNaN(proposalId)) {
+            return { response: '❌ Usage: `/approve [ID]` — e.g. `/approve 1`', tier: 'gpt-4o-mini' as const, complexityScore: 0, confidenceScore: 1, quality: { passed: true, qualityScore: 100, issues: [] }, responseTime: 0, tokensUsed: 0, cost: 0, costReduction: 0, cacheHit: false, queryId: -1 };
+          }
+          const result = await approveProposal(proposalId, userEmail!);
+          const response = result.success
+            ? `✅ **Proposal ID ${proposalId} approved.** The DGM self-update pipeline will now execute this improvement.\n\nReason: ${result.reason}`
+            : `❌ **Failed to approve Proposal ID ${proposalId}.**\n\nReason: ${result.reason}`;
+          return { response, tier: 'gpt-4o-mini' as const, complexityScore: 0, confidenceScore: 1, quality: { passed: true, qualityScore: 100, issues: [] }, responseTime: 0, tokensUsed: 0, cost: 0, costReduction: 0, cacheHit: false, queryId: -1 };
+        }
+
+        // /audit — Full system audit
+        if (cmd === '/audit') {
+          const stats = await getSystemStats();
+          const proposals = await getProposals(undefined, 10);
+          const pending = proposals.filter(p => p.status === 'pending');
+          const response = [
+            '## 🔍 MOTHER v63.0 — Full System Audit',
+            '',
+            '### Performance Metrics',
+            `| Metric | Value |`,
+            `|--------|-------|`,
+            `| Version | v63.0 |`,
+            `| Total Queries | ${stats.totalQueries ?? 'N/A'} |`,
+            `| Avg Quality | ${stats.avgQuality?.toFixed(1) ?? 'N/A'}/100 |`,
+            `| Avg Response Time | ${stats.avgResponseTime?.toFixed(0) ?? 'N/A'}ms |`,
+            `| Cache Hit Rate | ${stats.cacheHitRate?.toFixed(1) ?? 'N/A'}% |`,
+            '',
+            '### DGM Status',
+            `- **Pending Proposals:** ${pending.length}`,
+            ...pending.map(p => `  - ID ${p.id}: ${p.title}`),
+            '',
+            '### Architecture',
+            '- 7-Layer Cognitive Architecture: ✅ Active',
+            '- Darwin Gödel Machine (DGM): ✅ Active',
+            '- Episodic Memory: ✅ Active',
+            '- Scientific RAG: ✅ Active',
+            '- Guardian Quality System: ✅ Active',
+            '',
+            '_Audit complete. Use `/approve [ID]` to approve pending proposals._',
+          ].join('\n');
+          return { response, tier: 'gpt-4o-mini' as const, complexityScore: 0, confidenceScore: 1, quality: { passed: true, qualityScore: 100, issues: [] }, responseTime: 0, tokensUsed: 0, cost: 0, costReduction: 0, cacheHit: false, queryId: -1 };
+        }
+
+        // /learn [text] — Ingest knowledge directly
+        if (cmd === '/learn') {
+          if (!args.trim()) {
+            return { response: '❌ Usage: `/learn [text to learn]` — e.g. `/learn Quantum entanglement is...`', tier: 'gpt-4o-mini' as const, complexityScore: 0, confidenceScore: 1, quality: { passed: true, qualityScore: 100, issues: [] }, responseTime: 0, tokensUsed: 0, cost: 0, costReduction: 0, cacheHit: false, queryId: -1 };
+          }
+          await addKnowledge(
+            `Creator Direct Learn: ${args.slice(0, 80)}`,
+            args,
+            'creator_direct',
+            'creator'
+          );
+          await logAuditEvent({ action: 'CREATOR_DIRECT_LEARN', actorType: 'creator', actorEmail: userEmail, targetType: 'knowledge', details: `Direct learn: ${args.slice(0, 100)}`, success: true });
+          return { response: `✅ **Knowledge ingested successfully.**\n\n> ${args.slice(0, 200)}${args.length > 200 ? '...' : ''}\n\n_This information is now part of my permanent knowledge base._`, tier: 'gpt-4o-mini' as const, complexityScore: 0, confidenceScore: 1, quality: { passed: true, qualityScore: 100, issues: [] }, responseTime: 0, tokensUsed: 0, cost: 0, costReduction: 0, cacheHit: false, queryId: -1 };
+        }
+      }
+      // ==================== END ADMIN COMMAND HANDLER ====================
+
       const result = await processQuery({
-        query: input.query,
+        query,
         userId: ctx.user?.id,
-        userEmail: ctx.user?.email ?? undefined,
+        userEmail,
         useCache: input.useCache,
+        conversationHistory: input.conversationHistory,
       });
 
       return result;

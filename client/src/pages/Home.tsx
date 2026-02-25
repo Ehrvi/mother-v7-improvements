@@ -106,12 +106,20 @@ export default function Home() {
       content: query,
       timestamp: new Date(),
     };
+    // v63.0: Build conversation history from current messages for multi-turn context
+    const conversationHistory = messages
+      .filter(m => m.role === 'user' || m.role === 'mother')
+      .slice(-20) // last 20 messages = 10 turns
+      .map(m => ({
+        role: m.role === 'user' ? 'user' as const : 'assistant' as const,
+        content: m.content,
+      }));
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-    queryMutation.mutate({ query, useCache: false });
+    queryMutation.mutate({ query, useCache: false, conversationHistory });
   };
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -173,7 +181,7 @@ export default function Home() {
           </div>
           <div>
             <div className="text-sm font-bold" style={{ background: 'linear-gradient(90deg, #c4b5fd, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              MOTHER v53.0
+              MOTHER v63.0
             </div>
             <div className="text-[10px] text-[#55556a]">Darwin Gödel Machine</div>
           </div>
@@ -201,6 +209,21 @@ export default function Home() {
           ))}
         </div>
 
+        {/* Admin commands */}
+        <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(124,58,237,0.2)] rounded-xl p-3">
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-[#55556a] mb-2">Administração</div>
+          {[
+            { icon: '🔍', label: '/audit', desc: 'Auditoria completa' },
+            { icon: '📋', label: '/proposals', desc: 'Ver propostas DGM' },
+            { icon: '✅', label: '/approve 1', desc: 'Aprovar proposta' },
+            { icon: '⚙️', label: '/status', desc: 'Status do sistema' },
+          ].map((cmd) => (
+            <button key={cmd.label} className="quick-btn" onClick={() => sendMessage(cmd.label)} title={cmd.desc}>
+              {cmd.icon} <code style={{fontSize:'11px'}}>{cmd.label}</code>
+            </button>
+          ))}
+        </div>
+
         {/* Quick prompts */}
         <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-3">
           <div className="text-[10px] font-semibold uppercase tracking-widest text-[#55556a] mb-2">Perguntas Rápidas</div>
@@ -215,7 +238,7 @@ export default function Home() {
         <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-3">
           <div className="text-[10px] font-semibold uppercase tracking-widest text-[#55556a] mb-2">Sistema</div>
           {[
-            { icon: <GitBranch className="w-3 h-3" />, label: 'Versão', value: 'v53.0', cls: 'accent-glow' },
+            { icon: <GitBranch className="w-3 h-3" />, label: 'Versão', value: 'v63.0', cls: 'accent-glow' },
             { icon: <Database className="w-3 h-3" />, label: 'DB', value: 'Unix Socket ✓', cls: 'text-emerald-400' },
             { icon: <Dna className="w-3 h-3" />, label: 'GEA Loop', value: 'Ativo ✓', cls: 'text-emerald-400' },
             { icon: <Activity className="w-3 h-3" />, label: 'Fitness Track', value: 'Ativo ✓', cls: 'text-emerald-400' },
