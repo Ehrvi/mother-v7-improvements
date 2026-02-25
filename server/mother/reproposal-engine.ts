@@ -250,10 +250,10 @@ export async function getKnowledgeWisdomStats(): Promise<{
        FROM knowledge_wisdom kw
        LEFT JOIN (
          SELECT 
-           COALESCE(category, 'general') as category,
+           CONVERT(COALESCE(category, 'general') USING utf8mb4) COLLATE utf8mb4_unicode_ci as category,
            COUNT(*) as chunk_count
          FROM knowledge
-         GROUP BY COALESCE(category, 'general')
+         GROUP BY CONVERT(COALESCE(category, 'general') USING utf8mb4) COLLATE utf8mb4_unicode_ci
        ) k_count ON (
          k_count.category = kw.domain OR 
          k_count.category = kw.subdomain OR
