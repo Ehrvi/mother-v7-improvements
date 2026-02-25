@@ -49,6 +49,13 @@ RUN npx esbuild server/mother/autonomous-update-job.ts \
     --bundle \
     --format=esm \
     --outfile=dist/swe-agent-job.js
+# Build the Self-Repair script as a standalone ESM bundle
+RUN npx esbuild server/mother/self-repair.ts \
+    --platform=node \
+    --packages=external \
+    --bundle \
+    --format=esm \
+    --outfile=dist/self-repair-job.js
 
 # Production stage — minimal image with only what the job needs
 FROM base AS prod-deps
@@ -78,6 +85,6 @@ RUN groupadd --system --gid 1001 nodejs && \
 
 USER nodejs
 
-# Cloud Run Job entry point: run the autonomous update job
+# Smart entrypoint: run self-repair if SELF_REPAIR_MODE=true, else run SWE-Agent
 # PROPOSAL_ID and AUTONOMOUS_JOB_MODE are injected as env vars by the job trigger
-CMD ["node", "dist/swe-agent-job.js"]
+CMD ["sh", "-c", "if [ \"$SELF_REPAIR_MODE\" = \"true\" ]; then node dist/self-repair-job.js; else node dist/swe-agent-job.js; fi"]
