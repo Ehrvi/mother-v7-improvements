@@ -119,13 +119,28 @@ export async function processQuery(
     // ==================== LAYER 5: KNOWLEDGE ====================
     // Retrieve relevant knowledge context
 
-    const knowledgeContext = await getKnowledgeContext(query);
+    const [knowledgeContext, episodicMemoryContext] = await Promise.all([
+      Promise.race([getKnowledgeContext(query), new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout in getKnowledgeContext')), 2000))]),
+      (async () => {
+        try {
+          const { searchEpisodicMemory } = await import('../db-episodic-memory');
+          const pastInteractions = await Promise.race([searchEpisodicMemory(query, 3), new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout in searchEpisodicMemory')), 2000))]);
+          if (pastInteractions.length > 0) {
+            logger.info(`[MOTHER] Retrieved ${pastInteractions.length} past interactions from episodic memory (top similarity: ${pastInteractions[0].similarity.toFixed(3)})`);
+            return `\n\n### 🧠 EPISODIC MEMORY (Past Interactions)\n` + pastInteractions.map((p, i) => `<past_interaction_${i+1}>\n` + `Query: ${p.query}\n` + `Response: ${p.response.slice(0, 500)}${p.response.length > 500 ? '...' : ''}\n` + `Tier: ${p.tier} | Similarity: ${p.similarity.toFixed(3)}\n` + `</past_interaction_${i+1}>`).join('\n\n');
+          }
+        } catch (error) {
+          logger.error('[MOTHER] Failed to retrieve episodic memory:', error);
+          return ''; // Continue without episodic memory - non-critical
+        }
+      })()
+    ]);
 
     // ==================== LAYER 5.5: EPISODIC MEMORY (v30.0) ====================
     // Retrieve semantically similar past interactions from episodic memory
     // This implements the second pillar of the cognitive architecture: Active Memory
 
-    let episodicMemoryContext = '';
+    
     try {
       const { searchEpisodicMemory } = await import('../db-episodic-memory');
       const pastInteractions = await searchEpisodicMemory(query, 3);
@@ -191,6 +206,17 @@ export async function processQuery(
     // Execute query with selected LLM tier
 
     const model = getModelForTier(complexity.tier);
+
+    // Pre-warm the DB connection pool on startup
+    (async () => {
+      try {
+        const { getDb } = await import('../db');
+        const db = await getDb();
+        logger.info('[MOTHER] DB connection pool pre-warmed successfully.');
+      } catch (error) {
+        logger.error('[MOTHER] Failed to pre-warm DB connection pool:', error);
+      }
+    })();
     // Detect query language
     const detectLanguage = (text: string): string => {
       // Simple heuristic: check for Portuguese characters/words
