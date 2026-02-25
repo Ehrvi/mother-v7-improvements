@@ -82,7 +82,15 @@ function extractEnglishKeywords(query: string): string {
   }
   
   // Fallback: extract words that look like proper nouns or technical terms
-  const words = query.split(/\s+/).filter(w => w.length > 3);
+  // Filter out noise words that are common in Portuguese research queries
+  const noiseWords = new Set(['PDFs', 'PDF', 'papers', 'paper', 'arXiv', 'arxiv', 'indexe', 'indexar',
+    'indexado', 'indexados', 'banco', 'dados', 'texto', 'completo', 'sobre', 'para', 'com',
+    'seu', 'sua', 'meu', 'minha', 'este', 'esta', 'esse', 'essa', 'isso', 'aqui', 'onde',
+    'como', 'quando', 'porque', 'pois', 'mais', 'menos', 'muito', 'pouco', 'todo', 'toda',
+    'todos', 'todas', 'cada', 'outro', 'outra', 'outros', 'outras', 'mesmo', 'mesma',
+    'adicione', 'adicionar', 'busque', 'buscar', 'pesquise', 'pesquisar', 'encontre',
+    'encontrar', 'liste', 'listar', 'mostre', 'mostrar', 'explique', 'explicar']);
+  const words = query.split(/\s+/).filter(w => w.length > 3 && !noiseWords.has(w));
   const englishLike = words.filter(w => !/[áàâãéêíóôõúçÁÀÂÃÉÊÍÓÔÕÚÇ]/.test(w));
   return englishLike.slice(0, 6).join(' ') || query.slice(0, 100);
 }
