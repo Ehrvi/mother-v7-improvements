@@ -202,11 +202,20 @@ export const nativeAuthRouter = router({
       // ── Successful login: clear rate limit ────────────────────────────
       clearRateLimit(clientIp);
 
+      // v63.0 FIX: If user has no openId (e.g., seeded via migration), generate one now.
+      // Without an openId, the JWT will contain null and authenticateRequest will fail
+      // to find the user in the DB, causing all protected endpoints to return 401.
+      let userOpenId = user.openId;
+      if (!userOpenId) {
+        userOpenId = `native_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+        await db.update(users).set({ openId: userOpenId }).where(eq(users.id, user.id));
+      }
+
       // Update last signed in
       await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, user.id));
 
       // Create JWT session
-      const sessionToken = await sdk.createSessionToken(user.openId!, {
+      const sessionToken = await sdk.createSessionToken(userOpenId, {
         name: user.name || user.email || "",
         expiresInMs: ONE_YEAR_MS,
       });
