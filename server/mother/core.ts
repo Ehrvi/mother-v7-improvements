@@ -280,7 +280,10 @@ Respond as MOTHER v64.0. Use your tools when needed. Be direct, scientific, and 
   // Scientific basis: OpenAI Function Calling (OpenAI, 2023); ReAct (Yao et al., ICLR 2023)
   const toolCtx = { userEmail, userId, isCreator };
 
+  // v64.0: Always use gpt-4o for tool calling (gpt-4o-mini has limited function calling support)
+  const toolModel = 'gpt-4o';
   const llmResponse = await invokeLLM({
+    model: toolModel,
     messages: [
       { role: 'system' as LLMRole, content: systemPrompt },
       ...historyMessages,
