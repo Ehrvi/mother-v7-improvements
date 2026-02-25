@@ -359,14 +359,32 @@ function calculateRelevance(query: string, content: string): number {
 }
 
 /**
+ * Infer the Knowledge Map domain from category/title text.
+ * Maps to the 8 domains shown in the CONHECIMENTO panel.
+ */
+function inferDomain(category?: string, title?: string): string {
+  const text = ((category || '') + ' ' + (title || '')).toLowerCase();
+  if (/machine.?learning|\bml\b|deep.?learning|neural|\bllm\b|\brag\b|embedding|transformer|self.rag|crag|ragas|g.eval|factscore|hallucin|ai.?eval/.test(text)) return 'Machine Learning';
+  if (/software|engineering|\bcode\b|testing|ci.?cd|devops|reposit|\bgit\b|deploy|architect|database|\borm\b|security|audit|governance|mlops|cloud/.test(text)) return 'Eng. de Software';
+  if (/cogni|\bmemory\b|\blearning\b|psycholog|neuroscien|conscious|\bagent\b|generative.agent|memgpt|a.mem/.test(text)) return 'Ciência Cognitiva';
+  if (/math|statistic|probabilit|calculus|algebra|optimiz/.test(text)) return 'Matemática';
+  if (/philosoph|ethic|epistemol|ontolog|\blogic\b|bias|fairness|alignment|ai.?safety/.test(text)) return 'Filosofia';
+  if (/health|fitness|nutrition|exercise|medical|biolog/.test(text)) return 'Saúde & Fitness';
+  if (/business|finance|economic|management|strategy|marketing/.test(text)) return 'Negócios';
+  return 'Conhecimento Geral';
+}
+
+/**
  * Add new knowledge to the system
  * Stores in database for replay mechanism
+ * Domain is auto-inferred from category/title if not provided.
  */
 export async function addKnowledge(
   title: string,
   content: string,
   category?: string,
-  source?: string
+  source?: string,
+  domain?: string
 ): Promise<number> {
   const { insertKnowledge } = await import('../db');
   
@@ -381,6 +399,7 @@ export async function addKnowledge(
     embeddingModel: null,
     accessCount: 0,
     lastAccessed: null,
+    domain: domain || inferDomain(category, title),
   });
 }
 

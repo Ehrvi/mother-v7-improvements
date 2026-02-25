@@ -95,12 +95,14 @@ export const knowledge = mysqlTable("knowledge", {
   // Usage tracking
   accessCount: int("accessCount").default(0),
   lastAccessed: timestamp("lastAccessed"),
-  
+
+  // Domain classification (maps to Knowledge Map panel — CRITICAL: must be set on every insert)
+  domain: varchar("domain", { length: 100 }).default("Conhecimento Geral"),
+
   // Metadata
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type Knowledge = typeof knowledge.$inferSelect;
 export type InsertKnowledge = typeof knowledge.$inferInsert;
 
