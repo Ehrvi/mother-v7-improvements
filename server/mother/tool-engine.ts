@@ -21,7 +21,7 @@
  *   zero results. This is system-initiated — users NEVER call force_study directly.
  */
 
-import { getSystemStats } from './core';
+import { getSystemStats, MOTHER_VERSION } from './core';
 import { getProposals, approveProposal, logAuditEvent, getAuditLog, CREATOR_EMAIL } from './update-proposals';
 import { addKnowledge, queryKnowledge } from './knowledge';
 import { getQueryStats, getAllKnowledge, getRecentQueries } from '../db';
@@ -241,7 +241,7 @@ export async function executeTool(
       const depth = toolArgs.depth || 'detailed';
 
       let auditData: any = {
-        version: 'v64.0',
+        version: stats.version || MOTHER_VERSION,
         timestamp: new Date().toISOString(),
         performance: {
           totalQueries: stats.totalQueries,
