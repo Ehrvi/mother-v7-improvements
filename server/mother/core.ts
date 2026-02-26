@@ -50,7 +50,7 @@ import { ENV } from '../_core/env';
 import { generateFichamento } from './fichamento';
 
 // ─── MOTHER Version (single source of truth) ─────────────────────────────────
-export const MOTHER_VERSION = 'v69.7';
+export const MOTHER_VERSION = 'v69.8';
 
 
 // v56.0: Creator email for authorization (Req #6)
