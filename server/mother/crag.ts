@@ -243,6 +243,8 @@ async function multiSourceRetrieval(query: string): Promise<CRAGDocument[]> {
 /**
  * Grade each document for relevance using a lightweight LLM call.
  * Based on Self-RAG critique tokens (Asai et al., 2023).
+ * v68.9 Opt #6: Skip LLM grading for small document sets; use heuristic scoring.
+ * Scientific basis: OpenAI Latency Guide (2025) — avoid LLM calls for simple operations.
  */
 async function gradeDocuments(
   documents: CRAGDocument[],
@@ -250,8 +252,19 @@ async function gradeDocuments(
 ): Promise<CRAGDocument[]> {
   if (documents.length === 0) return [];
 
-  // v68.4: For small sets, use LLM grading; for large sets, use heuristics
-  // Increased threshold from 5 to 15 to enable grading for larger document sets
+  // v68.9: Use heuristic grading for small sets (< 5 docs) to avoid LLM call overhead
+  // Heuristic: keyword overlap between query and document content
+  if (documents.length <= 4) {
+    const queryWords = new Set(query.toLowerCase().split(/\s+/).filter(w => w.length > 3));
+    return documents.map(doc => {
+      const docWords = doc.content.toLowerCase().split(/\s+/);
+      const overlap = docWords.filter(w => queryWords.has(w)).length;
+      const heuristicScore = Math.min(0.9, 0.3 + (overlap / Math.max(queryWords.size, 1)) * 0.7);
+      return { ...doc, relevanceScore: heuristicScore };
+    });
+  }
+
+  // For medium sets (5-15 docs), use LLM grading
   if (documents.length <= 15) {
     try {
       const gradingPrompt = `You are a relevance grader. Given a user query and a list of retrieved documents, score each document's relevance from 0.0 to 1.0.

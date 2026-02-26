@@ -9,6 +9,9 @@ interface Message {
   content: string;
   timestamp: Date;
   tier?: string;
+  modelName?: string;   // v68.9: actual model used (from selectedModel)
+  provider?: string;    // v68.9: actual provider (openai, anthropic, google, deepseek)
+  queryCategory?: string; // v68.9: routing category
   qualityScore?: number;
   costReduction?: number;
   responseTime?: number;
@@ -67,6 +70,9 @@ export default function Home() {
         content: data.response,
         timestamp: new Date(),
         tier: data.tier,
+        modelName: (data as any).modelName,       // v68.9: actual model from cascade router
+        provider: (data as any).provider,          // v68.9: actual provider
+        queryCategory: (data as any).queryCategory, // v68.9: routing category
         qualityScore: data.quality?.qualityScore,
         costReduction: data.costReduction,
         responseTime: data.responseTime,
@@ -207,7 +213,7 @@ export default function Home() {
             { label: 'Mensagens', value: stats.msgCount, className: 'accent-glow' },
             { label: 'Custo Total', value: `$${stats.totalCost.toFixed(6)}`, className: 'text-[#e8e8f0]' },
             { label: 'Qualidade Média', value: avgQuality ? `${avgQuality}%` : '—', className: 'text-emerald-400' },
-            { label: 'Modelo Real', value: 'gpt-4o', className: 'accent-glow' }, // v68.4: Always gpt-4o for tool calls
+            { label: 'Modelo Real', value: messages.filter(m => m.role === 'mother' && m.modelName).slice(-1)[0]?.modelName || 'gpt-4o', className: 'accent-glow' }, // v68.9: Shows actual model from last response
           ].map(({ label, value, className }) => (
             <div key={label} className="flex justify-between items-center py-1.5 border-b border-[rgba(255,255,255,0.04)] last:border-0 text-xs">
               <span className="text-[#8888aa]">{label}</span>
@@ -245,7 +251,7 @@ export default function Home() {
         <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-3">
           <div className="text-[10px] font-semibold uppercase tracking-widest text-[#55556a] mb-2">Sistema</div>
           {[
-            { icon: <GitBranch className="w-3 h-3" />, label: 'Versão', value: 'v68.8', cls: 'accent-glow' },
+            { icon: <GitBranch className="w-3 h-3" />, label: 'Versão', value: 'v68.9', cls: 'accent-glow' },
             { icon: <Database className="w-3 h-3" />, label: 'DB', value: 'Unix Socket ✓', cls: 'text-emerald-400' },
             { icon: <Dna className="w-3 h-3" />, label: 'GEA Loop', value: 'Ativo ✓', cls: 'text-emerald-400' },
             { icon: <Activity className="w-3 h-3" />, label: 'Fitness Track', value: 'Ativo ✓', cls: 'text-emerald-400' },
@@ -343,8 +349,9 @@ export default function Home() {
                 {/* Metrics bar */}
                 {msg.role === 'mother' && msg.tier && (
                   <div className="flex flex-wrap gap-1.5">
-                    <span className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-[rgba(124,58,237,0.12)] border border-[rgba(124,58,237,0.25)] text-[#a78bfa]">
-                      <Brain className="w-2.5 h-2.5" />{msg.tier}
+                    {/* v68.9: Show actual model name from cascade router, not tier */}
+                    <span className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-[rgba(124,58,237,0.12)] border border-[rgba(124,58,237,0.25)] text-[#a78bfa]" title={`Provider: ${msg.provider || 'openai'} | Category: ${msg.queryCategory || msg.tier}`}>
+                      <Brain className="w-2.5 h-2.5" />{msg.modelName || msg.tier}
                     </span>
                     {msg.qualityScore && (
                       <span className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-[rgba(16,185,129,0.1)] border border-[rgba(16,185,129,0.25)] text-emerald-400">
