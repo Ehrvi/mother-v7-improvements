@@ -163,7 +163,7 @@ export const MOTHER_TOOLS = [
     type: 'function' as const,
     function: {
       name: 'force_study',
-      description: 'Force MOTHER to proactively study a topic by searching arXiv, ingesting scientific papers, and storing a research summary. REQUIRES CREATOR PERMISSION. Use this when the user asks MOTHER to study, learn about, or research a specific topic in depth. This is the admin command to fill knowledge gaps.',
+      description: 'Force MOTHER to proactively study a topic by searching arXiv, ingesting scientific papers, and storing a research summary. TWO MODES: (1) ACTIVE — Creator calls directly at any time, no restrictions. (2) PASSIVE — System auto-triggers internally via search_knowledge when bd_central has no data. NEVER call this tool directly unless you are the Creator. For regular users, passive mode is triggered automatically by search_knowledge.',
       parameters: {
         type: 'object',
         properties: {
