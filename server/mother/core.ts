@@ -50,7 +50,7 @@ import { ENV } from '../_core/env';
 import { generateFichamento } from './fichamento';
 
 // ─── MOTHER Version (single source of truth) ─────────────────────────────────
-export const MOTHER_VERSION = 'v69.9';
+export const MOTHER_VERSION = 'v69.10';
 
 
 // v56.0: Creator email for authorization (Req #6)
@@ -158,7 +158,28 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   // Assess complexity and route to appropriate LLM tier
   
   const complexity = assessComplexity(query);
-  const routingDecision = classifyQuery(query);
+  let routingDecision = classifyQuery(query);
+
+  // ── CREATOR BYPASS (v69.10): Constitutional AI principal hierarchy ──────────
+  // Scientific basis: Bai et al. (2022). Constitutional AI. arXiv:2212.08073.
+  // The creator (highest principal) always receives gpt-4o (complex_reasoning tier)
+  // regardless of query classification. This ensures full tool access and maximum
+  // response quality for ALL system administration and audit commands.
+  const isCreatorEarly = userEmail === CREATOR_EMAIL;
+  if (isCreatorEarly && (routingDecision.category === 'simple' || routingDecision.category === 'general')) {
+    const prevCategory = routingDecision.category;
+    routingDecision = {
+      ...routingDecision,
+      category: 'complex_reasoning',
+      model: { provider: 'openai', modelName: 'gpt-4o' },
+      tier: 'gpt-4o',
+      confidence: 1.0,
+      reasoning: `CREATOR BYPASS: was '${prevCategory}' → forced to gpt-4o (Constitutional AI, Bai et al. 2022)`,
+      complexityScore: 0.90,
+      confidenceScore: 1.0,
+    };
+    console.log(`[MOTHER] CREATOR BYPASS: '${prevCategory}' → complex_reasoning/gpt-4o`);
+  }
   console.log(`[MOTHER] Routing: category=${routingDecision.category}, provider=${routingDecision.model.provider}, model=${routingDecision.model.modelName}, confidence=${routingDecision.confidence.toFixed(2)}`);
   
   // ==================== LAYERS 5.0–5.6: PARALLEL CONTEXT BUILDING (v68.9 Opt #1) ====================
