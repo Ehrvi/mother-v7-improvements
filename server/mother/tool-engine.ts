@@ -1,18 +1,24 @@
 /**
- * MOTHER v64.0 — Tool Engine
- * 
+ * MOTHER v69.2 — Tool Engine
+ *
  * Implements OpenAI Function Calling (tool use) for MOTHER's agentic capabilities.
  * This allows MOTHER to autonomously decide when to call real system functions
  * based on natural language requests, rather than requiring exact slash commands.
- * 
+ *
  * Scientific basis:
  * - OpenAI Function Calling (OpenAI, 2023): Enables LLMs to call external functions
  * - ReAct (Yao et al., ICLR 2023): Reasoning + Acting pattern for agentic AI
  * - Constitutional AI (Bai et al., 2022): Permission-aware action execution
- * 
+ * - Self-RAG (Asai et al., arXiv:2310.11511, 2023): Adaptive retrieval with self-reflection
+ *
  * Permission Model:
  * - READ tools: available to all authenticated users
  * - WRITE/ADMIN tools: only available to the creator (CREATOR_EMAIL)
+ *
+ * force_study Access Rules (v69.2 — DEFINITIVE):
+ * - ACTIVE MODE: Creator calls force_study directly, any time, no restrictions.
+ * - PASSIVE MODE: System auto-triggers force_study when search_knowledge returns
+ *   zero results. This is system-initiated — users NEVER call force_study directly.
  */
 
 import { getSystemStats } from './core';
@@ -341,11 +347,69 @@ export async function executeTool(
   if (toolName === 'search_knowledge') {
     try {
       const results = await queryKnowledge(toolArgs.query);
+
+      // v69.2: PASSIVE AUTO-STUDY TRIGGER
+      // Scientific basis: Self-RAG (Asai et al., arXiv:2310.11511, 2023) — adaptive
+      // retrieval with self-reflection. When retrieval returns nothing, the system
+      // should acquire knowledge before giving up.
+      //
+      // Rule (Everton Luis, 2026-02-26):
+      // - ACTIVE mode: Creator calls force_study directly — no restrictions.
+      // - PASSIVE mode: System auto-triggers force_study when search returns empty.
+      //   Users NEVER call force_study directly; this is system-initiated only.
+      if (results.length === 0) {
+        console.log(`[ToolEngine] search_knowledge returned 0 results for "${toolArgs.query}" — triggering PASSIVE auto-study`);
+        try {
+          const { forceStudy } = await import('./agentic-learning');
+          const studyResult = await forceStudy(toolArgs.query, 3); // depth=3 for passive mode (lighter than active)
+          await logAuditEvent({
+            action: 'PASSIVE_AUTO_STUDY',
+            actorEmail: ctx.userEmail || 'system',
+            actorType: 'system',
+            targetType: 'knowledge',
+            targetId: toolArgs.query,
+            details: `Passive auto-study triggered for "${toolArgs.query}" | Papers: ${studyResult.papersIngested} | Entries: ${studyResult.knowledgeAdded}`,
+            success: true,
+          });
+          // Re-query after study to return freshly acquired knowledge
+          const freshResults = await queryKnowledge(toolArgs.query);
+          return {
+            success: true,
+            data: {
+              query: toolArgs.query,
+              resultsCount: freshResults.length,
+              autoStudyTriggered: true,
+              autoStudySummary: `Sistema aprendeu sobre "${toolArgs.query}": ${studyResult.papersIngested} papers ingeridos, ${studyResult.knowledgeAdded} entradas adicionadas ao bd_central.`,
+              results: freshResults.slice(0, 5).map(r => ({
+                source: r.source?.name || 'knowledge_base',
+                content: r.content?.slice(0, 300),
+                confidence: r.confidence,
+                relevance: r.relevance,
+              })),
+            },
+          };
+        } catch (studyError) {
+          console.error('[ToolEngine] Passive auto-study failed:', studyError);
+          // Return empty results gracefully — do not crash the query
+          return {
+            success: true,
+            data: {
+              query: toolArgs.query,
+              resultsCount: 0,
+              autoStudyTriggered: true,
+              autoStudySummary: `Tentativa de estudo automático falhou: ${studyError}. O tópico não pôde ser adicionado ao bd_central neste momento.`,
+              results: [],
+            },
+          };
+        }
+      }
+
       return {
         success: true,
         data: {
           query: toolArgs.query,
           resultsCount: results.length,
+          autoStudyTriggered: false,
           results: results.slice(0, 5).map(r => ({
             source: r.source?.name || 'knowledge_base',
             content: r.content?.slice(0, 300),
