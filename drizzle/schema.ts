@@ -61,6 +61,11 @@ export const queries = mysqlTable("queries", {
   cacheHit: int("cacheHit").default(0), // 0 or 1 (boolean)
   costReduction: decimal("costReduction", { precision: 8, scale: 4 }), // % reduction vs GPT-4 baseline
   
+  // Multi-Provider Cascade Router (v68.8: Ciclo 12 — Scientific basis: FrugalGPT, RouteLLM, LLMRouterBench)
+  provider: varchar("provider", { length: 64 }).default('openai'), // openai | anthropic | google | deepseek | mistral
+  modelName: varchar("modelName", { length: 128 }).default('gpt-4o'), // actual model used
+  queryCategory: varchar("queryCategory", { length: 64 }).default('general'), // simple | general | coding | complex_reasoning
+
   // RAGAS Metrics (v68.3: Sprint 3 — Scientific basis: Es et al., EACL 2024, arXiv:2309.15217)
   ragasFaithfulness: decimal("ragasFaithfulness", { precision: 5, scale: 4 }), // 0-1: response grounded in context
   ragasAnswerRelevancy: decimal("ragasAnswerRelevancy", { precision: 5, scale: 4 }), // 0-1: response addresses query

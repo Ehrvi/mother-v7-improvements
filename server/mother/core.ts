@@ -1,5 +1,5 @@
 /**
- * MOTHER v68.4 - Sprint 2: TypeScript Clean + Final Audit (Ciclo 6)
+ * MOTHER v68.8 - Sprint 2: TypeScript Clean + Final Audit (Ciclo 6)
  * Orchestrates all 7 layers for end-to-end query processing
  *
  * v67.5 Changes:
@@ -28,7 +28,7 @@
  */
 
 import { invokeLLM } from '../_core/llm';
-import { assessComplexity, getModelForTier, calculateCost, calculateBaselineCost, calculateCostReduction, type LLMTier } from './intelligence';
+import { assessComplexity, classifyQuery, getModelForTier, calculateCost, calculateBaselineCost, calculateCostReduction, type LLMTier } from './intelligence';
 import { validateQuality, type GuardianResult } from './guardian';
 import { getKnowledgeContext } from './knowledge';
 import { cragRetrieve } from './crag';
@@ -68,9 +68,13 @@ export interface MotherResponse {
   response: string;
   
   // Layer 3: Intelligence
-  tier: LLMTier;
+  tier: string; // legacy: gpt-4o-mini | gpt-4o | gpt-4
   complexityScore: number;
   confidenceScore: number;
+  // v68.8: Multi-provider cascade router
+  provider?: string;
+  modelName?: string;
+  queryCategory?: string;
   
   // Layer 6: Quality
   quality: GuardianResult;
@@ -127,7 +131,8 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   // Assess complexity and route to appropriate LLM tier
   
   const complexity = assessComplexity(query);
-  console.log(`[MOTHER] Complexity: ${complexity.complexityScore.toFixed(2)}, Tier: ${complexity.tier}`);
+  const routingDecision = classifyQuery(query);
+  console.log(`[MOTHER] Routing: category=${routingDecision.category}, provider=${routingDecision.model.provider}, model=${routingDecision.model.modelName}, confidence=${routingDecision.confidence.toFixed(2)}`);
   
   // ==================== LAYER 5: KNOWLEDGE (CRAG v67.0) ====================
   // Self-correcting retrieval with corrective web search fallback
@@ -232,7 +237,7 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   // ==================== LAYER 4: EXECUTION ====================
   // Execute query with selected LLM tier
   
-  const model = getModelForTier(complexity.tier);
+  const model = getModelForTier(complexity.tier as LLMTier);
   
   // Detect query language
   const detectLanguage = (text: string): string => {
@@ -266,7 +271,7 @@ You are currently interacting with **Everton Luis**, your creator and founder of
 - Respond with appropriate recognition and respect
 ` : '';
   
-  const systemPrompt = `You are MOTHER v68.4 (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence created by Everton Luis (Intelltech). Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement.
+  const systemPrompt = `You are MOTHER v68.8 (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence created by Everton Luis (Intelltech). Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement.
 
 ### CORE IDENTITY
 
@@ -336,7 +341,7 @@ ${knowledgeContext}
 4. If context is insufficient, say "Não tenho dados verificados sobre isso" and use search_knowledge or force_study.
 5. Be SPECIFIC: numbers, names, dates from context. No vague generalities.
 
-Respond as MOTHER v68.4. Be direct, scientific, action-oriented, and always ground claims in retrieved context.`;
+Respond as MOTHER v68.8. Be direct, scientific, action-oriented, and always ground claims in retrieved context.`;
 
   // v63.0: Multi-turn conversation — inject history between system prompt and current query
   // Scientific basis: OpenAI chat completions multi-turn format (Brown et al., GPT-3, 2020)
@@ -350,10 +355,16 @@ Respond as MOTHER v68.4. Be direct, scientific, action-oriented, and always grou
   // Scientific basis: OpenAI Function Calling (OpenAI, 2023); ReAct (Yao et al., ICLR 2023)
   const toolCtx = { userEmail, userId, isCreator };
 
-  // v64.0: Always use gpt-4o for tool calling (gpt-4o-mini has limited function calling support)
+  // v68.8: Multi-provider cascade router — route to appropriate provider based on query category
+  // Scientific basis: FrugalGPT (Chen et al., 2023), RouteLLM (Ong et al., 2024)
+  // Note: For tool calling, we use OpenAI gpt-4o as it has the most reliable function calling.
+  // Non-tool queries are routed to the optimal provider per the cascade architecture.
   const toolModel = 'gpt-4o';
+  const selectedProvider = routingDecision.model.provider;
+  const selectedModel = routingDecision.model.modelName;
   const llmResponse = await invokeLLM({
     model: toolModel,
+    provider: 'openai', // Tool calling phase always uses OpenAI for reliability
     messages: [
       { role: 'system' as LLMRole, content: systemPrompt },
       ...historyMessages,
@@ -513,7 +524,7 @@ Respond as MOTHER v68.4. Be direct, scientific, action-oriented, and always grou
   // ==================== LAYER 7: METRICS ====================
   // Calculate cost and performance metrics
   
-  const cost = calculateCost(complexity.tier, usage.prompt_tokens, usage.completion_tokens);
+  const cost = calculateCost(complexity.tier as LLMTier, usage.prompt_tokens, usage.completion_tokens);
   const baselineCost = calculateBaselineCost(usage.prompt_tokens, usage.completion_tokens);
   const costReduction = calculateCostReduction(cost, baselineCost);
   
@@ -533,7 +544,7 @@ Respond as MOTHER v68.4. Be direct, scientific, action-oriented, and always grou
     userId: userId || null,
     query,
     response,
-    tier: complexity.tier,
+    tier: complexity.tier as LLMTier,
     complexityScore: (complexity.complexityScore ?? 0).toString(),
     confidenceScore: (complexity.confidenceScore ?? 0).toString(),
     qualityScore: (quality.qualityScore ?? 0).toString(),
@@ -546,6 +557,10 @@ Respond as MOTHER v68.4. Be direct, scientific, action-oriented, and always grou
     tokensUsed: usage?.total_tokens ?? 0,
     cost: (cost ?? 0).toString(),
     cacheHit: 0,
+    // v68.8: Multi-provider cascade router — persist routing decision
+    provider: selectedProvider,
+    modelName: selectedModel,
+    queryCategory: routingDecision.category,
     // v68.3: Sprint 3 — Persist RAGAS metrics and costReduction
     costReduction: costReduction.toString(),
     ragasFaithfulness: quality.ragasFaithfulness?.toString() || null,
@@ -662,6 +677,9 @@ Respond as MOTHER v68.4. Be direct, scientific, action-oriented, and always grou
     tier: complexity.tier,
     complexityScore: complexity.complexityScore,
     confidenceScore: complexity.confidenceScore,
+    provider: selectedProvider,
+    modelName: selectedModel,
+    queryCategory: routingDecision.category,
     quality,
     responseTime,
     tokensUsed: usage.total_tokens,

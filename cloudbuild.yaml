@@ -32,6 +32,7 @@ steps:
       - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-interface:$BUILD_ID'
 
   # Deploy to Cloud Run
+  # v68.8: Multi-provider cascade router — added ANTHROPIC, GOOGLE_AI, DEEPSEEK, MISTRAL secrets
   # v28.5.3: Added --add-cloudsql-instances, --set-secrets (DATABASE_URL + OPENAI_API_KEY),
   #          and --set-env-vars for GIT_COMMIT_SHA tracking.
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -54,7 +55,7 @@ steps:
       # v46.0: Fixed Cloud SQL instance to use Sydney (australia-southeast1) for co-location
       - '--add-cloudsql-instances=mothers-library-mcp:australia-southeast1:mother-db-sydney'
       # v50.0: Added JWT_SECRET and forge API secrets (fixes 'Zero-length key' auth bug)
-      - '--set-secrets=DATABASE_URL=mother-db-url:latest,OPENAI_API_KEY=mother-openai-api-key:latest,JWT_SECRET=mother-jwt-secret:latest,BUILT_IN_FORGE_API_URL=mother-forge-api-url:latest,BUILT_IN_FORGE_API_KEY=mother-forge-api-key:latest'
+      - '--set-secrets=DATABASE_URL=mother-db-url:latest,OPENAI_API_KEY=mother-openai-api-key:latest,JWT_SECRET=mother-jwt-secret:latest,BUILT_IN_FORGE_API_URL=mother-forge-api-url:latest,BUILT_IN_FORGE_API_KEY=mother-forge-api-key:latest,ANTHROPIC_API_KEY=mother-anthropic-api-key:latest,GOOGLE_AI_API_KEY=mother-google-ai-api-key:latest,DEEPSEEK_API_KEY=mother-deepseek-api-key:latest,MISTRAL_API_KEY=mother-mistral-api-key:latest'
       # v51.0: Added VITE_APP_ID (fixes 'Session payload missing required fields' auth bug)
       - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA,VITE_APP_ID=mother-interface'
 

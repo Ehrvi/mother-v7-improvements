@@ -1,4 +1,19 @@
+/**
+ * MOTHER v68.8 - Multi-Provider LLM Dispatcher
+ * 
+ * Supports: OpenAI, Anthropic, Google (Gemini), DeepSeek, Mistral
+ * 
+ * Scientific Basis:
+ * - RouteLLM (Ong et al., 2024): multi-provider routing reduces cost by 40-98%
+ * - LLMRouterBench (Hu et al., 2026): unified framework for multi-provider LLM routing
+ * 
+ * Architecture: Each provider has a dedicated invoker function that handles
+ * the provider-specific API format, authentication, and response normalization.
+ * All providers return the same InvokeResult interface for seamless integration.
+ */
+
 import { ENV } from "./env";
+import type { LLMProvider } from "../mother/intelligence";
 
 export type Role = "system" | "user" | "assistant" | "tool" | "function";
 
@@ -19,7 +34,7 @@ export type FileContent = {
   type: "file_url";
   file_url: {
     url: string;
-    mime_type?: "audio/mpeg" | "audio/wav" | "application/pdf" | "audio/mp4" | "video/mp4" ;
+    mime_type?: "audio/mpeg" | "audio/wav" | "application/pdf" | "audio/mp4" | "video/mp4";
   };
 };
 
@@ -58,6 +73,7 @@ export type ToolChoice =
 export type InvokeParams = {
   messages: Message[];
   model?: string;
+  provider?: LLMProvider;
   tools?: Tool[];
   toolChoice?: ToolChoice;
   tool_choice?: ToolChoice;
@@ -111,6 +127,8 @@ export type ResponseFormat =
   | { type: "json_object" }
   | { type: "json_schema"; json_schema: JsonSchema };
 
+// ─── Message Normalization ────────────────────────────────────────────────────
+
 const ensureArray = (
   value: MessageContent | MessageContent[]
 ): MessageContent[] => (Array.isArray(value) ? value : [value]);
@@ -118,22 +136,10 @@ const ensureArray = (
 const normalizeContentPart = (
   part: MessageContent
 ): TextContent | ImageContent | FileContent => {
-  if (typeof part === "string") {
-    return { type: "text", text: part };
-  }
-
-  if (part.type === "text") {
-    return part;
-  }
-
-  if (part.type === "image_url") {
-    return part;
-  }
-
-  if (part.type === "file_url") {
-    return part;
-  }
-
+  if (typeof part === "string") return { type: "text", text: part };
+  if (part.type === "text") return part;
+  if (part.type === "image_url") return part;
+  if (part.type === "file_url") return part;
   throw new Error("Unsupported message content part");
 };
 
@@ -144,31 +150,16 @@ const normalizeMessage = (message: Message) => {
     const content = ensureArray(message.content)
       .map(part => (typeof part === "string" ? part : JSON.stringify(part)))
       .join("\n");
-
-    return {
-      role,
-      name,
-      tool_call_id,
-      content,
-    };
+    return { role, name, tool_call_id, content };
   }
 
   const contentParts = ensureArray(message.content).map(normalizeContentPart);
 
-  // If there's only text content, collapse to a single string for compatibility
   if (contentParts.length === 1 && contentParts[0].type === "text") {
-    return {
-      role,
-      name,
-      content: contentParts[0].text,
-    };
+    return { role, name, content: contentParts[0].text };
   }
 
-  return {
-    role,
-    name,
-    content: contentParts,
-  };
+  return { role, name, content: contentParts };
 };
 
 const normalizeToolChoice = (
@@ -176,56 +167,20 @@ const normalizeToolChoice = (
   tools: Tool[] | undefined
 ): "none" | "auto" | ToolChoiceExplicit | undefined => {
   if (!toolChoice) return undefined;
-
-  if (toolChoice === "none" || toolChoice === "auto") {
-    return toolChoice;
-  }
+  if (toolChoice === "none" || toolChoice === "auto") return toolChoice;
 
   if (toolChoice === "required") {
-    if (!tools || tools.length === 0) {
-      throw new Error(
-        "tool_choice 'required' was provided but no tools were configured"
-      );
-    }
-
-    if (tools.length > 1) {
-      throw new Error(
-        "tool_choice 'required' needs a single tool or specify the tool name explicitly"
-      );
-    }
-
-    return {
-      type: "function",
-      function: { name: tools[0].function.name },
-    };
+    if (!tools || tools.length === 0) throw new Error("tool_choice 'required' was provided but no tools were configured");
+    if (tools.length > 1) throw new Error("tool_choice 'required' needs a single tool or specify the tool name explicitly");
+    return { type: "function", function: { name: tools[0].function.name } };
   }
 
-  if ("name" in toolChoice) {
-    return {
-      type: "function",
-      function: { name: toolChoice.name },
-    };
-  }
-
+  if ("name" in toolChoice) return { type: "function", function: { name: toolChoice.name } };
   return toolChoice;
 };
 
-const resolveApiUrl = () => {
-  // Use OpenAI API directly (Forge API quota exhausted)
-  return "https://api.openai.com/v1/chat/completions";
-};
-
-const assertApiKey = () => {
-  if (!ENV.openaiApiKey) {
-    throw new Error("OPENAI_API_KEY is not configured");
-  }
-};
-
 const normalizeResponseFormat = ({
-  responseFormat,
-  response_format,
-  outputSchema,
-  output_schema,
+  responseFormat, response_format, outputSchema, output_schema,
 }: {
   responseFormat?: ResponseFormat;
   response_format?: ResponseFormat;
@@ -238,23 +193,15 @@ const normalizeResponseFormat = ({
   | undefined => {
   const explicitFormat = responseFormat || response_format;
   if (explicitFormat) {
-    if (
-      explicitFormat.type === "json_schema" &&
-      !explicitFormat.json_schema?.schema
-    ) {
-      throw new Error(
-        "responseFormat json_schema requires a defined schema object"
-      );
+    if (explicitFormat.type === "json_schema" && !explicitFormat.json_schema?.schema) {
+      throw new Error("responseFormat json_schema requires a defined schema object");
     }
     return explicitFormat;
   }
 
   const schema = outputSchema || output_schema;
   if (!schema) return undefined;
-
-  if (!schema.name || !schema.schema) {
-    throw new Error("outputSchema requires both name and schema");
-  }
+  if (!schema.name || !schema.schema) throw new Error("outputSchema requires both name and schema");
 
   return {
     type: "json_schema",
@@ -266,84 +213,308 @@ const normalizeResponseFormat = ({
   };
 };
 
-export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
-  assertApiKey();
+// ─── Provider: OpenAI (and OpenAI-compatible: DeepSeek) ──────────────────────
 
-  const {
-    messages,
-    tools,
-    toolChoice,
-    tool_choice,
-    outputSchema,
-    output_schema,
-    responseFormat,
-    response_format,
-  } = params;
+async function invokeOpenAICompatible(
+  params: InvokeParams,
+  apiUrl: string,
+  apiKey: string
+): Promise<InvokeResult> {
+  const { messages, tools, toolChoice, tool_choice, outputSchema, output_schema, responseFormat, response_format } = params;
 
   const payload: Record<string, unknown> = {
     model: params.model || "gpt-4o",
     messages: messages.map(normalizeMessage),
   };
 
-  if (tools && tools.length > 0) {
-    payload.tools = tools;
-  }
+  if (tools && tools.length > 0) payload.tools = tools;
 
-  const normalizedToolChoice = normalizeToolChoice(
-    toolChoice || tool_choice,
-    tools
-  );
-  if (normalizedToolChoice) {
-    payload.tool_choice = normalizedToolChoice;
-  }
+  const normalizedToolChoice = normalizeToolChoice(toolChoice || tool_choice, tools);
+  if (normalizedToolChoice) payload.tool_choice = normalizedToolChoice;
 
-  // Set max_tokens based on model limits
-  // gpt-4o/gpt-4o-mini: 16384 max completion tokens
-  // gpt-4: 8192 max completion tokens
   const model = (params.model || "gpt-4o").toLowerCase();
   if (model.includes('gpt-4o')) {
     payload.max_tokens = 16384;
   } else if (model.includes('gpt-4')) {
     payload.max_tokens = 8192;
   } else {
-    payload.max_tokens = 4096; // Safe default
-  }
-  
-  // Only add 'thinking' parameter for Gemini API
-  // OpenAI doesn't support this parameter
-  const apiUrl = resolveApiUrl();
-  if (apiUrl.includes('generativelanguage.googleapis.com') || apiUrl.includes('gemini')) {
-    payload.thinking = {
-      "budget_tokens": 128
-    };
+    payload.max_tokens = 8192;
   }
 
-  const normalizedResponseFormat = normalizeResponseFormat({
-    responseFormat,
-    response_format,
-    outputSchema,
-    output_schema,
-  });
+  const normalizedResponseFormat = normalizeResponseFormat({ responseFormat, response_format, outputSchema, output_schema });
+  if (normalizedResponseFormat) payload.response_format = normalizedResponseFormat;
 
-  if (normalizedResponseFormat) {
-    payload.response_format = normalizedResponseFormat;
-  }
-
-  const response = await fetch(resolveApiUrl(), {
+  const response = await fetch(apiUrl, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${ENV.openaiApiKey}`,
+      authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(
-      `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
-    );
+    throw new Error(`OpenAI-compatible invoke failed: ${response.status} ${response.statusText} – ${errorText}`);
   }
 
   return (await response.json()) as InvokeResult;
+}
+
+// ─── Provider: Anthropic (Claude) ────────────────────────────────────────────
+
+async function invokeAnthropic(params: InvokeParams): Promise<InvokeResult> {
+  if (!ENV.anthropicApiKey) throw new Error("ANTHROPIC_API_KEY is not configured");
+
+  const modelName = params.model || "claude-opus-4-5";
+
+  // Separate system message from conversation messages
+  const systemMessages = params.messages.filter(m => m.role === "system");
+  const conversationMessages = params.messages.filter(m => m.role !== "system");
+
+  const systemPrompt = systemMessages.map(m =>
+    typeof m.content === "string" ? m.content : JSON.stringify(m.content)
+  ).join("\n\n");
+
+  // Normalize messages for Anthropic format
+  const anthropicMessages = conversationMessages.map(msg => {
+    const content = typeof msg.content === "string"
+      ? msg.content
+      : Array.isArray(msg.content)
+        ? msg.content.map(c => typeof c === "string" ? c : JSON.stringify(c)).join("")
+        : JSON.stringify(msg.content);
+
+    return {
+      role: msg.role === "assistant" ? "assistant" : "user",
+      content,
+    };
+  });
+
+  // Convert tools to Anthropic format
+  const anthropicTools = params.tools?.map(t => ({
+    name: t.function.name,
+    description: t.function.description || "",
+    input_schema: t.function.parameters || { type: "object", properties: {} },
+  }));
+
+  const payload: Record<string, unknown> = {
+    model: modelName,
+    max_tokens: 8192,
+    messages: anthropicMessages,
+  };
+
+  if (systemPrompt) payload.system = systemPrompt;
+  if (anthropicTools && anthropicTools.length > 0) payload.tools = anthropicTools;
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": ENV.anthropicApiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Anthropic invoke failed: ${response.status} ${response.statusText} – ${errorText}`);
+  }
+
+  const anthropicResult = await response.json() as {
+    id: string;
+    type: string;
+    role: string;
+    content: Array<{ type: string; text?: string; id?: string; name?: string; input?: unknown }>;
+    model: string;
+    stop_reason: string;
+    usage: { input_tokens: number; output_tokens: number };
+  };
+
+  // Normalize to OpenAI-compatible InvokeResult format
+  const textContent = anthropicResult.content
+    .filter(c => c.type === "text")
+    .map(c => c.text || "")
+    .join("");
+
+  const toolCalls: ToolCall[] = anthropicResult.content
+    .filter(c => c.type === "tool_use")
+    .map(c => ({
+      id: c.id || `tool_${Date.now()}`,
+      type: "function" as const,
+      function: {
+        name: c.name || "",
+        arguments: JSON.stringify(c.input || {}),
+      },
+    }));
+
+  return {
+    id: anthropicResult.id,
+    created: Math.floor(Date.now() / 1000),
+    model: anthropicResult.model,
+    choices: [{
+      index: 0,
+      message: {
+        role: "assistant",
+        content: textContent,
+        ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
+      },
+      finish_reason: anthropicResult.stop_reason,
+    }],
+    usage: {
+      prompt_tokens: anthropicResult.usage.input_tokens,
+      completion_tokens: anthropicResult.usage.output_tokens,
+      total_tokens: anthropicResult.usage.input_tokens + anthropicResult.usage.output_tokens,
+    },
+  };
+}
+
+// ─── Provider: Google (Gemini) ────────────────────────────────────────────────
+
+async function invokeGoogle(params: InvokeParams): Promise<InvokeResult> {
+  if (!ENV.googleApiKey) throw new Error("GOOGLE_AI_API_KEY is not configured");
+
+  const modelName = params.model || "gemini-2.5-flash";
+
+  // Separate system message
+  const systemMessages = params.messages.filter(m => m.role === "system");
+  const conversationMessages = params.messages.filter(m => m.role !== "system");
+
+  const systemInstruction = systemMessages.map(m =>
+    typeof m.content === "string" ? m.content : JSON.stringify(m.content)
+  ).join("\n\n");
+
+  // Convert to Gemini format
+  const geminiContents = conversationMessages.map(msg => {
+    const text = typeof msg.content === "string"
+      ? msg.content
+      : Array.isArray(msg.content)
+        ? msg.content.map(c => typeof c === "string" ? c : JSON.stringify(c)).join("")
+        : JSON.stringify(msg.content);
+
+    return {
+      role: msg.role === "assistant" ? "model" : "user",
+      parts: [{ text }],
+    };
+  });
+
+  const payload: Record<string, unknown> = {
+    contents: geminiContents,
+    generationConfig: {
+      maxOutputTokens: 8192,
+    },
+  };
+
+  if (systemInstruction) {
+    payload.systemInstruction = { parts: [{ text: systemInstruction }] };
+  }
+
+  // Convert tools to Gemini format
+  if (params.tools && params.tools.length > 0) {
+    payload.tools = [{
+      functionDeclarations: params.tools.map(t => ({
+        name: t.function.name,
+        description: t.function.description || "",
+        parameters: t.function.parameters || { type: "OBJECT", properties: {} },
+      })),
+    }];
+  }
+
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${ENV.googleApiKey}`;
+
+  const response = await fetch(apiUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Google AI invoke failed: ${response.status} ${response.statusText} – ${errorText}`);
+  }
+
+  const geminiResult = await response.json() as {
+    candidates: Array<{
+      content: { parts: Array<{ text?: string; functionCall?: { name: string; args: unknown } }>; role: string };
+      finishReason: string;
+    }>;
+    usageMetadata?: { promptTokenCount: number; candidatesTokenCount: number; totalTokenCount: number };
+  };
+
+  const candidate = geminiResult.candidates[0];
+  const textContent = candidate.content.parts
+    .filter(p => p.text)
+    .map(p => p.text || "")
+    .join("");
+
+  const toolCalls: ToolCall[] = candidate.content.parts
+    .filter(p => p.functionCall)
+    .map((p, i) => ({
+      id: `call_${i}_${Date.now()}`,
+      type: "function" as const,
+      function: {
+        name: p.functionCall!.name,
+        arguments: JSON.stringify(p.functionCall!.args || {}),
+      },
+    }));
+
+  return {
+    id: `gemini_${Date.now()}`,
+    created: Math.floor(Date.now() / 1000),
+    model: modelName,
+    choices: [{
+      index: 0,
+      message: {
+        role: "assistant",
+        content: textContent,
+        ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
+      },
+      finish_reason: candidate.finishReason,
+    }],
+    usage: {
+      prompt_tokens: geminiResult.usageMetadata?.promptTokenCount || 0,
+      completion_tokens: geminiResult.usageMetadata?.candidatesTokenCount || 0,
+      total_tokens: geminiResult.usageMetadata?.totalTokenCount || 0,
+    },
+  };
+}
+
+// ─── Main Dispatcher ──────────────────────────────────────────────────────────
+
+export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
+  const provider = params.provider || 'openai';
+  const model = params.model || 'gpt-4o';
+
+  switch (provider) {
+    case 'openai':
+      if (!ENV.openaiApiKey) throw new Error("OPENAI_API_KEY is not configured");
+      return invokeOpenAICompatible(params, "https://api.openai.com/v1/chat/completions", ENV.openaiApiKey);
+
+    case 'deepseek':
+      if (!ENV.deepseekApiKey) throw new Error("DEEPSEEK_API_KEY is not configured");
+      return invokeOpenAICompatible(
+        { ...params, model: model || 'deepseek-chat' },
+        "https://api.deepseek.com/v1/chat/completions",
+        ENV.deepseekApiKey
+      );
+
+    case 'anthropic':
+      return invokeAnthropic(params);
+
+    case 'google':
+      return invokeGoogle(params);
+
+    case 'mistral':
+      if (!ENV.mistralApiKey) throw new Error("MISTRAL_API_KEY is not configured");
+      return invokeOpenAICompatible(
+        { ...params, model: model || 'mistral-small-latest' },
+        "https://api.mistral.ai/v1/chat/completions",
+        ENV.mistralApiKey
+      );
+
+    default:
+      // Fallback to OpenAI for unknown providers
+      if (!ENV.openaiApiKey) throw new Error("OPENAI_API_KEY is not configured");
+      return invokeOpenAICompatible(params, "https://api.openai.com/v1/chat/completions", ENV.openaiApiKey);
+  }
 }
