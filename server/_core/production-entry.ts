@@ -21,6 +21,7 @@ import { appRouter } from '../routers.js';
 import { registerOAuthRoutes } from './oauth.js';
 import { getDb } from '../db.js';
 import { invokeGEASupervisor } from '../mother/gea_supervisor.js';
+import { runSelfAudit } from '../mother/self-audit-engine.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -260,4 +261,25 @@ app.listen(PORT, '0.0.0.0', async () => {
 
   // Run migrations after server starts
   await runMigrations();
+
+  // v68.4: Daily self-audit scheduler — runs every 24 hours
+  // Scientific basis: Continuous monitoring (Fowler, 2006 — Continuous Integration)
+  const AUDIT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+  const runScheduledAudit = async () => {
+    try {
+      console.log('[MOTHER] Running scheduled daily self-audit...');
+      const result = await runSelfAudit();
+      const passed = result.checks.filter((c) => c.status === 'pass').length;
+      const isHealthy = result.overallHealth === 'healthy';
+      console.log(`[MOTHER] Daily self-audit: ${isHealthy ? 'PASSED' : 'DEGRADED'} (${passed}/${result.checks.length} checks, score=${result.score}/100)`);
+    } catch (err) {
+      console.error('[MOTHER] Daily self-audit failed:', err);
+    }
+  };
+  // First audit after 5 minutes (let server warm up), then every 24 hours
+  setTimeout(() => {
+    runScheduledAudit();
+    setInterval(runScheduledAudit, AUDIT_INTERVAL_MS);
+  }, 5 * 60 * 1000);
+  console.log('[MOTHER] Daily self-audit scheduler started (first run in 5 min)');
 });

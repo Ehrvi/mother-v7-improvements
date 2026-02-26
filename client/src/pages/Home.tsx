@@ -182,7 +182,7 @@ export default function Home() {
           </div>
           <div>
             <div className="text-sm font-bold" style={{ background: 'linear-gradient(90deg, #c4b5fd, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              MOTHER v67.0
+              MOTHER v68.4
             </div>
             <div className="text-[10px] text-[#55556a]">Darwin Gödel Machine</div>
           </div>
@@ -201,7 +201,7 @@ export default function Home() {
             { label: 'Mensagens', value: stats.msgCount, className: 'accent-glow' },
             { label: 'Custo Total', value: `$${stats.totalCost.toFixed(6)}`, className: 'text-[#e8e8f0]' },
             { label: 'Qualidade Média', value: avgQuality ? `${avgQuality}%` : '—', className: 'text-emerald-400' },
-            { label: 'Tier Mais Usado', value: topTier ?? '—', className: 'accent-glow' },
+            { label: 'Modelo Real', value: 'gpt-4o', className: 'accent-glow' }, // v68.4: Always gpt-4o for tool calls
           ].map(({ label, value, className }) => (
             <div key={label} className="flex justify-between items-center py-1.5 border-b border-[rgba(255,255,255,0.04)] last:border-0 text-xs">
               <span className="text-[#8888aa]">{label}</span>
@@ -239,7 +239,7 @@ export default function Home() {
         <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-3">
           <div className="text-[10px] font-semibold uppercase tracking-widest text-[#55556a] mb-2">Sistema</div>
           {[
-            { icon: <GitBranch className="w-3 h-3" />, label: 'Versão', value: 'v67.0', cls: 'accent-glow' },
+            { icon: <GitBranch className="w-3 h-3" />, label: 'Versão', value: 'v68.4', cls: 'accent-glow' },
             { icon: <Database className="w-3 h-3" />, label: 'DB', value: 'Unix Socket ✓', cls: 'text-emerald-400' },
             { icon: <Dna className="w-3 h-3" />, label: 'GEA Loop', value: 'Ativo ✓', cls: 'text-emerald-400' },
             { icon: <Activity className="w-3 h-3" />, label: 'Fitness Track', value: 'Ativo ✓', cls: 'text-emerald-400' },

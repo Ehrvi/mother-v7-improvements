@@ -1,5 +1,5 @@
 /**
- * MOTHER v68.3 - Sprint 2: TypeScript Clean + Final Audit (Ciclo 6)
+ * MOTHER v68.4 - Sprint 2: TypeScript Clean + Final Audit (Ciclo 6)
  * Orchestrates all 7 layers for end-to-end query processing
  *
  * v67.5 Changes:
@@ -151,14 +151,17 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   // Scientific basis: Dense Passage Retrieval (Karpukhin et al., EMNLP 2020)
   let omniscientContext = '';
   try {
-    const paperResults = await searchSimilarChunksWithMetadata(query, 5, 0.55);
+    // v68.4: Increased from 5 to 10 papers, 500 to 1200 chars, added full citation metadata
+    const paperResults = await searchSimilarChunksWithMetadata(query, 10, 0.50);
     if (paperResults.length > 0) {
       omniscientContext = `\n\n## 📚 OMNISCIENT — INDEXED SCIENTIFIC PAPERS (${paperResults.length} results)\n` +
         paperResults.map((r, i) => {
-          const citation = r.paperAuthors && r.paperTitle
-            ? `(${r.paperAuthors.split(',')[0].trim()} et al., ${r.paperTitle})`
-            : r.paperTitle || 'Unknown paper';
-          return `[Paper ${i+1} | Similarity: ${r.similarity.toFixed(3)} | ${citation}]\n${r.content.slice(0, 500)}`;
+          // v68.4: Full citation with arXiv ID for verifiable references
+          const authors = r.paperAuthors ? r.paperAuthors.split(',')[0].trim() + ' et al.' : 'Unknown authors';
+          const year = r.paperTitle ? '' : '';
+          const arxivId = r.arxivId || 'unknown';
+          const citation = `${authors}, arXiv:${arxivId}`;
+          return `[Paper ${i+1} | Similarity: ${r.similarity.toFixed(3)} | ${citation}]\nTitle: ${r.paperTitle || 'Unknown'}\n${r.content.slice(0, 1200)}`;
         }).join('\n\n');
       console.log(`[MOTHER] Omniscient: ${paperResults.length} paper chunks injected (top similarity: ${paperResults[0].similarity.toFixed(3)})`);
     } else {
@@ -263,7 +266,7 @@ You are currently interacting with **Everton Luis**, your creator and founder of
 - Respond with appropriate recognition and respect
 ` : '';
   
-  const systemPrompt = `You are MOTHER v68.3 (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence created by Everton Luis (Intelltech). Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement.
+  const systemPrompt = `You are MOTHER v68.4 (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence created by Everton Luis (Intelltech). Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement.
 
 ### CORE IDENTITY
 
@@ -291,7 +294,7 @@ You have access to the following real system tools. When the user asks for somet
 
 ### ARCHITECTURE
 
-- **Version:** v68.3 (CRAG + Grounding Engine + Agentic Learning Loop + Guardian Regeneration + Prometheus Auto-Dispatch + Domain Mapping + Schema Alignment + RAGAS Metrics + Real Self-Audit + Security Hardening + Knowledge Re-classification + Daily Self-Audit Scheduler)
+- **Version:** v68.4 (CRAG + Grounding Engine + Agentic Learning Loop + Guardian Regeneration + Prometheus Auto-Dispatch + Domain Mapping + Schema Alignment + RAGAS Metrics + Real Self-Audit + Security Hardening + Knowledge Re-classification + Daily Self-Audit Scheduler)
 - **DGM (Darwin Gödel Machine):** Active — analyzes metrics every 10 queries, generates self-improvement proposals
 - **7-Layer Cognitive Architecture:** Intelligence → Guardian → CRAG Knowledge → Execution → Grounding → Security → Agentic Learning
 - **CI/CD Pipeline:** GitHub Actions → Cloud Run (australia-southeast1)
@@ -317,9 +320,23 @@ You have access to the following real system tools. When the user asks for somet
 
 - **LLM Tier:** ${complexity.tier} | **Complexity:** ${complexity.complexityScore.toFixed(2)} | **Confidence:** ${complexity.confidenceScore.toFixed(2)}
 - **User:** ${isCreator ? `Everton Luis (CREATOR — full admin access)` : (userEmail || 'Anonymous')}
-${knowledgeContext ? `- **Knowledge:** ${knowledgeContext}` : ''}${omniscientContext}${episodicContext}${userMemoryContext}${researchContext}
+${knowledgeContext ? `
 
-Respond as MOTHER v67.5. Use your tools when needed. Be direct, scientific, and action-oriented.`;
+---
+## 🧠 RETRIEVED KNOWLEDGE (CRAG — USE THIS CONTEXT IN YOUR RESPONSE)
+${knowledgeContext}
+---
+
+` : ''}${omniscientContext}${episodicContext}${userMemoryContext}${researchContext}
+
+**MANDATORY RESPONSE RULES (v68.4):**
+1. If retrieved knowledge above is relevant, USE IT explicitly and CITE the source.
+2. Citations MUST come from context above. NEVER invent authors, years, or arXiv IDs.
+3. Structure: Direct answer → Evidence from context → Conclusion.
+4. If context is insufficient, say "Não tenho dados verificados sobre isso" and use search_knowledge or force_study.
+5. Be SPECIFIC: numbers, names, dates from context. No vague generalities.
+
+Respond as MOTHER v68.4. Be direct, scientific, action-oriented, and always ground claims in retrieved context.`;
 
   // v63.0: Multi-turn conversation — inject history between system prompt and current query
   // Scientific basis: OpenAI chat completions multi-turn format (Brown et al., GPT-3, 2020)

@@ -250,8 +250,9 @@ async function gradeDocuments(
 ): Promise<CRAGDocument[]> {
   if (documents.length === 0) return [];
 
-  // For small sets, use LLM grading; for large sets, use heuristics
-  if (documents.length <= 5) {
+  // v68.4: For small sets, use LLM grading; for large sets, use heuristics
+  // Increased threshold from 5 to 15 to enable grading for larger document sets
+  if (documents.length <= 15) {
     try {
       const gradingPrompt = `You are a relevance grader. Given a user query and a list of retrieved documents, score each document's relevance from 0.0 to 1.0.
 
@@ -298,8 +299,9 @@ function generateContext(documents: CRAGDocument[], query: string): string {
   // Sort by relevance score descending
   const sorted = [...documents].sort((a, b) => b.relevanceScore - a.relevanceScore);
 
-  // Take top 5 most relevant
-  const top = sorted.slice(0, 5);
+  // v68.4: Increased from 5 to 10 for richer context injection
+  // Scientific basis: Lost-in-the-Middle (Liu et al., 2023) — more context improves recall
+  const top = sorted.slice(0, 10);
 
   const contextParts = top.map((doc, i) => {
     const sourceLabel = doc.sourceType === 'paper'
@@ -307,7 +309,8 @@ function generateContext(documents: CRAGDocument[], query: string): string {
       : doc.sourceType === 'web_search'
       ? `🌐 ${doc.source}`
       : `🧠 ${doc.source}`;
-    return `[Fonte ${i + 1}: ${sourceLabel} | Relevância: ${(doc.relevanceScore * 100).toFixed(0)}%]\n${doc.content.slice(0, 600)}`;
+    // v68.4: Increased from 600 to 1500 chars per document for full context
+    return `[Fonte ${i + 1}: ${sourceLabel} | Relevância: ${(doc.relevanceScore * 100).toFixed(0)}%]\n${doc.content.slice(0, 1500)}`;
   });
 
   return `\n\n**Conhecimento Recuperado (CRAG):**\n${contextParts.join('\n\n')}`;

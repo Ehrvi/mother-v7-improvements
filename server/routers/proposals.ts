@@ -26,6 +26,7 @@ import { getUserMemoryStats } from '../mother/user-memory';
 import {
   getProposalsWithReproposal,
   getKnowledgeWisdomStats,
+  getKnowledgeHierarchy,
   calculateReproposalSchedule,
 } from '../mother/reproposal-engine';
 
@@ -59,6 +60,13 @@ export const proposalsRouter = router({
    */
   knowledgeWisdom: publicProcedure.query(async () => {
     return await getKnowledgeWisdomStats();
+  }),
+  /**
+   * v68.4: Get hierarchical knowledge map with drill-down percentages
+   * Returns domain > subdomain tree with real paper_chunks counts
+   */
+  knowledgeHierarchy: publicProcedure.query(async () => {
+    return await getKnowledgeHierarchy();
   }),
 
   /**

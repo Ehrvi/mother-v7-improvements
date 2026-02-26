@@ -60,16 +60,23 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// ─── Knowledge Section ────────────────────────────────────────────────────────
+// ─── Knowledge Section (v68.4 Hierarchical Drill-Down) ──────────────────────
+// Scientific basis: Chase & Simon (1973), Ericsson (2006)
+// Formula: W(d) = paper_chunks_in_domain / SoA_estimate × 100%
 function KnowledgeSection() {
-  const { data: wisdom, isLoading } = trpc.proposals.knowledgeWisdom.useQuery(undefined, {
+  const [expandedDomain, setExpandedDomain] = useState<string | null>(null);
+  const [view, setView] = useState<'domains' | string>('domains');
+
+  const { data: hierarchy, isLoading } = trpc.proposals.knowledgeHierarchy.useQuery(undefined, {
     refetchInterval: 60_000,
   });
 
-  const totalChunks = wisdom?.reduce((s, d) => s + d.motherChunks, 0) ?? 0;
-  const avgWisdom = wisdom && wisdom.length > 0
-    ? Math.round(wisdom.reduce((s, d) => s + d.wisdomPercent, 0) / wisdom.length * 10) / 10
+  const totalChunks = hierarchy?.reduce((s, d) => s + d.motherChunks, 0) ?? 0;
+  const avgWisdom = hierarchy && hierarchy.length > 0
+    ? Math.round(hierarchy.reduce((s, d) => s + d.wisdomPercent, 0) / hierarchy.length * 10) / 10
     : 0;
+
+  const currentDomain = hierarchy?.find(d => d.domain === view);
 
   return (
     <div className="flex flex-col gap-2">
@@ -81,13 +88,13 @@ function KnowledgeSection() {
             Mapa de Conhecimento
           </span>
         </div>
-        <div className="text-[9px] text-[#55556a]">W(d) = K/SoA × 100</div>
+        <div className="text-[9px] text-[#55556a]">W=chunks/SoA×100%</div>
       </div>
 
       {/* Summary stats */}
       <div className="grid grid-cols-2 gap-1.5">
         <div className="bg-[rgba(167,139,250,0.08)] border border-[rgba(167,139,250,0.2)] rounded-lg p-2 text-center">
-          <div className="text-base font-bold text-[#a78bfa]">{totalChunks}</div>
+          <div className="text-base font-bold text-[#a78bfa]">{totalChunks.toLocaleString()}</div>
           <div className="text-[9px] text-[#55556a]">Chunks Indexados</div>
         </div>
         <div className="bg-[rgba(52,211,153,0.08)] border border-[rgba(52,211,153,0.2)] rounded-lg p-2 text-center">
@@ -96,23 +103,42 @@ function KnowledgeSection() {
         </div>
       </div>
 
+      {/* Breadcrumb navigation */}
+      {view !== 'domains' && (
+        <button
+          onClick={() => setView('domains')}
+          className="flex items-center gap-1 text-[9px] text-[#a78bfa] hover:text-[#c4b5fd] transition-colors"
+        >
+          <ChevronRight className="w-3 h-3 rotate-180" />
+          Voltar ao Mapa Principal
+        </button>
+      )}
+
       {/* Domain list */}
       {isLoading ? (
         <div className="text-[10px] text-[#55556a] text-center py-3 animate-pulse">Carregando domínios...</div>
-      ) : (
+      ) : view === 'domains' ? (
         <div className="flex flex-col gap-1.5">
-          {(wisdom ?? []).map((d) => {
+          {(hierarchy ?? []).map((d) => {
             const meta = DOMAIN_LABELS[d.domain] ?? { label: d.domain, emoji: '📚', color: '#94a3b8' };
+            const hasSubdomains = d.subdomains && d.subdomains.length > 0;
             return (
-              <div key={d.domain} className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg p-2.5">
+              <div
+                key={d.domain}
+                className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg p-2.5 cursor-pointer hover:border-[rgba(167,139,250,0.3)] transition-all"
+                onClick={() => hasSubdomains ? setView(d.domain) : undefined}
+              >
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm">{meta.emoji}</span>
                     <span className="text-[10px] font-medium text-[#c4b5fd]">{meta.label}</span>
                   </div>
-                  <span className="text-[10px] font-bold" style={{ color: meta.color }}>
-                    {d.wisdomPercent}%
-                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] font-bold" style={{ color: meta.color }}>
+                      {d.wisdomPercent}%
+                    </span>
+                    {hasSubdomains && <ChevronRight className="w-3 h-3 text-[#55556a]" />}
+                  </div>
                 </div>
                 <WisdomBar percent={d.wisdomPercent} color={meta.color} />
                 <div className="flex justify-between mt-1">
@@ -123,7 +149,44 @@ function KnowledgeSection() {
             );
           })}
         </div>
-      )}
+      ) : currentDomain ? (
+        /* Subdomain drill-down view */
+        <div className="flex flex-col gap-1.5">
+          {/* Domain header */}
+          <div className="bg-[rgba(167,139,250,0.08)] border border-[rgba(167,139,250,0.2)] rounded-lg p-2.5">
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm">{DOMAIN_LABELS[currentDomain.domain]?.emoji ?? '📚'}</span>
+                <span className="text-[10px] font-semibold text-[#c4b5fd]">
+                  {DOMAIN_LABELS[currentDomain.domain]?.label ?? currentDomain.domain}
+                </span>
+              </div>
+              <span className="text-[10px] font-bold text-[#a78bfa]">{currentDomain.wisdomPercent}%</span>
+            </div>
+            <WisdomBar percent={currentDomain.wisdomPercent} color={DOMAIN_LABELS[currentDomain.domain]?.color ?? '#a78bfa'} />
+          </div>
+          {/* Subdomains */}
+          {currentDomain.subdomains.map((sub) => {
+            const color = DOMAIN_LABELS[currentDomain.domain]?.color ?? '#94a3b8';
+            return (
+              <div
+                key={sub.subdomain}
+                className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] rounded-lg p-2 ml-2"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[9px] font-medium text-[#a0a0c0]">{sub.label}</span>
+                  <span className="text-[9px] font-bold" style={{ color }}>{sub.wisdomPercent}%</span>
+                </div>
+                <WisdomBar percent={sub.wisdomPercent} color={color} />
+                <div className="flex justify-between mt-0.5">
+                  <span className="text-[8px] text-[#55556a]">{sub.motherChunks} chunks</span>
+                  <span className="text-[8px] text-[#55556a]">SoA: {sub.soaEstimate.toLocaleString()}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }

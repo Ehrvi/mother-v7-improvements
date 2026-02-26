@@ -44,6 +44,7 @@ export interface SearchResult {
   paperTitle?: string;
   paperAuthors?: string;
   paperUrl?: string;
+  arxivId?: string; // v68.4: Added for verifiable citations
 }
 
 /**
@@ -126,6 +127,7 @@ export async function searchSimilarChunksWithMetadata(
       paperTitle: papers.title,
       paperAuthors: papers.authors,
       paperUrl: papers.pdfUrl,
+      arxivId: papers.arxivId, // v68.4: Include arXiv ID for verifiable citations
     })
     .from(paperChunks)
     .leftJoin(papers, eq(paperChunks.paperId, papers.id))
@@ -148,6 +150,7 @@ export async function searchSimilarChunksWithMetadata(
           paperTitle: chunk.paperTitle || undefined,
           paperAuthors: chunk.paperAuthors || undefined,
           paperUrl: chunk.paperUrl || undefined,
+          arxivId: chunk.arxivId || undefined, // v68.4: For verifiable citations
         });
       }
     } catch (error) {

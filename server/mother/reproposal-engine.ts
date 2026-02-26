@@ -240,25 +240,26 @@ export async function getKnowledgeWisdomStats(): Promise<{
   if (!db) return [];
   
   try {
+    // v68.4: Fixed to use paper_chunks (actual indexed knowledge) instead of knowledge table
+    // Scientific basis: Chase & Simon (1973) — expertise measured by meaningful chunks absorbed
+    // Formula: W(d) = paper_chunks_in_domain / SoA_estimate × 100%
     const [rows] = await (db as any).$client.query(
       `SELECT 
          kw.domain,
          kw.subdomain,
          kw.soa_estimate,
          kw.description,
-         COALESCE(k_count.chunk_count, 0) as mother_chunks
+         COALESCE(pc_count.chunk_count, 0) as mother_chunks
        FROM knowledge_wisdom kw
        LEFT JOIN (
          SELECT 
-           CONVERT(COALESCE(category, 'general') USING utf8mb4) COLLATE utf8mb4_unicode_ci as category,
-           COUNT(*) as chunk_count
-         FROM knowledge
-         GROUP BY CONVERT(COALESCE(category, 'general') USING utf8mb4) COLLATE utf8mb4_unicode_ci
-       ) k_count ON (
-         k_count.category = kw.domain OR 
-         k_count.category = kw.subdomain OR
-         (kw.subdomain IS NULL AND k_count.category = kw.domain)
-       )
+           p.paper_domain as domain,
+           COUNT(pc.id) as chunk_count
+         FROM papers p
+         JOIN paper_chunks pc ON pc.paper_id = p.id
+         WHERE p.paper_domain IS NOT NULL AND p.paper_domain != 'unclassified'
+         GROUP BY p.paper_domain
+       ) pc_count ON pc_count.domain = kw.domain
        WHERE kw.subdomain IS NULL
        ORDER BY kw.domain ASC`
     );
@@ -336,6 +337,153 @@ export async function getProposalsWithReproposal(): Promise<any[]> {
     }));
   } catch (error) {
     console.error('[MOTHER] getProposalsWithReproposal failed:', error);
+    return [];
+  }
+}
+
+/**
+ * v68.4: Get hierarchical knowledge map with drill-down percentages
+ * Returns a tree structure: domain > subdomain > sub-subdomain
+ * Formula: W(d) = paper_chunks_in_domain / SoA_estimate × 100%
+ * Scientific basis: Chase & Simon (1973), Ericsson (2006)
+ */
+export async function getKnowledgeHierarchy(): Promise<{
+  domain: string;
+  label: string;
+  motherChunks: number;
+  soaEstimate: number;
+  wisdomPercent: number;
+  description: string | null;
+  subdomains: {
+    subdomain: string;
+    label: string;
+    motherChunks: number;
+    soaEstimate: number;
+    wisdomPercent: number;
+    description: string | null;
+  }[];
+}[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  try {
+    // Get all rows from knowledge_wisdom
+    const [allRows] = await (db as any).$client.query(
+      `SELECT 
+         kw.domain,
+         kw.subdomain,
+         kw.soa_estimate,
+         kw.description,
+         COALESCE(pc_count.chunk_count, 0) as mother_chunks
+       FROM knowledge_wisdom kw
+       LEFT JOIN (
+         SELECT 
+           p.paper_domain as domain,
+           p.paper_subdomain as subdomain,
+           COUNT(pc.id) as chunk_count
+         FROM papers p
+         JOIN paper_chunks pc ON pc.paper_id = p.id
+         WHERE p.paper_domain IS NOT NULL AND p.paper_domain != 'unclassified'
+         GROUP BY p.paper_domain, p.paper_subdomain
+       ) pc_count ON pc_count.domain = kw.domain 
+         AND (
+           (kw.subdomain IS NULL AND pc_count.subdomain IS NULL) OR
+           (kw.subdomain IS NOT NULL AND pc_count.subdomain = kw.subdomain)
+         )
+       ORDER BY kw.domain ASC, kw.subdomain ASC`
+    );
+
+    const domainLabels: Record<string, string> = {
+      machine_learning: 'Machine Learning',
+      software_engineering: 'Eng. de Software',
+      mathematics: 'Matemática',
+      cognitive_science: 'Ciência Cognitiva',
+      philosophy: 'Filosofia',
+      health_fitness: 'Saúde & Fitness',
+      business: 'Negócios',
+    };
+
+    const subdomainLabels: Record<string, string> = {
+      deep_learning: 'Deep Learning',
+      nlp: 'NLP / LLMs',
+      reinforcement_learning: 'Aprendizado por Reforço',
+      computer_vision: 'Visão Computacional',
+      rag_retrieval: 'RAG & Recuperação',
+      self_improving_ai: 'IA Auto-Melhorável',
+      distributed_systems: 'Sistemas Distribuídos',
+      databases: 'Bancos de Dados',
+      devops_cicd: 'DevOps / CI-CD',
+      security: 'Segurança',
+      testing: 'Testes',
+      statistics: 'Estatística',
+      linear_algebra: 'Álgebra Linear',
+      calculus: 'Cálculo',
+      category_theory: 'Teoria das Categorias',
+      topology: 'Topologia',
+      neuroscience: 'Neurociência',
+      memory_learning: 'Memória & Aprendizado',
+      consciousness: 'Consciência',
+      decision_making: 'Tomada de Decisão',
+    };
+
+    // Group by domain
+    const domainMap = new Map<string, {
+      domain: string;
+      label: string;
+      motherChunks: number;
+      soaEstimate: number;
+      wisdomPercent: number;
+      description: string | null;
+      subdomains: any[];
+    }>();
+
+    for (const row of (allRows as any[])) {
+      const domain = row.domain;
+      const subdomain = row.subdomain;
+      const chunks = Number(row.mother_chunks);
+      const soa = Number(row.soa_estimate);
+      const pct = Math.min(100, Math.round((chunks / soa) * 1000) / 10);
+
+      if (!subdomain) {
+        // Top-level domain
+        if (!domainMap.has(domain)) {
+          domainMap.set(domain, {
+            domain,
+            label: domainLabels[domain] || domain,
+            motherChunks: chunks,
+            soaEstimate: soa,
+            wisdomPercent: pct,
+            description: row.description,
+            subdomains: [],
+          });
+        }
+      } else {
+        // Subdomain — add to parent
+        if (!domainMap.has(domain)) {
+          domainMap.set(domain, {
+            domain,
+            label: domainLabels[domain] || domain,
+            motherChunks: 0,
+            soaEstimate: 0,
+            wisdomPercent: 0,
+            description: null,
+            subdomains: [],
+          });
+        }
+        domainMap.get(domain)!.subdomains.push({
+          subdomain,
+          label: subdomainLabels[subdomain] || subdomain,
+          motherChunks: chunks,
+          soaEstimate: soa,
+          wisdomPercent: pct,
+          description: row.description,
+        });
+      }
+    }
+
+    return Array.from(domainMap.values());
+  } catch (error) {
+    console.error('[MOTHER] Knowledge hierarchy failed:', error);
     return [];
   }
 }
