@@ -23,6 +23,7 @@ import { getDb } from '../db.js';
 import { invokeGEASupervisor } from '../mother/gea_supervisor.js';
 import { processQuery as _processQuery } from '../mother/core.js';
 import { runSelfAudit } from '../mother/self-audit-engine.js';
+import { runHourlyAggregation } from '../mother/metrics-aggregation-job.js'; // v69.12: Fix P0 — system_metrics aggregation
 import { sdk } from './sdk.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -346,4 +347,14 @@ app.listen(PORT, '0.0.0.0', async () => {
     setInterval(runScheduledAudit, AUDIT_INTERVAL_MS);
   }, 5 * 60 * 1000);
   console.log('[MOTHER] Daily self-audit scheduler started (first run in 5 min)');
+  
+  // v69.12: Hourly metrics aggregation — populates system_metrics from queries table
+  // Scientific basis: SRE Golden Signals (Beyer et al., 2016)
+  setTimeout(() => {
+    runHourlyAggregation().catch(err => console.error('[MOTHER] Hourly metrics failed:', err));
+    setInterval(() => {
+      runHourlyAggregation().catch(err => console.error('[MOTHER] Hourly metrics failed:', err));
+    }, 60 * 60 * 1000);
+  }, 2 * 60 * 1000);
+  console.log('[MOTHER] Hourly metrics aggregation scheduler started');
 });

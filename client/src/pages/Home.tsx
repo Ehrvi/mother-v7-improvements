@@ -34,13 +34,65 @@ const QUICK_PROMPTS = [
   { icon: '🚀', label: 'Visão final', query: 'Qual é a visão final de MOTHER como superinteligência cognitiva autônoma?' },
 ];
 
+// v69.12: Academic reference formatter
+// Scientific basis:
+//   - APA 7th Edition (American Psychological Association, 2020)
+//   - Chicago Manual of Style 17th Ed. (University of Chicago Press, 2017)
+//   - ISO 690:2021 Information and documentation — Guidelines for bibliographic references
+//   - Nielsen Norman Group (2020): Reading patterns on the web — F-pattern and citation scanning
+function classifyReference(ref: string): { type: string; icon: string; color: string } {
+  const r = ref.toLowerCase();
+  if (r.includes('arxiv') || r.includes('doi') || r.includes('proceedings') || r.includes('conference') || r.includes('journal') || r.includes('ieee') || r.includes('acm') || r.includes('nature') || r.includes('science ') || r.includes('et al')) {
+    return { type: 'Artigo Cientifico', icon: '🔬', color: '#a78bfa' };
+  }
+  if (r.includes('book') || r.includes('livro') || r.includes('press') || r.includes('publisher') || r.includes('edition') || r.includes('ed.') || r.includes('isbn')) {
+    return { type: 'Livro', icon: '📖', color: '#60a5fa' };
+  }
+  if (r.includes('manual') || r.includes('documentation') || r.includes('spec') || r.includes('standard') || r.includes('iso ') || r.includes('rfc') || r.includes('w3c') || r.includes('nist')) {
+    return { type: 'Manual / Norma', icon: '📋', color: '#34d399' };
+  }
+  if (r.includes('blog') || r.includes('medium.com') || r.includes('substack') || r.includes('towards') || r.includes('post')) {
+    return { type: 'Blog / Post', icon: '✍️', color: '#fbbf24' };
+  }
+  if (r.includes('wikipedia') || r.includes('britannica') || r.includes('encyclopedia')) {
+    return { type: 'Enciclopedia', icon: '🌐', color: '#94a3b8' };
+  }
+  if (r.includes('http') || r.includes('www.') || r.includes('.com') || r.includes('.org') || r.includes('.io')) {
+    return { type: 'Web', icon: '🔗', color: '#22d3ee' };
+  }
+  return { type: 'Fonte', icon: '📚', color: '#8888aa' };
+}
+
 function renderMarkdown(text: string): string {
-  return text
+  // Format references section with academic styling
+  let result = text
     .replace(/### (.+)/g, '<span class="md-h3">$1</span>')
     .replace(/## (.+)/g, '<span class="md-h2">$1</span>')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\n/g, '<br />');
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+
+  // Format numbered references [1] Fonte X: "Title" — URL
+  result = result.replace(
+    /\[(\d+)\]\s*([^\n]+)/g,
+    (match, num, refText) => {
+      const { type, icon, color } = classifyReference(refText);
+      const urlMatch = refText.match(/https?:\/\/[^\s]+/);
+      const url = urlMatch ? urlMatch[0] : null;
+      const cleanText = url ? refText.replace(url, '').trim() : refText.trim();
+      const linkHtml = url
+        ? ` <a href="${url}" target="_blank" rel="noopener" style="color:${color};text-decoration:underline;font-size:10px;">${url.length > 50 ? url.substring(0, 50) + '...' : url}</a>`
+        : '';
+      return `<span class="ref-item" style="display:flex;align-items:flex-start;gap:6px;margin:4px 0;padding:5px 8px;background:${color}0d;border-left:2px solid ${color}40;border-radius:0 6px 6px 0;">`
+        + `<span style="color:${color};font-weight:700;font-size:10px;flex-shrink:0;">[${num}]</span>`
+        + `<span style="flex:1;">`
+        + `<span style="color:${color};font-size:9px;font-weight:600;margin-right:4px;">${icon} ${type}</span>`
+        + `<span style="color:#c4c4d4;font-size:11px;">${cleanText}</span>`
+        + linkHtml
+        + `</span></span>`;
+    }
+  );
+
+  return result.replace(/\n/g, '<br />');
 }
 
 export default function Home() {
@@ -94,7 +146,7 @@ export default function Home() {
       const response = await fetch('/api/mother/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, useCache: false, conversationHistory }),
+        body: JSON.stringify({ query, useCache: true, conversationHistory }),
         signal: controller.signal,
         credentials: 'include',
       });
@@ -330,19 +382,80 @@ export default function Home() {
           ))}
         </div>
 
-        {/* Admin commands */}
+        {/* Admin commands - v69.12: State-of-the-art UX/UI redesign */}
+        {/* Scientific basis: Nielsen (1994) Heuristics #1 #3 #7; Shneiderman (1992) 8 Golden Rules */}
+        {/* Grouping: ISO 9241-110 (2020) Dialogue Principles; Gestalt proximity law */}
         <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(124,58,237,0.2)] rounded-xl p-3">
-          <div className="text-[10px] font-semibold uppercase tracking-widest text-[#55556a] mb-2">MotherTools</div>
-          {[
-            { icon: '🔍', label: '/audit', desc: 'Auditoria completa' },
-            { icon: '📋', label: '/proposals', desc: 'Ver propostas DGM' },
-            { icon: '✅', label: '/approve 1', desc: 'Aprovar proposta' },
-            { icon: '⚙️', label: '/status', desc: 'Status do sistema' },
-          ].map((cmd) => (
-            <button key={cmd.label} className="quick-btn" onClick={() => sendMessage(cmd.label)} title={cmd.desc}>
-              {cmd.icon} <code style={{fontSize:'11px'}}>{cmd.label}</code>
-            </button>
-          ))}
+          <div className="flex items-center justify-between mb-2.5">
+            <div className="text-[10px] font-semibold uppercase tracking-widest text-[#a78bfa]">MOTHER Tools</div>
+            <div className="text-[7px] text-[#55556a] bg-[rgba(124,58,237,0.1)] px-1.5 py-0.5 rounded-full border border-[rgba(124,58,237,0.2)]">CRIADOR</div>
+          </div>
+          {/* Diagnostic group */}
+          <div className="mb-2">
+            <div className="text-[8px] text-[#55556a] uppercase tracking-wider mb-1.5">Diagnostico</div>
+            <div className="grid grid-cols-2 gap-1">
+              {[
+                { icon: '🔍', label: '/audit', desc: 'Auditoria completa do sistema', color: '#a78bfa' },
+                { icon: '⚙️', label: '/status', desc: 'Status em tempo real', color: '#60a5fa' },
+              ].map((cmd) => (
+                <button key={cmd.label}
+                  onClick={() => sendMessage(cmd.label)}
+                  title={cmd.desc}
+                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[9px] font-medium text-left transition-all"
+                  style={{ background: `${cmd.color}0d`, border: `1px solid ${cmd.color}25`, color: cmd.color }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = `${cmd.color}1a`; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = `${cmd.color}0d`; }}
+                >
+                  <span>{cmd.icon}</span>
+                  <code style={{fontSize:'9px'}}>{cmd.label}</code>
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Evolution group */}
+          <div className="mb-2">
+            <div className="text-[8px] text-[#55556a] uppercase tracking-wider mb-1.5">Evolucao DGM</div>
+            <div className="grid grid-cols-2 gap-1">
+              {[
+                { icon: '📋', label: '/proposals', desc: 'Listar propostas DGM', color: '#fbbf24' },
+                { icon: '🧬', label: '/fitness', desc: 'Score de fitness atual', color: '#34d399' },
+              ].map((cmd) => (
+                <button key={cmd.label}
+                  onClick={() => sendMessage(cmd.label)}
+                  title={cmd.desc}
+                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[9px] font-medium text-left transition-all"
+                  style={{ background: `${cmd.color}0d`, border: `1px solid ${cmd.color}25`, color: cmd.color }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = `${cmd.color}1a`; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = `${cmd.color}0d`; }}
+                >
+                  <span>{cmd.icon}</span>
+                  <code style={{fontSize:'9px'}}>{cmd.label}</code>
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Knowledge group */}
+          <div>
+            <div className="text-[8px] text-[#55556a] uppercase tracking-wider mb-1.5">Conhecimento</div>
+            <div className="grid grid-cols-2 gap-1">
+              {[
+                { icon: '📚', label: '/knowledge', desc: 'Base de conhecimento', color: '#f472b6' },
+                { icon: '🔬', label: '/research', desc: 'Pesquisa cientifica', color: '#22d3ee' },
+              ].map((cmd) => (
+                <button key={cmd.label}
+                  onClick={() => sendMessage(cmd.label)}
+                  title={cmd.desc}
+                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[9px] font-medium text-left transition-all"
+                  style={{ background: `${cmd.color}0d`, border: `1px solid ${cmd.color}25`, color: cmd.color }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = `${cmd.color}1a`; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = `${cmd.color}0d`; }}
+                >
+                  <span>{cmd.icon}</span>
+                  <code style={{fontSize:'9px'}}>{cmd.label}</code>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* System info */}

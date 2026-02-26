@@ -46,6 +46,7 @@ import { getUserMemoryContext, extractAndStoreMemories } from './user-memory';
 import { logAuditEvent } from './update-proposals';
 import { CREATOR_EMAIL as _HIERARCHY_CREATOR_EMAIL } from './user-hierarchy';
 import { maybeRunAnalysis } from './self-proposal-engine';
+import { runMetricsJobs } from './metrics-aggregation-job'; // v69.12: Fix P0 — populate fitness_history, system_metrics, learning_patterns
 import { MOTHER_TOOLS, executeTool, formatToolResult } from './tool-engine';
 import { ENV } from '../_core/env';
 import { generateFichamento } from './fichamento';
@@ -809,13 +810,17 @@ Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à a
   getDb().then(db => {
     if (!db) return;
     const { sql } = require("drizzle-orm");
-    db.execute(sql`INSERT IGNORE INTO system_metrics (endpoint, response_time, tokens_used, cost, quality_score, tier, created_at) VALUES (${"mother.query"}, ${responseTime}, ${usage.total_tokens}, ${(cost ?? 0).toString()}, ${quality.qualityScore ?? 0}, ${complexity.tier}, NOW())`).catch(() => {});
+    // v69.12: system_metrics uses period-based aggregation (periodStart/periodEnd/totalQueries)
+    // Individual query metrics are stored in the `queries` table (already done above)
+    // system_metrics is populated by autonomous-update-job.ts aggregation — no per-query INSERT needed
+    // Scientific basis: SRE Golden Signals (Beyer et al., 2016) — aggregate metrics, not per-event
   }).catch(() => {});
 
   // ==================== v59.0: SELF-PROPOSAL ENGINE ====================
   // After every 10 queries, MOTHER analyzes her own metrics and proposes improvements
   // Scientific basis: DGM (Zhang et al., 2025 arXiv:2505.22954)
   maybeRunAnalysis().catch(() => {}); // Fire-and-forget, never blocks response
+  runMetricsJobs().catch(() => {}); // v69.12: Populate fitness_history, learning_patterns (DGM evolution tracking)
 
   // ==================== v69.7: FICHAMENTO DE CONHECIMENTO ====================
   // Append knowledge absorption footnote to analytical responses

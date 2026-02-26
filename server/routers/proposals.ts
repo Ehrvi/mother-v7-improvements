@@ -264,4 +264,78 @@ export const proposalsRouter = router({
   userMemoryStats: protectedProcedure.query(async ({ ctx }) => {
     return await getUserMemoryStats(ctx.user.id);
   }),
+
+  /**
+   * v69.12: Defer a proposal (Adiar) — postpone review by N days
+   * ISO 27001 A.12.1.2: Audit trail for all change management decisions
+   * Scientific basis: ITIL Change Management (Axelos, 2019)
+   */
+  defer: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      daysToDefer: z.number().min(1).max(365).default(7),
+      reason: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.email !== CREATOR_EMAIL) {
+        throw new Error('Only creator can defer proposals');
+      }
+      const { getDb: getDb2 } = await import('../db');
+      const db = await getDb2();
+      if (!db) throw new Error('DB unavailable');
+      const deferUntil = new Date(Date.now() + input.daysToDefer * 24 * 60 * 60 * 1000);
+      await (db as any).execute(
+        `UPDATE self_proposals SET status = 'deferred', next_reproposal_at = ?, rejection_reason = ?, updated_at = NOW() WHERE id = ?`,
+        [deferUntil, input.reason ?? `Deferred by creator for \${input.daysToDefer} days`, input.id]
+      );
+      const { logAuditEvent: logAudit2 } = await import('../mother/update-proposals');
+      await logAudit2({
+        action: 'PROPOSAL_DEFERRED',
+        actorEmail: ctx.user.email,
+        actorType: 'creator',
+        targetType: 'proposal',
+        targetId: String(input.id),
+        details: JSON.stringify({ daysToDefer: input.daysToDefer, deferUntil: deferUntil.toISOString(), reason: input.reason }),
+        success: true,
+      });
+      return { success: true, deferUntil };
+    }),
+
+  /**
+   * v69.12: Cancel a proposal permanently (Cancelar Definitivamente)
+   * ISO 27001 A.12.1.2: Immutable audit trail — cancellation is permanent and auditable
+   * Scientific basis: ITIL Change Management (Axelos, 2019); ISO/IEC 27001:2022
+   */
+  cancelPermanently: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      reason: z.string().min(5),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.email !== CREATOR_EMAIL) {
+        throw new Error('Only creator can permanently cancel proposals');
+      }
+      const { getDb: getDb3 } = await import('../db');
+      const db3 = await getDb3();
+      if (!db3) throw new Error('DB unavailable');
+      await (db3 as any).execute(
+        `UPDATE self_proposals SET 
+          status = 'cancelled_permanently',
+          rejection_reason = ?,
+          updated_at = NOW()
+         WHERE id = ?`,
+        [`PERMANENTLY CANCELLED by creator: \${input.reason}`, input.id]
+      );
+      const { logAuditEvent: logAudit3 } = await import('../mother/update-proposals');
+      await logAudit3({
+        action: 'PROPOSAL_CANCELLED_PERMANENTLY',
+        actorEmail: ctx.user.email,
+        actorType: 'creator',
+        targetType: 'proposal',
+        targetId: String(input.id),
+        details: JSON.stringify({ reason: input.reason, cancelledAt: new Date().toISOString() }),
+        success: true,
+      });
+      return { success: true };
+    }),
 });

@@ -18,7 +18,7 @@
  *   - Dark theme with luminance contrast >= 4.5:1 (WCAG AA)
  *   - Progressive disclosure: overview -> domain -> subdomain
  */
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { trpc } from '@/lib/trpc';
 import {
   Brain, Dna, ChevronDown, ChevronRight, ChevronLeft,
@@ -393,62 +393,155 @@ function StatusBadge({ status }: { status: string }) {
     <span className={`flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded border ${c.cls}`}>
       {c.icon}{c.label}
     </span>
+
   );
 }
 
-// --- Proposals Section -------------------------------------------------------
+function ProposalActionButtons({ p, onAction }: { p: any; onAction: () => void }) {
+  const approveMut = trpc.proposals.approve.useMutation({ onSuccess: onAction });
+  const deferMut   = trpc.proposals.defer.useMutation({ onSuccess: onAction });
+  const cancelMut  = trpc.proposals.cancelPermanently.useMutation({ onSuccess: onAction });
+  const [showDefer, setShowDefer] = React.useState(false);
+  const [showCancel, setShowCancel] = React.useState(false);
+  const [deferDays, setDeferDays] = React.useState(7);
+  const [cancelReason, setCancelReason] = React.useState('');
+
+  if (['approved', 'implementing', 'deployed', 'cancelled_permanently'].includes(p.status)) {
+    return null;
+  }
+
+  return (
+    <div className="mt-2 flex flex-col gap-1.5">
+      <div className="flex gap-1.5">
+        <button
+          onClick={() => approveMut.mutate({ proposalId: p.id })}
+          disabled={approveMut.isPending}
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[9px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-all disabled:opacity-40"
+          title="Autorizar - execucao imediata com registro auditavel (ISO 27001 A.12.1.2)"
+        >
+          {approveMut.isPending ? <span className="animate-pulse">...</span> : <><CheckCircle className="w-2.5 h-2.5" /> Autorizar</>}
+        </button>
+        <button
+          onClick={() => { setShowDefer(!showDefer); setShowCancel(false); }}
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[9px] font-semibold bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-all"
+          title="Adiar - reagendar revisao (ITIL Change Management)"
+        >
+          <Clock className="w-2.5 h-2.5" /> Adiar
+        </button>
+        <button
+          onClick={() => { setShowCancel(!showCancel); setShowDefer(false); }}
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[9px] font-semibold bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-all"
+          title="Cancelar definitivamente - registro permanente no audit log"
+        >
+          <XCircle className="w-2.5 h-2.5" /> Cancelar
+        </button>
+      </div>
+      {showDefer && (
+        <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-2 flex flex-col gap-1.5">
+          <div className="text-[8px] text-amber-400 font-semibold">Adiar por quantos dias?</div>
+          <div className="flex items-center gap-1.5">
+            {[3, 7, 14, 30].map(d => (
+              <button key={d} onClick={() => setDeferDays(d)}
+                className={`px-2 py-0.5 rounded text-[8px] font-semibold transition-all ${deferDays === d ? 'bg-amber-500/30 border border-amber-500/50 text-amber-300' : 'bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[#8888aa] hover:text-amber-400'}`}
+              >{d}d</button>
+            ))}
+          </div>
+          <button
+            onClick={() => { deferMut.mutate({ id: p.id, daysToDefer: deferDays }); setShowDefer(false); }}
+            disabled={deferMut.isPending}
+            className="py-1 rounded-lg text-[8px] font-semibold bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 transition-all disabled:opacity-40"
+          >{deferMut.isPending ? 'Adiando...' : `Confirmar - adiar ${deferDays} dias`}</button>
+          <div className="text-[7px] text-[#55556a]">Registrado no audit log (ISO 27001 A.12.1.2)</div>
+        </div>
+      )}
+      {showCancel && (
+        <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-2 flex flex-col gap-1.5">
+          <div className="text-[8px] text-red-400 font-semibold">Cancelamento permanente e irreversivel</div>
+          <input type="text" placeholder="Motivo obrigatorio (min. 5 chars)..." value={cancelReason}
+            onChange={e => setCancelReason(e.target.value)}
+            className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-2 py-1 text-[9px] text-[#e8e8f0] placeholder-[#55556a] outline-none focus:border-red-500/40"
+          />
+          <button
+            onClick={() => { if (cancelReason.length < 5) return; cancelMut.mutate({ id: p.id, reason: cancelReason }); setShowCancel(false); }}
+            disabled={cancelMut.isPending || cancelReason.length < 5}
+            className="py-1 rounded-lg text-[8px] font-semibold bg-red-500/20 border border-red-500/40 text-red-300 hover:bg-red-500/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+          >{cancelMut.isPending ? 'Cancelando...' : 'Confirmar cancelamento definitivo'}</button>
+          <div className="text-[7px] text-[#55556a]">Imutavel no audit log - auditavel por ISO 27001/ITIL</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProposalsSection() {
-  const [expanded, setExpanded] = useState<number | null>(null);
+  const [expanded, setExpanded] = React.useState<number | null>(null);
   const { data: proposals, isLoading, refetch } = trpc.proposals.listWithReproposal.useQuery(undefined, {
     refetchInterval: 30_000,
   });
   const pending   = proposals?.filter(p => p.status === 'pending') ?? [];
+  const deferred  = proposals?.filter(p => p.status === 'deferred') ?? [];
   const rejected  = proposals?.filter(p => p.status === 'rejected') ?? [];
   const approved  = proposals?.filter(p => ['approved', 'implementing', 'deployed'].includes(p.status)) ?? [];
+  const cancelled = proposals?.filter(p => p.status === 'cancelled_permanently') ?? [];
 
   const renderProposal = (p: any) => {
     const isOpen = expanded === p.id;
+    const impactColor = p.impact === 'critical' ? '#f87171' : p.impact === 'high' ? '#fb923c' : p.impact === 'medium' ? '#fbbf24' : '#34d399';
     return (
       <div key={p.id} className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg overflow-hidden">
-        <button
-          className="w-full flex items-start gap-2 p-2.5 text-left hover:bg-[rgba(255,255,255,0.03)] transition-colors"
-          onClick={() => setExpanded(isOpen ? null : p.id)}
-        >
+        <button className="w-full flex items-start gap-2 p-2.5 text-left hover:bg-[rgba(255,255,255,0.03)] transition-colors"
+          onClick={() => setExpanded(isOpen ? null : p.id)}>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 mb-1 flex-wrap">
               <StatusBadge status={p.status} />
+              {p.impact && (
+                <span className="text-[7px] px-1 py-0.5 rounded font-bold uppercase tracking-wide"
+                  style={{ background: `${impactColor}18`, border: `1px solid ${impactColor}40`, color: impactColor }}>
+                  {p.impact}
+                </span>
+              )}
               {p.parentProposalId && (
                 <span className="text-[8px] px-1 py-0.5 rounded bg-[rgba(96,165,250,0.1)] border border-[rgba(96,165,250,0.2)] text-blue-400">
                   Re-proposta #{p.rejectionCount}
                 </span>
               )}
             </div>
-            <div className="text-[10px] font-medium text-[#e8e8f0] leading-tight truncate">{p.title}</div>
-            <div className="text-[9px] text-[#55556a] mt-0.5">
+            <div className="text-[10px] font-medium text-[#e8e8f0] leading-tight">{p.title}</div>
+            <div className="text-[8px] text-[#55556a] mt-0.5">
               Trigger: <span className="text-[#a78bfa]">{p.metricTrigger}</span>
             </div>
           </div>
-          {isOpen
-            ? <ChevronDown className="w-3 h-3 text-[#55556a] flex-shrink-0 mt-0.5" />
-            : <ChevronRight className="w-3 h-3 text-[#55556a] flex-shrink-0 mt-0.5" />
-          }
+          {isOpen ? <ChevronDown className="w-3 h-3 text-[#55556a] flex-shrink-0 mt-0.5" /> : <ChevronRight className="w-3 h-3 text-[#55556a] flex-shrink-0 mt-0.5" />}
         </button>
         {isOpen && (
           <div className="px-2.5 pb-2.5 flex flex-col gap-2 border-t border-[rgba(255,255,255,0.04)]">
             <p className="text-[9px] text-[#8888aa] leading-relaxed mt-2">{p.description}</p>
             <div className="bg-[rgba(255,255,255,0.03)] rounded-lg p-2">
-              <div className="text-[9px] text-[#55556a] mb-1">Progresso da Métrica</div>
+              <div className="text-[8px] text-[#55556a] mb-1 flex justify-between">
+                <span>Progresso da Metrica</span>
+                <span className="text-[#a78bfa]">{p.metricTrigger}</span>
+              </div>
               <div className="flex items-center gap-2">
-                <span className="text-[9px] text-red-400">{p.metricValue?.toFixed(1)}</span>
-                <div className="flex-1 h-1 bg-[rgba(255,255,255,0.06)] rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-red-500 to-emerald-500 rounded-full"
-                    style={{ width: `${Math.min(100, (p.metricValue / p.metricTarget) * 100)}%` }}
-                  />
+                <span className="text-[9px] text-red-400 w-8 text-right">{p.metricValue?.toFixed(1)}</span>
+                <div className="flex-1 h-1.5 bg-[rgba(255,255,255,0.06)] rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-700"
+                    style={{ width: `${Math.min(100, (p.metricValue / p.metricTarget) * 100)}%`, background: 'linear-gradient(90deg, #ef4444, #f59e0b, #22c55e)' }} />
                 </div>
-                <span className="text-[9px] text-emerald-400">{p.metricTarget?.toFixed(1)}</span>
+                <span className="text-[9px] text-emerald-400 w-8">{p.metricTarget?.toFixed(1)}</span>
               </div>
             </div>
+            {p.scientificBasis && (
+              <div className="bg-[rgba(167,139,250,0.04)] border border-[rgba(167,139,250,0.12)] rounded-lg p-2">
+                <div className="text-[8px] text-[#a78bfa] font-semibold mb-1">Base Cientifica</div>
+                <p className="text-[8px] text-[#8888aa] leading-relaxed italic">{p.scientificBasis}</p>
+              </div>
+            )}
+            {p.fitnessFunction && (
+              <div className="bg-[rgba(52,211,153,0.04)] border border-[rgba(52,211,153,0.12)] rounded-lg p-2">
+                <div className="text-[8px] text-emerald-400 font-semibold mb-1">Funcao de Fitness</div>
+                <code className="text-[8px] text-[#8888aa] font-mono">{p.fitnessFunction}</code>
+              </div>
+            )}
             {p.status === 'rejected' && p.nextReproposalAt && (
               <div className="bg-[rgba(251,191,36,0.06)] border border-[rgba(251,191,36,0.15)] rounded-lg p-2">
                 <div className="flex items-center gap-1.5 mb-1">
@@ -457,19 +550,18 @@ function ProposalsSection() {
                 </div>
                 <div className="text-[9px] text-[#8888aa]">
                   Em <span className="text-amber-300 font-semibold">{p.reproposalDaysRemaining}d</span>
-                  {' '}· EF: {p.efFactor?.toFixed(2)} · Rejeições: {p.rejectionCount}
+                  {' '} EF: {p.efFactor?.toFixed(2)} Rejeicoes: {p.rejectionCount}
                 </div>
                 {p.improvementNotes && (
-                  <div className="mt-1.5 text-[8px] text-[#55556a] italic leading-relaxed">
-                    💡 {p.improvementNotes}
-                  </div>
+                  <div className="mt-1.5 text-[8px] text-[#55556a] italic leading-relaxed">{p.improvementNotes}</div>
                 )}
               </div>
             )}
-            {p.scientificBasis && (
-              <div className="text-[8px] text-[#55556a] italic">
-                📚 {p.scientificBasis.substring(0, 120)}...
-              </div>
+            <div className="flex items-center gap-1 text-[7px] text-[#55556a]">
+              <span>ID #{p.id} Toda decisao registrada no audit log (ISO 27001 A.12.1.2)</span>
+            </div>
+            {(p.status === 'pending' || p.status === 'deferred') && (
+              <ProposalActionButtons p={p} onAction={refetch} />
             )}
           </div>
         )}
@@ -482,15 +574,12 @@ function ProposalsSection() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <Dna className="w-3.5 h-3.5 text-[#a78bfa]" />
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-[#8888aa]">
-            Propostas DGM
-          </span>
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-[#8888aa]">Propostas DGM</span>
+          {pending.length > 0 && (
+            <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-400 font-bold">{pending.length}</span>
+          )}
         </div>
-        <button
-          onClick={() => refetch()}
-          className="text-[9px] text-[#55556a] hover:text-[#a78bfa] transition-colors"
-          title="Atualizar"
-        >
+        <button onClick={() => refetch()} className="text-[9px] text-[#55556a] hover:text-[#a78bfa] transition-colors" title="Atualizar">
           <RefreshCw className="w-3 h-3" />
         </button>
       </div>
@@ -501,17 +590,23 @@ function ProposalsSection() {
           {pending.length > 0 && (
             <div>
               <div className="text-[9px] text-amber-400 font-semibold mb-1.5 flex items-center gap-1">
-                <AlertCircle className="w-2.5 h-2.5" />
-                Aguardando Aprovação ({pending.length})
+                <AlertCircle className="w-2.5 h-2.5" /> Aguardando Decisao ({pending.length})
               </div>
               <div className="flex flex-col gap-1.5">{pending.map(renderProposal)}</div>
+            </div>
+          )}
+          {deferred.length > 0 && (
+            <div>
+              <div className="text-[9px] text-blue-400 font-semibold mb-1.5 flex items-center gap-1">
+                <Clock className="w-2.5 h-2.5" /> Adiadas ({deferred.length})
+              </div>
+              <div className="flex flex-col gap-1.5">{deferred.map(renderProposal)}</div>
             </div>
           )}
           {approved.length > 0 && (
             <div>
               <div className="text-[9px] text-emerald-400 font-semibold mb-1.5 flex items-center gap-1">
-                <CheckCircle className="w-2.5 h-2.5" />
-                Aprovadas / Em Execução ({approved.length})
+                <CheckCircle className="w-2.5 h-2.5" /> Aprovadas / Em Execucao ({approved.length})
               </div>
               <div className="flex flex-col gap-1.5">{approved.map(renderProposal)}</div>
             </div>
@@ -519,16 +614,23 @@ function ProposalsSection() {
           {rejected.length > 0 && (
             <div>
               <div className="text-[9px] text-red-400 font-semibold mb-1.5 flex items-center gap-1">
-                <Clock className="w-2.5 h-2.5" />
-                Rejeitadas — Re-proposta Agendada ({rejected.length})
+                <RefreshCw className="w-2.5 h-2.5" /> Rejeitadas SM-2 ({rejected.length})
               </div>
               <div className="flex flex-col gap-1.5">{rejected.map(renderProposal)}</div>
+            </div>
+          )}
+          {cancelled.length > 0 && (
+            <div>
+              <div className="text-[9px] text-[#55556a] font-semibold mb-1.5 flex items-center gap-1">
+                <XCircle className="w-2.5 h-2.5" /> Canceladas Definitivamente ({cancelled.length})
+              </div>
+              <div className="flex flex-col gap-1.5">{cancelled.map(renderProposal)}</div>
             </div>
           )}
           {(!proposals || proposals.length === 0) && (
             <div className="text-[10px] text-[#55556a] text-center py-4">
               Nenhuma proposta DGM ainda.<br />
-              <span className="text-[9px]">O motor DGM gera propostas após 10 queries.</span>
+              <span className="text-[9px]">O motor DGM gera propostas apos 10 queries.</span>
             </div>
           )}
         </>
