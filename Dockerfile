@@ -12,7 +12,7 @@ FROM base AS build
 WORKDIR /app
 
 # Copy only dependency files first (for better caching)
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml .pnpmfile.cjs ./
 COPY patches ./patches
 
 # Install dependencies (including devDependencies for build)
@@ -29,7 +29,7 @@ FROM base AS prod-deps
 WORKDIR /app
 
 # Copy only dependency files
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml .pnpmfile.cjs ./
 COPY patches ./patches
 
 # Install production dependencies only
