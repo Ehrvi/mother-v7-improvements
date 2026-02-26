@@ -62,11 +62,25 @@ export const proposalsRouter = router({
     return await getKnowledgeWisdomStats();
   }),
   /**
-   * v68.4: Get hierarchical knowledge map with drill-down percentages
-   * Returns domain > subdomain tree with real paper_chunks counts
+   * v69.7: Get hierarchical knowledge map with drill-down percentages + KAI/KRI/KCI metrics
+   * Scientific basis:
+   *   - Jiang et al. (2025, arXiv:2502.04066): SMI metric for knowledge retention measurement
+   *   - Zhang et al. (2025, ACM Web Conference): Knowledge Coverage evaluation
+   *   - Zins & Santos (2011, JASIST): "10 Pillars of Knowledge" hierarchical tree
+   *   - UDC (Universal Decimal Classification, 2024): 10-domain knowledge taxonomy
    */
   knowledgeHierarchy: publicProcedure.query(async () => {
-    return await getKnowledgeHierarchy();
+    const hierarchy = await getKnowledgeHierarchy();
+    // KAI = Knowledge Absorption Index: absorbed / total_SoA
+    // KRI = Knowledge Remaining Index: 100 - KAI
+    // KCI = Knowledge Coverage Index: domains_with_data / total_domains
+    const totalChunks = hierarchy.reduce((s, d) => s + d.motherChunks, 0);
+    const totalSoA = hierarchy.reduce((s, d) => s + d.soaEstimate, 0);
+    const coveredDomains = hierarchy.filter(d => d.motherChunks > 0).length;
+    const kai = totalSoA > 0 ? Math.round((totalChunks / totalSoA) * 1000) / 10 : 0;
+    const kri = Math.round((100 - kai) * 10) / 10;
+    const kci = hierarchy.length > 0 ? Math.round((coveredDomains / hierarchy.length) * 1000) / 10 : 0;
+    return { hierarchy, metrics: { kai, kri, kci, totalChunks, totalSoA, coveredDomains, totalDomains: hierarchy.length } };
   }),
 
   /**

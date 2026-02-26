@@ -60,23 +60,29 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// ─── Knowledge Section (v68.4 Hierarchical Drill-Down) ──────────────────────
-// Scientific basis: Chase & Simon (1973), Ericsson (2006)
-// Formula: W(d) = paper_chunks_in_domain / SoA_estimate × 100%
+// ─── Knowledge Section (v69.7 KAI/KRI/KCI + UDC Taxonomy) ──────────────────────
+// Scientific basis:
+//   - Jiang et al. (2025, arXiv:2502.04066): SMI metric for knowledge retention
+//   - Zhang et al. (2025, ACM Web Conference): Knowledge Coverage evaluation
+//   - Zins & Santos (2011, JASIST): "10 Pillars of Knowledge" hierarchical tree
+//   - UDC (Universal Decimal Classification, 2024): 10-domain knowledge taxonomy
 function KnowledgeSection() {
   const [expandedDomain, setExpandedDomain] = useState<string | null>(null);
   const [view, setView] = useState<'domains' | string>('domains');
 
-  const { data: hierarchy, isLoading } = trpc.proposals.knowledgeHierarchy.useQuery(undefined, {
+  const { data: knowledgeData, isLoading } = trpc.proposals.knowledgeHierarchy.useQuery(undefined, {
     refetchInterval: 60_000,
   });
 
-  const totalChunks = hierarchy?.reduce((s, d) => s + d.motherChunks, 0) ?? 0;
-  const avgWisdom = hierarchy && hierarchy.length > 0
-    ? Math.round(hierarchy.reduce((s, d) => s + d.wisdomPercent, 0) / hierarchy.length * 10) / 10
-    : 0;
+  // Support both old array format and new {hierarchy, metrics} format
+  const hierarchy: any[] = Array.isArray(knowledgeData) ? knowledgeData : (knowledgeData as any)?.hierarchy ?? [];
+  const metrics = Array.isArray(knowledgeData) ? null : (knowledgeData as any)?.metrics ?? null;
+  const kai: number = metrics?.kai ?? 0;
+  const kri: number = metrics?.kri ?? 100;
+  const kci: number = metrics?.kci ?? 0;
+  const totalChunks: number = metrics?.totalChunks ?? hierarchy.reduce((s: number, d: any) => s + d.motherChunks, 0);
 
-  const currentDomain = hierarchy?.find(d => d.domain === view);
+  const currentDomain = hierarchy?.find((d: any) => d.domain === view);
 
   return (
     <div className="flex flex-col gap-2">
@@ -88,19 +94,28 @@ function KnowledgeSection() {
             Mapa de Conhecimento
           </span>
         </div>
-        <div className="text-[9px] text-[#55556a]">W=chunks/SoA×100%</div>
+        <div className="text-[9px] text-[#55556a]" title="UDC taxonomy (Zins &amp; Santos, 2011)">KAI/KRI/KCI</div>
       </div>
 
-      {/* Summary stats */}
-      <div className="grid grid-cols-2 gap-1.5">
-        <div className="bg-[rgba(167,139,250,0.08)] border border-[rgba(167,139,250,0.2)] rounded-lg p-2 text-center">
-          <div className="text-base font-bold text-[#a78bfa]">{totalChunks.toLocaleString()}</div>
-          <div className="text-[9px] text-[#55556a]">Chunks Indexados</div>
+      {/* KAI / KRI / KCI metrics — v69.7 */}
+      <div className="grid grid-cols-3 gap-1">
+        <div className="bg-[rgba(167,139,250,0.08)] border border-[rgba(167,139,250,0.2)] rounded-lg p-1.5 text-center" title="KAI: Knowledge Absorption Index">
+          <div className="text-sm font-bold text-[#a78bfa]">{kai.toFixed(1)}%</div>
+          <div className="text-[8px] text-[#55556a]">KAI ↑</div>
         </div>
-        <div className="bg-[rgba(52,211,153,0.08)] border border-[rgba(52,211,153,0.2)] rounded-lg p-2 text-center">
-          <div className="text-base font-bold text-emerald-400">{avgWisdom}%</div>
-          <div className="text-[9px] text-[#55556a]">Sabedoria Média</div>
+        <div className="bg-[rgba(248,113,113,0.08)] border border-[rgba(248,113,113,0.2)] rounded-lg p-1.5 text-center" title="KRI: Knowledge Remaining Index">
+          <div className="text-sm font-bold text-red-400">{kri.toFixed(1)}%</div>
+          <div className="text-[8px] text-[#55556a]">KRI ↓</div>
         </div>
+        <div className="bg-[rgba(52,211,153,0.08)] border border-[rgba(52,211,153,0.2)] rounded-lg p-1.5 text-center" title="KCI: Knowledge Coverage Index">
+          <div className="text-sm font-bold text-emerald-400">{kci.toFixed(0)}%</div>
+          <div className="text-[8px] text-[#55556a]">KCI</div>
+        </div>
+      </div>
+      {/* Total chunks */}
+      <div className="bg-[rgba(99,102,241,0.06)] border border-[rgba(99,102,241,0.15)] rounded-lg p-1.5 text-center">
+        <div className="text-sm font-bold text-indigo-400">{totalChunks.toLocaleString()}</div>
+        <div className="text-[9px] text-[#55556a]">Chunks no bd_central</div>
       </div>
 
       {/* Breadcrumb navigation */}
@@ -119,7 +134,7 @@ function KnowledgeSection() {
         <div className="text-[10px] text-[#55556a] text-center py-3 animate-pulse">Carregando domínios...</div>
       ) : view === 'domains' ? (
         <div className="flex flex-col gap-1.5">
-          {(hierarchy ?? []).map((d) => {
+          {(hierarchy ?? []).map((d: any) => {
             const meta = DOMAIN_LABELS[d.domain] ?? { label: d.domain, emoji: '📚', color: '#94a3b8' };
             const hasSubdomains = d.subdomains && d.subdomains.length > 0;
             return (
@@ -166,7 +181,7 @@ function KnowledgeSection() {
             <WisdomBar percent={currentDomain.wisdomPercent} color={DOMAIN_LABELS[currentDomain.domain]?.color ?? '#a78bfa'} />
           </div>
           {/* Subdomains */}
-          {currentDomain.subdomains.map((sub) => {
+          {currentDomain.subdomains.map((sub: any) => {
             const color = DOMAIN_LABELS[currentDomain.domain]?.color ?? '#94a3b8';
             return (
               <div
