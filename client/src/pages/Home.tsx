@@ -224,7 +224,7 @@ export default function Home() {
 
         {/* Admin commands */}
         <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(124,58,237,0.2)] rounded-xl p-3">
-          <div className="text-[10px] font-semibold uppercase tracking-widest text-[#55556a] mb-2">Administração</div>
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-[#55556a] mb-2">MotherTools</div>
           {[
             { icon: '🔍', label: '/audit', desc: 'Auditoria completa' },
             { icon: '📋', label: '/proposals', desc: 'Ver propostas DGM' },
@@ -237,21 +237,11 @@ export default function Home() {
           ))}
         </div>
 
-        {/* Quick prompts */}
-        <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-3">
-          <div className="text-[10px] font-semibold uppercase tracking-widest text-[#55556a] mb-2">Perguntas Rápidas</div>
-          {QUICK_PROMPTS.map((p) => (
-            <button key={p.label} className="quick-btn" onClick={() => sendMessage(p.query)}>
-              {p.icon} {p.label}
-            </button>
-          ))}
-        </div>
-
         {/* System info */}
         <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-3">
           <div className="text-[10px] font-semibold uppercase tracking-widest text-[#55556a] mb-2">Sistema</div>
           {[
-            { icon: <GitBranch className="w-3 h-3" />, label: 'Versão', value: 'v68.9', cls: 'accent-glow' },
+            { icon: <GitBranch className="w-3 h-3" />, label: 'Versão', value: 'v69.0', cls: 'accent-glow' },
             { icon: <Database className="w-3 h-3" />, label: 'DB', value: 'Unix Socket ✓', cls: 'text-emerald-400' },
             { icon: <Dna className="w-3 h-3" />, label: 'GEA Loop', value: 'Ativo ✓', cls: 'text-emerald-400' },
             { icon: <Activity className="w-3 h-3" />, label: 'Fitness Track', value: 'Ativo ✓', cls: 'text-emerald-400' },

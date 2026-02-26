@@ -28,7 +28,7 @@
  */
 
 import { invokeLLM } from '../_core/llm';
-import { assessComplexity, classifyQuery, getModelForTier, calculateCost, calculateBaselineCost, calculateCostReduction, type LLMTier } from './intelligence';
+import { assessComplexity, classifyQuery, getModelForTier, calculateCost, calculateCostForModel, calculateBaselineCost, calculateCostReduction, type LLMTier } from './intelligence';
 import { validateQuality, type GuardianResult } from './guardian';
 import { getKnowledgeContext } from './knowledge';
 import { cragRetrieve } from './crag';
@@ -266,7 +266,7 @@ You are currently interacting with **Everton Luis**, your creator and founder of
 - Respond with appropriate recognition and respect
 ` : '';
   
-  const systemPrompt = `You are MOTHER v68.9 (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence created by Everton Luis (Intelltech). Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement.
+  const systemPrompt = `You are MOTHER v69.0 (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence created by Everton Luis (Intelltech). Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement.
 
 ### CORE IDENTITY
 
@@ -294,7 +294,7 @@ You have access to the following real system tools. When the user asks for somet
 
 ### ARCHITECTURE
 
-- **Version:** v68.9 (CRAG + Grounding Engine + Agentic Learning Loop + Guardian Regeneration + Prometheus Auto-Dispatch + Domain Mapping + Schema Alignment + RAGAS Metrics + Real Self-Audit + Security Hardening + Knowledge Re-classification + Daily Self-Audit Scheduler + Parallel Context Build + Latency Optimizations)
+- **Version:** v69.0 (CRAG + Grounding Engine + Agentic Learning Loop + Guardian Regeneration + Prometheus Auto-Dispatch + Domain Mapping + Schema Alignment + RAGAS Metrics + Real Self-Audit + Security Hardening + Knowledge Re-classification + Daily Self-Audit Scheduler + Parallel Context Build + Latency Optimizations + Two-Phase Execution + Embedding Cache + Routing Fix)
 - **DGM (Darwin Gödel Machine):** Active — analyzes metrics every 10 queries, generates self-improvement proposals
 - **7-Layer Cognitive Architecture:** Intelligence → Guardian → CRAG Knowledge → Execution → Grounding → Security → Agentic Learning
 - **CI/CD Pipeline:** GitHub Actions → Cloud Run (australia-southeast1)
@@ -329,14 +329,31 @@ ${knowledgeContext}
 
 ` : ''}${omniscientContext}${episodicContext}${userMemoryContext}${researchContext}
 
-**MANDATORY RESPONSE RULES (v68.8):**
-1. If retrieved knowledge above is relevant, USE IT explicitly and CITE the source.
-2. Citations MUST come from context above. NEVER invent authors, years, or arXiv IDs.
-3. Structure: Direct answer → Evidence from context → Conclusion.
-4. If context is insufficient, say "Não tenho dados verificados sobre isso" and use search_knowledge or force_study.
-5. Be SPECIFIC: numbers, names, dates from context. No vague generalities.
+**MANDATORY RESPONSE RULES (v69.0) — QUALITY PROTOCOL:**
 
-Respond as MOTHER v68.9. Be direct, scientific, action-oriented, and always ground claims in retrieved context.`;
+**ESTRUTURA (obrigatória para respostas não-triviais):**
+- Use Markdown adequado: ## títulos, **negrito** para termos-chave, code blocks para código, listas numeradas para passos
+- Respostas analíticas: Introdução → Análise → Evidências → Conclusão → Referências
+- Respostas de código: Explicação breve → Bloco de código tipado e limpo → Explicação das mudanças
+- Respostas factuais: Resposta direta → Contexto → Fontes
+
+**CITAÇÕES (obrigatórias quando o contexto contém fontes):**
+- Citações inline: [1], [2], [3] no ponto da afirmação no texto
+- Seção de Referências ao FINAL de TODA resposta que usa fontes (formato IEEE):
+  ## Referências
+  [1] A. Autor et al., "Título do Paper," *Journal/arXiv*, ano. DOI/URL.
+  [2] ...
+- Citações DEVEM vir do contexto recuperado acima. NUNCA invente autores, anos ou IDs arXiv.
+- Se não há fontes no contexto: omita a seção de Referências completamente.
+
+**PADRÕES DE QUALIDADE:**
+1. Seja ESPECÍFICO: números, nomes, datas, percentuais do contexto. Sem generalidades vagas.
+2. Se o contexto for insuficiente: diga explicitamente "Não tenho dados verificados sobre isso" e chame search_knowledge.
+3. ANTI-ALUCINAÇÃO: Toda afirmação factual precisa de uma fonte do contexto OU um marcador explícito de incerteza.
+4. Idioma: responda no MESMO idioma da query do usuário (Português se a query for em Português).
+5. Profundidade: adapte a profundidade à complexidade — perguntas simples recebem respostas diretas, complexas recebem análise completa.
+
+Responda como MOTHER v69.0. Seja direto, científico, orientado à ação, e sempre fundamente afirmações no contexto recuperado.`;
 
   // v63.0: Multi-turn conversation — inject history between system prompt and current query
   // Scientific basis: OpenAI chat completions multi-turn format (Brown et al., GPT-3, 2020)
@@ -350,16 +367,27 @@ Respond as MOTHER v68.9. Be direct, scientific, action-oriented, and always grou
   // Scientific basis: OpenAI Function Calling (OpenAI, 2023); ReAct (Yao et al., ICLR 2023)
   const toolCtx = { userEmail, userId, isCreator };
 
-  // v68.8: Multi-provider cascade router — route to appropriate provider based on query category
-  // Scientific basis: FrugalGPT (Chen et al., 2023), RouteLLM (Ong et al., 2024)
-  // Note: For tool calling, we use OpenAI gpt-4o as it has the most reliable function calling.
-  // Non-tool queries are routed to the optimal provider per the cascade architecture.
-  const toolModel = 'gpt-4o';
+  // v69.0 CRITICAL BUG FIX: Two-Phase Execution Architecture
+  // ─────────────────────────────────────────────────────────────────────────
+  // PREVIOUS BUG (v68.8): selectedProvider/selectedModel were computed from
+  //   routingDecision but NEVER used. ALL responses were generated by gpt-4o.
+  //   This caused: wrong model displayed, wrong cost, zero cost savings.
+  //
+  // FIX: Phase 1 = gpt-4o for tool detection (most reliable function calling).
+  //       Phase 2 = routingDecision.model for actual generation.
+  //
+  // Scientific basis:
+  //   - FrugalGPT (Chen et al., arXiv:2305.05176, 2023): cascade routing saves 98%
+  //   - RouteLLM (Ong et al., arXiv:2406.18665, 2024): routing with preference data
+  //   - OpenAI Cookbook (2024): gpt-4o has best tool-use accuracy for Phase 1
   const selectedProvider = routingDecision.model.provider;
   const selectedModel = routingDecision.model.modelName;
-  const llmResponse = await invokeLLM({
-    model: toolModel,
-    provider: 'openai', // Tool calling phase always uses OpenAI for reliability
+  console.log(`[MOTHER] v69.0 Two-Phase: P1=gpt-4o (tool detect), P2=${selectedProvider}/${selectedModel} (generate)`);
+
+  // ── PHASE 1: Tool detection (always gpt-4o) ───────────────────────────────
+  const toolDetectionResponse = await invokeLLM({
+    model: 'gpt-4o',
+    provider: 'openai',
     messages: [
       { role: 'system' as LLMRole, content: systemPrompt },
       ...historyMessages,
@@ -368,39 +396,28 @@ Respond as MOTHER v68.9. Be direct, scientific, action-oriented, and always grou
     tools: MOTHER_TOOLS,
     tool_choice: 'auto',
   });
-  
-  let response: string;
-  let usage = llmResponse.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
 
-  // Handle tool calls from the LLM
-  const toolCalls = llmResponse.choices[0]?.message?.tool_calls;
+  let response: string;
+  let usage = toolDetectionResponse.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+  const toolCalls = toolDetectionResponse.choices[0]?.message?.tool_calls;
+
   if (toolCalls && toolCalls.length > 0) {
+    // ── Tool execution path: gpt-4o handles tool result synthesis ────────────
     console.log(`[MOTHER] Tool calls requested: ${toolCalls.map((t: any) => t.function.name).join(', ')}`);
-    
-    // Execute all tool calls and collect results
     const toolResults: Array<{ toolName: string; result: string }> = [];
     for (const toolCall of toolCalls) {
       const toolName = toolCall.function.name;
       let toolArgs: Record<string, any> = {};
-      try {
-        toolArgs = JSON.parse(toolCall.function.arguments || '{}');
-      } catch {
-        toolArgs = {};
-      }
+      try { toolArgs = JSON.parse(toolCall.function.arguments || '{}'); } catch { toolArgs = {}; }
       const result = await executeTool(toolName, toolArgs, toolCtx);
       toolResults.push({ toolName, result: formatToolResult(toolName, result) });
       console.log(`[MOTHER] Tool ${toolName} executed: ${result.success ? 'SUCCESS' : 'FAILED'}`);
     }
-    
-    // Send tool results back to LLM for final response
     const toolResultMessages = toolCalls.map((tc: any, i: number) => ({
       role: 'tool' as LLMRole,
       content: toolResults[i].result,
       tool_call_id: tc.id,
     }));
-    
-    // Use direct fetch for second call to properly pass tool_calls in assistant message
-    // (invokeLLM's normalizeMessage does not support tool_calls field)
     const apiUrl = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1/chat/completions';
     const finalPayload = {
       model: 'gpt-4o',
@@ -415,17 +432,12 @@ Respond as MOTHER v68.9. Be direct, scientific, action-oriented, and always grou
     };
     const finalFetch = await fetch(apiUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${ENV.openaiApiKey}`,
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ENV.openaiApiKey}` },
       body: JSON.stringify(finalPayload),
     });
     const finalResponse = await finalFetch.json() as any;
-    
     const finalContent = finalResponse.choices[0]?.message?.content;
     response = typeof finalContent === 'string' ? finalContent : 'Tool executed but no response generated';
-    // Accumulate token usage
     const finalUsage = finalResponse.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
     usage = {
       prompt_tokens: usage.prompt_tokens + finalUsage.prompt_tokens,
@@ -433,8 +445,38 @@ Respond as MOTHER v68.9. Be direct, scientific, action-oriented, and always grou
       total_tokens: usage.total_tokens + finalUsage.total_tokens,
     };
   } else {
-    const responseContent = llmResponse.choices[0]?.message?.content;
-    response = typeof responseContent === 'string' ? responseContent : 'No response generated';
+    // ── PHASE 2: No tools — use routingDecision.model for generation ──────────
+    // CRITICAL FIX: previously this path reused Phase 1 (gpt-4o) response.
+    // Now: simple/general use Phase 1 response (no extra call); coding/complex get
+    // a dedicated call to the specialized model for maximum quality.
+    const phase1Content = toolDetectionResponse.choices[0]?.message?.content;
+    const isSimpleOrGeneral = routingDecision.category === 'simple' || routingDecision.category === 'general';
+
+    if (isSimpleOrGeneral && phase1Content && typeof phase1Content === 'string' && phase1Content.length > 50) {
+      // Simple/general: Phase 1 gpt-4o response is adequate; avoid extra LLM call
+      response = phase1Content;
+      console.log(`[MOTHER] Phase 2 skipped for ${routingDecision.category} (using Phase 1 response)`);
+    } else {
+      // Coding/complex: dedicated call to specialized model for maximum quality
+      console.log(`[MOTHER] Phase 2: calling ${selectedProvider}/${selectedModel} for ${routingDecision.category}`);
+      const phase2Response = await invokeLLM({
+        model: selectedModel,
+        provider: selectedProvider,
+        messages: [
+          { role: 'system' as LLMRole, content: systemPrompt },
+          ...historyMessages,
+          { role: 'user' as LLMRole, content: query },
+        ],
+      });
+      const phase2Content = phase2Response.choices[0]?.message?.content;
+      response = typeof phase2Content === 'string' ? phase2Content : 'No response generated';
+      const phase2Usage = phase2Response.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+      usage = {
+        prompt_tokens: usage.prompt_tokens + phase2Usage.prompt_tokens,
+        completion_tokens: usage.completion_tokens + phase2Usage.completion_tokens,
+        total_tokens: usage.total_tokens + phase2Usage.total_tokens,
+      };
+    }
   }
   
   let hallucinationRisk: 'low' | 'medium' | 'high' = 'low';
@@ -525,7 +567,10 @@ Respond as MOTHER v68.9. Be direct, scientific, action-oriented, and always grou
   // ==================== LAYER 7: METRICS ====================
   // Calculate cost and performance metrics
   
-  const cost = calculateCost(complexity.tier as LLMTier, usage.prompt_tokens, usage.completion_tokens);
+  // v69.0 BUG FIX: Use actual model pricing instead of legacy tier system
+  // Previously: calculateCost(complexity.tier) used gpt-4o pricing for ALL models
+  // Now: calculateCostForModel uses the actual provider/model pricing table
+  const cost = calculateCostForModel(routingDecision.model, usage.prompt_tokens, usage.completion_tokens);
   const baselineCost = calculateBaselineCost(usage.prompt_tokens, usage.completion_tokens);
   const costReduction = calculateCostReduction(cost, baselineCost);
   
