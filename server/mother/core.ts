@@ -35,7 +35,7 @@ import { cragRetrieve } from './crag';
 import { searchSimilarChunksWithMetadata } from '../omniscient/search';
 import { groundResponse, needsGrounding } from './grounding';
 import { agenticLearningLoop } from './agentic-learning';
-import { insertQuery, getCacheEntry, insertCacheEntry, getDb } from '../db';
+import { insertQuery, getCacheEntry, insertCacheEntry, getSemanticCacheEntry, insertSemanticCacheEntry, getDb } from '../db';
 import { retryDbOperation } from './db-retry';
 import { learnFromResponse, LEARNING_QUALITY_THRESHOLD } from './learning';
 import { processWithReAct } from './react';
@@ -49,7 +49,7 @@ import { MOTHER_TOOLS, executeTool, formatToolResult } from './tool-engine';
 import { ENV } from '../_core/env';
 
 // ─── MOTHER Version (single source of truth) ─────────────────────────────────
-export const MOTHER_VERSION = 'v69.4';
+export const MOTHER_VERSION = 'v69.5';
 
 
 // v56.0: Creator email for authorization (Req #6)
@@ -66,6 +66,8 @@ export interface MotherRequest {
   userEmail?: string;
   useCache?: boolean;
   conversationHistory?: ConversationMessage[]; // v63.0: Multi-turn conversation support
+  // v69.5: Token streaming callback for SSE endpoint
+  onChunk?: (chunk: string) => void;
 }
 
 export interface MotherResponse {
@@ -107,27 +109,47 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   // ==================== LAYER 2: ORCHESTRATION ====================
   // Request routing and preprocessing
   
-  const { query, userId, userEmail, useCache = true, conversationHistory = [] } = request;
+  const { query, userId, userEmail, useCache = true, conversationHistory = [], onChunk } = request;
   
-  // Generate query hash for caching
+  // Generate query hash for caching (exact-match fallback)
   const queryHash = createHash('sha256').update(query.toLowerCase().trim()).digest('hex');
   
-  // ==================== CACHING LAYER ====================
-  // Check cache first (35% hit rate target)
+  // ==================== CACHING LAYER v69.5: SEMANTIC CACHE ====================
+  // Scientific basis: GPTCache (Zeng et al., 2023); Krites (Apple ML, arXiv:2602.13165, 2026)
+  // Two-tier: (1) exact SHA-256 match, (2) semantic cosine similarity >= 0.92
+  
+  let queryEmbedding: number[] | null = null;
   
   if (useCache) {
+    // Tier 1: Exact hash match (fast, zero cost)
     const cached = await getCacheEntry(queryHash);
     if (cached) {
-      console.log('[MOTHER] Cache hit!');
-      
-      // Parse cached response
+      console.log('[MOTHER] Cache hit (exact)!');
       const cachedResponse = JSON.parse(cached.response);
-      
-      return {
-        ...cachedResponse,
-        cacheHit: true,
-        responseTime: Date.now() - startTime,
-      };
+      return { ...cachedResponse, cacheHit: true, responseTime: Date.now() - startTime };
+    }
+    
+    // Tier 2: Semantic similarity match (requires embedding)
+    try {
+      const embRes = await fetch('https://api.openai.com/v1/embeddings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ENV.openaiApiKey}` },
+        body: JSON.stringify({ input: query.toLowerCase().trim(), model: 'text-embedding-3-small' })
+      });
+      if (embRes.ok) {
+        const embData = await embRes.json() as { data: Array<{ embedding: number[] }> };
+        queryEmbedding = embData.data[0]?.embedding ?? null;
+        if (queryEmbedding) {
+          const semanticHit = await getSemanticCacheEntry(queryEmbedding);
+          if (semanticHit) {
+            console.log('[MOTHER] Cache hit (semantic)!');
+            const cachedResponse = JSON.parse(semanticHit.response);
+            return { ...cachedResponse, cacheHit: true, responseTime: Date.now() - startTime };
+          }
+        }
+      }
+    } catch (embErr) {
+      console.warn('[MOTHER] Embedding for semantic cache failed (non-blocking):', (embErr as Error).message);
     }
   }
   
@@ -494,6 +516,8 @@ Responda como MOTHER v69.4. Seja direto, científico, orientado à ação, e sem
           ...historyMessages,
           { role: 'user' as LLMRole, content: query },
         ],
+        // v69.5: Pass streaming callback if provided (SSE endpoint)
+        ...(onChunk ? { onChunk } : {}),
       });
       const phase2Content = phase2Response.choices[0]?.message?.content;
       response = typeof phase2Content === 'string' ? phase2Content : 'No response generated';
@@ -728,6 +752,19 @@ Responda como MOTHER v69.4. Seja direto, científico, orientado à ação, e sem
       ttl: 86400, // 24 hours in seconds
       expiresAt,
     }));
+    
+    // v69.5: Also write to semantic_cache table for cosine-similarity lookup
+    // Scientific basis: GPTCache (Zeng et al., 2023)
+    if (queryEmbedding) {
+      insertSemanticCacheEntry({
+        queryText: query,
+        queryEmbedding: JSON.stringify(queryEmbedding),
+        response: JSON.stringify(cacheData),
+        responseMetadata: JSON.stringify({ qualityScore: quality.qualityScore, tier: complexity.tier }),
+        hitCount: 0,
+        lastHitAt: null,
+      }).catch((err: Error) => console.warn('[MOTHER] Semantic cache write failed (non-blocking):', err.message));
+    }
   }
   
   // ==================== v57.0: SYSTEM METRICS LOGGING ====================

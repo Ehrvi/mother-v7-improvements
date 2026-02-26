@@ -256,22 +256,21 @@ app.post('/api/mother/stream', async (req, res) => {
       return res.end();
     }
 
-    // Emit progress events during processing
+    // v69.5: Real token streaming via onChunk callback
     sendEvent('progress', { phase: 'routing', message: 'Analisando complexidade da query...' });
-    await new Promise(r => setTimeout(r, 50)); // allow flush
-
-    sendEvent('progress', { phase: 'knowledge', message: 'Buscando contexto no bd_central...' });
-    await new Promise(r => setTimeout(r, 50));
-
     sendEvent('progress', { phase: 'generating', message: 'Gerando resposta...' });
 
-    // Process the full query
-    const result = await _processQuery({ query, userId, userEmail, useCache, conversationHistory });
+    // Process query with real-time token streaming
+    const result = await _processQuery({
+      query, userId, userEmail, useCache, conversationHistory,
+      onChunk: (chunk: string) => {
+        // Emit each token chunk as a 'token' SSE event
+        sendEvent('token', { text: chunk });
+      },
+    });
 
     sendEvent('progress', { phase: 'validating', message: 'Validando qualidade (Guardian)...' });
-    await new Promise(r => setTimeout(r, 50));
-
-    // Emit the final response
+    // Emit the final complete response
     sendEvent('response', result);
     sendEvent('done', { message: 'Processamento concluído' });
   } catch (err: unknown) {

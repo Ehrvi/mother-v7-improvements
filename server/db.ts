@@ -16,6 +16,9 @@ import {
   cacheEntries,
   InsertCacheEntry,
   CacheEntry,
+  semanticCache,
+  InsertSemanticCache,
+  SemanticCache,
   systemMetrics,
   InsertSystemMetric,
   SystemMetric
@@ -336,6 +339,71 @@ export async function insertCacheEntry(entry: InsertCacheEntry): Promise<number>
   if (!db) throw new Error("Database not available");
 
   const result = await db.insert(cacheEntries).values(entry);
+  return Number(result[0].insertId);
+}
+
+// ==================== SEMANTIC CACHE OPERATIONS ====================
+// Scientific basis: GPTCache (Zeng et al., 2023); Krites (Apple ML, arXiv:2602.13165, 2026)
+// Uses cosine similarity on OpenAI text-embedding-3-small (1536 dims) for semantic matching
+// Threshold: 0.92 (high precision, low false positive rate per Zeng et al.)
+
+function cosineSimilarity(a: number[], b: number[]): number {
+  let dot = 0, normA = 0, normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+export async function getSemanticCacheEntry(
+  queryEmbedding: number[],
+  threshold = 0.92
+): Promise<SemanticCache | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  // Fetch recent cache entries and compute cosine similarity in-memory
+  // Production upgrade path: MySQL VECTOR type or pgvector for ANN search
+  const entries = await db
+    .select()
+    .from(semanticCache)
+    .orderBy(desc(semanticCache.createdAt))
+    .limit(500);
+  
+  let bestEntry: SemanticCache | undefined;
+  let bestScore = threshold;
+  
+  for (const entry of entries) {
+    try {
+      const entryEmbedding: number[] = JSON.parse(entry.queryEmbedding);
+      const score = cosineSimilarity(queryEmbedding, entryEmbedding);
+      if (score > bestScore) {
+        bestScore = score;
+        bestEntry = entry;
+      }
+    } catch {
+      // skip malformed entries
+    }
+  }
+  
+  if (bestEntry) {
+    await db
+      .update(semanticCache)
+      .set({ hitCount: sql`${semanticCache.hitCount} + 1`, lastHitAt: new Date() })
+      .where(eq(semanticCache.id, bestEntry.id));
+    console.log(`[SEMANTIC_CACHE] Hit! similarity=${bestScore.toFixed(4)}, id=${bestEntry.id}`);
+  }
+  
+  return bestEntry;
+}
+
+export async function insertSemanticCacheEntry(
+  entry: InsertSemanticCache
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(semanticCache).values(entry);
   return Number(result[0].insertId);
 }
 

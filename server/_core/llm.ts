@@ -83,6 +83,9 @@ export type InvokeParams = {
   output_schema?: OutputSchema;
   responseFormat?: ResponseFormat;
   response_format?: ResponseFormat;
+  // v69.5: Token streaming callback (SUG-001)
+  // Scientific basis: OpenAI Streaming API; TokenFlow (Zheng et al., 2024)
+  onChunk?: (chunk: string) => void;
 };
 
 export type ToolCall = {
@@ -244,6 +247,47 @@ async function invokeOpenAICompatible(
   const normalizedResponseFormat = normalizeResponseFormat({ responseFormat, response_format, outputSchema, output_schema });
   if (normalizedResponseFormat) payload.response_format = normalizedResponseFormat;
 
+  // v69.5: Token streaming (SUG-001) — if onChunk callback provided, stream tokens
+  if (params.onChunk) {
+    payload.stream = true;
+    const streamResponse = await fetch(apiUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify(payload),
+    });
+    if (!streamResponse.ok) {
+      const errorText = await streamResponse.text();
+      throw new Error(`OpenAI-compatible streaming failed: ${streamResponse.status} ${streamResponse.statusText} – ${errorText}`);
+    }
+    const reader = streamResponse.body!.getReader();
+    const decoder = new TextDecoder();
+    let fullContent = '';
+    let totalTokens = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const text = decoder.decode(value, { stream: true });
+      for (const line of text.split('\n')) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') break;
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed.choices?.[0]?.delta?.content;
+          if (delta) { fullContent += delta; params.onChunk!(delta); }
+          if (parsed.usage) totalTokens = parsed.usage.total_tokens || 0;
+        } catch { /* skip malformed chunks */ }
+      }
+    }
+    return {
+      id: 'stream-' + Date.now(),
+      created: Math.floor(Date.now() / 1000),
+      model: params.model || 'gpt-4o',
+      choices: [{ index: 0, message: { role: 'assistant', content: fullContent }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: totalTokens },
+    };
+  }
+
   const response = await fetch(apiUrl, {
     method: "POST",
     headers: {
@@ -297,15 +341,66 @@ async function invokeAnthropic(params: InvokeParams): Promise<InvokeResult> {
     input_schema: t.function.parameters || { type: "object", properties: {} },
   }));
 
-  const payload: Record<string, unknown> = {
+    const payload: Record<string, unknown> = {
     model: modelName,
-    max_tokens: 8192,
+    max_tokens: 4096, // v69.5: Reduced from 8192 to 4096 to improve TTFT for code queries
     messages: anthropicMessages,
   };
-
   if (systemPrompt) payload.system = systemPrompt;
   if (anthropicTools && anthropicTools.length > 0) payload.tools = anthropicTools;
-
+  
+  // v69.5: Anthropic streaming support (SUG-001)
+  if (params.onChunk) {
+    payload.stream = true;
+    const streamResponse = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": ENV.anthropicApiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!streamResponse.ok) {
+      const errorText = await streamResponse.text();
+      throw new Error(`Anthropic streaming failed: ${streamResponse.status} ${streamResponse.statusText} – ${errorText}`);
+    }
+    const reader = streamResponse.body!.getReader();
+    const decoder = new TextDecoder();
+    let fullContent = '';
+    let inputTokens = 0;
+    let outputTokens = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const text = decoder.decode(value, { stream: true });
+      for (const line of text.split('\n')) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta') {
+            const chunk = parsed.delta.text || '';
+            if (chunk) { fullContent += chunk; params.onChunk!(chunk); }
+          }
+          if (parsed.type === 'message_delta' && parsed.usage) {
+            outputTokens = parsed.usage.output_tokens || 0;
+          }
+          if (parsed.type === 'message_start' && parsed.message?.usage) {
+            inputTokens = parsed.message.usage.input_tokens || 0;
+          }
+        } catch { /* skip malformed chunks */ }
+      }
+    }
+    return {
+      id: 'anthropic-stream-' + Date.now(),
+      created: Math.floor(Date.now() / 1000),
+      model: modelName,
+      choices: [{ index: 0, message: { role: 'assistant', content: fullContent }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: inputTokens, completion_tokens: outputTokens, total_tokens: inputTokens + outputTokens },
+    };
+  }
+  
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -315,7 +410,6 @@ async function invokeAnthropic(params: InvokeParams): Promise<InvokeResult> {
     },
     body: JSON.stringify(payload),
   });
-
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`Anthropic invoke failed: ${response.status} ${response.statusText} – ${errorText}`);
