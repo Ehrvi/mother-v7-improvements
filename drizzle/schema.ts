@@ -59,6 +59,12 @@ export const queries = mysqlTable("queries", {
   tokensUsed: int("tokensUsed"),
   cost: varchar("cost", { length: 20 }), // USD stored as string
   cacheHit: int("cacheHit").default(0), // 0 or 1 (boolean)
+  costReduction: decimal("costReduction", { precision: 8, scale: 4 }), // % reduction vs GPT-4 baseline
+  
+  // RAGAS Metrics (v68.3: Sprint 3 — Scientific basis: Es et al., EACL 2024, arXiv:2309.15217)
+  ragasFaithfulness: decimal("ragasFaithfulness", { precision: 5, scale: 4 }), // 0-1: response grounded in context
+  ragasAnswerRelevancy: decimal("ragasAnswerRelevancy", { precision: 5, scale: 4 }), // 0-1: response addresses query
+  ragasContextPrecision: decimal("ragasContextPrecision", { precision: 5, scale: 4 }), // 0-1: relevant context fraction
   
   // Episodic Memory (v30.0: Active Memory)
   embedding: text("embedding"), // JSON array of 1536 floats (text-embedding-3-small)

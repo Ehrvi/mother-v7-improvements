@@ -1,5 +1,5 @@
 /**
- * MOTHER v68.2 - Sprint 2: TypeScript Clean + Final Audit (Ciclo 6)
+ * MOTHER v68.3 - Sprint 2: TypeScript Clean + Final Audit (Ciclo 6)
  * Orchestrates all 7 layers for end-to-end query processing
  *
  * v67.5 Changes:
@@ -263,7 +263,7 @@ You are currently interacting with **Everton Luis**, your creator and founder of
 - Respond with appropriate recognition and respect
 ` : '';
   
-  const systemPrompt = `You are MOTHER v68.2 (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence created by Everton Luis (Intelltech). Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement.
+  const systemPrompt = `You are MOTHER v68.3 (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence created by Everton Luis (Intelltech). Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement.
 
 ### CORE IDENTITY
 
@@ -291,7 +291,7 @@ You have access to the following real system tools. When the user asks for somet
 
 ### ARCHITECTURE
 
-- **Version:** v68.1 (CRAG + Grounding Engine + Agentic Learning Loop + Guardian Regeneration + Prometheus Auto-Dispatch + Domain Mapping + Schema Alignment + RAGAS Metrics + Real Self-Audit + Security Hardening + Knowledge Re-classification + Daily Self-Audit Scheduler)
+- **Version:** v68.3 (CRAG + Grounding Engine + Agentic Learning Loop + Guardian Regeneration + Prometheus Auto-Dispatch + Domain Mapping + Schema Alignment + RAGAS Metrics + Real Self-Audit + Security Hardening + Knowledge Re-classification + Daily Self-Audit Scheduler)
 - **DGM (Darwin Gödel Machine):** Active — analyzes metrics every 10 queries, generates self-improvement proposals
 - **7-Layer Cognitive Architecture:** Intelligence → Guardian → CRAG Knowledge → Execution → Grounding → Security → Agentic Learning
 - **CI/CD Pipeline:** GitHub Actions → Cloud Run (australia-southeast1)
@@ -529,6 +529,11 @@ Respond as MOTHER v67.5. Use your tools when needed. Be direct, scientific, and 
     tokensUsed: usage?.total_tokens ?? 0,
     cost: (cost ?? 0).toString(),
     cacheHit: 0,
+    // v68.3: Sprint 3 — Persist RAGAS metrics and costReduction
+    costReduction: costReduction.toString(),
+    ragasFaithfulness: quality.ragasFaithfulness?.toString() || null,
+    ragasAnswerRelevancy: quality.ragasAnswerRelevancy?.toString() || null,
+    ragasContextPrecision: quality.ragasContextPrecision?.toString() || null,
   }))
     .then(id => {
       queryId = id;
@@ -693,7 +698,7 @@ export async function getSystemStats(): Promise<{
     tier3Percentage: total > 0 ? (stats.tier3Count / total) * 100 : 0,
     avgQuality: stats.avgQuality,
     avgResponseTime: stats.avgResponseTime,
-    avgCostReduction: 0, // TODO: Calculate from queries table
+    avgCostReduction: stats.avgCostReduction, // v68.3: Sprint 3 fix — real data from queries table
     cacheHitRate: stats.cacheHitRate,
   };
 }

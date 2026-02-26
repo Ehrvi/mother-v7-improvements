@@ -397,6 +397,7 @@ export async function getQueryStats(periodHours: number = 24): Promise<{
   avgQuality: number;
   avgResponseTime: number;
   cacheHitRate: number;
+  avgCostReduction: number; // v68.3: Sprint 3 — real cost reduction from queries table
 }> {
   const db = await getDb();
   if (!db) {
@@ -408,6 +409,7 @@ export async function getQueryStats(periodHours: number = 24): Promise<{
       avgQuality: 0,
       avgResponseTime: 0,
       cacheHitRate: 0,
+      avgCostReduction: 0,
     };
   }
 
@@ -422,6 +424,7 @@ export async function getQueryStats(periodHours: number = 24): Promise<{
       avgQuality: sql<number>`AVG(CAST(qualityScore AS DECIMAL(10,2)))`,
       avgResponseTime: sql<number>`AVG(responseTime)`,
       cacheHitCount: sql<number>`SUM(cacheHit)`,
+      avgCostReduction: sql<number>`AVG(CAST(costReduction AS DECIMAL(10,4)))`, // v68.3: Sprint 3
     })
     .from(queries)
     .where(gte(queries.createdAt, since));
@@ -439,6 +442,7 @@ export async function getQueryStats(periodHours: number = 24): Promise<{
     avgQuality: stats.avgQuality || 0,
     avgResponseTime: stats.avgResponseTime || 0,
     cacheHitRate,
+    avgCostReduction: stats.avgCostReduction || 0,
   };
 }
 
