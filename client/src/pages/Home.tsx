@@ -53,6 +53,12 @@ export default function Home() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // v68.8: Provider health check — polls every 5 minutes
+  const providerHealthQuery = trpc.mother.providerHealth.useQuery(
+    { forceRefresh: false },
+    { refetchInterval: 5 * 60 * 1000, staleTime: 4 * 60 * 1000 }
+  );
+
   const queryMutation = trpc.mother.query.useMutation({
     onSuccess: (data) => {
       const motherMessage: Message = {
@@ -182,7 +188,7 @@ export default function Home() {
           </div>
           <div>
             <div className="text-sm font-bold" style={{ background: 'linear-gradient(90deg, #c4b5fd, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              MOTHER v68.4
+              MOTHER v68.8
             </div>
             <div className="text-[10px] text-[#55556a]">Darwin Gödel Machine</div>
           </div>
@@ -239,7 +245,7 @@ export default function Home() {
         <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-3">
           <div className="text-[10px] font-semibold uppercase tracking-widest text-[#55556a] mb-2">Sistema</div>
           {[
-            { icon: <GitBranch className="w-3 h-3" />, label: 'Versão', value: 'v68.4', cls: 'accent-glow' },
+            { icon: <GitBranch className="w-3 h-3" />, label: 'Versão', value: 'v68.8', cls: 'accent-glow' },
             { icon: <Database className="w-3 h-3" />, label: 'DB', value: 'Unix Socket ✓', cls: 'text-emerald-400' },
             { icon: <Dna className="w-3 h-3" />, label: 'GEA Loop', value: 'Ativo ✓', cls: 'text-emerald-400' },
             { icon: <Activity className="w-3 h-3" />, label: 'Fitness Track', value: 'Ativo ✓', cls: 'text-emerald-400' },
@@ -249,6 +255,39 @@ export default function Home() {
               <span className={`font-semibold ${cls}`}>{value}</span>
             </div>
           ))}
+          {/* v68.8: Provider Health Alerts */}
+          {providerHealthQuery.data && !providerHealthQuery.data.allHealthy && (
+            <div className="mt-2 pt-2 border-t border-[rgba(255,255,255,0.06)]">
+              <div className="text-[10px] font-semibold uppercase tracking-widest text-amber-400 mb-1.5">⚠️ Alertas de Provedor</div>
+              {providerHealthQuery.data.providers
+                .filter((p: any) => p.status !== 'healthy' && p.status !== 'unconfigured')
+                .map((p: any) => (
+                  <div key={p.provider} className="flex items-start gap-1.5 py-1 text-[10px]">
+                    <span className={`font-bold shrink-0 ${
+                      p.status === 'no_credits' ? 'text-red-400' :
+                      p.status === 'error' ? 'text-red-500' : 'text-amber-400'
+                    }`}>
+                      {p.status === 'no_credits' ? '💳' : p.status === 'error' ? '❌' : '⚠️'}
+                    </span>
+                    <div>
+                      <span className="font-semibold text-white">{p.displayName}</span>
+                      <span className="text-[#8888aa] ml-1">
+                        {p.status === 'no_credits' ? '— Sem créditos' :
+                         p.status === 'error' ? '— Erro de conexão' : '— Degradado'}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              }
+            </div>
+          )}
+          {/* Green indicator when all healthy */}
+          {providerHealthQuery.data?.allHealthy && (
+            <div className="mt-2 pt-2 border-t border-[rgba(255,255,255,0.06)] flex items-center gap-1.5 text-[10px] text-emerald-400">
+              <span>✅</span>
+              <span>Todos os 5 provedores saudáveis</span>
+            </div>
+          )}
         </div>
       </aside>
 

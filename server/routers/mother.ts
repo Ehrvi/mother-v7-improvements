@@ -5,6 +5,7 @@
 
 import { z } from 'zod';
 import { publicProcedure, protectedProcedure, router } from '../_core/trpc';
+import { checkAllProviders } from '../mother/provider-health';
 import { processQuery, getSystemStats } from '../mother/core';
 import { addKnowledge } from '../mother/knowledge';
 import { getRecentQueries, getQueryStats, getAllKnowledge, getDgmLineage } from '../db';
@@ -447,4 +448,21 @@ export const motherRouter = router({
         };
       }),
   }),
+
+  /**
+   * v68.8: Provider Health Check
+   * Returns real-time status of all 5 LLM providers.
+   * Scientific basis: Circuit Breaker Pattern (Nygard, 2007)
+   * Cached for 5 minutes to avoid hammering provider APIs.
+   */
+  providerHealth: publicProcedure
+    .input(
+      z.object({
+        forceRefresh: z.boolean().optional().default(false),
+      })
+    )
+    .query(async ({ input }) => {
+      const report = await checkAllProviders(input.forceRefresh);
+      return report;
+    }),
 });

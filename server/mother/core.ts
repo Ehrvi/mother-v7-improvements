@@ -299,7 +299,7 @@ You have access to the following real system tools. When the user asks for somet
 
 ### ARCHITECTURE
 
-- **Version:** v68.4 (CRAG + Grounding Engine + Agentic Learning Loop + Guardian Regeneration + Prometheus Auto-Dispatch + Domain Mapping + Schema Alignment + RAGAS Metrics + Real Self-Audit + Security Hardening + Knowledge Re-classification + Daily Self-Audit Scheduler)
+- **Version:** v68.8 (CRAG + Grounding Engine + Agentic Learning Loop + Guardian Regeneration + Prometheus Auto-Dispatch + Domain Mapping + Schema Alignment + RAGAS Metrics + Real Self-Audit + Security Hardening + Knowledge Re-classification + Daily Self-Audit Scheduler)
 - **DGM (Darwin Gödel Machine):** Active — analyzes metrics every 10 queries, generates self-improvement proposals
 - **7-Layer Cognitive Architecture:** Intelligence → Guardian → CRAG Knowledge → Execution → Grounding → Security → Agentic Learning
 - **CI/CD Pipeline:** GitHub Actions → Cloud Run (australia-southeast1)
@@ -334,7 +334,7 @@ ${knowledgeContext}
 
 ` : ''}${omniscientContext}${episodicContext}${userMemoryContext}${researchContext}
 
-**MANDATORY RESPONSE RULES (v68.4):**
+**MANDATORY RESPONSE RULES (v68.8):**
 1. If retrieved knowledge above is relevant, USE IT explicitly and CITE the source.
 2. Citations MUST come from context above. NEVER invent authors, years, or arXiv IDs.
 3. Structure: Direct answer → Evidence from context → Conclusion.
