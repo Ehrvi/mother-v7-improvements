@@ -15,6 +15,7 @@ import { getAgentPool, getFitnessHistory } from '../mother/gea_supervisor';
 import { getDb } from '../db';
 import { randomUUID } from 'crypto';
 import { getProposals, approveProposal, logAuditEvent, CREATOR_EMAIL as CREATOR } from '../mother/update-proposals';
+import { MOTHER_VERSION } from '../mother/core';
 
 export const motherRouter = router({
   /**
@@ -52,9 +53,11 @@ export const motherRouter = router({
         if (cmd === '/status') {
           const stats = await getSystemStats();
           const response = [
-            '## ⚙️ MOTHER v63.0 — System Status',
+            `## ⚙️ MOTHER ${MOTHER_VERSION} — System Status`,
             '',
-            `- **Version:** v63.0`,
+            `- **Version:** ${MOTHER_VERSION}`,
+            `- **Build:** ${new Date().toISOString().split('T')[0]}`,
+            `- **Memory:** ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB / ${Math.round(process.memoryUsage().heapTotal / 1024 / 1024)}MB`,
             `- **Total Queries Processed:** ${stats.totalQueries ?? 'N/A'}`,
             `- **Average Quality Score:** ${stats.avgQuality?.toFixed(1) ?? 'N/A'}/100`,
             `- **Avg Response Time:** ${stats.avgResponseTime?.toFixed(0) ?? 'N/A'}ms`,
@@ -104,12 +107,16 @@ export const motherRouter = router({
           const proposals = await getProposals(undefined, 10);
           const pending = proposals.filter(p => p.status === 'pending');
           const response = [
-            '## 🔍 MOTHER v63.0 — Full System Audit',
+            `## 🔍 MOTHER ${MOTHER_VERSION} — Full System Audit`,
             '',
             '### Performance Metrics',
             `| Metric | Value |`,
             `|--------|-------|`,
-            `| Version | v63.0 |`,
+            `| Version | ${MOTHER_VERSION} |`,
+            `| Build Date | ${new Date().toISOString().split('T')[0]} |`,
+            `| Memory Heap | ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB used / ${Math.round(process.memoryUsage().heapTotal / 1024 / 1024)}MB total |`,
+            `| Node.js | ${process.version} |`,
+            `| Uptime | ${Math.round(process.uptime() / 60)} minutes |`,
             `| Total Queries | ${stats.totalQueries ?? 'N/A'} |`,
             `| Avg Quality | ${stats.avgQuality?.toFixed(1) ?? 'N/A'}/100 |`,
             `| Avg Response Time | ${stats.avgResponseTime?.toFixed(0) ?? 'N/A'}ms |`,

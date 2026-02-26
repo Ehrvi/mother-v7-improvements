@@ -95,6 +95,23 @@ export function classifyQuery(query: string): RoutingDecision {
     'ingira conhecimento', 'adicione ao banco de conhecimento',
     'force study', 'force_study',
     'busque na web', 'busque artigos',
+    // v69.9: Added missing high-quality routing keywords (RC-1 fix)
+    // Scientific methodology commands — must use gpt-4o (Liu et al., 2023; Es et al., 2023)
+    'metodologia cientifica', 'embasamento cientifico', 'embasamento',
+    'cite', 'citar', 'citacao', 'referencias bibliograficas', 'referencias',
+    'paper', 'papers', 'artigo', 'artigos', 'publicacao', 'publicacoes',
+    'fonte', 'fontes', 'literatura',
+    // Audit/introspection commands — must use gpt-4o for tool access
+    'audite', 'auditoria', 'audit', 'inspecione', 'inspecionar',
+    'vasculhe', 'vasculhar', 'varra', 'varrer',
+    'verifique seu', 'verificar seu', 'diagnostique', 'diagnosticar',
+    'analise seu codigo', 'analise o codigo', 'analise o seu codigo',
+    'avalie seu codigo', 'avalie o seu codigo',
+    'ordem do criador', 'ordem:', 'inspecione o sistema',
+    // Quality/comparison commands
+    'qualidade das respostas', 'melhore sua', 'melhore o',
+    'compare as', 'comparar as', 'versus', 'benchmark',
+    'avaliacao de qualidade', 'g-eval', 'ragas',
   ];
   const researchScore = researchPatterns.filter(p => q.includes(normalize(p))).length;
 
