@@ -33,7 +33,8 @@ export interface GuardianResult {
   ragasFaithfulness?: number; // 0-1: fraction of response claims supported by context
   ragasAnswerRelevancy?: number; // 0-1: how well response addresses the query
   ragasContextPrecision?: number; // 0-1: fraction of context chunks that are relevant
-  passed: boolean; // true if quality >= 90
+  passed: boolean; // true if quality >= 90 (triggers guardian rewrite)
+  cacheEligible?: boolean; // v69.4: true if quality >= 75 (eligible for caching)
   issues: string[];
 }
 
@@ -475,6 +476,7 @@ export async function validateQuality(
     ragasAnswerRelevancy: ragasMetrics.answerRelevancy,
     ragasContextPrecision: ragasMetrics.contextPrecision,
     passed: qualityScore >= 90,
+    cacheEligible: qualityScore >= 75, // v69.4: BUG-002 fix — cache threshold separate from rewrite threshold
     issues: allIssues,
   };
 }
