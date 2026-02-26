@@ -381,14 +381,13 @@ export type InsertStudyJob = typeof studyJobs.$inferInsert;
  */
 export const semanticCache = mysqlTable("semantic_cache", {
   id: int("id").autoincrement().primaryKey(),
-  queryText: text("queryText").notNull(),
-  queryEmbedding: text("queryEmbedding").notNull(), // JSON array of 1536 floats
-  response: text("response").notNull(),
-  responseMetadata: text("responseMetadata"), // JSON
-  hitCount: int("hitCount").default(0),
-  lastHitAt: timestamp("lastHitAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  queryHash: varchar("query_hash", { length: 64 }).notNull().unique(),
+  queryText: text("query_text").notNull(),
+  queryEmbedding: mediumtext("embedding"), // JSON array of 1536 floats (nullable for exact-match entries)
+  response: mediumtext("response_text").notNull(),
+  hitCount: int("hit_count").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at"),
 });
 
 export type SemanticCache = typeof semanticCache.$inferSelect;

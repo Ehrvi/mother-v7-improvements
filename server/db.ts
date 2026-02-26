@@ -376,6 +376,7 @@ export async function getSemanticCacheEntry(
   
   for (const entry of entries) {
     try {
+      if (!entry.queryEmbedding) continue; // skip entries without embedding
       const entryEmbedding: number[] = JSON.parse(entry.queryEmbedding);
       const score = cosineSimilarity(queryEmbedding, entryEmbedding);
       if (score > bestScore) {
@@ -390,7 +391,7 @@ export async function getSemanticCacheEntry(
   if (bestEntry) {
     await db
       .update(semanticCache)
-      .set({ hitCount: sql`${semanticCache.hitCount} + 1`, lastHitAt: new Date() })
+      .set({ hitCount: sql`${semanticCache.hitCount} + 1` })
       .where(eq(semanticCache.id, bestEntry.id));
     console.log(`[SEMANTIC_CACHE] Hit! similarity=${bestScore.toFixed(4)}, id=${bestEntry.id}`);
   }
