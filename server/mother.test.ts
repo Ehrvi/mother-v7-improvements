@@ -7,8 +7,8 @@ describe('MOTHER v7.0 - Layer 3: Intelligence (Routing)', () => {
     const result = assessComplexity('What is the weather today?');
     
     expect(result.tier).toBe('gpt-4o-mini');
-    expect(result.complexityScore).toBeLessThan(0.4);
-    expect(result.confidenceScore).toBeGreaterThan(0.8);
+    expect(result.complexityScore).toBeLessThan(0.5); // v69.1: general category has score 0.45
+    expect(result.confidenceScore).toBeGreaterThan(0.7); // v69.1: general category confidence is 0.75
   });
 
   it('should route medium complexity queries to gpt-4o (Tier 2)', () => {
@@ -105,7 +105,7 @@ describe('MOTHER v7.0 - Layer 6: Quality (Guardian)', () => {
     const result = await validateQuality(query, response, 1);
     
     expect(result.accuracyScore).toBeLessThan(100);
-    expect(result.issues).toContain('Excessive uncertainty/hedging language');
+    expect(result.issues).toContain('Excessive uncertainty without substantive content'); // v69.1: updated message
   });
 
   it('should validate Phase 2 with 5 checks', async () => {

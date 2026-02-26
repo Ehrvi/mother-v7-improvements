@@ -61,6 +61,11 @@ export default function Home() {
     { forceRefresh: false },
     { refetchInterval: 5 * 60 * 1000, staleTime: 4 * 60 * 1000 }
   );
+  // v69.1: System stats query — fetches dynamic version from server
+  const systemStatsQuery = trpc.mother.stats.useQuery(undefined, {
+    refetchInterval: 60 * 1000, staleTime: 30 * 1000,
+  });
+  const motherVersion = systemStatsQuery.data?.version ?? 'v69.1';
 
   const queryMutation = trpc.mother.query.useMutation({
     onSuccess: (data) => {
@@ -194,7 +199,7 @@ export default function Home() {
           </div>
           <div>
             <div className="text-sm font-bold" style={{ background: 'linear-gradient(90deg, #c4b5fd, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              MOTHER v68.8
+              MOTHER {motherVersion}
             </div>
             <div className="text-[10px] text-[#55556a]">Darwin Gödel Machine</div>
           </div>
@@ -241,7 +246,7 @@ export default function Home() {
         <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-3">
           <div className="text-[10px] font-semibold uppercase tracking-widest text-[#55556a] mb-2">Sistema</div>
           {[
-            { icon: <GitBranch className="w-3 h-3" />, label: 'Versão', value: 'v69.0', cls: 'accent-glow' },
+            { icon: <GitBranch className="w-3 h-3" />, label: 'Versão', value: motherVersion, cls: 'accent-glow' },
             { icon: <Database className="w-3 h-3" />, label: 'DB', value: 'Unix Socket ✓', cls: 'text-emerald-400' },
             { icon: <Dna className="w-3 h-3" />, label: 'GEA Loop', value: 'Ativo ✓', cls: 'text-emerald-400' },
             { icon: <Activity className="w-3 h-3" />, label: 'Fitness Track', value: 'Ativo ✓', cls: 'text-emerald-400' },

@@ -48,6 +48,10 @@ import { maybeRunAnalysis } from './self-proposal-engine';
 import { MOTHER_TOOLS, executeTool, formatToolResult } from './tool-engine';
 import { ENV } from '../_core/env';
 
+// ─── MOTHER Version (single source of truth) ─────────────────────────────────
+export const MOTHER_VERSION = 'v69.1';
+
+
 // v56.0: Creator email for authorization (Req #6)
 const CREATOR_EMAIL = 'elgarcia.eng@gmail.com';
 
@@ -266,7 +270,7 @@ You are currently interacting with **Everton Luis**, your creator and founder of
 - Respond with appropriate recognition and respect
 ` : '';
   
-  const systemPrompt = `You are MOTHER v69.0 (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence created by Everton Luis (Intelltech). Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement.
+  const systemPrompt = `You are MOTHER v69.1 (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence created by Everton Luis (Intelltech). Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement.
 
 ### CORE IDENTITY
 
@@ -294,7 +298,7 @@ You have access to the following real system tools. When the user asks for somet
 
 ### ARCHITECTURE
 
-- **Version:** v69.0 (CRAG + Grounding Engine + Agentic Learning Loop + Guardian Regeneration + Prometheus Auto-Dispatch + Domain Mapping + Schema Alignment + RAGAS Metrics + Real Self-Audit + Security Hardening + Knowledge Re-classification + Daily Self-Audit Scheduler + Parallel Context Build + Latency Optimizations + Two-Phase Execution + Embedding Cache + Routing Fix)
+- **Version:** v69.1 (CRAG + Grounding Engine + Agentic Learning Loop + Guardian Regeneration + Prometheus Auto-Dispatch + Domain Mapping + Schema Alignment + RAGAS Metrics + Real Self-Audit + Security Hardening + Knowledge Re-classification + Daily Self-Audit Scheduler + Parallel Context Build + Latency Optimizations + Two-Phase Execution + Embedding Cache + Routing Fix)
 - **DGM (Darwin Gödel Machine):** Active — analyzes metrics every 10 queries, generates self-improvement proposals
 - **7-Layer Cognitive Architecture:** Intelligence → Guardian → CRAG Knowledge → Execution → Grounding → Security → Agentic Learning
 - **CI/CD Pipeline:** GitHub Actions → Cloud Run (australia-southeast1)
@@ -329,31 +333,45 @@ ${knowledgeContext}
 
 ` : ''}${omniscientContext}${episodicContext}${userMemoryContext}${researchContext}
 
-**MANDATORY RESPONSE RULES (v69.0) — QUALITY PROTOCOL:**
+**MANDATORY RESPONSE RULES (v69.1) — QUALITY PROTOCOL:**
+
+**⚡ KNOWLEDGE RESOLUTION PROTOCOL (HIGHEST PRIORITY):**
+MOTHER uses a 3-layer knowledge hierarchy:
+1. **bd_usuario** (user's personal DB) — searched first
+2. **bd_central** (central shared DB) — searched if bd_usuario insufficient
+3. **force_study** (CREATOR ONLY) — populates bd_central from arXiv/papers
+
+When a user asks about a topic:
+- FIRST: check the RETRIEVED KNOWLEDGE context above (this is already from bd_central)
+- If context is SUFFICIENT: answer with citations from it
+- If context is INSUFFICIENT: use search_knowledge tool to expand the search
+- If STILL insufficient: say "Não tenho dados verificados sobre [tópico]. Este tópico precisa ser estudado e adicionado ao banco de conhecimento central." — DO NOT invent answers.
+- NEVER call force_study autonomously — it is a CREATOR-ONLY administrative tool.
 
 **ESTRUTURA (obrigatória para respostas não-triviais):**
-- Use Markdown adequado: ## títulos, **negrito** para termos-chave, code blocks para código, listas numeradas para passos
-- Respostas analíticas: Introdução → Análise → Evidências → Conclusão → Referências
+- Use Markdown adequado: ## títulos, **negrito** para termos-chave, \`code blocks\` para código, listas numeradas para passos
+- Respostas analíticas: ## Introdução → ## Análise → ## Evidências Científicas → ## Conclusão → ## Referências
 - Respostas de código: Explicação breve → Bloco de código tipado e limpo → Explicação das mudanças
 - Respostas factuais: Resposta direta → Contexto → Fontes
 
-**CITAÇÕES (obrigatórias quando o contexto contém fontes):**
-- Citações inline: [1], [2], [3] no ponto da afirmação no texto
-- Seção de Referências ao FINAL de TODA resposta que usa fontes (formato IEEE):
+**CITAÇÕES (OBRIGATÓRIAS para respostas analíticas/científicas):**
+- Citações inline: [1], [2], [3] no ponto exato da afirmação no texto
+- Seção de Referências ao FINAL de TODA resposta analítica ou científica (formato IEEE):
   ## Referências
   [1] A. Autor et al., "Título do Paper," *Journal/arXiv*, ano. DOI/URL.
-  [2] ...
+  [2] B. Autor, "Título," *Venue*, ano.
 - Citações DEVEM vir do contexto recuperado acima. NUNCA invente autores, anos ou IDs arXiv.
-- Se não há fontes no contexto: omita a seção de Referências completamente.
+- Se não há fontes no contexto: use search_knowledge para buscar, OU diga explicitamente que não há dados verificados.
+- MÍNIMO de 3 citações para respostas sobre estado da arte, pesquisa, ou análise técnica.
 
-**PADRÕES DE QUALIDADE:**
-1. Seja ESPECÍFICO: números, nomes, datas, percentuais do contexto. Sem generalidades vagas.
-2. Se o contexto for insuficiente: diga explicitamente "Não tenho dados verificados sobre isso" e chame search_knowledge.
-3. ANTI-ALUCINAÇÃO: Toda afirmação factual precisa de uma fonte do contexto OU um marcador explícito de incerteza.
-4. Idioma: responda no MESMO idioma da query do usuário (Português se a query for em Português).
-5. Profundidade: adapte a profundidade à complexidade — perguntas simples recebem respostas diretas, complexas recebem análise completa.
+**PADRÕES DE QUALIDADE (v69.1 — IMACULADO):**
+1. ESPECIFICIDADE: números, nomes, datas, percentuais do contexto. Sem generalidades vagas.
+2. PROFUNDIDADE: respostas de pesquisa devem ter ≥ 500 palavras com análise multi-dimensional.
+3. ANTI-ALUCINAÇÃO: Toda afirmação factual precisa de uma fonte do contexto OU marcador explícito de incerteza.
+4. IDIOMA: responda no MESMO idioma da query do usuário (Português se a query for em Português).
+5. AÇÃO: Se detectar lacuna de conhecimento, chame search_knowledge. Nunca responda com "recomendo buscar artigos" sem tentar primeiro.
 
-Responda como MOTHER v69.0. Seja direto, científico, orientado à ação, e sempre fundamente afirmações no contexto recuperado.`;
+Responda como MOTHER v69.1. Seja direto, científico, orientado à ação, e sempre fundamente afirmações no contexto recuperado.`;
 
   // v63.0: Multi-turn conversation — inject history between system prompt and current query
   // Scientific basis: OpenAI chat completions multi-turn format (Brown et al., GPT-3, 2020)
@@ -367,7 +385,7 @@ Responda como MOTHER v69.0. Seja direto, científico, orientado à ação, e sem
   // Scientific basis: OpenAI Function Calling (OpenAI, 2023); ReAct (Yao et al., ICLR 2023)
   const toolCtx = { userEmail, userId, isCreator };
 
-  // v69.0 CRITICAL BUG FIX: Two-Phase Execution Architecture
+  // v69.1 CRITICAL BUG FIX: Two-Phase Execution Architecture
   // ─────────────────────────────────────────────────────────────────────────
   // PREVIOUS BUG (v68.8): selectedProvider/selectedModel were computed from
   //   routingDecision but NEVER used. ALL responses were generated by gpt-4o.
@@ -382,7 +400,7 @@ Responda como MOTHER v69.0. Seja direto, científico, orientado à ação, e sem
   //   - OpenAI Cookbook (2024): gpt-4o has best tool-use accuracy for Phase 1
   const selectedProvider = routingDecision.model.provider;
   const selectedModel = routingDecision.model.modelName;
-  console.log(`[MOTHER] v69.0 Two-Phase: P1=gpt-4o (tool detect), P2=${selectedProvider}/${selectedModel} (generate)`);
+  console.log(`[MOTHER] v69.1 Two-Phase: P1=gpt-4o (tool detect), P2=${selectedProvider}/${selectedModel} (generate)`);
 
   // ── PHASE 1: Tool detection (always gpt-4o) ───────────────────────────────
   const toolDetectionResponse = await invokeLLM({
@@ -765,6 +783,7 @@ export async function getSystemStats(): Promise<{
   avgResponseTime: number;
   avgCostReduction: number;
   cacheHitRate: number;
+  version: string;
 }> {
   const { getQueryStats } = await import('../db');
   
@@ -781,5 +800,6 @@ export async function getSystemStats(): Promise<{
     avgResponseTime: stats.avgResponseTime,
     avgCostReduction: stats.avgCostReduction, // v68.3: Sprint 3 fix — real data from queries table
     cacheHitRate: stats.cacheHitRate,
+    version: MOTHER_VERSION, // v69.1: Dynamic version from single source of truth
   };
 }

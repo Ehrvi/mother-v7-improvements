@@ -1,69 +1,51 @@
 /**
- * MOTHER v69.0 - Layer 3: Intelligence Layer (Multi-Provider Cascade Router)
- * 
- * Implements a 4-level multi-provider cascade routing architecture.
- * 
+ * MOTHER v69.1 - Layer 3: Intelligence Layer (Multi-Provider Cascade Router)
+ *
  * Scientific Basis:
  * - FrugalGPT (Chen et al., 2023): cascade routing reduces cost by up to 98% — arXiv:2305.05176
  * - RouteLLM (Ong et al., 2024): learned routing with preference data — arXiv:2406.18665
  * - LLMRouterBench (Hu et al., 2026): static classifiers match LLM-based routers at 95% accuracy
- * - AdaptOrch (Yu, 2026): task-adaptive orchestration for LLM convergence era
- * 
+ * - Bandarkar et al. (arXiv:2510.04694, 2025): multilingual routing requires Unicode normalization
+ * - ReAct (Yao et al., 2022): tool-augmented reasoning requires function-calling capable models
+ *
  * Architecture:
- * - Level 1 (Simple): DeepSeek V3 handles factual/simple queries ($0.02/M tokens)
- * - Level 2 (General): Gemini 2.5 Flash handles general/analytical queries ($0.075/M tokens)
- * - Level 3 (Coding): Claude Sonnet 4.5 handles code/technical queries ($3/M input, $15/M output)
- * - Level 4 (Complex): GPT-4o handles complex reasoning/synthesis ($2.50/M input, $10/M output)
- * 
- * v69.0 Changes:
- * - BUG FIX: Changed coding model from claude-opus-4-5 to claude-sonnet-4-5
- *   (SWE-bench: sonnet 49.0% vs opus 48.9% at 5x lower cost)
- * - BUG FIX: Added Portuguese complex patterns (all PT-BR queries were misrouted to general)
- * - BUG FIX: Lowered complex_reasoning threshold for multilingual queries
- * - BUG FIX: Updated PRICING table with correct Anthropic pricing (sonnet vs opus)
- * 
- * Target distribution (based on FrugalGPT empirical data):
- * - simple: ~50% of queries → DeepSeek
- * - general: ~30% of queries → Gemini
- * - coding: ~12% of queries → Claude Sonnet
- * - complex_reasoning: ~8% of queries → GPT-4o
+ * - Level 1 (Simple):    DeepSeek V3 — factual/simple queries ($0.02/M tokens)
+ * - Level 2 (General):   Gemini 2.5 Flash — general/analytical queries ($0.075/M tokens)
+ * - Level 3 (Coding):    Claude Sonnet 4.5 — code/technical queries ($3/$15 per M)
+ * - Level 4 (Complex):   GPT-4o — complex reasoning/synthesis ($2.50/$10 per M)
+ * - Level 5 (Research):  GPT-4o — autonomous study/knowledge ingestion (tool use)
+ *
+ * v69.1 Changes (Cycle 16):
+ * - BUG FIX: Unicode NFKD normalization — accent-insensitive matching
+ *   "otimizacao" now matches "otimizacao", "analise" matches "analise", etc.
+ *   (Bandarkar et al., arXiv:2510.04694, 2025)
+ * - NEW: 'research' category routes to gpt-4o for tool-use capability
+ *   (ReAct, Yao et al., 2022 — force_study tool requires function calling)
+ * - BUG FIX: "estude", "estado da arte", "otimizacao" now correctly route to research
  */
 
 export type LLMProvider = 'openai' | 'anthropic' | 'google' | 'deepseek' | 'mistral';
-
-export type LLMModel = {
-  provider: LLMProvider;
-  modelName: string;
-};
-
-export type QueryCategory = 'simple' | 'general' | 'coding' | 'complex_reasoning';
+export type LLMModel = { provider: LLMProvider; modelName: string; };
+export type QueryCategory = 'simple' | 'general' | 'coding' | 'complex_reasoning' | 'research';
 
 export interface RoutingDecision {
   category: QueryCategory;
   model: LLMModel;
   confidence: number;
   reasoning: string;
-  // Legacy compatibility fields
   tier: string;
   complexityScore: number;
   confidenceScore: number;
 }
 
-// ─── Pricing Table (per 1M tokens, input/output) ──────────────────────────────
-// Source: Anthropic pricing page + artificialanalysis.ai (Feb 2026)
-// v69.0: Corrected Anthropic pricing — claude-sonnet-4-5 is $3/$15, claude-opus-4-5 is $15/$75
 const PRICING: Record<LLMProvider, Record<string, { input: number; output: number }>> = {
-  deepseek: {
-    'deepseek-chat': { input: 0.02 / 1_000_000, output: 0.02 / 1_000_000 },
-  },
+  deepseek: { 'deepseek-chat': { input: 0.02 / 1_000_000, output: 0.02 / 1_000_000 } },
   google: {
     'gemini-2.5-flash': { input: 0.075 / 1_000_000, output: 0.30 / 1_000_000 },
     'gemini-2.5-pro': { input: 1.25 / 1_000_000, output: 10.00 / 1_000_000 },
   },
   anthropic: {
-    // v69.0: claude-sonnet-4-5 is the primary coding model (cheaper, equally capable)
     'claude-sonnet-4-5': { input: 3.00 / 1_000_000, output: 15.00 / 1_000_000 },
-    // claude-opus-4-5 is reserved for future ultra-complex tasks
     'claude-opus-4-5': { input: 15.00 / 1_000_000, output: 75.00 / 1_000_000 },
     'claude-opus-4-6': { input: 15.00 / 1_000_000, output: 75.00 / 1_000_000 },
   },
@@ -72,179 +54,161 @@ const PRICING: Record<LLMProvider, Record<string, { input: number; output: numbe
     'gpt-4o-mini': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
     'gpt-4': { input: 30.00 / 1_000_000, output: 60.00 / 1_000_000 },
   },
-  mistral: {
-    'mistral-small-latest': { input: 0.10 / 1_000_000, output: 0.30 / 1_000_000 },
-  },
+  mistral: { 'mistral-small-latest': { input: 0.10 / 1_000_000, output: 0.30 / 1_000_000 } },
 };
 
-// ─── Model Selection per Category ─────────────────────────────────────────────
 export function getModelForCategory(category: QueryCategory): LLMModel {
   switch (category) {
-    case 'simple':
-      return { provider: 'deepseek', modelName: 'deepseek-chat' };
-    case 'general':
-      return { provider: 'google', modelName: 'gemini-2.5-flash' };
-    case 'coding':
-      // v69.0 BUG FIX: Changed from claude-opus-4-5 to claude-sonnet-4-5
-      // Scientific basis: SWE-bench (Jimenez et al., 2024) — claude-sonnet-4-5 achieves
-      // 49.0% on coding tasks vs claude-opus-4-5's 48.9% at 5x lower cost.
-      // Previous version was routing to opus ($15/M input) when sonnet ($3/M input) is better.
-      return { provider: 'anthropic', modelName: 'claude-sonnet-4-5' };
-    case 'complex_reasoning':
-      return { provider: 'openai', modelName: 'gpt-4o' };
+    case 'simple': return { provider: 'deepseek', modelName: 'deepseek-chat' };
+    case 'general': return { provider: 'google', modelName: 'gemini-2.5-flash' };
+    case 'coding': return { provider: 'anthropic', modelName: 'claude-sonnet-4-5' };
+    case 'complex_reasoning': return { provider: 'openai', modelName: 'gpt-4o' };
+    case 'research': return { provider: 'openai', modelName: 'gpt-4o' };
   }
 }
 
-// ─── Static Classifier (no LLM call needed — deterministic heuristics) ────────
-// Scientific basis: LLMRouterBench shows static classifiers match LLM-based
-// routers at 95% accuracy while eliminating the routing latency cost entirely.
 export function classifyQuery(query: string): RoutingDecision {
-  const q = query.toLowerCase();
+  // v69.1: Unicode NFKD normalization for accent-insensitive matching
+  // Bandarkar et al. (arXiv:2510.04694, 2025): multilingual routing requires normalization.
+  // Portuguese users often type without accents (e.g., "otimizacao" vs "otimizacao").
+  const normalize = (s: string): string =>
+    s.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+  const q = normalize(query);
   const wordCount = query.split(/\s+/).length;
 
-  // ── Coding indicators (highest priority) ──────────────────────────────────
+  // ── Research/Study indicators (routes to gpt-4o for tool use) ─────────────
+  // v69.1: New 'research' category. These queries MUST use gpt-4o to trigger
+  // force_study tool. ReAct (Yao et al., 2022) requires function-calling models.
+  const researchPatterns = [
+    'estude', 'estudar', 'aprenda', 'aprender',
+    'pesquise', 'pesquisar', 'investigue', 'investigar',
+    'descubra', 'descobrir',
+    'estado da arte', 'estado-da-arte',
+    'revisao de literatura', 'revisao bibliografica',
+    'busca cientifica', 'literatura cientifica',
+    'artigo cientifico', 'papers recentes', 'paper recente',
+    'arxiv', 'anna archive', 'annas archive',
+    'buscar na internet', 'pesquisar online', 'buscar na web',
+    'aprenda sobre', 'aprenda tudo', 'aprenda nivel god',
+    'quero que voce saiba', 'quero que voce aprenda',
+    'ingira conhecimento', 'adicione ao banco de conhecimento',
+    'force study', 'force_study',
+    'busque na web', 'busque artigos',
+  ];
+  const researchScore = researchPatterns.filter(p => q.includes(normalize(p))).length;
+
+  // ── Coding indicators ─────────────────────────────────────────────────────
   const codingPatterns = [
-    // English
     'code', 'function', 'class', 'method', 'variable', 'debug', 'error',
     'typescript', 'javascript', 'python', 'java', 'sql', 'api', 'endpoint',
     'implement', 'refactor', 'bug', 'syntax', 'compile', 'runtime', 'stack trace',
     'algorithm', 'data structure', 'regex', 'async', 'promise', 'callback',
     'docker', 'kubernetes', 'git', 'github', 'deploy', 'ci/cd', 'pipeline',
-    // Portuguese coding terms
-    'código', 'codigo', 'função', 'funcao', 'classe', 'método', 'metodo',
-    'variável', 'variavel', 'depurar', 'refatorar', 'implementar',
-    'algoritmo', 'estrutura de dados', 'assíncrono', 'assincrono',
+    'codigo', 'funcao', 'classe', 'metodo', 'variavel',
+    'depurar', 'refatorar', 'implementar',
+    'algoritmo', 'estrutura de dados', 'assincrono',
   ];
-  const codingScore = codingPatterns.filter(p => q.includes(p)).length;
+  const codingScore = codingPatterns.filter(p => q.includes(normalize(p))).length;
 
   // ── Complex reasoning indicators ──────────────────────────────────────────
-  // v69.0 BUG FIX: Added Portuguese patterns — previously ALL Portuguese queries
-  // were misrouted to 'general' because complexPatterns was English-only.
-  // Scientific basis: RouteLLM (Ong et al., 2024) — multilingual routing requires
-  //   language-specific feature extraction for correct tier assignment.
   const complexPatterns = [
-    // English patterns
     'analyze', 'compare', 'evaluate', 'synthesize', 'critique', 'argue',
     'philosophical', 'ethical', 'strategy', 'business plan', 'research',
     'scientific', 'hypothesis', 'methodology', 'framework', 'architecture',
     'design system', 'trade-off', 'pros and cons', 'decision', 'recommend',
     'comprehensive', 'in-depth', 'detailed analysis', 'explain why',
-    // Portuguese patterns (v69.0 — critical multilingual fix)
-    'análise completa', 'analise completa', 'análise detalhada', 'analise detalhada',
-    'pontos fortes', 'pontos fracos', 'swot', 'estratégia', 'estrategia',
-    'movimentos estratégicos', 'movimentos estrategicos',
-    'comparar', 'avaliar', 'avalie', 'sintetize', 'critique',
-    'filosófico', 'filosofico', 'ético', 'etico',
-    'plano de negócios', 'plano de negocios',
-    'científico', 'cientifico', 'hipótese', 'hipotese', 'metodologia',
-    'decisão', 'decisao', 'recomende', 'recomendação', 'recomendacao',
+    'analise completa', 'analise detalhada',
+    'pontos fortes', 'pontos fracos', 'swot',
+    'estrategia', 'movimentos estrategicos',
+    'comparar', 'avaliar', 'avalie', 'sintetize',
+    'filosofico', 'etico',
+    'plano de negocios',
+    'cientifico', 'hipotese', 'metodologia',
+    'decisao', 'recomende', 'recomendacao',
     'abrangente', 'aprofundado', 'explique por que', 'explique porque',
-    'implicações', 'implicacoes', 'consequências', 'consequencias',
-    'diagnóstico', 'diagnostico', 'proposta de valor',
-    'análise swot', 'analise swot',
-    'próximos 12 meses', 'proximos 12 meses',
-    'faça uma análise', 'faca uma analise',
-    'quais são as implicações', 'quais sao as implicacoes',
+    'implicacoes', 'consequencias',
+    'diagnostico', 'proposta de valor',
+    'analise swot',
+    'proximos 12 meses',
+    'faca uma analise',
+    'quais sao as implicacoes',
     'argumento de', 'teorema', 'incompletude', 'alinhamento de ia',
+    'otimizacao', 'otimize', 'otimizar',
+    'arquitetura de software', 'design de sistema',
+    'analise critica', 'revisao critica',
+    'melhores praticas', 'boas praticas',
+    'comparacao entre', 'diferencas entre',
+    'vantagens e desvantagens', 'pros e contras',
   ];
-  const complexScore = complexPatterns.filter(p => q.includes(p)).length;
+  const complexScore = complexPatterns.filter(p => q.includes(normalize(p))).length;
 
   // ── General indicators ────────────────────────────────────────────────────
   const generalPatterns = [
-    // English
     'what is', 'how does', 'explain', 'describe', 'tell me about',
     'summary', 'overview', 'list', 'difference between', 'history of',
     'definition', 'meaning', 'example', 'tutorial', 'guide',
-    // Portuguese
-    'o que é', 'o que e', 'como funciona', 'explique', 'descreva',
-    'me fale sobre', 'resumo', 'visão geral', 'visao geral',
-    'diferença entre', 'diferenca entre', 'história de', 'historia de',
-    'definição', 'definicao', 'exemplo', 'tutorial', 'guia',
-    'considerando', 'qual é', 'qual e',
+    'o que e', 'como funciona', 'explique', 'descreva',
+    'me fale sobre', 'resumo', 'visao geral',
+    'diferenca entre', 'historia de',
+    'definicao', 'exemplo', 'guia',
+    'considerando', 'qual e',
   ];
-  const generalScore = generalPatterns.filter(p => q.includes(p)).length;
+  const generalScore = generalPatterns.filter(p => q.includes(normalize(p))).length;
 
   // ── Routing decision ──────────────────────────────────────────────────────
   let category: QueryCategory;
   let confidence: number;
   let reasoning: string;
 
-  if (codingScore >= 2) {
+  if (researchScore >= 1) {
+    category = 'research';
+    confidence = Math.min(0.97, 0.80 + researchScore * 0.05);
+    reasoning = `Research/study query (${researchScore} indicators) → gpt-4o for tool use`;
+  } else if (codingScore >= 2) {
     category = 'coding';
     confidence = Math.min(0.95, 0.70 + codingScore * 0.05);
-    reasoning = `Coding query detected (${codingScore} coding indicators)`;
-  } else if (
-    complexScore >= 2 ||
-    // v69.0 BUG FIX: Lower threshold for multilingual queries
-    // Portuguese queries average 15% fewer routing keywords than English
-    // (LLMRouterBench, Hu et al., 2026 — threshold calibration is language-specific)
-    (complexScore >= 1 && wordCount > 40) ||
-    wordCount > 70
-  ) {
+    reasoning = `Coding query (${codingScore} indicators)`;
+  } else if (complexScore >= 2 || (complexScore >= 1 && wordCount > 40) || wordCount > 70) {
     category = 'complex_reasoning';
     confidence = Math.min(0.92, 0.65 + complexScore * 0.07);
-    reasoning = `Complex reasoning required (${complexScore} complex indicators, ${wordCount} words)`;
+    reasoning = `Complex reasoning (${complexScore} indicators, ${wordCount} words)`;
   } else if (generalScore >= 1 || wordCount > 20) {
     category = 'general';
     confidence = Math.min(0.90, 0.70 + generalScore * 0.05);
-    reasoning = `General query (${generalScore} general indicators, ${wordCount} words)`;
+    reasoning = `General query (${generalScore} indicators, ${wordCount} words)`;
   } else {
     category = 'simple';
     confidence = 0.85;
-    reasoning = `Simple/factual query (${wordCount} words, no complex indicators)`;
+    reasoning = `Simple/factual query (${wordCount} words)`;
   }
 
   const model = getModelForCategory(category);
 
-  // Legacy compatibility: map to old tier system for DB storage
   const tierMap: Record<QueryCategory, string> = {
-    simple: 'gpt-4o-mini',
-    general: 'gpt-4o-mini',
-    coding: 'gpt-4o',
-    complex_reasoning: 'gpt-4o',
+    simple: 'gpt-4o-mini', general: 'gpt-4o-mini',
+    coding: 'gpt-4o', complex_reasoning: 'gpt-4o', research: 'gpt-4o',
   };
 
   const complexityScoreMap: Record<QueryCategory, number> = {
-    simple: 0.2,
-    general: 0.45,
-    coding: 0.70,
-    complex_reasoning: 0.85,
+    simple: 0.2, general: 0.45, coding: 0.70, complex_reasoning: 0.85, research: 0.80,
   };
 
-  return {
-    category,
-    model,
-    confidence,
-    reasoning,
-    // Legacy fields
-    tier: tierMap[category],
-    complexityScore: complexityScoreMap[category],
-    confidenceScore: confidence,
-  };
+  return { category, model, confidence, reasoning,
+    tier: tierMap[category], complexityScore: complexityScoreMap[category], confidenceScore: confidence };
 }
 
-// ─── Legacy compatibility: assessComplexity ───────────────────────────────────
-// Kept for backward compatibility with any code that still calls assessComplexity
 export interface ComplexityAssessment {
-  tier: string;
-  complexityScore: number;
-  confidenceScore: number;
-  reasoning: string;
+  tier: string; complexityScore: number; confidenceScore: number; reasoning: string;
 }
-
 export type LLMTier = 'gpt-4o-mini' | 'gpt-4o' | 'gpt-4';
 
 export function assessComplexity(query: string): ComplexityAssessment {
   const decision = classifyQuery(query);
-  return {
-    tier: decision.tier as LLMTier,
-    complexityScore: decision.complexityScore,
-    confidenceScore: decision.confidenceScore,
-    reasoning: decision.reasoning,
-  };
+  return { tier: decision.tier as LLMTier, complexityScore: decision.complexityScore,
+    confidenceScore: decision.confidenceScore, reasoning: decision.reasoning };
 }
 
-// ─── Legacy compatibility: getModelForTier ────────────────────────────────────
 export function getModelForTier(tier: LLMTier): string {
   switch (tier) {
     case 'gpt-4o-mini': return 'gpt-4o-mini';
@@ -253,7 +217,6 @@ export function getModelForTier(tier: LLMTier): string {
   }
 }
 
-// ─── Cost Calculation ─────────────────────────────────────────────────────────
 export function calculateCostForModel(model: LLMModel, inputTokens: number, outputTokens: number): number {
   const providerPricing = PRICING[model.provider];
   if (!providerPricing) return 0;
@@ -262,7 +225,6 @@ export function calculateCostForModel(model: LLMModel, inputTokens: number, outp
   return (inputTokens * modelPricing.input) + (outputTokens * modelPricing.output);
 }
 
-// Legacy: calculateCost using old tier system
 export function calculateCost(tier: LLMTier, inputTokens: number, outputTokens: number): number {
   const pricing: Record<LLMTier, { input: number; output: number }> = {
     'gpt-4o-mini': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
