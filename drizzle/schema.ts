@@ -20,7 +20,8 @@ export const users = mysqlTable("users", {
   /** bcrypt hash of password for native auth users (cost factor 12, OWASP recommended) */
   passwordHash: varchar("passwordHash", { length: 255 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  /** User role hierarchy: creator > admin > user (NIST RBAC SP 800-162, 2014; Anthropic Principal Hierarchy, 2026) */
+  role: mysqlEnum("role", ["user", "admin", "creator"]).default("user").notNull(),
   /** Account status: active (approved), pending (awaiting admin approval), rejected */
   status: mysqlEnum("status", ["active", "pending", "rejected"]).default("pending").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

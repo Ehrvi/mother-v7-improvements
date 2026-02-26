@@ -44,17 +44,19 @@ import { createHash } from 'crypto';
 import { conductResearch, requiresResearch } from './research';
 import { getUserMemoryContext, extractAndStoreMemories } from './user-memory';
 import { logAuditEvent } from './update-proposals';
+import { CREATOR_EMAIL as _HIERARCHY_CREATOR_EMAIL } from './user-hierarchy';
 import { maybeRunAnalysis } from './self-proposal-engine';
 import { MOTHER_TOOLS, executeTool, formatToolResult } from './tool-engine';
 import { ENV } from '../_core/env';
 import { generateFichamento } from './fichamento';
 
 // ─── MOTHER Version (single source of truth) ─────────────────────────────────
-export const MOTHER_VERSION = 'v69.10';
+export const MOTHER_VERSION = 'v69.11';
 
 
-// v56.0: Creator email for authorization (Req #6)
-const CREATOR_EMAIL = 'elgarcia.eng@gmail.com';
+// v69.11: Creator email from centralized user-hierarchy module (NIST RBAC SP 800-162)
+// Scientific basis: Ferraiolo & Kuhn (1992) RBAC; Anthropic Principal Hierarchy (2026)
+const CREATOR_EMAIL = _HIERARCHY_CREATOR_EMAIL;
 
 export interface ConversationMessage {
   role: 'user' | 'assistant';

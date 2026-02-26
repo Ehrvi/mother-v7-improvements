@@ -23,6 +23,7 @@ import { getDb } from '../db.js';
 import { invokeGEASupervisor } from '../mother/gea_supervisor.js';
 import { processQuery as _processQuery } from '../mother/core.js';
 import { runSelfAudit } from '../mother/self-audit-engine.js';
+import { sdk } from './sdk.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -250,7 +251,21 @@ app.post('/api/mother/stream', async (req, res) => {
   };
 
   try {
-    const { query, userId, userEmail, useCache, conversationHistory } = req.body;
+    const { query, useCache, conversationHistory } = req.body;
+    
+    // v69.11: Authenticate user from session cookie (Principal Hierarchy fix)
+    // Scientific basis: NIST RBAC SP 800-162 (2014); Anthropic Principal Hierarchy (2026)
+    // Previously: userEmail came from req.body (untrusted, never sent by frontend)
+    // Now: userEmail resolved from verified session cookie → proper CREATOR detection
+    let userEmail: string | undefined;
+    let userId: number | undefined;
+    try {
+      const authenticatedUser = await sdk.authenticateRequest(req);
+      userEmail = authenticatedUser.email ?? undefined;
+      userId = authenticatedUser.id;
+    } catch {
+      // Unauthenticated request — userEmail stays undefined (guest/anonymous)
+    }
     if (!query) {
       sendEvent('error', { message: 'Missing query parameter' });
       return res.end();

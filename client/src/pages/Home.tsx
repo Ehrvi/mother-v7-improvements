@@ -422,8 +422,8 @@ export default function Home() {
             </div>
           )}
 
-          {/* Message list */}
-          {messages.map((msg) => (
+          {/* Message list — v69.11: skip empty placeholder (shown as streaming indicator above) */}
+          {messages.filter(msg => !(msg.role === 'mother' && msg.content === '' && isStreaming && msg.id === streamingMsgIdRef.current)).map((msg) => (
             <div key={msg.id} className={`msg-bubble flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
               {/* Avatar */}
               <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0 ${
@@ -479,7 +479,23 @@ export default function Home() {
             </div>
           ))}
 
-          {/* Typing indicator */}
+          {/* v69.11: Streaming indicator — shown when SSE placeholder is empty (before first token arrives) */}
+          {isStreaming && streamingMsgIdRef.current && messages.find(m => m.id === streamingMsgIdRef.current && m.content === '') && (
+            <div className="msg-bubble flex gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm text-white flex-shrink-0"
+                   style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', boxShadow: '0 0 10px rgba(124,58,237,0.35)' }}>
+                M
+              </div>
+              <div className="px-4 py-3 rounded-2xl rounded-tl-sm bg-[#0f0f1a] border border-[rgba(255,255,255,0.06)] flex items-center gap-1.5">
+                <Sparkles className="w-3 h-3 text-[#a78bfa] animate-pulse" />
+                <span className="text-xs text-[#8888aa] mr-1">Gerando resposta</span>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="typing-dot w-1.5 h-1.5 rounded-full bg-[#a78bfa]" />
+                ))}
+              </div>
+            </div>
+          )}
+          {/* Legacy typing indicator for tRPC fallback */}
           {(queryMutation.isPending) && (
             <div className="msg-bubble flex gap-3">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm text-white flex-shrink-0"

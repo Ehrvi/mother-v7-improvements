@@ -16,6 +16,7 @@ import { getDb } from '../db';
 import { randomUUID } from 'crypto';
 import { getProposals, approveProposal, logAuditEvent, CREATOR_EMAIL as CREATOR } from '../mother/update-proposals';
 import { MOTHER_VERSION } from '../mother/core';
+import { getSanitizedUserContext, QUALITY_LAB_ACCESS } from '../mother/user-hierarchy';
 
 export const motherRouter = router({
   /**
@@ -472,4 +473,19 @@ export const motherRouter = router({
       const report = await checkAllProviders(input.forceRefresh);
       return report;
     }),
+
+  /**
+   * v69.11: User Context Endpoint
+   * Returns sanitized user context (role, permissions) for frontend authorization.
+   * Scientific basis: NIST RBAC SP 800-162 (2014); Anthropic Principal Hierarchy (2026)
+   * Security: Returns ONLY what the frontend needs — no secrets, no implementation details.
+   */
+  userContext: publicProcedure.query(async ({ ctx }) => {
+    const context = getSanitizedUserContext(ctx.user);
+    const qualityLabAccess = QUALITY_LAB_ACCESS[context.role];
+    return {
+      ...context,
+      qualityLabAccess,
+    };
+  }),
 });
