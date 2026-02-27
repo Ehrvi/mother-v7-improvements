@@ -463,10 +463,10 @@ export async function validateQuality(
   // ==================== v74.8 PATCHES: NC-GUARD-001 + NC-GUARD-002 ====================
   // Scientific basis: G-Eval (Liu et al., 2023) + RAGAS Answer Completeness (Es et al., 2023)
   const patched = applyGuardianPatches(qualityScore, response, query);
-  if (patched.violated) {
-    allIssues.push(...patched.issues);
+  if (patched.completenessViolation || patched.uncertaintyCount > 0) {
+    allIssues.push(...patched.penalties);
     qualityScore = patched.adjustedScore;
-    reliabilityLogger.warn('guardian', `Guardian patch applied: ${patched.issues.join('; ')}`, { originalScore: patched.originalScore, adjustedScore: patched.adjustedScore });
+    reliabilityLogger.warn('guardian', `Guardian patch applied: ${patched.penalties.join('; ')}`, { adjustedScore: patched.adjustedScore, uncertaintyCount: patched.uncertaintyCount });
   }
 
   // ==================== HALLUCINATION RISK PENALTY ====================

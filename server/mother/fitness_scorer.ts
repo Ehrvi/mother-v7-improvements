@@ -286,7 +286,7 @@ export async function calculateRealFitnessScore(
     finalScore >= 0.50 ? "ACCEPTABLE" : "POOR";
 
   // v74.9: Record fitness score in reliability metrics and logger
-  reliabilityLogger.info('fitness', `Fitness score: ${finalScore.toFixed(4)} [${label}]`, { score: finalScore, label, correctness, efficiency, robustness, maintainability, novelty });
+  reliabilityLogger.info('system', `Fitness score: ${finalScore.toFixed(4)} [${label}]`, { score: finalScore, label, correctness, efficiency, robustness, maintainability, novelty });
 
   return {
     correctness,

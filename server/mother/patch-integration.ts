@@ -31,7 +31,7 @@ export {
   safeGetId,
   safeObjectEntries,
   safeObjectKeys,
-  type FetchRetryOptions,
+  type RetryOptions,
 } from './fetch-with-retry';
 
 export {
@@ -40,7 +40,7 @@ export {
   calculateContextRecall,
   motherReliabilityMetrics,
   ReliabilityMetrics,
-  type CRAGEvaluation,
+  type CRAGMetrics,
   type ReliabilitySnapshot,
 } from './crag-metrics';
 
