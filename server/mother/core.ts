@@ -52,7 +52,7 @@ import { ENV } from '../_core/env';
 import { generateFichamento } from './fichamento';
 
 // ─── MOTHER Version (single source of truth) ─────────────────────────────────
-export const MOTHER_VERSION = 'v69.13';
+export const MOTHER_VERSION = 'v69.14';
 
 
 // v69.11: Creator email from centralized user-hierarchy module (NIST RBAC SP 800-162)

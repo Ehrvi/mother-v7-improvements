@@ -214,6 +214,14 @@ export default function Home() {
         } : m));
       }
     } finally {
+      // v69.14: Bug fix — ensure placeholder message never stays empty after streaming ends
+      // Root cause: if 'response' event never arrives (timeout, cold start), content stays ''
+      // Fix: in finally block, replace any remaining empty content with accumulatedText or error
+      setMessages((prev) => prev.map(m =>
+        m.id === msgId && m.content === ''
+          ? { ...m, content: accumulatedText || '⚠️ Resposta não recebida. Tente novamente.' }
+          : m
+      ));
       setIsStreaming(false);
       streamingMsgIdRef.current = null;
       abortControllerRef.current = null;
@@ -535,8 +543,14 @@ export default function Home() {
             </div>
           )}
 
-          {/* Message list — v69.11: skip empty placeholder (shown as streaming indicator above) */}
-          {messages.filter(msg => !(msg.role === 'mother' && msg.content === '' && isStreaming && msg.id === streamingMsgIdRef.current)).map((msg) => (
+          {/* Message list — v69.14: skip empty placeholder during streaming; also skip any stale empty messages */}
+          {messages.filter(msg => {
+            // Hide the active streaming placeholder (shown as typing indicator below)
+            if (msg.role === 'mother' && msg.content === '' && isStreaming && msg.id === streamingMsgIdRef.current) return false;
+            // v69.14: Hide any empty mother messages (defensive — should not happen after finally fix)
+            if (msg.role === 'mother' && msg.content === '') return false;
+            return true;
+          }).map((msg) => (
             <div key={msg.id} className={`msg-bubble flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
               {/* Avatar */}
               <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0 ${

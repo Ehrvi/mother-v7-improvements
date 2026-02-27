@@ -481,7 +481,9 @@ function ProposalsSection() {
   const pending   = proposals?.filter(p => p.status === 'pending') ?? [];
   const deferred  = proposals?.filter(p => p.status === 'deferred') ?? [];
   const rejected  = proposals?.filter(p => p.status === 'rejected') ?? [];
-  const approved  = proposals?.filter(p => ['approved', 'implementing', 'deployed'].includes(p.status)) ?? [];
+  const approved  = proposals?.filter(p => ['approved', 'implementing', 'deployed', 'completed'].includes(p.status)) ?? [];
+  // v69.14: Bug fix — 'failed' status was not in any group, causing blank panel with 3 proposals
+  const failed    = proposals?.filter(p => p.status === 'failed') ?? [];
   const cancelled = proposals?.filter(p => p.status === 'cancelled_permanently') ?? [];
 
   const renderProposal = (p: any) => {
@@ -627,6 +629,16 @@ function ProposalsSection() {
               <div className="flex flex-col gap-1.5">{cancelled.map(renderProposal)}</div>
             </div>
           )}
+          {/* v69.14: Bug fix — 'failed' proposals were invisible (not in any group) */}
+          {failed.length > 0 && (
+            <div>
+              <div className="text-[9px] text-orange-400 font-semibold mb-1.5 flex items-center gap-1">
+                <AlertCircle className="w-2.5 h-2.5" /> Falhou na Implementação ({failed.length})
+              </div>
+              <div className="flex flex-col gap-1.5">{failed.map(renderProposal)}</div>
+            </div>
+          )}
+          {/* v69.14: Fix empty state — only show when truly no proposals exist */}
           {(!proposals || proposals.length === 0) && (
             <div className="text-[10px] text-[#55556a] text-center py-4">
               Nenhuma proposta DGM ainda.<br />
