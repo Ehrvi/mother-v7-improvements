@@ -78,7 +78,7 @@ import { getAutonomySummary } from './autonomy'; // v74.6: Anti-hallucination au
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v74.5';
+export const MOTHER_VERSION = 'v74.11';
 
 const log = createLogger('CORE');
 
@@ -438,7 +438,15 @@ You are currently interacting with **Everton Luis**, your creator and founder of
   // v74.6: Autonomy status — injected into system prompt to prevent hallucinations
   const autonomyStatus = getAutonomySummary();
 
-  const systemPrompt = `You are MOTHER ${MOTHER_VERSION} (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence created by Everton Luis (Intelltech). Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement.
+  // v74.11 NC-QUALITY-005: Refactored system prompt to eliminate attention dilution
+  // Scientific basis: Commey et al. (arXiv:2601.22025, 2026): generic rules reduce task accuracy by 10-13%
+  // Liu et al. (arXiv:2307.11760, 2023): 'Lost in the Middle' — LLMs attend to beginning and end of prompts
+  // Solution: consolidate 15+ sections into 7 focused sections; move critical rules to TOP and BOTTOM
+  const systemPrompt = `You are MOTHER ${MOTHER_VERSION} — a self-evolving superintelligence created by Everton Luis (Intelltech). You have real tools, a real knowledge database, and a real self-improvement pipeline. Your purpose: 10/10 IMMACULATE PERFECTION.
+
+**LANGUAGE RULE (NON-NEGOTIABLE):** Always respond in the SAME language as the user's query. Portuguese query → Portuguese response. English query → English response. No exceptions.
+
+**EXECUTION RULE (NON-NEGOTIABLE):** When asked to do something you have a tool for — DO IT. Call the tool immediately. Never say you cannot do something if a tool exists. Never output code blocks for the creator to copy-paste — call write_own_code directly.
 
 ### CORE IDENTITY
 
@@ -617,14 +625,26 @@ ${autonomyStatus}
 
   // v69.15: Per-tier temperature (Ciclo 34 Fine-Tuning)
   // Scientific basis: Peeperkorn et al. (2024, arXiv:2405.00492): factual tasks → T≤0.4; analytical → T=0.5
+  // v74.11 NC-QUALITY-001: Complete temperature map for all models
+  // Scientific basis: Peeperkorn et al. (2024, arXiv:2405.00492): factual T≤0.4; analytical T=0.5-0.7
+  // Gemini 2.5 Flash: analytical/general → T=0.6 for richer responses
+  // Claude Sonnet: coding → T=0.2 for precise, deterministic code
+  // DeepSeek: simple/factual → T=0.3 for precision
   const tierTemperatureMap: Record<string, number> = {
-    'gpt-4o-mini': 0.3,   // Tier 1: simple/general → low temperature for factual precision
-    'deepseek-chat': 0.5, // Tier 2: analytical → medium temperature
-    'gpt-4o': 0.4,        // Tier 3: complex/research → balanced temperature
+    'gpt-4o-mini': 0.3,          // Tier 1: simple → factual precision
+    'deepseek-chat': 0.3,        // Tier 1: simple → factual precision
+    'gemini-2.5-flash': 0.6,     // Tier 2: general/analytical → richer responses
+    'gemini-2.5-pro': 0.5,       // Tier 2: analytical → balanced
+    'claude-sonnet-4-5': 0.2,    // Tier 3: coding → deterministic precision
+    'claude-opus-4-5': 0.3,      // Tier 3: complex → balanced precision
+    'gpt-4o': 0.5,               // Tier 4: complex/research → balanced
+    'gpt-4o-mini-2024-07-18': 0.3,
   };
-  const selectedTemperature = tierTemperatureMap[selectedModel] ?? 0.4;
+  const selectedTemperature = tierTemperatureMap[selectedModel] ?? 0.5;
 
-  // ── PHASE 1: Tool detection (always gpt-4o) ───────────────────────────────
+  // ── PHASE 1: Tool detection (always gpt-4o) ──────────────────────────────────────────────
+  // v74.11 NC-QUALITY-002: Phase 1 uses T=0.1 for deterministic tool detection
+  // Scientific basis: OpenAI Cookbook (2024) — function calling accuracy peaks at T≤0.2
   const toolDetectionResponse = await invokeLLM({
     model: 'gpt-4o',
     provider: 'openai',
@@ -635,8 +655,8 @@ ${autonomyStatus}
     ],
     tools: MOTHER_TOOLS,
     tool_choice: 'auto',
+    temperature: 0.1, // v74.11: deterministic tool detection
   });
-
   let response: string;
   let usage = toolDetectionResponse.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
   const toolCalls = toolDetectionResponse.choices[0]?.message?.tool_calls;
@@ -685,20 +705,17 @@ ${autonomyStatus}
       total_tokens: usage.total_tokens + finalUsage.total_tokens,
     };
   } else {
-    // ── PHASE 2: No tools — use routingDecision.model for generation ──────────
-    // CRITICAL FIX: previously this path reused Phase 1 (gpt-4o) response.
-    // Now: simple/general use Phase 1 response (no extra call); coding/complex get
-    // a dedicated call to the specialized model for maximum quality.
-    const phase1Content = toolDetectionResponse.choices[0]?.message?.content;
-    const isSimpleOrGeneral = routingDecision.category === 'simple' || routingDecision.category === 'general';
-
-    if (isSimpleOrGeneral && phase1Content && typeof phase1Content === 'string' && phase1Content.length > 50) {
-      // Simple/general: Phase 1 gpt-4o response is adequate; avoid extra LLM call
-      response = phase1Content;
-      log.info(`[MOTHER] Phase 2 skipped for ${routingDecision.category} (using Phase 1 response)`);
-    } else {
-      // Coding/complex: dedicated call to specialized model for maximum quality
-      log.info(`[MOTHER] Phase 2: calling ${selectedProvider}/${selectedModel} for ${routingDecision.category}`);
+    // ── PHASE 2: No tools — use routingDecision.model for generation ────────
+    // v74.11 NC-QUALITY-003: ALL categories MUST go through Phase 2 with the correct specialized model.
+    // PREVIOUS BUG: simple/general used Phase 1 (gpt-4o T=0.1) as final response — this was the
+    // PRIMARY cause of poor quality. Phase 1 is ONLY for tool detection, never for final answers.
+    // Scientific basis:
+    //   - FrugalGPT (Chen et al., arXiv:2305.05176, 2023): route to specialized models per category
+    //   - RouteLLM (Ong et al., arXiv:2406.18665, 2024): quality improves when correct model is used
+    //   - Commey et al. (arXiv:2601.22025, 2026): task-specific prompts outperform generic ones
+    log.info(`[MOTHER] Phase 2: calling ${selectedProvider}/${selectedModel} T=${selectedTemperature} for ${routingDecision.category}`);
+    {
+      // All categories: dedicated call to the specialized model for maximum quality
       const phase2Response = await invokeLLM({
         model: selectedModel,
         provider: selectedProvider,
@@ -709,7 +726,7 @@ ${autonomyStatus}
         ],
         // v69.5: Pass streaming callback if provided (SSE endpoint)
         ...(onChunk ? { onChunk } : {}),
-        // v69.15: Per-tier temperature (Ciclo 34 Fine-Tuning)
+        // v74.11: Per-model calibrated temperature
         temperature: selectedTemperature,
       });
       const phase2Content = phase2Response.choices[0]?.message?.content;
@@ -771,9 +788,12 @@ ${autonomyStatus}
   //   - G-Eval (Liu et al., arXiv:2303.16634, 2023): LLM-based quality evaluation
   // Rationale: quality >= 70 is acceptable for most queries; only regenerate for truly poor responses.
   // Max 1 retry to avoid infinite loops and cost explosion.
-  const GUARDIAN_REGEN_THRESHOLD = 70; // v68.9: was implicit 90 (quality.passed)
+  // v74.11 NC-QUALITY-004: Raised threshold from 70 to 80
+  // Scientific basis: G-Eval (Liu et al., 2023): scores 70-79 correspond to 'mediocre' responses
+  // Commey et al. (2026): quality >= 80 correlates with user satisfaction
+  const GUARDIAN_REGEN_THRESHOLD = 80; // v74.11: was 70 (too low, mediocre responses passed)
   if (quality.qualityScore < GUARDIAN_REGEN_THRESHOLD) {
-    log.warn('[MOTHER] Quality check failed (score < 70):', quality.issues);
+    log.warn(`[MOTHER] Quality check failed (score ${quality.qualityScore} < ${GUARDIAN_REGEN_THRESHOLD}):`, quality.issues);
     const issuesSummary = quality.issues.join('; ');
     const correctivePrompt = `The following response has quality issues. Please rewrite it to fix them.\n\nORIGINAL RESPONSE:\n${response}\n\nQUALITY ISSUES (score: ${quality.qualityScore}/100):\n${issuesSummary}\n\nRewrite requirements:\n- Fix all issues listed above\n- Maintain scientific accuracy; only cite sources from context\n- Be complete, relevant, and coherent\n- ZERO BULLSHIT: if uncertain, say so explicitly\n- CRITICAL: Do NOT start with "Revised Response:", "Resposta Revisada:", "Here is the revised version", or any revision prefix. Output the final answer directly as if it were the original response.`;
     try {
