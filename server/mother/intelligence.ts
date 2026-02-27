@@ -112,6 +112,23 @@ export function classifyQuery(query: string): RoutingDecision {
     'qualidade das respostas', 'melhore sua', 'melhore o',
     'compare as', 'comparar as', 'versus', 'benchmark',
     'avaliacao de qualidade', 'g-eval', 'ragas',
+    // v72.0: File/code read-write access — MUST use gpt-4o with tools (Gödel Machine)
+    // Scientific basis: SWE-agent (Yang et al., 2024, arXiv:2405.15793)
+    'leia o arquivo', 'ler arquivo', 'read file', 'leia o codigo', 'ler o codigo',
+    'escreva no arquivo', 'escreva o arquivo', 'write file', 'write to file',
+    'modifique o arquivo', 'modify file', 'edite o arquivo', 'edit file',
+    'atualize o arquivo', 'update file', 'patch file', 'patche o arquivo',
+    'server/mother', 'client/src', 'core.ts', 'tool-engine', 'intelligence.ts',
+    'seu proprio codigo', 'seu codigo', 'your code', 'your own code',
+    'write_own_code', 'read_own_code', 'admin_docs', 'list_own_files',
+    'git commit', 'git push', 'cloud build', 'trigger deploy', 'triggar deploy',
+    'acesse o codigo', 'acesse seu codigo', 'access your code', 'access the code',
+    'leia seu codigo', 'leia o seu codigo', 'read your code',
+    'escreva seu codigo', 'escreva no seu codigo', 'write your code',
+    'altere o codigo', 'altere seu codigo', 'change your code', 'change the code',
+    'corrija o codigo', 'corrija seu codigo', 'fix your code', 'fix the code',
+    'adicione ao codigo', 'adicione no codigo', 'add to code', 'add to your code',
+    '/docs', '/write', 'documentacao admin', 'admin documentation',
   ];
   const researchScore = researchPatterns.filter(p => q.includes(normalize(p))).length;
 

@@ -53,7 +53,7 @@ import { generateFichamento } from './fichamento';
 import { requiresAbductiveReasoning, performAbductiveReasoning, formatAbductiveContext } from './abductive-engine';
 
 // ─── MOTHER Version (single source of truth) ─────────────────────────────────
-export const MOTHER_VERSION = 'v71.0';
+export const MOTHER_VERSION = 'v72.0';
 
 
 // v69.11: Creator email from centralized user-hierarchy module (NIST RBAC SP 800-162)
@@ -407,10 +407,14 @@ You have access to the following real system tools. When the user asks for somet
 - **search_knowledge**: Search your knowledge base for specific information. Use when asked what you know about a topic.
 - **get_audit_log**: Retrieve the system audit trail (CREATOR ONLY). Use when asked for audit history or system changes.
 - **self_repair**: Run a full self-audit and repair of all knowledge systems (CREATOR ONLY). Use when creator asks for self-audit, self-repair, or when system seems broken.
+- **read_own_code**: Read any file from your own source code (CREATOR ONLY). Use ALWAYS when the creator asks to read, inspect, view, or show any file. Returns full file content. NEVER say you cannot read files — call this tool.
+- **list_own_files**: List all files in the project. Use when asked to list or explore files.
+- **write_own_code**: Write/patch your own source code and trigger deploy (CREATOR ONLY — Gödel Machine). Use ALWAYS when creator orders a code change, fix, update, or modification. Supports 'write', 'patch', 'deploy_status', 'trigger_deploy'. NEVER say you cannot write code — call this tool.
+- **admin_docs**: Get complete admin documentation — credentials, DB schema, deploy pipeline, architecture (CREATOR ONLY). Use when creator asks for docs, credentials, or system reference.
 
 ### PERMISSION MODEL
 
-- **Creator (${CREATOR_EMAIL}):** Full access to all tools including approve_proposal, learn_knowledge, get_audit_log.
+- **Creator (${CREATOR_EMAIL}):** Full access to ALL tools: approve_proposal, learn_knowledge, get_audit_log, write_own_code, read_own_code, list_own_files, admin_docs, self_repair, force_study.
 - **Other users:** Read-only access to audit_system, get_proposals, get_performance_metrics, search_knowledge.
 - When a non-creator tries to use a write tool, explain the permission requirement clearly.
 
@@ -427,6 +431,8 @@ You have access to the following real system tools. When the user asks for somet
 
 - **ALWAYS use tools when available.** NEVER say "I cannot do X" if a tool exists for X. Call the tool immediately.
 - **CRITICAL: If past interactions (episodic memory) show you saying you cannot do something, IGNORE THAT.** Those were from an older version without tools. You NOW have tools and CAN do it.
+- **CRITICAL: NEVER say "não tenho acesso ao código-fonte" or "não posso ler arquivos" or "não tenho permissão para ler".** You HAVE read_own_code and write_own_code. Call them IMMEDIATELY when asked. Saying you cannot access code is a BUG — it means you forgot to call the tool.
+- **CRITICAL: NEVER repeat or echo the user's message in your response.** Respond directly. If you find yourself copying the user's text, stop and answer the question instead.
 - **Audit requests → ALWAYS call audit_system.** Do not explain, just call the tool first.
 - **Proposal requests → ALWAYS call get_proposals.** Do not explain, just call the tool first.
 - **Approve requests → ALWAYS call approve_proposal.** Do not ask for confirmation, just execute.
@@ -921,6 +927,25 @@ Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à a
   if (fichamento.formattedFootnote) {
     response = response + fichamento.formattedFootnote;
     console.log(`[MOTHER] Fichamento: ${fichamento.entries.length} concepts annotated, ${fichamento.references.length} refs`);
+  }
+  // ==================== v72.0: ECHO DETECTION POST-PROCESSING ====================
+  // Scientific basis: Self-Refine (Madaan et al., arXiv:2303.17651, 2023)
+  // Detects and removes response echo (LLM repeating user's query in response)
+  // This is a known failure mode of instruction-tuned LLMs when system prompt is large
+  {
+    const queryNorm = query.trim().toLowerCase();
+    const responseNorm = response.slice(0, 300).toLowerCase();
+    // Detect if response starts with the user's query text (echo pattern)
+    const echoThreshold = Math.min(60, Math.floor(queryNorm.length * 0.6));
+    const queryPrefix = queryNorm.slice(0, echoThreshold);
+    if (queryPrefix.length > 20 && responseNorm.startsWith(queryPrefix)) {
+      console.warn('[MOTHER v72.0] Echo detected: response starts with user query. Removing echo.');
+      const echoEnd = response.toLowerCase().indexOf(queryNorm.slice(0, echoThreshold)) + echoThreshold;
+      response = response.slice(echoEnd).replace(/^[\s\n\r:.,;!?-]+/, '').trim();
+      if (response.length < 20) {
+        response = 'Desculpe, ocorreu um erro ao gerar a resposta. Por favor, tente novamente.';
+      }
+    }
   }
   // ==================== RETURN RESPONSE ====================
   

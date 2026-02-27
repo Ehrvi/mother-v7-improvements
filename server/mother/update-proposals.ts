@@ -39,6 +39,7 @@ export interface UpdateProposal {
   implementationNotes?: string;
   createdAt: Date;
   updatedAt: Date;
+  source?: 'manual' | 'dgm'; // v72.0: identifies which table the proposal came from
 }
 
 export interface CreateProposalInput {
@@ -127,15 +128,28 @@ export async function approveProposal(
     const db = await getDb();
     if (!db) return { success: false, reason: 'DB not available' };
 
-    await (db as any).$client.query(
+    // v72.0: Fix — update BOTH tables (manual and DGM)
+    // Root cause: approveProposal only updated update_proposals, but DGM proposals
+    // live in self_proposals — 0 rows affected = silent fail, proposals stayed 'pending'/'failed'
+    const [manualResult] = await (db as any).$client.query(
       `UPDATE update_proposals 
        SET status = 'approved', approved_by_email = ?, approved_at = NOW(), 
            implementation_notes = ?, updated_at = NOW()
        WHERE id = ? AND status = 'pending'`,
       [approverEmail, implementationNotes || null, proposalId]
     );
-
-    console.log(`[Proposals] ✅ Proposal ${proposalId} approved by creator`);
+    const [dgmResult] = await (db as any).$client.query(
+      `UPDATE self_proposals 
+       SET status = 'approved', approved_by = ?, approved_at = NOW(), 
+           updated_at = NOW()
+       WHERE id = ? AND status IN ('pending', 'failed')`,
+      [approverEmail, proposalId]
+    );
+    const affectedRows = ((manualResult as any).affectedRows || 0) + ((dgmResult as any).affectedRows || 0);
+    if (affectedRows === 0) {
+      console.warn(`[Proposals] ⚠️ No rows updated for proposal ${proposalId} — may already be approved or not found`);
+    }
+    console.log(`[Proposals] ✅ Proposal ${proposalId} approved (manual:${(manualResult as any).affectedRows || 0} dgm:${(dgmResult as any).affectedRows || 0})`);
     
     await logAuditEvent({
       action: 'proposal_approved',
@@ -223,7 +237,7 @@ export async function getPendingProposals(): Promise<UpdateProposal[]> {
               '' as affected_modules, 'medium' as estimated_impact,
               status, NULL as approved_by_email, NULL as approved_at,
               NULL as rejected_reason, NULL as implementation_notes,
-              created_at, updated_at
+              created_at, updated_at, 'manual' as source
        FROM update_proposals WHERE status = 'pending' ORDER BY created_at DESC`
     ).catch(() => [[]]);
 
@@ -233,7 +247,7 @@ export async function getPendingProposals(): Promise<UpdateProposal[]> {
               metric_trigger as affected_modules, 'high' as estimated_impact,
               status, approved_by as approved_by_email, approved_at,
               NULL as rejected_reason, fitness_function as implementation_notes,
-              created_at, updated_at
+              created_at, updated_at, 'dgm' as source
        FROM self_proposals WHERE status = 'pending' ORDER BY created_at DESC`
     ).catch(() => [[]]);
 
@@ -262,7 +276,7 @@ export async function getProposals(status?: ProposalStatus, limit = 20): Promise
               '' as affected_modules, 'medium' as estimated_impact,
               status, NULL as approved_by_email, NULL as approved_at,
               NULL as rejected_reason, NULL as implementation_notes,
-              created_at, updated_at
+              created_at, updated_at, 'manual' as source
        FROM update_proposals ${whereClause} ORDER BY created_at DESC LIMIT ?`,
       [Math.ceil(limit / 2)]
     ).catch(() => [[]]);
@@ -273,7 +287,7 @@ export async function getProposals(status?: ProposalStatus, limit = 20): Promise
               metric_trigger as affected_modules, 'high' as estimated_impact,
               status, approved_by as approved_by_email, approved_at,
               NULL as rejected_reason, fitness_function as implementation_notes,
-              created_at, updated_at
+              created_at, updated_at, 'dgm' as source
        FROM self_proposals ${whereClause} ORDER BY created_at DESC LIMIT ?`,
       [limit]
     ).catch(() => [[]]);
@@ -398,6 +412,7 @@ function mapRowToProposal(row: any): UpdateProposal {
     implementationNotes: row.implementation_notes,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    source: row.source || 'manual', // v72.0: track which table the proposal came from
   };
 }
 

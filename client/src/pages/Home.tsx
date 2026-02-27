@@ -471,7 +471,7 @@ export default function Home() {
           <div className="text-[10px] font-semibold uppercase tracking-widest text-[#55556a] mb-2">Sistema</div>
           {[
             { icon: <GitBranch className="w-3 h-3" />, label: 'Versão', value: motherVersion, cls: 'accent-glow' },
-            { icon: <Database className="w-3 h-3" />, label: 'DB', value: 'Unix Socket ✓', cls: 'text-emerald-400' },
+            { icon: <Database className="w-3 h-3" />, label: 'DB', value: 'Cloud SQL ✓', cls: 'text-emerald-400' },
             { icon: <Dna className="w-3 h-3" />, label: 'GEA Loop', value: 'Ativo ✓', cls: 'text-emerald-400' },
             { icon: <Activity className="w-3 h-3" />, label: 'Fitness Track', value: 'Ativo ✓', cls: 'text-emerald-400' },
           ].map(({ icon, label, value, cls }) => (
