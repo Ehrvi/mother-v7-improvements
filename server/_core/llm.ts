@@ -86,6 +86,10 @@ export type InvokeParams = {
   // v69.5: Token streaming callback (SUG-001)
   // Scientific basis: OpenAI Streaming API; TokenFlow (Zheng et al., 2024)
   onChunk?: (chunk: string) => void;
+  // v69.15: Per-tier temperature fine-tuning (Ciclo 34)
+  // Scientific basis: Peeperkorn et al. (2024, arXiv:2405.00492): factual tasks → T≤0.4; creative → T≥0.6
+  // ACL Findings 2024: optimal T for problem-solving is 0.2-0.4 for factual, 0.6-0.8 for generative
+  temperature?: number;
 };
 
 export type ToolCall = {
@@ -242,6 +246,12 @@ async function invokeOpenAICompatible(
     payload.max_tokens = 8192;
   } else {
     payload.max_tokens = 8192;
+  }
+
+  // v69.15: Apply per-tier temperature (Ciclo 34 Fine-Tuning)
+  // Scientific basis: Peeperkorn et al. (2024, arXiv:2405.00492)
+  if (params.temperature !== undefined) {
+    payload.temperature = params.temperature;
   }
 
   const normalizedResponseFormat = normalizeResponseFormat({ responseFormat, response_format, outputSchema, output_schema });

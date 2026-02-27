@@ -138,9 +138,9 @@ export async function queryVectorSearch(query: string): Promise<KnowledgeResult[
     
     // Filter by relevance threshold (>0.5 for semantic similarity) and sort
     const relevantResults = results
-      .filter(r => r.relevance > 0.5)
+      .filter(r => r.relevance > 0.65) // v69.15: threshold 0.5→0.65 (Ciclo 34 Fine-Tuning)
       .sort((a, b) => b.relevance - a.relevance)
-      .slice(0, 3); // Top 3 most relevant
+      .slice(0, 5); // v69.15: Top 5 most relevant (Ciclo 34 Fine-Tuning: Lewis et al. 2020 NeurIPS RAG paper recommends k=5)
     
     console.log(`[Knowledge] Vector search found ${relevantResults.length} relevant entries`);
     if (relevantResults.length > 0) {
@@ -188,7 +188,7 @@ async function queryVectorSearchFallback(query: string, allKnowledge: Knowledge[
   const relevantResults = results
     .filter(r => r.relevance > 0.2)
     .sort((a, b) => b.relevance - a.relevance)
-    .slice(0, 3);
+    .slice(0, 5); // v69.15: Top 5 (Ciclo 34 Fine-Tuning)
   
   console.log(`[Knowledge] Keyword fallback found ${relevantResults.length} relevant entries`);
   return relevantResults;

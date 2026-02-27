@@ -18,6 +18,7 @@ import { getProposals, approveProposal, logAuditEvent, CREATOR_EMAIL as CREATOR 
 import { MOTHER_VERSION } from '../mother/core';
 import { getSanitizedUserContext, QUALITY_LAB_ACCESS } from '../mother/user-hierarchy';
 import { BENCHMARK_QUERIES, evaluateBenchmarkResponse, calculateBenchmarkStats, type BenchmarkResult } from '../mother/benchmark-suite';
+import { runArxivPipeline, testArxivPipeline } from '../mother/arxiv-pipeline';
 
 export const motherRouter = router({
   /**
@@ -575,5 +576,27 @@ export const motherRouter = router({
         categories: [...new Set(BENCHMARK_QUERIES.map(q => q.category))],
         queries: queries.map(q => ({ id: q.id, category: q.category, difficulty: q.difficulty, language: q.language, query: q.query, minQualityScore: q.minQualityScore })),
       };
+    }),
+
+  /**
+   * v69.15: arXiv/PubMed Pipeline — Run automatic paper ingestion (Ciclo 35)
+   * Scientific basis: Lewis et al. (2020, NeurIPS) RAG; Shi et al. (2024, arXiv:2407.01219)
+   */
+  runArxivPipeline: protectedProcedure
+    .input(z.object({
+      maxPerCategory: z.number().min(1).max(20).optional().default(5),
+      daysBack: z.number().min(1).max(30).optional().default(7),
+    }))
+    .mutation(async ({ input }) => {
+      const result = await runArxivPipeline(input.maxPerCategory, input.daysBack);
+      return result;
+    }),
+
+  /**
+   * v69.15: Test arXiv pipeline connectivity
+   */
+  testArxivPipeline: protectedProcedure
+    .query(async () => {
+      return await testArxivPipeline();
     }),
 });

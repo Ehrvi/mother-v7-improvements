@@ -52,7 +52,7 @@ import { ENV } from '../_core/env';
 import { generateFichamento } from './fichamento';
 
 // ─── MOTHER Version (single source of truth) ─────────────────────────────────
-export const MOTHER_VERSION = 'v69.14';
+export const MOTHER_VERSION = 'v69.15';
 
 
 // v69.11: Creator email from centralized user-hierarchy module (NIST RBAC SP 800-162)
@@ -261,7 +261,7 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
       return { context: fallback, documents: [], correctiveSearchTriggered: false };
     }),
     // Source 2: Omniscient (arXiv paper chunks) — v68.9: reduced to top 5 for speed
-    searchSimilarChunksWithMetadata(query, 5, 0.55),
+    searchSimilarChunksWithMetadata(query, 7, 0.50), // v69.15: Top-K 5→7, threshold 0.55→0.50 (Ciclo 34 Fine-Tuning)
     // Source 3: Episodic memory
     searchEpisodicMemory(query, 3, 0.75),
     // Source 4: User memory (only if userId present)
@@ -348,7 +348,7 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   // Chain-of-Thought (CoT) trigger for complex queries
   // Iteration 14: Lowered threshold from 0.7 to 0.5 based on MOTHER's analysis
   // Rationale: Most queries score 0.4-0.5, CoT improves quality significantly
-  const useCoT = complexity.complexityScore >= 0.5;
+  const useCoT = complexity.complexityScore >= 0.4; // v69.15: Ciclo 34 Fine-Tuning (Wei et al. 2022, arXiv:2201.11903)
   
   // ==================== CREATOR CONTEXT (v56.0) ====================
   // Identify creator (Everton Luis) and inject context
@@ -523,6 +523,15 @@ Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à a
   const selectedModel = routingDecision.model.modelName;
   console.log(`[MOTHER] v69.1 Two-Phase: P1=gpt-4o (tool detect), P2=${selectedProvider}/${selectedModel} (generate)`);
 
+  // v69.15: Per-tier temperature (Ciclo 34 Fine-Tuning)
+  // Scientific basis: Peeperkorn et al. (2024, arXiv:2405.00492): factual tasks → T≤0.4; analytical → T=0.5
+  const tierTemperatureMap: Record<string, number> = {
+    'gpt-4o-mini': 0.3,   // Tier 1: simple/general → low temperature for factual precision
+    'deepseek-chat': 0.5, // Tier 2: analytical → medium temperature
+    'gpt-4o': 0.4,        // Tier 3: complex/research → balanced temperature
+  };
+  const selectedTemperature = tierTemperatureMap[selectedModel] ?? 0.4;
+
   // ── PHASE 1: Tool detection (always gpt-4o) ───────────────────────────────
   const toolDetectionResponse = await invokeLLM({
     model: 'gpt-4o',
@@ -608,6 +617,8 @@ Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à a
         ],
         // v69.5: Pass streaming callback if provided (SSE endpoint)
         ...(onChunk ? { onChunk } : {}),
+        // v69.15: Per-tier temperature (Ciclo 34 Fine-Tuning)
+        temperature: selectedTemperature,
       });
       const phase2Content = phase2Response.choices[0]?.message?.content;
       response = typeof phase2Content === 'string' ? phase2Content : 'No response generated';
