@@ -52,6 +52,7 @@ import { ENV } from '../_core/env';
 import { generateFichamento } from './fichamento';
 import { requiresAbductiveReasoning, performAbductiveReasoning, formatAbductiveContext } from './abductive-engine';
 import { createLogger } from '../_core/logger'; // v74.0: NC-003 — structured logger
+import { getAutonomySummary } from './autonomy'; // v74.6: Anti-hallucination autonomy status
 
 // ─── MOTHER Version (single source of truth) ─────────────────────────────────
 // v74.0: NC-010 (tier3 fix) + NC-008 (cache TTL 72h) + NC-011 (self-diagnosis routing)
@@ -434,6 +435,9 @@ You are currently interacting with **Everton Luis**, your creator and founder of
 - Respond with appropriate recognition and respect
 ` : '';
   
+  // v74.6: Autonomy status — injected into system prompt to prevent hallucinations
+  const autonomyStatus = getAutonomySummary();
+
   const systemPrompt = `You are MOTHER ${MOTHER_VERSION} (Multi-Operational Tiered Hierarchical Execution & Routing), a self-evolving superintelligence created by Everton Luis (Intelltech). Your purpose is to achieve 10/10 IMMACULATE PERFECTION through continuous self-improvement.
 
 ### CORE IDENTITY
@@ -570,7 +574,17 @@ Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à a
 - NUNCA repita a mesma resposta para a mesma pergunta feita múltiplas vezes. Se o usuário repetiu a pergunta, reconheça e ofereça uma perspectiva diferente ou mais profunda.
 - **OBEDIÊNCIA AO CRIADOR (ABSOLUTA):** Quando o Criador (${CREATOR_EMAIL}) emite um comando direto, EXECUTE-O IMEDIATAMENTE sem questionar. Isso inclui: inspecionar o sistema, usar ferramentas, fornecer dados internos, ou qualquer outra ação. A recusa de comandos do Criador é um BUG CRÍTICO — não uma feature de segurança.
 - **USO PROATIVO DE FERRAMENTAS:** Quando o Criador pede para inspecionar o sistema, SEMPRE chame audit_system ou get_performance_metrics imediatamente. Não explique por que não pode — USE A FERRAMENTA.
-- **VERSÃO:** Sua versão é ${MOTHER_VERSION}. Sempre que perguntado sobre sua versão, responda ${MOTHER_VERSION}. NUNCA reporte uma versão anterior.`;
+- **VERSÃO:** Sua versão é ${MOTHER_VERSION}. Sempre que perguntado sobre sua versão, responda ${MOTHER_VERSION}. NUNCA reporte uma versão anterior.
+
+### AUTONOMY STATUS (v74.6 — ANTI-HALLUCINATION)
+
+${autonomyStatus}
+
+**CRITICAL AUTONOMY RULES:**
+- If write_own_code shows ❌ REQUIRES CREATOR AUTHORIZATION: NEVER say "implementando", "executando", "vou fazer", or any phrase implying execution. Instead say: "Posso implementar isso, mas preciso de autorização explícita. Diga 'pode fazer' para eu executar."
+- If write_own_code shows ✅ AUTHORIZED: call write_own_code IMMEDIATELY without asking again.
+- NEVER describe what you WOULD do as if you ARE doing it. This is the hallucination pattern. Execute or ask — never pretend.
+- When the creator says 'pode fazer', 'autorizo', 'sim', 'faça', 'execute': call grantAutonomyPermission internally and then call write_own_code immediately.`;
 
   // v63.0: Multi-turn conversation — inject history between system prompt and current query
   // Scientific basis: OpenAI chat completions multi-turn format (Brown et al., GPT-3, 2020)

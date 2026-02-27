@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Sparkles, Brain, Shield, Zap, TrendingDown, Dna, Activity, Database, GitBranch } from 'lucide-react';
+import { Send, Sparkles, Brain, Shield, Zap, TrendingDown, Dna, Activity, Database, GitBranch, Paperclip } from 'lucide-react';
 import RightPanel from '@/components/RightPanel';
 import { trpc } from '@/lib/trpc';
+import { FileDropZone } from '@/components/FileDropZone';
 
 interface Message {
   id: string;
@@ -112,6 +113,9 @@ export default function Home() {
   const [streamingContent, setStreamingContent] = useState('');
   const streamingMsgIdRef = useRef<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  // v74.6: Drag-and-drop file context — extracted text injected into next prompt
+  const [fileContext, setFileContext] = useState<string>('');
+  const [showDropZone, setShowDropZone] = useState(false);
 
   // v68.8: Provider health check — polls every 5 minutes
   const providerHealthQuery = trpc.mother.providerHealth.useQuery(
@@ -285,14 +289,18 @@ export default function Home() {
   }, [messages, queryMutation.isPending, isStreaming]);
 
   const sendMessage = (text?: string) => {
-    const query = (text || input).trim();
-    if (!query || queryMutation.isPending || isStreaming) return;
+    const rawQuery = (text || input).trim();
+    if (!rawQuery || queryMutation.isPending || isStreaming) return;
     setShowWelcome(false);
+    // v74.6: Inject file context into query if files were uploaded
+    const query = fileContext
+      ? `${rawQuery}\n\n---\n**Contexto dos arquivos anexados:**\n\n${fileContext}`
+      : rawQuery;
     const userMessage: Message = {
       // v74.4: Use '-user' suffix to prevent ID collision with '-mother' placeholder
       id: Date.now().toString() + '-user',
       role: 'user',
-      content: query,
+      content: rawQuery, // Show original query in UI (not the full context)
       timestamp: new Date(),
     };
     // v63.0: Build conversation history from current messages for multi-turn context
@@ -305,6 +313,11 @@ export default function Home() {
       }));
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
+    // v74.6: Clear file context after sending
+    if (fileContext) {
+      setFileContext('');
+      setShowDropZone(false);
+    }
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
@@ -653,13 +666,37 @@ export default function Home() {
 
         {/* Input area */}
         <div className="px-6 pb-5 pt-3 border-t border-[rgba(255,255,255,0.05)] bg-[rgba(15,15,26,0.8)]">
-          <div className="flex gap-2 items-end bg-[#1a1a2e] border border-[rgba(124,58,237,0.25)] rounded-2xl px-4 py-2.5 focus-within:border-[#a78bfa] focus-within:shadow-[0_0_0_3px_rgba(124,58,237,0.1)] transition-all">
+          {/* v74.6: Drag-and-drop drop zone (expanded mode) */}
+          {showDropZone && (
+            <div style={{ marginBottom: 10 }}>
+              <FileDropZone
+                onFilesProcessed={(ctx) => setFileContext(ctx)}
+                onClear={() => setShowDropZone(false)}
+              />
+            </div>
+          )}
+          <div
+            className="flex gap-2 items-end bg-[#1a1a2e] border border-[rgba(124,58,237,0.25)] rounded-2xl px-4 py-2.5 focus-within:border-[#a78bfa] focus-within:shadow-[0_0_0_3px_rgba(124,58,237,0.1)] transition-all"
+            onDragOver={(e) => { e.preventDefault(); setShowDropZone(true); }}
+          >
+            {/* v74.6: Paperclip button to toggle drop zone */}
+            <button
+              onClick={() => setShowDropZone(v => !v)}
+              title="Anexar arquivo (TXT, PDF, DOCX)"
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                padding: '4px 2px', color: fileContext ? '#34d399' : '#55556a',
+                transition: 'color 0.2s', flexShrink: 0, alignSelf: 'flex-end', marginBottom: 2,
+              }}
+            >
+              <Paperclip size={16} />
+            </button>
             <textarea
               ref={textareaRef}
               value={input}
               onChange={autoResize}
               onKeyDown={handleKey}
-              placeholder="Pergunte algo a MOTHER..."
+              placeholder={fileContext ? 'Arquivo anexado — escreva sua pergunta...' : 'Pergunte algo a MOTHER...'}
               rows={1}
               disabled={queryMutation.isPending || isStreaming}
             />
@@ -671,8 +708,13 @@ export default function Home() {
               <Send className="w-4 h-4" />
             </button>
           </div>
+          {fileContext && (
+            <p style={{ fontSize: 10, color: '#34d399', marginTop: 4, paddingLeft: 4 }}>
+              ✅ Arquivo processado — conteúdo será enviado com o próximo prompt
+            </p>
+          )}
           <p className="text-center text-[10px] text-[#55556a] mt-2">
-            Enter para enviar · Shift+Enter para nova linha
+            Enter para enviar · Shift+Enter para nova linha · 📎 para anexar arquivo
           </p>
         </div>
       </div>
