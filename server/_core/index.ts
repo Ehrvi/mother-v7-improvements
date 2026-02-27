@@ -6,6 +6,7 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
+import { a2aRouter } from "../mother/a2a-server";
 // Vite imports moved to dynamic imports to avoid bundling in production
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -35,6 +36,13 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+  // A2A Protocol routes (NC-COLLAB-001)
+  // Agent Card: GET /.well-known/agent.json
+  // Diagnostics: GET /api/a2a/diagnostics
+  // Knowledge: GET/POST /api/a2a/knowledge
+  // Query: POST /api/a2a/query
+  // Status: GET /api/a2a/status
+  app.use(a2aRouter);
   // tRPC API
   app.use(
     "/api/trpc",

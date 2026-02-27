@@ -33,6 +33,8 @@ import { runHLEBenchmark, HLE_BENCHMARK } from './rlvr-verifier';
 import { runSelfImprovementCycle, getSelfImprovementStatus } from './self-improve';
 import { writeCodeFile, patchCodeFile, getDeployStatus, triggerDeploy } from './self-code-writer';
 import { getAdminDocs } from './admin-docs';
+import { browseUrl, searchAnnasArchive, searchDuckDuckGo, searchForums, searchSoftwareManual } from './browser-agent';
+import { executeCode } from './code-sandbox';
 
 // ============================================================
 // TOOL DEFINITIONS (OpenAI Function Calling format)
@@ -387,6 +389,76 @@ export const MOTHER_TOOLS = [
           },
         },
         required: [],
+      },
+    },
+  },
+
+  // ============================================================
+  // BROWSER_BROWSE: Real web browser access (NC-BROWSER-001)
+  // Scientific basis: WebGPT (Nakano et al., 2021), ReAct (Yao et al., 2023)
+  // ============================================================
+  {
+    type: 'function' as const,
+    function: {
+      name: 'browser_browse',
+      description: 'Navigate to any URL and return the full text content. Also supports searching Anna\'s Archive for books/papers, DuckDuckGo web search, technical forums (Reddit/HN/SO), and software documentation. Use this when you need real web access to any source.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['browse', 'search_annas_archive', 'search_duckduckgo', 'search_forums', 'search_manual'],
+            description: 'Action: browse=navigate URL, search_annas_archive=search books/papers, search_duckduckgo=web search, search_forums=Reddit/HN/SO, search_manual=software docs',
+          },
+          url: {
+            type: 'string',
+            description: 'URL to navigate to (required for browse action)',
+          },
+          query: {
+            type: 'string',
+            description: 'Search query (required for search actions)',
+          },
+          options: {
+            type: 'object',
+            description: 'Optional: { lang, content, ext, limit } for Anna\'s Archive; { sites } for forums; { software } for manual search',
+          },
+        },
+        required: ['action'],
+      },
+    },
+  },
+  // ============================================================
+  // EXECUTE_CODE: Code sandbox execution (NC-SANDBOX-001)
+  // Scientific basis: E2B (2024), SICA (Robeyns et al., arXiv:2504.04736, 2025)
+  // ============================================================
+  {
+    type: 'function' as const,
+    function: {
+      name: 'execute_code',
+      description: 'Execute Python, Node.js, or Bash code in an isolated sandbox. Use for data analysis, visualizations, file processing, calculations, or any computation. Returns stdout, stderr, exit code, and generated files (images, CSVs) as artifacts.',
+      parameters: {
+        type: 'object',
+        properties: {
+          code: {
+            type: 'string',
+            description: 'The code to execute',
+          },
+          language: {
+            type: 'string',
+            enum: ['python', 'nodejs', 'bash'],
+            description: 'Language: python (default), nodejs, or bash',
+          },
+          packages: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Packages to install before execution (pip for python, npm for nodejs)',
+          },
+          timeout: {
+            type: 'number',
+            description: 'Timeout in seconds (default: 30, max: 300)',
+          },
+        },
+        required: ['code'],
       },
     },
   },
@@ -1059,6 +1131,66 @@ export async function executeTool(
       return { success: true, data: { documentation: docs } };
     } catch (error) {
       return { success: false, error: `admin_docs failed: ${error}` };
+    }
+  }
+
+  // ============================================================
+  // BROWSER_BROWSE: Real web browser access (NC-BROWSER-001)
+  // ============================================================
+  if (toolName === 'browser_browse') {
+    try {
+      const action = toolArgs.action as string;
+      const query = toolArgs.query as string;
+      const url = toolArgs.url as string;
+      const options = toolArgs.options || {};
+
+      if (action === 'browse') {
+        if (!url) return { success: false, error: 'url is required for browse action' };
+        const result = await browseUrl(url);
+        return { success: result.success, data: result, error: result.error };
+      }
+      if (action === 'search_annas_archive') {
+        if (!query) return { success: false, error: 'query is required for search_annas_archive' };
+        const results = await searchAnnasArchive(query, options);
+        return { success: true, data: { results, count: results.length } };
+      }
+      if (action === 'search_duckduckgo') {
+        if (!query) return { success: false, error: 'query is required for search_duckduckgo' };
+        const results = await searchDuckDuckGo(query, options.limit || 10);
+        return { success: true, data: { results, count: results.length } };
+      }
+      if (action === 'search_forums') {
+        if (!query) return { success: false, error: 'query is required for search_forums' };
+        const results = await searchForums(query, options);
+        return { success: true, data: { results, count: results.length } };
+      }
+      if (action === 'search_manual') {
+        const software = options.software || query;
+        const topic = query || '';
+        if (!software) return { success: false, error: 'software name required in options.software or query' };
+        const result = await searchSoftwareManual(software, topic);
+        return { success: result.success, data: result, error: result.error };
+      }
+      return { success: false, error: `Unknown browser_browse action: ${action}` };
+    } catch (error) {
+      return { success: false, error: `browser_browse failed: ${error}` };
+    }
+  }
+
+  // ============================================================
+  // EXECUTE_CODE: Code sandbox execution (NC-SANDBOX-001)
+  // ============================================================
+  if (toolName === 'execute_code') {
+    try {
+      const code = toolArgs.code as string;
+      if (!code) return { success: false, error: 'code is required' };
+      const language = (toolArgs.language as 'python' | 'nodejs' | 'bash') || 'python';
+      const packages = toolArgs.packages as string[] | undefined;
+      const timeout = Math.min(Number(toolArgs.timeout) || 30, 300);
+      const result = await executeCode(code, { language, packages, timeout });
+      return { success: result.exitCode === 0, data: result, error: result.error };
+    } catch (error) {
+      return { success: false, error: `execute_code failed: ${error}` };
     }
   }
 
