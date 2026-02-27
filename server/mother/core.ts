@@ -52,7 +52,7 @@ import { ENV } from '../_core/env';
 import { generateFichamento } from './fichamento';
 
 // ─── MOTHER Version (single source of truth) ─────────────────────────────────
-export const MOTHER_VERSION = 'v69.11';
+export const MOTHER_VERSION = 'v69.13';
 
 
 // v69.11: Creator email from centralized user-hierarchy module (NIST RBAC SP 800-162)
@@ -130,6 +130,33 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
     if (cached) {
       console.log('[MOTHER] Cache hit (exact)!');
       const cachedResponse = JSON.parse(cached.response);
+      // v69.13: Fix P0 — log cache hit to queries table so cacheHitRate is non-zero
+      // Scientific basis: Google SRE Book (Beyer et al., 2016): observability requires all events logged
+      retryDbOperation(() => insertQuery({
+        userId: userId || null,
+        query,
+        response: cachedResponse.response || '',
+        tier: (cachedResponse.tier || 'gpt-4o-mini') as LLMTier,
+        complexityScore: '0',
+        confidenceScore: '0',
+        qualityScore: (cachedResponse.quality?.qualityScore || 85).toString(),
+        completenessScore: '0',
+        accuracyScore: '0',
+        relevanceScore: '0',
+        coherenceScore: null,
+        safetyScore: null,
+        responseTime: Date.now() - startTime,
+        tokensUsed: 0,
+        cost: '0',
+        cacheHit: 1, // v69.13: FIX — was 0, now correctly 1 for cache hits
+        provider: cachedResponse.provider || 'cache',
+        modelName: cachedResponse.modelName || 'cache',
+        queryCategory: cachedResponse.queryCategory || 'cached',
+        costReduction: '100',
+        ragasFaithfulness: null,
+        ragasAnswerRelevancy: null,
+        ragasContextPrecision: null,
+      })).catch(() => {}); // fire-and-forget
       return { ...cachedResponse, cacheHit: true, responseTime: Date.now() - startTime };
     }
     
@@ -148,6 +175,32 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
           if (semanticHit) {
             console.log('[MOTHER] Cache hit (semantic)!');
             const cachedResponse = JSON.parse(semanticHit.response);
+            // v69.13: Fix P0 — log semantic cache hit to queries table
+            retryDbOperation(() => insertQuery({
+              userId: userId || null,
+              query,
+              response: cachedResponse.response || '',
+              tier: (cachedResponse.tier || 'gpt-4o-mini') as LLMTier,
+              complexityScore: '0',
+              confidenceScore: '0',
+              qualityScore: (cachedResponse.quality?.qualityScore || 85).toString(),
+              completenessScore: '0',
+              accuracyScore: '0',
+              relevanceScore: '0',
+              coherenceScore: null,
+              safetyScore: null,
+              responseTime: Date.now() - startTime,
+              tokensUsed: 0,
+              cost: '0',
+              cacheHit: 1, // v69.13: FIX — semantic cache hit
+              provider: cachedResponse.provider || 'cache',
+              modelName: cachedResponse.modelName || 'cache',
+              queryCategory: cachedResponse.queryCategory || 'cached',
+              costReduction: '100',
+              ragasFaithfulness: null,
+              ragasAnswerRelevancy: null,
+              ragasContextPrecision: null,
+            })).catch(() => {}); // fire-and-forget
             return { ...cachedResponse, cacheHit: true, responseTime: Date.now() - startTime };
           }
         }

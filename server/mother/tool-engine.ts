@@ -25,6 +25,7 @@ import { getSystemStats, MOTHER_VERSION } from './core';
 import { getProposals, approveProposal, logAuditEvent, getAuditLog, CREATOR_EMAIL } from './update-proposals';
 import { addKnowledge, queryKnowledge } from './knowledge';
 import { getQueryStats, getAllKnowledge, getRecentQueries } from '../db';
+import { listCodeFiles, readCodeFile, searchInCode, getCodeStructureSummary } from './self-code-reader';
 
 // ============================================================
 // TOOL DEFINITIONS (OpenAI Function Calling format)
@@ -177,6 +178,32 @@ export const MOTHER_TOOLS = [
           },
         },
         required: ['topic'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'read_own_code',
+      description: 'Read MOTHER\'s own source code for self-awareness, debugging, and autonomous improvement proposals. Can list files, read specific modules, or search for patterns. Use this when the user asks MOTHER to inspect her own code, find bugs, understand her architecture, or when generating DGM proposals that require code-level analysis.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['list', 'read', 'search', 'summary'],
+            description: '"list" = list files in a directory. "read" = read a specific file. "search" = search for a pattern in code. "summary" = get structural overview of all modules.',
+          },
+          path: {
+            type: 'string',
+            description: 'For "list": directory path (e.g., "server/mother"). For "read": file path (e.g., "server/mother/core.ts"). For "search": the pattern to search for.',
+          },
+          max_lines: {
+            type: 'number',
+            description: 'For "read" action: maximum number of lines to return (default: 100, max: 500).',
+          },
+        },
+        required: ['action'],
       },
     },
   },
@@ -420,6 +447,76 @@ export async function executeTool(
       };
     } catch (error) {
       return { success: false, error: `Knowledge search failed: ${error}` };
+    }
+  }
+
+  // ============================================================
+  // v69.13: SELF-CODE-READER (READ tool — available to all authenticated users)
+  // Scientific basis: Gödel Machine (Schmidhuber, 2003): self-referential improvement
+  // ============================================================
+
+  if (toolName === 'read_own_code') {
+    try {
+      const action = toolArgs.action || 'summary';
+      const path = toolArgs.path || 'server/mother';
+      const maxLines = Math.min(toolArgs.max_lines || 100, 500);
+
+      await logAuditEvent({
+        action: 'TOOL_READ_OWN_CODE',
+        actorEmail: ctx.userEmail || 'system',
+        actorType: ctx.isCreator ? 'creator' : 'user',
+        targetType: 'code',
+        targetId: path,
+        details: `Self-code-reader: action=${action}, path=${path}`,
+        success: true,
+      });
+
+      if (action === 'summary') {
+        const summary = getCodeStructureSummary();
+        return {
+          success: true,
+          data: {
+            description: 'MOTHER codebase structural summary',
+            totalFiles: summary.totalFiles,
+            totalLines: summary.totalLines,
+            modules: summary.modules,
+          },
+        };
+      }
+
+      if (action === 'list') {
+        const dir = listCodeFiles(path);
+        return { success: true, data: dir };
+      }
+
+      if (action === 'read') {
+        const file = readCodeFile(path, maxLines);
+        return {
+          success: true,
+          data: {
+            path: file.path,
+            totalLines: file.lines,
+            returnedLines: maxLines,
+            content: file.content,
+          },
+        };
+      }
+
+      if (action === 'search') {
+        const results = searchInCode(path, 'server/mother');
+        return {
+          success: true,
+          data: {
+            pattern: path,
+            matchCount: results.length,
+            matches: results,
+          },
+        };
+      }
+
+      return { success: false, error: `Unknown action: ${action}` };
+    } catch (error) {
+      return { success: false, error: `Self-code-reader failed: ${error}` };
     }
   }
 

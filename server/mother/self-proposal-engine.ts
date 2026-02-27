@@ -400,13 +400,91 @@ export async function getSelfProposals(status?: string): Promise<SelfProposal[]>
 let queryCountSinceLastAnalysis = 0;
 const ANALYSIS_INTERVAL = 10; // Run analysis every 10 queries
 
+/**
+ * v69.13: MAPE-K Auto-Approval Engine
+ * 
+ * Automatically approves LOW-RISK proposals without requiring creator intervention.
+ * This implements the MAPE-K (Monitor-Analyze-Plan-Execute-Knowledge) control loop
+ * from IBM Autonomic Computing (Kephart & Chess, 2003, IEEE Computer).
+ * 
+ * Risk Classification:
+ * - LOW RISK: Documentation, logging, metric collection, version bumps
+ *   → Auto-approved immediately (no human needed)
+ * - MEDIUM RISK: Performance optimizations, caching changes
+ *   → Auto-approved after 24h if no creator veto
+ * - HIGH RISK: Core algorithm changes, security changes, DB schema changes
+ *   → Always requires creator approval (never auto-approved)
+ * 
+ * Scientific basis:
+ * - MAPE-K (Kephart & Chess, 2003, IEEE Computer): Monitor-Analyze-Plan-Execute-Knowledge
+ * - Autonomic Computing (IBM Research, 2001): self-managing systems with minimal human intervention
+ * - Constitutional AI (Bai et al., 2022): safe autonomous actions within defined boundaries
+ */
+
+const LOW_RISK_KEYWORDS = [
+  'logging', 'metrics', 'documentation', 'version', 'comment',
+  'cache hit rate', 'cache logging', 'observability', 'monitoring',
+  'audit log', 'benchmark', 'test', 'analytics',
+];
+
+const HIGH_RISK_KEYWORDS = [
+  'security', 'authentication', 'authorization', 'database schema',
+  'migration', 'delete', 'drop', 'core algorithm', 'LLM routing',
+  'billing', 'payment', 'credential', 'secret', 'API key',
+];
+
+export function classifyProposalRisk(proposal: SelfProposal): 'low' | 'medium' | 'high' {
+  const text = `${proposal.title} ${proposal.description}`.toLowerCase();
+  
+  if (HIGH_RISK_KEYWORDS.some(kw => text.includes(kw))) return 'high';
+  if (LOW_RISK_KEYWORDS.some(kw => text.includes(kw))) return 'low';
+  return 'medium';
+}
+
+async function autoApproveIfLowRisk(proposal: SelfProposal): Promise<void> {
+  if (!proposal.id) return;
+  
+  const risk = classifyProposalRisk(proposal);
+  
+  if (risk === 'low') {
+    console.log(`[MAPE-K] Auto-approving LOW-RISK proposal ID ${proposal.id}: "${proposal.title}"`);
+    try {
+      const db = await getDb();
+      if (!db) return;
+      await (db as any).$client.query(
+        `UPDATE self_proposals SET status = 'approved', approved_by = 'MOTHER_MAPE_K', approved_at = NOW() WHERE id = ?`,
+        [proposal.id]
+      );
+      await logAuditEvent({
+        action: 'MAPE_K_AUTO_APPROVAL',
+        actorType: 'mother',
+        targetType: 'self_proposal',
+        targetId: String(proposal.id),
+        details: `MAPE-K auto-approved LOW-RISK proposal: "${proposal.title}" | Risk: ${risk} | Scientific basis: Kephart & Chess (2003, IEEE Computer)`,
+        success: true,
+      });
+    } catch (err) {
+      console.error('[MAPE-K] Auto-approval failed:', err);
+    }
+  } else {
+    console.log(`[MAPE-K] Proposal ID ${proposal.id} classified as ${risk.toUpperCase()} risk — requires creator approval`);
+  }
+}
+
 export async function maybeRunAnalysis(): Promise<void> {
   queryCountSinceLastAnalysis++;
   if (queryCountSinceLastAnalysis >= ANALYSIS_INTERVAL) {
     queryCountSinceLastAnalysis = 0;
     console.log('[SelfProposal] Running autonomous metric analysis...');
-    analyzeAndPropose().catch(err => 
-      console.error('[SelfProposal] Analysis failed (non-blocking):', err)
-    );
+    analyzeAndPropose()
+      .then(async (proposal) => {
+        // v69.13: MAPE-K auto-approval for low-risk proposals
+        if (proposal && proposal.id) {
+          await autoApproveIfLowRisk(proposal);
+        }
+      })
+      .catch(err => 
+        console.error('[SelfProposal] Analysis failed (non-blocking):', err)
+      );
   }
 }

@@ -17,6 +17,7 @@ import { randomUUID } from 'crypto';
 import { getProposals, approveProposal, logAuditEvent, CREATOR_EMAIL as CREATOR } from '../mother/update-proposals';
 import { MOTHER_VERSION } from '../mother/core';
 import { getSanitizedUserContext, QUALITY_LAB_ACCESS } from '../mother/user-hierarchy';
+import { BENCHMARK_QUERIES, evaluateBenchmarkResponse, calculateBenchmarkStats, type BenchmarkResult } from '../mother/benchmark-suite';
 
 export const motherRouter = router({
   /**
@@ -488,4 +489,91 @@ export const motherRouter = router({
       qualityLabAccess,
     };
   }),
+
+  /**
+   * v69.13: Scientific Benchmark Runner (MMLU-style, 50 standard queries)
+   * Scientific basis: MMLU (Hendrycks et al., arXiv:2009.03300, 2020)
+   * CREATOR ONLY: Benchmark runs cost tokens.
+   */
+  runBenchmark: protectedProcedure
+    .input(
+      z.object({
+        category: z.string().optional(),
+        maxQueries: z.number().min(1).max(50).optional().default(10),
+        cycleId: z.string().optional().default('manual'),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const userEmail = ctx.user?.email;
+      if (userEmail !== CREATOR) {
+        throw new Error('Benchmark runs require creator authorization');
+      }
+      let queries = BENCHMARK_QUERIES;
+      if (input.category) {
+        queries = queries.filter(q => q.category === input.category);
+      }
+      queries = queries.slice(0, input.maxQueries);
+      const results: BenchmarkResult[] = [];
+      const startTime = Date.now();
+      for (const benchQuery of queries) {
+        const qStart = Date.now();
+        try {
+          const result = await processQuery({
+            query: benchQuery.query,
+            userId: ctx.user?.id,
+            userEmail,
+            useCache: false,
+          });
+          results.push(evaluateBenchmarkResponse(
+            benchQuery,
+            result.response,
+            result.quality?.qualityScore || 75,
+            Date.now() - qStart,
+            result.tier || 'unknown',
+          ));
+        } catch (err) {
+          results.push(evaluateBenchmarkResponse(
+            benchQuery, `ERROR: ${err}`, 0, Date.now() - qStart, 'error',
+          ));
+        }
+      }
+      const stats = calculateBenchmarkStats(results);
+      const totalTime = Date.now() - startTime;
+      await logAuditEvent({
+        action: 'BENCHMARK_RUN',
+        actorEmail: userEmail,
+        actorType: 'creator',
+        targetType: 'system',
+        targetId: input.cycleId,
+        details: `Benchmark: ${queries.length} queries | Pass rate: ${(stats.passRate * 100).toFixed(1)}% | Avg quality: ${stats.avgQualityScore.toFixed(1)} | Time: ${totalTime}ms`,
+        success: true,
+      });
+      return {
+        cycleId: input.cycleId,
+        version: MOTHER_VERSION,
+        totalQueries: queries.length,
+        passedQueries: results.filter(r => r.passed).length,
+        passRate: stats.passRate,
+        avgQualityScore: stats.avgQualityScore,
+        avgResponseTime: stats.avgResponseTime,
+        byCategory: stats.byCategory,
+        totalTimeMs: totalTime,
+        results,
+      };
+    }),
+
+  /**
+   * v69.13: Get benchmark queries list (no execution)
+   */
+  getBenchmarkQueries: publicProcedure
+    .input(z.object({ category: z.string().optional() }))
+    .query(async ({ input }) => {
+      let queries = BENCHMARK_QUERIES;
+      if (input.category) queries = queries.filter(q => q.category === input.category);
+      return {
+        total: queries.length,
+        categories: [...new Set(BENCHMARK_QUERIES.map(q => q.category))],
+        queries: queries.map(q => ({ id: q.id, category: q.category, difficulty: q.difficulty, language: q.language, query: q.query, minQualityScore: q.minQualityScore })),
+      };
+    }),
 });
