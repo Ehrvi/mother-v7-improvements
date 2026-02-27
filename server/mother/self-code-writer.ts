@@ -1,5 +1,5 @@
 /**
- * MOTHER v71.0 — Self-Code-Writer
+ * MOTHER v74.10 — Self-Code-Writer (NC-BUILD-002 FIXED)
  *
  * Gives MOTHER the ability to WRITE her own source code and trigger a deploy,
  * allowing the creator to order code updates directly via the chat interface.
@@ -14,6 +14,8 @@
  *   be constrained by a principal hierarchy — only the creator can authorize writes.
  * - DevOps/GitOps (Humble & Farley, 2010, "Continuous Delivery"): Every code change
  *   goes through git commit → CI/CD pipeline → automated deploy.
+ * - GitHub REST API Auth (GitHub Docs, 2024): Token injected in remote URL for
+ *   headless authentication in containerized environments (NC-BUILD-002).
  *
  * Security Model:
  * - CREATOR ONLY: Only elgarcia.eng@gmail.com can authorize writes
@@ -24,7 +26,7 @@
  * - Rollback: Every change is a git commit — can be reverted
  *
  * Deploy Pipeline:
- * - Write file → git commit → git push → Cloud Build triggers → Cloud Run deploys
+ * - Write file → git commit → git push (with GITHUB_TOKEN) → Cloud Build → Cloud Run
  * - Build time: ~8-12 minutes
  * - Rollback: git revert <commit>
  */
@@ -72,6 +74,39 @@ function isPathWritable(filePath: string): boolean {
   }
   // Check whitelist
   return WRITABLE_PATHS.some(allowed => normalized.startsWith(allowed));
+}
+
+/**
+ * v74.10: NC-BUILD-002 — Configure git remote with GITHUB_TOKEN for Cloud Run auth.
+ * In Cloud Run, there is no ~/.gitconfig or SSH key. We inject the token into the
+ * remote URL so `git push` authenticates without interactive prompts.
+ * Scientific basis: GitHub REST API authentication (GitHub Docs, 2024).
+ */
+function configureGitAuth(root: string): void {
+  const token = process.env.GITHUB_TOKEN || '';
+  if (!token) return; // Skip if no token (local dev with SSH keys)
+  try {
+    const remoteUrl = execSync(
+      `cd "${root}" && git remote get-url origin 2>&1`,
+      { timeout: 5000 }
+    ).toString().trim();
+    // Only inject if not already authenticated
+    if (remoteUrl.startsWith('https://') && !remoteUrl.includes('@')) {
+      const authenticatedUrl = remoteUrl.replace(
+        'https://',
+        `https://x-access-token:${token}@`
+      );
+      execSync(
+        `cd "${root}" && git remote set-url origin "${authenticatedUrl}" 2>&1`,
+        { timeout: 5000 }
+      );
+    }
+    // Configure git identity for Cloud Run (no global gitconfig)
+    execSync(
+      `cd "${root}" && git config user.email "mother@system.ai" && git config user.name "MOTHER Self-Writer" 2>&1`,
+      { timeout: 5000 }
+    );
+  } catch { /* non-blocking — proceed with existing remote config */ }
 }
 
 export interface WriteResult {
@@ -287,6 +322,7 @@ export async function triggerDeploy(reason: string): Promise<{
 }> {
   const root = getProjectRoot();
   try {
+    configureGitAuth(root); // v74.10: NC-BUILD-002
     // Create an empty commit to trigger Cloud Build
     execSync(`cd "${root}" && git commit --allow-empty -m "deploy: ${reason}" 2>&1`, { timeout: 15000 });
     execSync(`cd "${root}" && git push origin main 2>&1`, { timeout: 30000 });
@@ -306,12 +342,14 @@ export async function triggerDeploy(reason: string): Promise<{
 
 /**
  * Internal: git add, commit, push and get build ID.
+ * v74.10: NC-BUILD-002 — configureGitAuth() injects GITHUB_TOKEN before push.
  */
 async function gitCommitAndPush(
   root: string,
   filePath: string,
   commitMessage: string
 ): Promise<{ commitSha: string; buildId: string }> {
+  configureGitAuth(root); // v74.10: NC-BUILD-002 — inject token for Cloud Run auth
   execSync(`cd "${root}" && git add "${filePath}" 2>&1`, { timeout: 15000 });
   execSync(`cd "${root}" && git commit -m "${commitMessage.replace(/"/g, "'")}" 2>&1`, { timeout: 15000 });
   execSync(`cd "${root}" && git push origin main 2>&1`, { timeout: 30000 });
