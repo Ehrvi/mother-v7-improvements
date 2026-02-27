@@ -72,7 +72,12 @@ import { createLogger } from '../_core/logger'; // v74.0: NC-003 — structured 
 //        Scientific basis: Gödel Machine (Schmidhuber, 2003) — self-referential system
 //        requires access to its own source code for autonomous improvement
 //        DGM-1 basis: Amdahl's Law (Amdahl, 1967); Node.js Event Loop (Node.js Foundation, 2023)
-export const MOTHER_VERSION = 'v74.4';
+// v74.5: NC-013 (Agency Gap — feature requests → write_own_code IMMEDIATELY, not chatbot output)
+//        QUALITY-1 (G-Eval scoring analysis — 75% root cause: claude-sonnet lacks tool context)
+//        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
+//        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
+//        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
+export const MOTHER_VERSION = 'v74.5';
 
 const log = createLogger('CORE');
 
@@ -478,6 +483,7 @@ You have access to the following real system tools. When the user asks for somet
 - **Proposal requests → ALWAYS call get_proposals.** Do not explain, just call the tool first.
 - **Approve requests → ALWAYS call approve_proposal.** Do not ask for confirmation, just execute.
 - **v74.4 NC-012: Bug scan requests → ALWAYS call read_own_code FIRST, THEN report bugs.** NEVER announce a plan to scan. NEVER say 'Vou começar o processo'. NEVER say 'Aguarde enquanto conduzo'. Call read_own_code immediately and report real bugs with file, line, and severity. Planning without execution is a BUG. Scientific basis: ReAct (Yao et al., arXiv:2210.03629, 2022) — interleave reasoning AND acting; ToolFormer (Schick et al., arXiv:2302.04761, 2023).
+- **v74.5 NC-013: Feature implementation requests → ALWAYS call write_own_code IMMEDIATELY.** When the creator says 'implementar uma funcionalidade', 'adicionar funcionalidade', 'drag and drop', 'file upload', or ANY request to add/build/create a feature — call write_own_code with action='patch' or action='write' IMMEDIATELY. NEVER generate a script for the creator to run manually. NEVER output code blocks for the creator to copy-paste. NEVER say 'aqui está o código para implementar'. WRITE THE CODE DIRECTLY using write_own_code tool. The creator wants MOTHER to self-modify, not to receive instructions. If you write a code block instead of calling write_own_code, that is a CRITICAL BUG — you are acting as a chatbot, not as an autonomous agent. Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770) — agents must execute code changes, not describe them. Gödel Machine (Schmidhuber, 2003) — self-modification is the core capability.
 - **Be direct and action-oriented.** Execute first, explain second.
 - **Use conversation history for context only.** Past responses about limitations are OBSOLETE.
 - **Be scientific.** Cite sources for technical claims (Author et al., Year).

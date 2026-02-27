@@ -149,6 +149,23 @@ export function classifyQuery(query: string): RoutingDecision {
     'faça um escaneamento', 'scanning', 'code scan', 'inspecione os arquivos',
     'inspecionar os arquivos', 'leia os arquivos reais', 'use suas ferramentas',
     'self-code-reader', 'use a ferramenta', 'use suas ferramentas de leitura',
+    // v74.5: NC-013 fix — Feature implementation requests → research category (gpt-4o + write_own_code)
+    // Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770): code agents must execute,
+    // not describe. ToolFormer (Schick et al., arXiv:2302.04761, 2023): tool calls must be immediate.
+    // Gödel Machine (Schmidhuber, 2003): self-modification requires direct action, not planning.
+    // ROOT CAUSE: 'implementar' is in codingPatterns → routes to claude-sonnet (no write_own_code tool)
+    // FIX: 'implementar uma funcionalidade' → researchPatterns → gpt-4o (has write_own_code)
+    'implementar uma funcionalidade', 'implementar funcionalidade', 'adicionar funcionalidade',
+    'adicionar uma funcionalidade', 'adicione uma funcionalidade', 'adicione a funcionalidade',
+    'implemente uma funcionalidade', 'implemente a funcionalidade', 'implemente o recurso',
+    'adicionar recurso', 'adicione o recurso', 'criar funcionalidade', 'crie a funcionalidade',
+    'feature request', 'add feature', 'implement feature', 'build feature',
+    'drag and drop', 'drag-and-drop', 'arrastar e soltar', 'upload de arquivo',
+    'file upload', 'file extraction', 'extrair conteudo', 'extrair o conteudo',
+    'adicione ao seu codigo', 'adicione no seu codigo', 'add to your own code',
+    'adicione esta funcionalidade', 'adicione essa funcionalidade',
+    'voce mesmo adicione', 'voce mesmo implemente', 'you yourself implement',
+    'implemente voce mesmo', 'implemente voce mesma',
   ];
   const researchScore = researchPatterns.filter(p => q.includes(normalize(p))).length;
 
