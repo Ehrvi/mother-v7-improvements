@@ -45,10 +45,6 @@ steps:
       - '--region=australia-southeast1'
       - '--platform=managed'
       - '--allow-unauthenticated'
-      # v74.4: DGM-2 — Always migrate 100% traffic to new revision on deploy
-      # Fixes: Cloud Run was creating new revision but keeping traffic on previous revision
-      # Observed: v74.3 revision 00367-lrk was created but received 0% traffic (Retired)
-      - '--traffic=100'
       - '--port=8080'
       # v69.8: PERMANENT FIX — 4Gi prevents OOM crashes (heap limit exceeded)
       # Scientific basis: Node.js V8 heap = memory * 0.75. 4Gi -> 3072MB heap.
@@ -67,6 +63,21 @@ steps:
       # v51.0: Added VITE_APP_ID (fixes 'Session payload missing required fields' auth bug)
       # v69.8: NODE_OPTIONS permanent fix — max-old-space-size=3072 prevents heap OOM
       - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA,VITE_APP_ID=mother-interface,NODE_OPTIONS=--max-old-space-size=3072'
+
+# v74.5: DGM-2 FIX — Migrate 100% traffic to new revision after deploy
+# gcloud run deploy does not have --traffic flag; use update-traffic separately
+# Fixes: v74.3/v74.4 revisions created but received 0% traffic (Retired state)
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: gcloud
+  args:
+    - 'run'
+    - 'services'
+    - 'update-traffic'
+    - 'mother-interface'
+    - '--to-latest'
+    - '--region=australia-southeast1'
+    - '--platform=managed'
+    - '--project=mothers-library-mcp'
 
 images:
   - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-interface:latest'
