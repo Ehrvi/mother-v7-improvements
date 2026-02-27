@@ -64,13 +64,29 @@ import { createLogger } from '../_core/logger'; // v74.0: NC-003 — structured 
 //        Ação 5 (version-based cache invalidation — queryHash includes MOTHER_VERSION)
 //        Scientific basis: Fowler, Patterns of Enterprise Application Architecture (2002)
 // v74.3: ROOT CAUSE FIX — self-code-reader always returned empty in production Docker
+// v74.4: BUG-6 (prompt mirror — ID collision in Home.tsx Date.now() suffixes)
+//        NC-012 (Planning without Execution — bug scan keywords + system prompt instruction)
+//        DGM-1 (Parallel context per-source timeout — withTimeout prevents slow sources from blocking)
 //        Cause: esbuild bundles everything into dist/index.js; server/*.ts NOT copied to image
 //        Fix: Dockerfile COPY --from=build /app/server ./server
 //        Scientific basis: Gödel Machine (Schmidhuber, 2003) — self-referential system
 //        requires access to its own source code for autonomous improvement
-export const MOTHER_VERSION = 'v74.3';
+//        DGM-1 basis: Amdahl's Law (Amdahl, 1967); Node.js Event Loop (Node.js Foundation, 2023)
+export const MOTHER_VERSION = 'v74.4';
 
 const log = createLogger('CORE');
+
+// v74.4 DGM-1: Per-source timeout to prevent slow sources from blocking parallel context build
+// Scientific basis: Amdahl's Law (Amdahl, 1967) — without per-source timeout, one slow source
+// determines total latency even with Promise.allSettled parallelism
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`[MOTHER] ${label} timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
 
 
 // v69.11: Creator email from centralized user-hierarchy module (NIST RBAC SP 800-162)
@@ -268,7 +284,8 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   
   const contextBuildStart = Date.now();
   
-  // Parallel execution of all context sources
+  // Parallel execution of all context sources — v74.4 DGM-1: per-source timeouts
+  // Scientific basis: Amdahl's Law (1967) — bounded by slowest source without per-source timeout
   const [
     cragResultRaw,
     omniscientResultRaw,
@@ -276,20 +293,23 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
     userMemoryResultRaw,
     researchResultRaw,
   ] = await Promise.allSettled([
-    // Source 1: CRAG (Self-correcting RAG)
-    cragRetrieve(query, userId).catch(async (err) => {
-      log.error('[MOTHER] CRAG failed, falling back to legacy knowledge:', err);
-      const fallback = await getKnowledgeContext(query);
-      return { context: fallback, documents: [], correctiveSearchTriggered: false };
-    }),
-    // Source 2: Omniscient (arXiv paper chunks) — v68.9: reduced to top 5 for speed
-    searchSimilarChunksWithMetadata(query, 7, 0.50), // v69.15: Top-K 5→7, threshold 0.55→0.50 (Ciclo 34 Fine-Tuning)
-    // Source 3: Episodic memory
-    searchEpisodicMemory(query, 3, 0.75),
-    // Source 4: User memory (only if userId present)
-    userId ? getUserMemoryContext(userId, query) : Promise.resolve(''),
-    // Source 5: Scientific research (only if query explicitly requires it)
-    requiresResearch(query) ? conductResearch(query) : Promise.resolve(null),
+    // Source 1: CRAG (Self-correcting RAG) — 8s budget (may trigger external search)
+    withTimeout(
+      cragRetrieve(query, userId).catch(async (err) => {
+        log.error('[MOTHER] CRAG failed, falling back to legacy knowledge:', err);
+        const fallback = await getKnowledgeContext(query);
+        return { context: fallback, documents: [], correctiveSearchTriggered: false };
+      }),
+      8000, 'CRAG'
+    ),
+    // Source 2: Omniscient (arXiv paper chunks) — 3s budget
+    withTimeout(searchSimilarChunksWithMetadata(query, 7, 0.50), 3000, 'Omniscient'), // v69.15: Top-K 5→7, threshold 0.55→0.50
+    // Source 3: Episodic memory — 2s budget
+    withTimeout(searchEpisodicMemory(query, 3, 0.75), 2000, 'EpisodicMemory'),
+    // Source 4: User memory — 2s budget (only if userId present)
+    userId ? withTimeout(getUserMemoryContext(userId, query), 2000, 'UserMemory') : Promise.resolve(''),
+    // Source 5: Scientific research — 15s budget (web search is inherently slow)
+    requiresResearch(query) ? withTimeout(conductResearch(query), 15000, 'Research') : Promise.resolve(null),
   ]);
   
   log.info(`[MOTHER] Parallel context build: ${Date.now() - contextBuildStart}ms`);
@@ -457,6 +477,7 @@ You have access to the following real system tools. When the user asks for somet
 - **Audit requests → ALWAYS call audit_system.** Do not explain, just call the tool first.
 - **Proposal requests → ALWAYS call get_proposals.** Do not explain, just call the tool first.
 - **Approve requests → ALWAYS call approve_proposal.** Do not ask for confirmation, just execute.
+- **v74.4 NC-012: Bug scan requests → ALWAYS call read_own_code FIRST, THEN report bugs.** NEVER announce a plan to scan. NEVER say 'Vou começar o processo'. NEVER say 'Aguarde enquanto conduzo'. Call read_own_code immediately and report real bugs with file, line, and severity. Planning without execution is a BUG. Scientific basis: ReAct (Yao et al., arXiv:2210.03629, 2022) — interleave reasoning AND acting; ToolFormer (Schick et al., arXiv:2302.04761, 2023).
 - **Be direct and action-oriented.** Execute first, explain second.
 - **Use conversation history for context only.** Past responses about limitations are OBSOLETE.
 - **Be scientific.** Cite sources for technical claims (Author et al., Year).

@@ -140,6 +140,15 @@ export function classifyQuery(query: string): RoutingDecision {
     'plano de implementacao', 'plano de implementação', 'checklist do plano',
     'solucao completa', 'solução completa', 'linhas que devem ser alteradas',
     'nao conformidade', 'não conformidade', 'conformidade do sistema',
+    // v74.4: NC-012 fix — Bug scan keywords force research category (gpt-4o + read_own_code)
+    // Scientific basis: ReAct (Yao et al., arXiv:2210.03629, 2022) — tool use must be triggered
+    // by routing BEFORE LLM decides; 'auto' tool_choice fails for scan prompts without routing
+    // ToolFormer (Schick et al., arXiv:2302.04761, 2023): tools must be called, not planned
+    'bugs reais', 'bug real', 'scan de bugs', 'escaneamento completo', 'escaneamento do sistema',
+    'escaneamento', 'bugs confirmados', 'medida de controle', 'faca um escaneamento',
+    'faça um escaneamento', 'scanning', 'code scan', 'inspecione os arquivos',
+    'inspecionar os arquivos', 'leia os arquivos reais', 'use suas ferramentas',
+    'self-code-reader', 'use a ferramenta', 'use suas ferramentas de leitura',
   ];
   const researchScore = researchPatterns.filter(p => q.includes(normalize(p))).length;
 

@@ -128,7 +128,15 @@ export default function Home() {
   // Scientific basis: Server-Sent Events W3C spec (2021); OpenAI streaming (2023)
   // Reduces perceived latency from ~30s → ~1-2s TTFT (Time To First Token)
   const sendStreamingQuery = useCallback(async (query: string, conversationHistory: Array<{role: 'user'|'assistant', content: string}>) => {
-    const msgId = Date.now().toString();
+    // v74.4: BUG FIX — ID collision ("prompt mirror" bug)
+    // Root cause: sendMessage() and sendStreamingQuery() both call Date.now().toString()
+    // within the same millisecond on fast machines. When IDs collide, the streaming
+    // update `prev.map(m => m.id === msgId)` mutates BOTH the user message AND the
+    // mother placeholder, replacing the user's prompt text with MOTHER's response.
+    // Fix: append '-mother' suffix to guarantee uniqueness between user and mother IDs.
+    // Scientific basis: RFC 4122 (Leach et al., 2005) — UUID collision avoidance;
+    //   React state immutability (Abramov, 2015 — Redux docs)
+    const msgId = Date.now().toString() + '-mother';
     streamingMsgIdRef.current = msgId;
     setIsStreaming(true);
     setStreamingContent('');
@@ -232,7 +240,7 @@ export default function Home() {
   const queryMutation = trpc.mother.query.useMutation({
     onSuccess: (data) => {
       const motherMessage: Message = {
-        id: Date.now().toString(),
+        id: Date.now().toString() + '-mother-trpc',
         role: 'mother',
         content: data.response,
         timestamp: new Date(),
@@ -263,7 +271,7 @@ export default function Home() {
     },
     onError: (error) => {
       const errorMessage: Message = {
-        id: Date.now().toString(),
+        id: Date.now().toString() + '-mother-err',
         role: 'mother',
         content: `Erro ao processar: ${error.message}`,
         timestamp: new Date(),
@@ -281,7 +289,8 @@ export default function Home() {
     if (!query || queryMutation.isPending || isStreaming) return;
     setShowWelcome(false);
     const userMessage: Message = {
-      id: Date.now().toString(),
+      // v74.4: Use '-user' suffix to prevent ID collision with '-mother' placeholder
+      id: Date.now().toString() + '-user',
       role: 'user',
       content: query,
       timestamp: new Date(),
