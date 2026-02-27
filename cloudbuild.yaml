@@ -64,20 +64,20 @@ steps:
       # v69.8: NODE_OPTIONS permanent fix — max-old-space-size=3072 prevents heap OOM
       - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA,VITE_APP_ID=mother-interface,NODE_OPTIONS=--max-old-space-size=3072'
 
-# v74.5: DGM-2 FIX — Migrate 100% traffic to new revision after deploy
-# gcloud run deploy does not have --traffic flag; use update-traffic separately
-# Fixes: v74.3/v74.4 revisions created but received 0% traffic (Retired state)
-- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-  entrypoint: gcloud
-  args:
-    - 'run'
-    - 'services'
-    - 'update-traffic'
-    - 'mother-interface'
-    - '--to-latest'
-    - '--region=australia-southeast1'
-    - '--platform=managed'
-    - '--project=mothers-library-mcp'
+  # v74.5: DGM-2 FIX — Migrate 100% traffic to new revision after deploy
+  # gcloud run deploy does not have --traffic flag; use update-traffic separately
+  # Fixes: v74.3/v74.4 revisions created but received 0% traffic (Retired state)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'services'
+      - 'update-traffic'
+      - 'mother-interface'
+      - '--to-latest'
+      - '--region=australia-southeast1'
+      - '--platform=managed'
+      - '--project=mothers-library-mcp'
 
 images:
   - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-interface:latest'
