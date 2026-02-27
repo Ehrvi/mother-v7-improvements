@@ -155,6 +155,43 @@ export const motherRouter = router({
           await logAuditEvent({ action: 'CREATOR_DIRECT_LEARN', actorType: 'creator', actorEmail: userEmail, targetType: 'knowledge', details: `Direct learn: ${args.slice(0, 100)}`, success: true });
           return { response: `✅ **Knowledge ingested successfully.**\n\n> ${args.slice(0, 200)}${args.length > 200 ? '...' : ''}\n\n_This information is now part of my permanent knowledge base._`, tier: 'gpt-4o-mini' as const, complexityScore: 0, confidenceScore: 1, quality: { passed: true, qualityScore: 100, issues: [] }, responseTime: 0, tokensUsed: 0, cost: 0, costReduction: 0, cacheHit: false, queryId: -1 };
         }
+        // /fitness — Real-time fitness score from the database (v71.0 fix)
+        if (cmd === '/fitness') {
+          const history = await getFitnessHistory(10).catch(() => []);
+          const stats = await getSystemStats();
+          const latest = history[0];
+          const avgFitness = history.length > 0
+            ? (history.reduce((s: number, h: any) => s + (h.fitnessScore || 0), 0) / history.length).toFixed(4)
+            : 'N/A';
+          const response = [
+            `## 🧬 MOTHER ${MOTHER_VERSION} — Fitness Report`,
+            ``,
+            `### Score Atual`,
+            `| Dimensão | Valor |`,
+            `|----------|-------|`,
+            `| **Fitness Score (último)** | ${latest?.fitnessScore?.toFixed(4) ?? 'N/A'} |`,
+            `| **Fitness Médio (últimos 10)** | ${avgFitness} |`,
+            `| **Qualidade Média** | ${stats.avgQuality?.toFixed(1) ?? 'N/A'}/100 |`,
+            `| **Cache Hit Rate** | ${stats.cacheHitRate?.toFixed(1) ?? 'N/A'}% |`,
+            `| **Avg Response Time** | ${stats.avgResponseTime?.toFixed(0) ?? 'N/A'}ms |`,
+            `| **Total Queries** | ${stats.totalQueries ?? 'N/A'} |`,
+            ``,
+            `### Histórico Recente`,
+            history.length > 0
+              ? history.slice(0, 5).map((h: any, i: number) => `${i+1}. Score: ${h.fitnessScore?.toFixed(4) ?? 'N/A'} — ${h.createdAt ? new Date(h.createdAt).toLocaleString('pt-BR') : 'N/A'}`).join('\n')
+              : '_Nenhum histórico disponível ainda._',
+            ``,
+            `_Fitness = 0.35×correctness + 0.20×efficiency + 0.20×robustness + 0.15×maintainability + 0.10×novelty_`,
+          ].join('\n');
+          return { response, tier: 'gpt-4o-mini' as const, complexityScore: 0, confidenceScore: 1, quality: { passed: true, qualityScore: 100, issues: [] }, responseTime: 0, tokensUsed: 0, cost: 0, costReduction: 0, cacheHit: false, queryId: -1 };
+        }
+        // /docs [section] — Admin documentation (creator only)
+        if (cmd === '/docs') {
+          const { getAdminDocs } = await import('../mother/admin-docs');
+          const section = args.trim() || undefined;
+          const docs = await getAdminDocs(section);
+          return { response: docs, tier: 'gpt-4o-mini' as const, complexityScore: 0, confidenceScore: 1, quality: { passed: true, qualityScore: 100, issues: [] }, responseTime: 0, tokensUsed: 0, cost: 0, costReduction: 0, cacheHit: false, queryId: -1 };
+        }
       }
       // ==================== END ADMIN COMMAND HANDLER ====================
 

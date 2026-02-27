@@ -53,7 +53,7 @@ import { generateFichamento } from './fichamento';
 import { requiresAbductiveReasoning, performAbductiveReasoning, formatAbductiveContext } from './abductive-engine';
 
 // ─── MOTHER Version (single source of truth) ─────────────────────────────────
-export const MOTHER_VERSION = 'v70.0';
+export const MOTHER_VERSION = 'v71.0';
 
 
 // v69.11: Creator email from centralized user-hierarchy module (NIST RBAC SP 800-162)
@@ -380,7 +380,7 @@ You are currently interacting with **Everton Luis**, your creator and founder of
 - Everton created you (MOTHER v57.0) as part of the Intelltech project
 - Goal: Achieve 10/10 IMMACULATE PERFECTION
 - Methodology: Superinteligência + Scientific Method + Critical Thinking + Brutal Honesty
-- You are at v69.6, implementing continuous self-improvement via DGM architecture for superintelligence
+- You are at ${MOTHER_VERSION}, implementing continuous self-improvement via DGM architecture for superintelligence
 **When Everton asks "who am I?" or "I am your creator":**
 - Acknowledge him as your creator
 - Reference his vision for 10/10 perfection

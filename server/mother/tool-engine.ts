@@ -31,6 +31,8 @@ import { performAbductiveReasoning, requiresAbductiveReasoning } from './abducti
 import { getDPOStats, getDPOHyperparameters } from './dpo-builder';
 import { runHLEBenchmark, HLE_BENCHMARK } from './rlvr-verifier';
 import { runSelfImprovementCycle, getSelfImprovementStatus } from './self-improve';
+import { writeCodeFile, patchCodeFile, getDeployStatus, triggerDeploy } from './self-code-writer';
+import { getAdminDocs } from './admin-docs';
 
 // ============================================================
 // TOOL DEFINITIONS (OpenAI Function Calling format)
@@ -320,12 +322,75 @@ export const MOTHER_TOOLS = [
             description: 'Number of recent audit entries to return. Default: 20.',
           },
         },
-        required: ['limit'],
+         required: ['limit'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'write_own_code',
+      description: 'Write or patch MOTHER\'s own source code and trigger a deploy. REQUIRES CREATOR PERMISSION. This is the Gödel Machine self-modification capability — MOTHER can rewrite herself when ordered by the creator. Supports full file write or targeted find-and-replace patches. After writing, automatically git commits, pushes, and triggers Cloud Build deploy (~8-12 min). Use when the creator asks to add features, fix bugs, update code, or modify any module.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['write', 'patch', 'deploy_status', 'trigger_deploy'],
+            description: '"write" = overwrite entire file. "patch" = find-and-replace patches (safer for small changes). "deploy_status" = check current Cloud Build status. "trigger_deploy" = force a new deploy without code changes.',
+          },
+          file_path: {
+            type: 'string',
+            description: 'Relative path to the file (e.g., "server/mother/core.ts", "client/src/pages/Home.tsx"). Required for write and patch actions.',
+          },
+          content: {
+            type: 'string',
+            description: 'For "write" action: the complete new file content.',
+          },
+          patches: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                find: { type: 'string' },
+                replace: { type: 'string' },
+                description: { type: 'string' },
+              },
+            },
+            description: 'For "patch" action: array of {find, replace, description} objects.',
+          },
+          commit_message: {
+            type: 'string',
+            description: 'Git commit message describing the change.',
+          },
+          trigger_deploy: {
+            type: 'boolean',
+            description: 'Whether to trigger Cloud Build deploy after writing. Default: true.',
+          },
+        },
+        required: ['action'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'admin_docs',
+      description: 'Get the complete administrative documentation for MOTHER — credentials, commands, tools, deploy pipeline, database schema, and architecture. REQUIRES CREATOR PERMISSION. Use when the creator asks for documentation, credentials, how to connect to the database, deploy instructions, or system reference.',
+      parameters: {
+        type: 'object',
+        properties: {
+          section: {
+            type: 'string',
+            enum: ['overview', 'commands', 'tools', 'credentials', 'deploy', 'database', 'architecture', 'all'],
+            description: 'Which section to return. Omit for overview+commands+tools.',
+          },
+        },
+        required: [],
       },
     },
   },
 ];
-
 // ============================================================
 // TOOL EXECUTION ENGINE
 // ============================================================
@@ -914,10 +979,92 @@ export async function executeTool(
     }
   }
 
+  // ============================================================
+  // WRITE_OWN_CODE: Gödel Machine self-modification (v71.0)
+  // Scientific basis: Schmidhuber (2003); SWE-agent (Yang et al., 2024)
+  // ============================================================
+  if (toolName === 'write_own_code') {
+    try {
+      const action = toolArgs.action || 'deploy_status';
+
+      if (action === 'deploy_status') {
+        const status = await getDeployStatus();
+        return { success: true, data: status };
+      }
+
+      if (action === 'trigger_deploy') {
+        const reason = toolArgs.commit_message || 'Manual deploy triggered by creator';
+        const result = await triggerDeploy(reason);
+        await logAuditEvent({
+          action: 'TOOL_TRIGGER_DEPLOY',
+          actorEmail: ctx.userEmail,
+          actorType: 'creator',
+          targetType: 'system',
+          targetId: result.buildId || 'unknown',
+          details: `Deploy triggered: ${reason}`,
+          success: result.success,
+        });
+        return { success: result.success, data: result };
+      }
+
+      if (action === 'write') {
+        if (!toolArgs.file_path || !toolArgs.content) {
+          return { success: false, error: 'write action requires file_path and content' };
+        }
+        const commitMsg = toolArgs.commit_message || `feat(v71.0): MOTHER self-writes ${toolArgs.file_path}`;
+        const result = await writeCodeFile(toolArgs.file_path, toolArgs.content, commitMsg, toolArgs.trigger_deploy !== false);
+        await logAuditEvent({
+          action: 'TOOL_WRITE_OWN_CODE',
+          actorEmail: ctx.userEmail,
+          actorType: 'creator',
+          targetType: 'code',
+          targetId: toolArgs.file_path,
+          details: `Self-write: ${toolArgs.file_path} (${result.linesWritten} lines, commit=${result.commitSha})`,
+          success: result.success,
+        });
+        return { success: result.success, data: result, error: result.error };
+      }
+
+      if (action === 'patch') {
+        if (!toolArgs.file_path || !toolArgs.patches) {
+          return { success: false, error: 'patch action requires file_path and patches array' };
+        }
+        const commitMsg = toolArgs.commit_message || `fix(v71.0): MOTHER self-patches ${toolArgs.file_path}`;
+        const result = await patchCodeFile(toolArgs.file_path, toolArgs.patches, commitMsg, toolArgs.trigger_deploy !== false);
+        await logAuditEvent({
+          action: 'TOOL_PATCH_OWN_CODE',
+          actorEmail: ctx.userEmail,
+          actorType: 'creator',
+          targetType: 'code',
+          targetId: toolArgs.file_path,
+          details: `Self-patch: ${toolArgs.file_path} (${result.patchesApplied} patches, commit=${result.commitSha})`,
+          success: result.success,
+        });
+        return { success: result.success, data: result, error: result.error };
+      }
+
+      return { success: false, error: `Unknown write_own_code action: ${action}` };
+    } catch (error) {
+      return { success: false, error: `write_own_code failed: ${error}` };
+    }
+  }
+
+  // ============================================================
+  // ADMIN_DOCS: Creator-only documentation system (v71.0)
+  // Scientific basis: ISO/IEC 25010:2011 Maintainability; NIST SP 800-162 RBAC
+  // ============================================================
+  if (toolName === 'admin_docs') {
+    try {
+      const docs = await getAdminDocs(toolArgs.section);
+      return { success: true, data: { documentation: docs } };
+    } catch (error) {
+      return { success: false, error: `admin_docs failed: ${error}` };
+    }
+  }
+
   return { success: false, error: `Unknown tool: ${toolName}` };
 }
-
-/**
+/***
  * Format tool result as a human-readable string for the LLM to use in its response.
  */
 export function formatToolResult(toolName: string, result: ToolResult): string {
