@@ -129,6 +129,17 @@ export function classifyQuery(query: string): RoutingDecision {
     'corrija o codigo', 'corrija seu codigo', 'fix your code', 'fix the code',
     'adicione ao codigo', 'adicione no codigo', 'add to code', 'add to your code',
     '/docs', '/write', 'documentacao admin', 'admin documentation',
+    // v74.0: NC-011 fix — Self-diagnosis keywords force research category (gpt-4o + self-code-reader)
+    // Scientific basis: SWE-agent (Yang et al., 2024, arXiv:2405.15793) — code-reading tools
+    // required for accurate self-diagnosis; without tools, LLM hallucinates file names
+    'auto-diagnostico', 'auto-diagnóstico', 'varredura do sistema', 'varredura em todo',
+    'nao-conformidades', 'não-conformidades', 'nao conformidades', 'não conformidades',
+    'auditoria cientifica', 'auditoria científica',
+    'iso/iec 25010', 'ieee 730', 'self-audit', 'system scan',
+    'listar todas', 'lista de problemas', 'lista de erros', 'lista de bugs',
+    'plano de implementacao', 'plano de implementação', 'checklist do plano',
+    'solucao completa', 'solução completa', 'linhas que devem ser alteradas',
+    'nao conformidade', 'não conformidade', 'conformidade do sistema',
   ];
   const researchScore = researchPatterns.filter(p => q.includes(normalize(p))).length;
 

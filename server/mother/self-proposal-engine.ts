@@ -22,6 +22,8 @@
 
 import { getDb } from '../db';
 import { logAuditEvent } from './update-proposals';
+import { createLogger } from '../_core/logger'; // v74.0: NC-003 structured logger
+const log = createLogger('SELF_PROPOSAL');
 
 // ============================================================
 // TYPES
@@ -116,7 +118,7 @@ export async function readSystemMetrics(): Promise<SystemMetricsSummary | null> 
       learningRate: totalQueries > 0 ? learnedCount / totalQueries : 0,
     };
   } catch (error) {
-    console.error('[SelfProposal] Failed to read metrics:', error);
+    log.error('[SelfProposal] Failed to read metrics:', error);
     return null;
   }
 }
@@ -128,11 +130,11 @@ export async function readSystemMetrics(): Promise<SystemMetricsSummary | null> 
 export async function analyzeAndPropose(): Promise<SelfProposal | null> {
   const metrics = await readSystemMetrics();
   if (!metrics) {
-    console.log('[SelfProposal] No metrics available yet — skipping analysis');
+    log.info('[SelfProposal] No metrics available yet — skipping analysis');
     return null;
   }
 
-  console.log('[SelfProposal] Analyzing metrics:', metrics);
+  log.info('[SelfProposal] Analyzing metrics:', metrics);
 
   // Find the metric with the largest gap from its target
   const gaps = [
@@ -173,7 +175,7 @@ export async function analyzeAndPropose(): Promise<SelfProposal | null> {
   const topGap = gaps[0];
 
   if (topGap.gap <= 0) {
-    console.log('[SelfProposal] All metrics at target — IMMACULATE PERFECTION achieved!');
+    log.info('[SelfProposal] All metrics at target — IMMACULATE PERFECTION achieved!');
     await logAuditEvent({
       action: 'IMMACULATE_PERFECTION_ACHIEVED',
       actorType: 'mother',
@@ -191,7 +193,7 @@ export async function analyzeAndPropose(): Promise<SelfProposal | null> {
   // Check if a similar proposal already exists (avoid duplicates)
   const exists = await checkProposalExists(topGap.metric);
   if (exists) {
-    console.log(`[SelfProposal] Proposal for ${topGap.metric} already exists — skipping`);
+    log.info(`[SelfProposal] Proposal for ${topGap.metric} already exists — skipping`);
     return null;
   }
 
@@ -199,7 +201,7 @@ export async function analyzeAndPropose(): Promise<SelfProposal | null> {
   const id = await insertSelfProposal(proposal);
   if (id) {
     proposal.id = id;
-    console.log(`[SelfProposal] ✅ New proposal created: ID ${id} — "${proposal.title}"`);
+    log.info(`[SelfProposal] ✅ New proposal created: ID ${id} — "${proposal.title}"`);
     
     await logAuditEvent({
       action: 'SELF_PROPOSAL_CREATED',
@@ -353,7 +355,7 @@ async function insertSelfProposal(proposal: SelfProposal): Promise<number | null
     );
     return (result as any).insertId || null;
   } catch (error) {
-    console.error('[SelfProposal] Failed to insert proposal:', error);
+    log.error('[SelfProposal] Failed to insert proposal:', error);
     return null;
   }
 }
@@ -387,7 +389,7 @@ export async function getSelfProposals(status?: string): Promise<SelfProposal[]>
       scientificBasis: r.scientific_basis,
     }));
   } catch (error) {
-    console.error('[SelfProposal] Failed to get proposals:', error);
+    log.error('[SelfProposal] Failed to get proposals:', error);
     return [];
   }
 }
@@ -447,7 +449,7 @@ async function autoApproveIfLowRisk(proposal: SelfProposal): Promise<void> {
   const risk = classifyProposalRisk(proposal);
   
   if (risk === 'low') {
-    console.log(`[MAPE-K] Auto-approving LOW-RISK proposal ID ${proposal.id}: "${proposal.title}"`);
+    log.info(`[MAPE-K] Auto-approving LOW-RISK proposal ID ${proposal.id}: "${proposal.title}"`);
     try {
       const db = await getDb();
       if (!db) return;
@@ -464,10 +466,10 @@ async function autoApproveIfLowRisk(proposal: SelfProposal): Promise<void> {
         success: true,
       });
     } catch (err) {
-      console.error('[MAPE-K] Auto-approval failed:', err);
+      log.error('[MAPE-K] Auto-approval failed:', err);
     }
   } else {
-    console.log(`[MAPE-K] Proposal ID ${proposal.id} classified as ${risk.toUpperCase()} risk — requires creator approval`);
+    log.info(`[MAPE-K] Proposal ID ${proposal.id} classified as ${risk.toUpperCase()} risk — requires creator approval`);
   }
 }
 
@@ -475,7 +477,7 @@ export async function maybeRunAnalysis(): Promise<void> {
   queryCountSinceLastAnalysis++;
   if (queryCountSinceLastAnalysis >= ANALYSIS_INTERVAL) {
     queryCountSinceLastAnalysis = 0;
-    console.log('[SelfProposal] Running autonomous metric analysis...');
+    log.info('[SelfProposal] Running autonomous metric analysis...');
     analyzeAndPropose()
       .then(async (proposal) => {
         // v69.13: MAPE-K auto-approval for low-risk proposals
@@ -484,7 +486,7 @@ export async function maybeRunAnalysis(): Promise<void> {
         }
       })
       .catch(err => 
-        console.error('[SelfProposal] Analysis failed (non-blocking):', err)
+        log.error('[SelfProposal] Analysis failed (non-blocking):', err)
       );
   }
 }

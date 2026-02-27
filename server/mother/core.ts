@@ -51,9 +51,14 @@ import { MOTHER_TOOLS, executeTool, formatToolResult } from './tool-engine';
 import { ENV } from '../_core/env';
 import { generateFichamento } from './fichamento';
 import { requiresAbductiveReasoning, performAbductiveReasoning, formatAbductiveContext } from './abductive-engine';
+import { createLogger } from '../_core/logger'; // v74.0: NC-003 — structured logger
 
 // ─── MOTHER Version (single source of truth) ─────────────────────────────────
-export const MOTHER_VERSION = 'v73.0';
+// v74.0: NC-010 (tier3 fix) + NC-008 (cache TTL 72h) + NC-011 (self-diagnosis routing)
+// + NC-003 (structured logger) — Scientific basis: ISO/IEC 25010:2023 quality model
+export const MOTHER_VERSION = 'v74.0';
+
+const log = createLogger('CORE');
 
 
 // v69.11: Creator email from centralized user-hierarchy module (NIST RBAC SP 800-162)
@@ -129,7 +134,7 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
     // Tier 1: Exact hash match (fast, zero cost)
     const cached = await getCacheEntry(queryHash);
     if (cached) {
-      console.log('[MOTHER] Cache hit (exact)!');
+      log.info('[MOTHER] Cache hit (exact)!');
       const cachedResponse = JSON.parse(cached.response);
       // v69.13: Fix P0 — log cache hit to queries table so cacheHitRate is non-zero
       // Scientific basis: Google SRE Book (Beyer et al., 2016): observability requires all events logged
@@ -174,7 +179,7 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
         if (queryEmbedding) {
           const semanticHit = await getSemanticCacheEntry(queryEmbedding);
           if (semanticHit) {
-            console.log('[MOTHER] Cache hit (semantic)!');
+            log.info('[MOTHER] Cache hit (semantic)!');
             const cachedResponse = JSON.parse(semanticHit.response);
             // v69.13: Fix P0 — log semantic cache hit to queries table
             retryDbOperation(() => insertQuery({
@@ -207,7 +212,7 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
         }
       }
     } catch (embErr) {
-      console.warn('[MOTHER] Embedding for semantic cache failed (non-blocking):', (embErr as Error).message);
+      log.warn('[MOTHER] Embedding for semantic cache failed (non-blocking):', (embErr as Error).message);
     }
   }
   
@@ -235,9 +240,9 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
       complexityScore: 0.90,
       confidenceScore: 1.0,
     };
-    console.log(`[MOTHER] CREATOR BYPASS: '${prevCategory}' → complex_reasoning/gpt-4o`);
+    log.info(`[MOTHER] CREATOR BYPASS: '${prevCategory}' → complex_reasoning/gpt-4o`);
   }
-  console.log(`[MOTHER] Routing: category=${routingDecision.category}, provider=${routingDecision.model.provider}, model=${routingDecision.model.modelName}, confidence=${routingDecision.confidence.toFixed(2)}`);
+  log.info(`[MOTHER] Routing: category=${routingDecision.category}, provider=${routingDecision.model.provider}, model=${routingDecision.model.modelName}, confidence=${routingDecision.confidence.toFixed(2)}`);
   
   // ==================== LAYERS 5.0–5.6: PARALLEL CONTEXT BUILDING (v68.9 Opt #1) ====================
   // All context sources run in parallel via Promise.all to minimize latency.
@@ -257,7 +262,7 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   ] = await Promise.allSettled([
     // Source 1: CRAG (Self-correcting RAG)
     cragRetrieve(query, userId).catch(async (err) => {
-      console.error('[MOTHER] CRAG failed, falling back to legacy knowledge:', err);
+      log.error('[MOTHER] CRAG failed, falling back to legacy knowledge:', err);
       const fallback = await getKnowledgeContext(query);
       return { context: fallback, documents: [], correctiveSearchTriggered: false };
     }),
@@ -271,7 +276,7 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
     requiresResearch(query) ? conductResearch(query) : Promise.resolve(null),
   ]);
   
-  console.log(`[MOTHER] Parallel context build: ${Date.now() - contextBuildStart}ms`);
+  log.info(`[MOTHER] Parallel context build: ${Date.now() - contextBuildStart}ms`);
   
   // Extract CRAG result
   let knowledgeContext = '';
@@ -280,7 +285,7 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
     knowledgeContext = cragResultRaw.value.context;
     cragDocuments = cragResultRaw.value.documents;
     if ((cragResultRaw.value as any).correctiveSearchTriggered) {
-      console.log('[MOTHER] CRAG: Corrective search triggered — no local knowledge found');
+      log.info('[MOTHER] CRAG: Corrective search triggered — no local knowledge found');
     }
   }
   
@@ -295,9 +300,9 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
         const citation = `${authors}, arXiv:${arxivId}`;
         return `[Paper ${i+1} | Similarity: ${r.similarity.toFixed(3)} | ${citation}]\nTitle: ${r.paperTitle || 'Unknown'}\n${r.content.slice(0, 1200)}`;
       }).join('\n\n');
-    console.log(`[MOTHER] Omniscient: ${paperResults.length} paper chunks injected (top similarity: ${paperResults[0].similarity.toFixed(3)})`);
+    log.info(`[MOTHER] Omniscient: ${paperResults.length} paper chunks injected (top similarity: ${paperResults[0].similarity.toFixed(3)})`);
   } else {
-    console.log('[MOTHER] Omniscient: No indexed papers found or search failed');
+    log.info('[MOTHER] Omniscient: No indexed papers found or search failed');
   }
   
   // Extract Episodic memory result
@@ -310,14 +315,14 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
         `Q: ${m.query.slice(0, 200)}\n` +
         `A: ${m.response.slice(0, 400)}`
       ).join('\n\n');
-    console.log(`[MOTHER] Episodic memory: ${memories.length} relevant past interactions injected`);
+    log.info(`[MOTHER] Episodic memory: ${memories.length} relevant past interactions injected`);
   }
   
   // Extract User memory result
   let userMemoryContext = '';
   if (userMemoryResultRaw.status === 'fulfilled' && userMemoryResultRaw.value) {
     userMemoryContext = userMemoryResultRaw.value as string;
-    if (userMemoryContext) console.log(`[MOTHER] User memory context injected for user ${userId}`);
+    if (userMemoryContext) log.info(`[MOTHER] User memory context injected for user ${userId}`);
   }
   
   // ==================== CICLO 37: ABDUCTIVE REASONING (v70.0) ====================
@@ -330,10 +335,10 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
       const abductiveResult = await performAbductiveReasoning(query, domain, knowledgeContext);
       abductiveContext = formatAbductiveContext(abductiveResult);
       if (abductiveContext) {
-        console.log(`[MOTHER] Abductive Engine: ${abductiveResult.hypotheses.length} hypotheses, confidence=${abductiveResult.scientificConfidence.toFixed(2)}`);
+        log.info(`[MOTHER] Abductive Engine: ${abductiveResult.hypotheses.length} hypotheses, confidence=${abductiveResult.scientificConfidence.toFixed(2)}`);
       }
     } catch (abductiveErr) {
-      console.warn('[MOTHER] Abductive reasoning failed (non-blocking):', (abductiveErr as Error).message);
+      log.warn('[MOTHER] Abductive reasoning failed (non-blocking):', (abductiveErr as Error).message);
     }
   }
 
@@ -347,7 +352,7 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
         researchContext += `\n\n**Sources consulted:**\n` +
           research.sources.map((s, i) => `[${i+1}] [${s.title}](${s.url})`).join('\n');
       }
-      console.log(`[MOTHER] Research complete: ${research.sources.length} sources, synthesis ready`);
+      log.info(`[MOTHER] Research complete: ${research.sources.length} sources, synthesis ready`);
     }
   }
   
@@ -551,7 +556,7 @@ Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à a
   //   - OpenAI Cookbook (2024): gpt-4o has best tool-use accuracy for Phase 1
   const selectedProvider = routingDecision.model.provider;
   const selectedModel = routingDecision.model.modelName;
-  console.log(`[MOTHER] v69.1 Two-Phase: P1=gpt-4o (tool detect), P2=${selectedProvider}/${selectedModel} (generate)`);
+  log.info(`[MOTHER] v69.1 Two-Phase: P1=gpt-4o (tool detect), P2=${selectedProvider}/${selectedModel} (generate)`);
 
   // v69.15: Per-tier temperature (Ciclo 34 Fine-Tuning)
   // Scientific basis: Peeperkorn et al. (2024, arXiv:2405.00492): factual tasks → T≤0.4; analytical → T=0.5
@@ -581,7 +586,7 @@ Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à a
 
   if (toolCalls && toolCalls.length > 0) {
     // ── Tool execution path: gpt-4o handles tool result synthesis ────────────
-    console.log(`[MOTHER] Tool calls requested: ${toolCalls.map((t: any) => t.function.name).join(', ')}`);
+    log.info(`[MOTHER] Tool calls requested: ${toolCalls.map((t: any) => t.function.name).join(', ')}`);
     const toolResults: Array<{ toolName: string; result: string }> = [];
     for (const toolCall of toolCalls) {
       const toolName = toolCall.function.name;
@@ -589,7 +594,7 @@ Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à a
       try { toolArgs = JSON.parse(toolCall.function.arguments || '{}'); } catch { toolArgs = {}; }
       const result = await executeTool(toolName, toolArgs, toolCtx);
       toolResults.push({ toolName, result: formatToolResult(toolName, result) });
-      console.log(`[MOTHER] Tool ${toolName} executed: ${result.success ? 'SUCCESS' : 'FAILED'}`);
+      log.info(`[MOTHER] Tool ${toolName} executed: ${result.success ? 'SUCCESS' : 'FAILED'}`);
     }
     const toolResultMessages = toolCalls.map((tc: any, i: number) => ({
       role: 'tool' as LLMRole,
@@ -633,10 +638,10 @@ Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à a
     if (isSimpleOrGeneral && phase1Content && typeof phase1Content === 'string' && phase1Content.length > 50) {
       // Simple/general: Phase 1 gpt-4o response is adequate; avoid extra LLM call
       response = phase1Content;
-      console.log(`[MOTHER] Phase 2 skipped for ${routingDecision.category} (using Phase 1 response)`);
+      log.info(`[MOTHER] Phase 2 skipped for ${routingDecision.category} (using Phase 1 response)`);
     } else {
       // Coding/complex: dedicated call to specialized model for maximum quality
-      console.log(`[MOTHER] Phase 2: calling ${selectedProvider}/${selectedModel} for ${routingDecision.category}`);
+      log.info(`[MOTHER] Phase 2: calling ${selectedProvider}/${selectedModel} for ${routingDecision.category}`);
       const phase2Response = await invokeLLM({
         model: selectedModel,
         provider: selectedProvider,
@@ -671,10 +676,10 @@ Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à a
       hallucinationRisk = groundingResult.hallucinationRisk;
       if (groundingResult.citationsInjected > 0 || groundingResult.hallucinationRisk !== 'low') {
         response = groundingResult.groundedResponse;
-        console.log(`[MOTHER] Grounding: ${groundingResult.citationsInjected} citations injected, risk: ${groundingResult.hallucinationRisk}`);
+        log.info(`[MOTHER] Grounding: ${groundingResult.citationsInjected} citations injected, risk: ${groundingResult.hallucinationRisk}`);
       }
     } catch (err) {
-      console.error('[MOTHER] Grounding failed (non-blocking):', err);
+      log.error('[MOTHER] Grounding failed (non-blocking):', err);
     }
   }
 
@@ -687,7 +692,7 @@ Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à a
   //   reserve for genuinely complex queries (score >= 0.7) to stay within 8s budget.
   // Before: triggered on ~60% of queries. After: triggered on ~20% of queries.
   if (complexity.complexityScore >= 0.7) {
-    console.log('[MOTHER] Applying ReAct pattern (high complexity query, score >= 0.7)');
+    log.info('[MOTHER] Applying ReAct pattern (high complexity query, score >= 0.7)');
     const reactResult = await processWithReAct(query, response, complexity.complexityScore);
     response = reactResult.enhancedResponse;
     reactObservations = reactResult.observations;
@@ -698,7 +703,7 @@ Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à a
   
   const quality = await validateQuality(query, response, 2, hallucinationRisk, knowledgeContext || undefined); // Phase 2: 5 checks + hallucination risk + RAGAS (v67.8)
   // Note: hallucinationRisk already set above from grounding engine
-  console.log(`[MOTHER] Quality Score: ${quality.qualityScore}/100 (${quality.passed ? 'PASSED' : 'FAILED'})`);
+  log.info(`[MOTHER] Quality Score: ${quality.qualityScore}/100 (${quality.passed ? 'PASSED' : 'FAILED'})`);
   
   // ==================== GUARDIAN REGENERATION LOOP (v68.9 Opt #2) ====================
   // v68.9: Raised regeneration threshold from 90 to 70 to reduce unnecessary LLM calls.
@@ -711,7 +716,7 @@ Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à a
   // Max 1 retry to avoid infinite loops and cost explosion.
   const GUARDIAN_REGEN_THRESHOLD = 70; // v68.9: was implicit 90 (quality.passed)
   if (quality.qualityScore < GUARDIAN_REGEN_THRESHOLD) {
-    console.warn('[MOTHER] Quality check failed (score < 70):', quality.issues);
+    log.warn('[MOTHER] Quality check failed (score < 70):', quality.issues);
     const issuesSummary = quality.issues.join('; ');
     const correctivePrompt = `The following response has quality issues. Please rewrite it to fix them.\n\nORIGINAL RESPONSE:\n${response}\n\nQUALITY ISSUES (score: ${quality.qualityScore}/100):\n${issuesSummary}\n\nRewrite requirements:\n- Fix all issues listed above\n- Maintain scientific accuracy; only cite sources from context\n- Be complete, relevant, and coherent\n- ZERO BULLSHIT: if uncertain, say so explicitly\n- CRITICAL: Do NOT start with "Revised Response:", "Resposta Revisada:", "Here is the revised version", or any revision prefix. Output the final answer directly as if it were the original response.`;
     try {
@@ -758,8 +763,8 @@ Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à a
   
   const responseTime = Date.now() - startTime;
   
-  console.log(`[MOTHER] Cost: $${cost.toFixed(6)} (${costReduction.toFixed(1)}% reduction vs baseline)`);
-  console.log(`[MOTHER] Response Time: ${responseTime}ms`);
+  log.info(`[MOTHER] Cost: $${cost.toFixed(6)} (${costReduction.toFixed(1)}% reduction vs baseline)`);
+  log.info(`[MOTHER] Response Time: ${responseTime}ms`);
   
   // ==================== PERSISTENCE ====================
   // Store query log for learning (with retry logic)
@@ -797,14 +802,14 @@ Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à a
   }))
     .then(id => {
       queryId = id;
-      console.log(`[MOTHER] Query logged successfully: ID ${id}`);
+      log.info(`[MOTHER] Query logged successfully: ID ${id}`);
       // v30.0: Generate and store embedding asynchronously (fire-and-forget)
       generateAndStoreEmbedding(id, query).catch(err => 
-        console.error('[MOTHER] Embedding generation failed (non-blocking):', err.message)
+        log.error('[MOTHER] Embedding generation failed (non-blocking):', err.message)
       );
     })
     .catch(error => {
-      console.error('[MOTHER] Failed to log query (non-blocking):', error.message);
+      log.error('[MOTHER] Failed to log query (non-blocking):', error.message);
     });
   
   // ==================== v56.0: CONTINUOUS LEARNING (Req #3) ====================
@@ -818,9 +823,9 @@ Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à a
   if (quality.qualityScore && quality.qualityScore >= LEARNING_QUALITY_THRESHOLD) {
     agenticLearningLoop(query, response, knowledgeContext, quality.qualityScore, userId)
       .then(result => {
-        if (result.learned) console.log(`[MOTHER] 🧠 Agentic Learning: ${result.reason}`);
+        if (result.learned) log.info(`[MOTHER] 🧠 Agentic Learning: ${result.reason}`);
       })
-      .catch(err => console.error('[MOTHER] Agentic learning failed (non-blocking):', err));
+      .catch(err => log.error('[MOTHER] Agentic learning failed (non-blocking):', err));
   }
 
   if (quality.qualityScore && quality.qualityScore >= LEARNING_QUALITY_THRESHOLD) {
@@ -834,13 +839,13 @@ Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à a
     })
       .then(result => {
         if (result.learned) {
-          console.log(`[MOTHER] 🧠 Learned new knowledge: ${result.reason}`);
+          log.info(`[MOTHER] 🧠 Learned new knowledge: ${result.reason}`);
         } else {
-          console.log(`[MOTHER] No learning: ${result.reason}`);
+          log.info(`[MOTHER] No learning: ${result.reason}`);
         }
       })
       .catch(error => {
-        console.error('[MOTHER] Learning failed (non-blocking):', error.message);
+        log.error('[MOTHER] Learning failed (non-blocking):', error.message);
       });
   }
 
@@ -851,7 +856,7 @@ Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à a
   if (userId) {
     extractAndStoreMemories(userId, query, response, quality.qualityScore)
       .catch(error => {
-        console.error('[MOTHER] User memory storage failed (non-blocking):', error.message);
+        log.error('[MOTHER] User memory storage failed (non-blocking):', error.message);
       });
   }
   
@@ -871,7 +876,10 @@ Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à a
       queryId,
     };
     
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    // v74.0: NC-008 fix — increase exact cache TTL from 24h to 72h
+    // Scientific basis: GPTCache (Zeng et al., 2023) — longer TTL improves hit rate;
+    // Redis best practices (2024) — stable knowledge queries benefit from 3-day TTL
+    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72 hours (was 24h)
     
     await retryDbOperation(() => insertCacheEntry({
       queryHash,
@@ -880,7 +888,7 @@ Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à a
       embedding: null,
       hitCount: 0,
       lastHit: null,
-      ttl: 86400, // 24 hours in seconds
+      ttl: 259200, // 72 hours in seconds (was 86400 = 24h)
       expiresAt,
     }));
     
@@ -895,7 +903,7 @@ Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à a
         response: JSON.stringify(cacheData),
         hitCount: 0,
         expiresAt,
-      }).catch((err: Error) => console.warn('[MOTHER] Semantic cache write failed (non-blocking):', err.message));
+      }).catch((err: Error) => log.warn('[MOTHER] Semantic cache write failed (non-blocking):', err.message));
     }
   }
   
@@ -926,7 +934,7 @@ Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à a
   const fichamento = generateFichamento(response, query);
   if (fichamento.formattedFootnote) {
     response = response + fichamento.formattedFootnote;
-    console.log(`[MOTHER] Fichamento: ${fichamento.entries.length} concepts annotated, ${fichamento.references.length} refs`);
+    log.info(`[MOTHER] Fichamento: ${fichamento.entries.length} concepts annotated, ${fichamento.references.length} refs`);
   }
   // ==================== v72.0: ECHO DETECTION POST-PROCESSING ====================
   // Scientific basis: Self-Refine (Madaan et al., arXiv:2303.17651, 2023)

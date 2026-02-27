@@ -27,6 +27,8 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { createLogger } from '../_core/logger'; // v74.0: NC-003 structured logger
+const log = createLogger('AUTO_UPDATE');
 
 // ============================================================
 // TYPES
@@ -71,16 +73,16 @@ interface UpdateJobResult {
 // ============================================================
 
 function reactThink(step: string, context: string): void {
-  console.log(`\n[MOTHER-SWE] 🧠 THINK: ${step}`);
-  if (context) console.log(`[MOTHER-SWE]    Context: ${context}`);
+  log.info(`\n[MOTHER-SWE] 🧠 THINK: ${step}`);
+  if (context) log.info(`[MOTHER-SWE]    Context: ${context}`);
 }
 
 function reactAct(action: string): void {
-  console.log(`[MOTHER-SWE] ⚡ ACT: ${action}`);
+  log.info(`[MOTHER-SWE] ⚡ ACT: ${action}`);
 }
 
 function reactObserve(observation: string): void {
-  console.log(`[MOTHER-SWE] 👁️  OBSERVE: ${observation}`);
+  log.info(`[MOTHER-SWE] 👁️  OBSERVE: ${observation}`);
 }
 
 // ============================================================
@@ -175,11 +177,11 @@ function runCommand(cwd: string, command: string): string {
 
 export async function executeAutonomousUpdate(proposalId: number): Promise<UpdateJobResult> {
   const startTime = Date.now();
-  console.log(`\n${'='.repeat(60)}`);
-  console.log(`[MOTHER-SWE] 🚀 AUTONOMOUS UPDATE JOB STARTED`);
-  console.log(`[MOTHER-SWE] Proposal ID: ${proposalId}`);
-  console.log(`[MOTHER-SWE] Scientific basis: DGM (Zhang et al., 2025), SWE-agent (Xia et al., 2025)`);
-  console.log(`${'='.repeat(60)}\n`);
+  log.info(`\n${'='.repeat(60)}`);
+  log.info(`[MOTHER-SWE] 🚀 AUTONOMOUS UPDATE JOB STARTED`);
+  log.info(`[MOTHER-SWE] Proposal ID: ${proposalId}`);
+  log.info(`[MOTHER-SWE] Scientific basis: DGM (Zhang et al., 2025), SWE-agent (Xia et al., 2025)`);
+  log.info(`${'='.repeat(60)}\n`);
   
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mother-update-'));
   
@@ -224,7 +226,7 @@ export async function executeAutonomousUpdate(proposalId: number): Promise<Updat
       throw new Error(`Proposal ${proposalId} is not approved (status: ${proposal.status})`);
     }
     if (forceExecute && proposal.status !== 'approved') {
-      console.log(`[MOTHER-SWE] ⚠️  FORCE_EXECUTE mode: bypassing status check (status: ${proposal.status})`);
+      log.info(`[MOTHER-SWE] ⚠️  FORCE_EXECUTE mode: bypassing status check (status: ${proposal.status})`);
     }
     
     // ============================================================
@@ -285,8 +287,8 @@ export async function executeAutonomousUpdate(proposalId: number): Promise<Updat
         // Convert string descriptions to actual change objects
         // This is a simplified implementation — in production, MOTHER would use
         // an LLM call to generate the actual diff from the description
-        console.log('[MOTHER-SWE] Proposed changes are descriptive (not executable diffs).');
-        console.log('[MOTHER-SWE] Using LLM to generate executable changes...');
+        log.info('[MOTHER-SWE] Proposed changes are descriptive (not executable diffs).');
+        log.info('[MOTHER-SWE] Using LLM to generate executable changes...');
         changes = await generateExecutableChanges(proposal, parsed.changes, repoPath);
       }
     } catch (e) {
@@ -387,17 +389,17 @@ DGM Loop (Zhang et al., 2025 arXiv:2505.22954)`;
       message: `Successfully executed autonomous update for proposal ${proposalId}. Branch: ${branchName}`,
     };
     
-    console.log(`\n${'='.repeat(60)}`);
-    console.log(`[MOTHER-SWE] ✅ AUTONOMOUS UPDATE JOB COMPLETED`);
-    console.log(`[MOTHER-SWE] Duration: ${Date.now() - startTime}ms`);
-    console.log(`[MOTHER-SWE] Branch: ${branchName}`);
-    console.log(`[MOTHER-SWE] Commit: ${commitSha.slice(0, 8)}`);
-    console.log(`${'='.repeat(60)}\n`);
+    log.info(`\n${'='.repeat(60)}`);
+    log.info(`[MOTHER-SWE] ✅ AUTONOMOUS UPDATE JOB COMPLETED`);
+    log.info(`[MOTHER-SWE] Duration: ${Date.now() - startTime}ms`);
+    log.info(`[MOTHER-SWE] Branch: ${branchName}`);
+    log.info(`[MOTHER-SWE] Commit: ${commitSha.slice(0, 8)}`);
+    log.info(`${'='.repeat(60)}\n`);
     
     return result;
     
   } catch (error: any) {
-    console.error(`[MOTHER-SWE] ❌ AUTONOMOUS UPDATE JOB FAILED: ${error.message}`);
+    log.error(`[MOTHER-SWE] ❌ AUTONOMOUS UPDATE JOB FAILED: ${error.message}`);
     
     // Try to update proposal status to 'failed'
     try {
@@ -423,7 +425,7 @@ DGM Loop (Zhang et al., 2025 arXiv:2505.22954)`;
         );
       }
     } catch (dbError) {
-      console.error('[MOTHER-SWE] Failed to update proposal status:', dbError);
+      log.error('[MOTHER-SWE] Failed to update proposal status:', dbError);
     }
     
     return {
@@ -555,7 +557,7 @@ Each change object schema:
     reactObserve('[ACI] WARNING: Could not extract JSON from LLM response');
     return [];
   } catch (error: any) {
-    console.error('[MOTHER-SWE] ACI change generation failed:', error.message);
+    log.error('[MOTHER-SWE] ACI change generation failed:', error.message);
     return [];
   }
 }
@@ -570,22 +572,22 @@ if (process.env.PROPOSAL_ID && process.env.AUTONOMOUS_JOB_MODE === 'true') {
   const proposalId = parseInt(process.env.PROPOSAL_ID || '0', 10);
   
   if (!proposalId) {
-    console.error('[MOTHER-SWE] ERROR: PROPOSAL_ID environment variable is required');
+    log.error('[MOTHER-SWE] ERROR: PROPOSAL_ID environment variable is required');
     process.exit(1);
   }
   
   executeAutonomousUpdate(proposalId)
     .then(result => {
       if (result.success) {
-        console.log('[MOTHER-SWE] Job completed successfully');
+        log.info('[MOTHER-SWE] Job completed successfully');
         process.exit(0);
       } else {
-        console.error('[MOTHER-SWE] Job failed:', result.error);
+        log.error('[MOTHER-SWE] Job failed:', result.error);
         process.exit(1);
       }
     })
     .catch(error => {
-      console.error('[MOTHER-SWE] Unhandled error:', error);
+      log.error('[MOTHER-SWE] Unhandled error:', error);
       process.exit(1);
     });
 }

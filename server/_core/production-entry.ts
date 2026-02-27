@@ -25,6 +25,8 @@ import { processQuery as _processQuery } from '../mother/core.js';
 import { runSelfAudit } from '../mother/self-audit-engine.js';
 import { runHourlyAggregation } from '../mother/metrics-aggregation-job.js'; // v69.12: Fix P0 — system_metrics aggregation
 import { sdk } from './sdk.js';
+import { createLogger } from './logger'; // v74.0: NC-003 structured logger
+const log = createLogger('PROD_ENTRY');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -54,17 +56,17 @@ async function runMigrations() {
         break; // Connection is live
       } catch (e) {
         db = null;
-        console.log(`[Migrations] DB not ready (attempt ${attempt}/5), retrying in ${attempt * 2}s...`);
+        log.info(`[Migrations] DB not ready (attempt ${attempt}/5), retrying in ${attempt * 2}s...`);
         await new Promise(r => setTimeout(r, attempt * 2000));
       }
     } else {
-      console.log(`[Migrations] DB not available (attempt ${attempt}/5), retrying in ${attempt * 2}s...`);
+      log.info(`[Migrations] DB not available (attempt ${attempt}/5), retrying in ${attempt * 2}s...`);
       await new Promise(r => setTimeout(r, attempt * 2000));
     }
   }
   try {
     if (!db) {
-      console.log('[Migrations] DB not available after 5 attempts, skipping');
+      log.info('[Migrations] DB not available after 5 attempts, skipping');
       return;
     }
 
@@ -84,7 +86,7 @@ async function runMigrations() {
       : path.join(__dirname, '../../drizzle/migrations');
 
     if (!fs.existsSync(migrationsDir)) {
-      console.log('[Migrations] No migrations directory found, skipping');
+      log.info('[Migrations] No migrations directory found, skipping');
       return;
     }
 
@@ -101,7 +103,7 @@ async function runMigrations() {
     for (const file of sqlFiles) {
       // STEP 3: Skip if already applied
       if (appliedSet.has(file)) {
-        console.log(`[Migrations] Skipped (already applied): ${file}`);
+        log.info(`[Migrations] Skipped (already applied): ${file}`);
         continue;
       }
 
@@ -123,7 +125,7 @@ async function runMigrations() {
           // Ignore "already exists" and "Duplicate" errors - migrations are idempotent
           const msg = e.message || '';
           if (!msg.includes('already exists') && !msg.includes('Duplicate') && !msg.includes('duplicate')) {
-            console.warn(`[Migrations] ${file} warning:`, msg.substring(0, 200));
+            log.warn(`[Migrations] ${file} warning:`, msg.substring(0, 200));
           }
         }
       }
@@ -135,14 +137,14 @@ async function runMigrations() {
           [file]
         );
       } catch (e: any) {
-        console.warn(`[Migrations] Could not record migration ${file}:`, e.message);
+        log.warn(`[Migrations] Could not record migration ${file}:`, e.message);
       }
 
-      console.log(`[Migrations] Applied: ${file}`);
+      log.info(`[Migrations] Applied: ${file}`);
     }
-    console.log('[Migrations] All migrations complete.');
+    log.info('[Migrations] All migrations complete.');
   } catch (e) {
-    console.error('[Migrations] Error running migrations:', e);
+    log.error('[Migrations] Error running migrations:', e);
   }
 }
 
@@ -175,7 +177,7 @@ app.post('/api/dgm/execute', async (req, res) => {
   // Verify this is a legitimate Cloud Tasks request
   if (!queueName || !String(queueName).includes('dgm-evolution-queue')) {
     // Allow internal calls (for testing) but log them
-    console.warn('[DGM] Execute called without Cloud Tasks header - may be internal call');
+    log.warn('[DGM] Execute called without Cloud Tasks header - may be internal call');
   }
 
   const { run_id, goal } = req.body;
@@ -184,7 +186,7 @@ app.post('/api/dgm/execute', async (req, res) => {
     return res.status(400).json({ error: 'Missing run_id or goal' });
   }
 
-  console.log(`[DGM] Executing GEA evolution: run_id=${run_id}, task=${taskName || 'direct'}`);
+  log.info(`[DGM] Executing GEA evolution: run_id=${run_id}, task=${taskName || 'direct'}`);
 
   // Respond immediately to Cloud Tasks (prevents retry due to timeout)
   res.status(200).json({ status: 'accepted', run_id });
@@ -199,14 +201,14 @@ app.post('/api/dgm/execute', async (req, res) => {
         [run_id]
       );
     } catch (e) {
-      console.warn('[DGM] Could not update task status (table may not exist yet):', (e as any).message);
+      log.warn('[DGM] Could not update task status (table may not exist yet):', (e as any).message);
     }
   }
 
   // Run the GEA evolution loop
   invokeGEASupervisor(goal, run_id)
     .then(async () => {
-      console.log(`[DGM] GEA evolution completed for run_id=${run_id}`);
+      log.info(`[DGM] GEA evolution completed for run_id=${run_id}`);
       const dbFinal = await getDb();
       if (dbFinal) {
         try {
@@ -215,12 +217,12 @@ app.post('/api/dgm/execute', async (req, res) => {
             [run_id]
           );
         } catch (e) {
-          console.warn('[DGM] Could not update task completion:', (e as any).message);
+          log.warn('[DGM] Could not update task completion:', (e as any).message);
         }
       }
     })
     .catch(async (error) => {
-      console.error(`[DGM] GEA evolution failed for run_id=${run_id}:`, error);
+      log.error(`[DGM] GEA evolution failed for run_id=${run_id}:`, error);
       const dbErr = await getDb();
       if (dbErr) {
         try {
@@ -229,7 +231,7 @@ app.post('/api/dgm/execute', async (req, res) => {
             [error.message?.slice(0, 500) || 'Unknown error', run_id]
           );
         } catch (e) {
-          console.warn('[DGM] Could not update task failure:', (e as any).message);
+          log.warn('[DGM] Could not update task failure:', (e as any).message);
         }
       }
     });
@@ -337,7 +339,7 @@ const distPath = process.env.NODE_ENV === 'production'
   ? '/app/dist/public'  // Absolute path in Docker container
   : path.join(__dirname, '../../public');  // Relative path for local dev
 
-console.log(`📦 Serving static files from: ${distPath}`);
+log.info(`📦 Serving static files from: ${distPath}`);
 app.use(express.static(distPath));
 
 // SPA fallback - serve index.html for all non-API routes
@@ -346,8 +348,8 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', async () => {
-  console.log(`🚀 Production server running on http://0.0.0.0:${PORT}`);
-  console.log(`📦 Serving static files from: ${distPath}`);
+  log.info(`🚀 Production server running on http://0.0.0.0:${PORT}`);
+  log.info(`📦 Serving static files from: ${distPath}`);
 
   // Run migrations after server starts
   await runMigrations();
@@ -357,13 +359,13 @@ app.listen(PORT, '0.0.0.0', async () => {
   const AUDIT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
   const runScheduledAudit = async () => {
     try {
-      console.log('[MOTHER] Running scheduled daily self-audit...');
+      log.info('[MOTHER] Running scheduled daily self-audit...');
       const result = await runSelfAudit();
       const passed = result.checks.filter((c) => c.status === 'pass').length;
       const isHealthy = result.overallHealth === 'healthy';
-      console.log(`[MOTHER] Daily self-audit: ${isHealthy ? 'PASSED' : 'DEGRADED'} (${passed}/${result.checks.length} checks, score=${result.score}/100)`);
+      log.info(`[MOTHER] Daily self-audit: ${isHealthy ? 'PASSED' : 'DEGRADED'} (${passed}/${result.checks.length} checks, score=${result.score}/100)`);
     } catch (err) {
-      console.error('[MOTHER] Daily self-audit failed:', err);
+      log.error('[MOTHER] Daily self-audit failed:', err);
     }
   };
   // First audit after 5 minutes (let server warm up), then every 24 hours
@@ -371,15 +373,15 @@ app.listen(PORT, '0.0.0.0', async () => {
     runScheduledAudit();
     setInterval(runScheduledAudit, AUDIT_INTERVAL_MS);
   }, 5 * 60 * 1000);
-  console.log('[MOTHER] Daily self-audit scheduler started (first run in 5 min)');
+  log.info('[MOTHER] Daily self-audit scheduler started (first run in 5 min)');
   
   // v69.12: Hourly metrics aggregation — populates system_metrics from queries table
   // Scientific basis: SRE Golden Signals (Beyer et al., 2016)
   setTimeout(() => {
-    runHourlyAggregation().catch(err => console.error('[MOTHER] Hourly metrics failed:', err));
+    runHourlyAggregation().catch(err => log.error('[MOTHER] Hourly metrics failed:', err));
     setInterval(() => {
-      runHourlyAggregation().catch(err => console.error('[MOTHER] Hourly metrics failed:', err));
+      runHourlyAggregation().catch(err => log.error('[MOTHER] Hourly metrics failed:', err));
     }, 60 * 60 * 1000);
   }, 2 * 60 * 1000);
-  console.log('[MOTHER] Hourly metrics aggregation scheduler started');
+  log.info('[MOTHER] Hourly metrics aggregation scheduler started');
 });

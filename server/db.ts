@@ -489,9 +489,14 @@ export async function getQueryStats(periodHours: number = 24): Promise<{
   const result = await db
     .select({
       totalQueries: sql<number>`COUNT(*)`,
+      // v74.0: NC-010 fix — tier mapping updated to reflect actual model usage
+      // Scientific basis: Observability (Majors et al., 2022) — metrics must reflect reality
+      // Tier 1 = gpt-4o-mini (simple/general queries)
+      // Tier 2 = gpt-4o (complex/research queries) — was incorrectly counted as tier3
+      // Tier 3 = legacy 'gpt-4' (no longer used — kept for historical data)
       tier1Count: sql<number>`SUM(CASE WHEN tier = 'gpt-4o-mini' THEN 1 ELSE 0 END)`,
       tier2Count: sql<number>`SUM(CASE WHEN tier = 'gpt-4o' THEN 1 ELSE 0 END)`,
-      tier3Count: sql<number>`SUM(CASE WHEN tier = 'gpt-4' THEN 1 ELSE 0 END)`,
+      tier3Count: sql<number>`SUM(CASE WHEN tier = 'gpt-4' OR tier = 'gpt-4-turbo' THEN 1 ELSE 0 END)`,
       avgQuality: sql<number>`AVG(CAST(qualityScore AS DECIMAL(10,2)))`,
       avgResponseTime: sql<number>`AVG(responseTime)`,
       cacheHitCount: sql<number>`SUM(cacheHit)`,

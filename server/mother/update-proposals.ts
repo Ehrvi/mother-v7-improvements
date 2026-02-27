@@ -16,6 +16,8 @@
 
 import { getDb } from '../db';
 import { execSync } from 'child_process';
+import { createLogger } from '../_core/logger'; // v74.0: NC-003 structured logger
+const log = createLogger('PROPOSALS');
 
 // The ONLY authorized email for approving updates
 export const CREATOR_EMAIL = 'elgarcia.eng@gmail.com';
@@ -59,7 +61,7 @@ export async function createProposal(input: CreateProposalInput): Promise<number
   try {
     const db = await getDb();
     if (!db) {
-      console.warn('[Proposals] DB not available');
+      log.warn('[Proposals] DB not available');
       return null;
     }
 
@@ -78,7 +80,7 @@ export async function createProposal(input: CreateProposalInput): Promise<number
     );
 
     const id = result[0]?.insertId;
-    console.log(`[Proposals] ✅ Created proposal ID ${id}: "${input.title}" (by: ${input.proposedBy})`);
+    log.info(`[Proposals] ✅ Created proposal ID ${id}: "${input.title}" (by: ${input.proposedBy})`);
     
     // Log to audit trail
     await logAuditEvent({
@@ -92,7 +94,7 @@ export async function createProposal(input: CreateProposalInput): Promise<number
 
     return id || null;
   } catch (error) {
-    console.error('[Proposals] Failed to create proposal:', error);
+    log.error('[Proposals] Failed to create proposal:', error);
     return null;
   }
 }
@@ -147,9 +149,9 @@ export async function approveProposal(
     );
     const affectedRows = ((manualResult as any).affectedRows || 0) + ((dgmResult as any).affectedRows || 0);
     if (affectedRows === 0) {
-      console.warn(`[Proposals] ⚠️ No rows updated for proposal ${proposalId} — may already be approved or not found`);
+      log.warn(`[Proposals] ⚠️ No rows updated for proposal ${proposalId} — may already be approved or not found`);
     }
-    console.log(`[Proposals] ✅ Proposal ${proposalId} approved (manual:${(manualResult as any).affectedRows || 0} dgm:${(dgmResult as any).affectedRows || 0})`);
+    log.info(`[Proposals] ✅ Proposal ${proposalId} approved (manual:${(manualResult as any).affectedRows || 0} dgm:${(dgmResult as any).affectedRows || 0})`);
     
     await logAuditEvent({
       action: 'proposal_approved',
@@ -168,12 +170,12 @@ export async function approveProposal(
     // the proposed code changes, compiles, and opens a PR.
     // ============================================================
     triggerSweAgentJob(proposalId).catch(err => {
-      console.error(`[Proposals] SWE-Agent job trigger failed (non-blocking): ${err.message}`);
+      log.error(`[Proposals] SWE-Agent job trigger failed (non-blocking): ${err.message}`);
     });
 
     return { success: true, reason: 'Proposal approved by creator. SWE-Agent job dispatched.' };
   } catch (error) {
-    console.error('[Proposals] Failed to approve proposal:', error);
+    log.error('[Proposals] Failed to approve proposal:', error);
     return { success: false, reason: `DB error: ${error}` };
   }
 }
@@ -217,7 +219,7 @@ export async function rejectProposal(
 
     return { success: true, reason: 'Proposal rejected' };
   } catch (error) {
-    console.error('[Proposals] Failed to reject proposal:', error);
+    log.error('[Proposals] Failed to reject proposal:', error);
     return { success: false, reason: `DB error: ${error}` };
   }
 }
@@ -253,7 +255,7 @@ export async function getPendingProposals(): Promise<UpdateProposal[]> {
 
     return [...(manualRows || []), ...(dgmRows || [])].map(mapRowToProposal);
   } catch (error) {
-    console.error('[Proposals] Failed to get pending proposals:', error);
+    log.error('[Proposals] Failed to get pending proposals:', error);
     return [];
   }
 }
@@ -300,7 +302,7 @@ export async function getProposals(status?: ProposalStatus, limit = 20): Promise
 
     return all;
   } catch (error) {
-    console.error('[Proposals] Failed to get proposals:', error);
+    log.error('[Proposals] Failed to get proposals:', error);
     return [];
   }
 }
@@ -316,7 +318,7 @@ export async function motherProposeUpdate(
   affectedModules: string[],
   impact: ImpactLevel = 'medium'
 ): Promise<number | null> {
-  console.log(`[Proposals] MOTHER proposing update: "${title}"`);
+  log.info(`[Proposals] MOTHER proposing update: "${title}"`);
   
   return createProposal({
     proposedBy: 'mother',
@@ -368,7 +370,7 @@ export async function logAuditEvent(input: AuditLogInput): Promise<void> {
     );
   } catch (error) {
     // Audit logging should never block the main flow
-    console.error('[AuditLog] Failed to log event (non-blocking):', error);
+    log.error('[AuditLog] Failed to log event (non-blocking):', error);
   }
 }
 
@@ -387,7 +389,7 @@ export async function getAuditLog(limit = 50): Promise<any[]> {
 
     return rows || [];
   } catch (error) {
-    console.error('[AuditLog] Failed to get log:', error);
+    log.error('[AuditLog] Failed to get log:', error);
     return [];
   }
 }
@@ -428,8 +430,8 @@ export async function triggerSweAgentJob(proposalId: number): Promise<void> {
   const jobName = process.env.SWE_AGENT_JOB_NAME || 'mother-swe-agent-job';
   const useCloudRunJob = process.env.USE_CLOUD_RUN_JOB === 'true';
 
-  console.log(`[SWE-Trigger] Dispatching SWE-Agent for proposal ${proposalId}`);
-  console.log(`[SWE-Trigger] Mode: ${useCloudRunJob ? 'Cloud Run Job' : 'Inline (fallback)'}`);
+  log.info(`[SWE-Trigger] Dispatching SWE-Agent for proposal ${proposalId}`);
+  log.info(`[SWE-Trigger] Mode: ${useCloudRunJob ? 'Cloud Run Job' : 'Inline (fallback)'}`);
 
   if (useCloudRunJob) {
     // PRIMARY: Trigger the Cloud Run Job (isolated, scalable, production-grade)
@@ -441,9 +443,9 @@ export async function triggerSweAgentJob(proposalId: number): Promise<void> {
       '--async',
     ].join(' ');
 
-    console.log(`[SWE-Trigger] Executing: ${command}`);
+    log.info(`[SWE-Trigger] Executing: ${command}`);
     execSync(command, { stdio: 'pipe' });
-    console.log(`[SWE-Trigger] ✅ Cloud Run Job dispatched for proposal ${proposalId}`);
+    log.info(`[SWE-Trigger] ✅ Cloud Run Job dispatched for proposal ${proposalId}`);
 
     await logAuditEvent({
       action: 'SWE_AGENT_JOB_DISPATCHED',
@@ -455,14 +457,14 @@ export async function triggerSweAgentJob(proposalId: number): Promise<void> {
     });
   } else {
     // FALLBACK: Run inline (async, non-blocking) — used when Cloud Run Job is not set up
-    console.log(`[SWE-Trigger] ⚠️  USE_CLOUD_RUN_JOB not set. Running inline (non-blocking).`);
+    log.info(`[SWE-Trigger] ⚠️  USE_CLOUD_RUN_JOB not set. Running inline (non-blocking).`);
     const { executeAutonomousUpdate } = await import('./autonomous-update-job');
     executeAutonomousUpdate(proposalId)
       .then(result => {
-        console.log(`[SWE-Trigger] Inline job completed: ${result.success ? '✅' : '❌'} ${result.message}`);
+        log.info(`[SWE-Trigger] Inline job completed: ${result.success ? '✅' : '❌'} ${result.message}`);
       })
       .catch(err => {
-        console.error(`[SWE-Trigger] Inline job error: ${err.message}`);
+        log.error(`[SWE-Trigger] Inline job error: ${err.message}`);
       });
 
     await logAuditEvent({
