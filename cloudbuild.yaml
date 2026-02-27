@@ -45,6 +45,10 @@ steps:
       - '--region=australia-southeast1'
       - '--platform=managed'
       - '--allow-unauthenticated'
+      # v74.4: DGM-2 — Always migrate 100% traffic to new revision on deploy
+      # Fixes: Cloud Run was creating new revision but keeping traffic on previous revision
+      # Observed: v74.3 revision 00367-lrk was created but received 0% traffic (Retired)
+      - '--traffic=100'
       - '--port=8080'
       # v69.8: PERMANENT FIX — 4Gi prevents OOM crashes (heap limit exceeded)
       # Scientific basis: Node.js V8 heap = memory * 0.75. 4Gi -> 3072MB heap.
