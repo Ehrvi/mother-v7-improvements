@@ -31,6 +31,8 @@ import { getDb } from "../db";
 import { dgmArchive } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { getEmbedding, cosineSimilarity } from "./embeddings";
+import { motherReliabilityMetrics } from './crag-metrics'; // v74.8: NC-PERF-001 reliability metrics
+import { reliabilityLogger } from './reliability-logger'; // v74.9: Four Golden Signals monitoring
 
 // ─── Weights (sum = 1.0) ──────────────────────────────────────────────────────
 const WEIGHTS = {
@@ -282,6 +284,9 @@ export async function calculateRealFitnessScore(
     finalScore >= 0.85 ? "EXCELLENT" :
     finalScore >= 0.70 ? "GOOD" :
     finalScore >= 0.50 ? "ACCEPTABLE" : "POOR";
+
+  // v74.9: Record fitness score in reliability metrics and logger
+  reliabilityLogger.info('fitness', `Fitness score: ${finalScore.toFixed(4)} [${label}]`, { score: finalScore, label, correctness, efficiency, robustness, maintainability, novelty });
 
   return {
     correctness,

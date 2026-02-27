@@ -21,6 +21,8 @@
 import { invokeLLM } from '../_core/llm';
 import { getEmbedding } from './embeddings';
 import { conductResearch } from './research';
+import { evaluateCRAGMetrics } from './crag-metrics'; // v74.8: NC-RAGAS-001 Context Precision/Recall
+import { reliabilityLogger } from './reliability-logger'; // v74.9: Four Golden Signals monitoring
 
 export interface CRAGDocument {
   content: string;
@@ -48,7 +50,8 @@ export async function cragRetrieve(
   query: string,
   userId?: number
 ): Promise<CRAGResult> {
-  console.log(`[CRAG] Starting retrieval for: "${query.slice(0, 80)}"`);
+  console.log(`[CRAG] Starting retrieval for: "${query.slice(0, 80)}"`);  
+  reliabilityLogger.info('crag', `Starting retrieval for: "${query.slice(0, 80)}"`);
 
   // Step 1: Analyze query and decide retrieval strategy
   const { needsRetrieval, rewrittenQuery, queryType } = await analyzeQuery(query);
@@ -70,11 +73,13 @@ export async function cragRetrieve(
   // Step 2: Multi-source retrieval
   const rawDocuments = await multiSourceRetrieval(effectiveQuery);
   console.log(`[CRAG] Retrieved ${rawDocuments.length} raw documents`);
+  reliabilityLogger.info('crag', `Retrieved ${rawDocuments.length} raw documents`);
 
   // Step 3: Grade each document for relevance (Self-RAG critique)
   const gradedDocuments = await gradeDocuments(rawDocuments, effectiveQuery);
   const relevantDocs = gradedDocuments.filter(d => d.relevanceScore >= 0.5);
   console.log(`[CRAG] ${relevantDocs.length}/${rawDocuments.length} documents deemed relevant`);
+  reliabilityLogger.info('crag', `${relevantDocs.length}/${rawDocuments.length} documents deemed relevant`, { relevant: relevantDocs.length, total: rawDocuments.length });
 
   // Step 4: Corrective retrieval if no relevant documents found
   let correctiveSearchTriggered = false;
@@ -104,6 +109,14 @@ export async function cragRetrieve(
   // Step 5: Generate structured context
   const context = generateContext(allDocuments, effectiveQuery);
 
+  // v74.8: NC-RAGAS-001 — Evaluate Context Precision/Recall (RAGAS, Es et al., 2023)
+  const cragMetrics = evaluateCRAGMetrics(query, allDocuments.map(d => d.content));
+  if (cragMetrics.contextPrecision < 0.5) {
+    reliabilityLogger.warn('crag', `Low Context Precision@K: ${cragMetrics.contextPrecision.toFixed(2)}`, { cp: cragMetrics.contextPrecision, cr: cragMetrics.contextRecall });
+  } else {
+    reliabilityLogger.info('crag', `CRAG metrics OK — CP: ${cragMetrics.contextPrecision.toFixed(2)}, CR: ${cragMetrics.contextRecall.toFixed(2)}`, { cp: cragMetrics.contextPrecision, cr: cragMetrics.contextRecall });
+  }
+
   return {
     context,
     documents: allDocuments,
@@ -112,7 +125,9 @@ export async function cragRetrieve(
     correctiveSearchTriggered,
     totalDocuments: rawDocuments.length,
     relevantDocuments: allDocuments.length,
-  };
+    contextPrecision: cragMetrics.contextPrecision, // v74.8: NC-RAGAS-001
+    contextRecall: cragMetrics.contextRecall,       // v74.8: NC-RAGAS-001
+  } as CRAGResult & { contextPrecision: number; contextRecall: number };
 }
 
 /**

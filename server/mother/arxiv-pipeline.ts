@@ -23,6 +23,7 @@
  */
 
 import { insertKnowledge } from '../db';
+import { fetchWithRetry } from './fetch-with-retry'; // v74.8: NC-OMNI-001 exponential backoff
 
 // ==================== ARXIV API ====================
 // arXiv API v2: https://info.arxiv.org/help/api/index.html

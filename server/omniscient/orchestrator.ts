@@ -18,6 +18,7 @@ import { extractTextFromPdf, chunkText } from './pdf';
 import { generateEmbeddingsBatch } from './embeddings';
 import { jobQueue, type StudyJob } from './queue';
 import { eq } from 'drizzle-orm';
+import { reliabilityLogger } from '../mother/reliability-logger'; // v74.9: NC-PATCH-001 monitoring integration
 
 export interface StudyOptions {
   maxPapers?: number; // Max papers to process (default: 100)
@@ -57,6 +58,7 @@ export async function studyKnowledgeArea(
   } = options;
 
   console.log(`\n=== MOTHER Omniscient: Studying "${name}" ===`);
+  reliabilityLogger.info('omniscient', `Starting study: "${name}"`, { maxPapers, minQuality });
   console.log(`Max papers: ${maxPapers}, Min quality: ${minQuality}`);
 
   const db = await getDb();
@@ -218,7 +220,8 @@ export async function studyKnowledgeArea(
       currentStep: `Completed! Processed ${papersProcessed}/${arxivPapers.length} papers, created ${chunksCreated} chunks`,
     });
 
-    console.log(`\n✅ Study completed!`);
+     console.log(`✅ Study completed!`);
+    reliabilityLogger.info('omniscient', `Study completed: "${name}" — ${papersProcessed} papers, ${chunksCreated} chunks`, { papersProcessed, chunksCreated, totalCost });;
     console.log(`Papers processed: ${papersProcessed}/${arxivPapers.length}`);
     console.log(`Chunks created: ${chunksCreated}`);
     console.log(`Total cost: $${totalCost.toFixed(4)}`);

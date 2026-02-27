@@ -14,6 +14,7 @@ import { queries } from "../drizzle/schema";
 import { eq, isNotNull } from "drizzle-orm";
 import { getEmbedding, cosineSimilarity } from "./mother/embeddings";
 import { logger } from "./lib/logger";
+import { reliabilityLogger } from './mother/reliability-logger'; // v74.9: NC-EPISODIC-001 monitoring
 
 /**
  * Generate and save embedding for a query asynchronously
@@ -106,17 +107,18 @@ export async function searchEpisodicMemory(
         const similarity = cosineSimilarity(queryEmbedding, qEmbedding);
         
         return {
-          query: q.query,
-          response: q.response,
-          tier: q.tier,
+          query: q.query ?? '',              // v74.8: NC-EPISODIC-001 null safety
+          response: q.response ?? '',         // v74.8: NC-EPISODIC-001 null safety
+          tier: q.tier ?? 'tier1',            // v74.8: NC-EPISODIC-001 null safety
           similarity,
         };
       } catch (error) {
         logger.error(`[EpisodicMemory] Failed to parse embedding for query ${q.id}:`, error);
+        reliabilityLogger.warn('episodic', `Failed to parse embedding for query ${q.id}`);
         return {
-          query: q.query,
-          response: q.response,
-          tier: q.tier,
+          query: q.query ?? '',
+          response: q.response ?? '',
+          tier: q.tier ?? 'tier1',
           similarity: 0,
         };
       }

@@ -22,6 +22,8 @@
  */
 
 import { ENV } from '../_core/env';
+import { applyGuardianPatches } from './guardian-patches'; // v74.8: NC-GUARD-001, NC-GUARD-002
+import { reliabilityLogger } from './reliability-logger'; // v74.9: Four Golden Signals monitoring
 
 export interface GuardianResult {
   qualityScore: number; // 0-100
@@ -427,11 +429,13 @@ export async function validateQuality(
     if (gEvalScores.safety <= 2) allIssues.push(`Safety concern (G-Eval: ${gEvalScores.safety}/5)`);
     
     console.log(`[Guardian] G-Eval LLM quality score: ${qualityScore.toFixed(1)}`);
+    reliabilityLogger.info('guardian', `G-Eval LLM quality score: ${qualityScore.toFixed(1)}`, { method: 'llm', score: qualityScore });
     
   } else {
     // ---- Heuristic fallback path ----
     evaluationMethod = 'heuristic';
     console.log('[Guardian] Falling back to heuristic evaluation');
+    reliabilityLogger.warn('guardian', 'Falling back to heuristic evaluation (G-Eval unavailable)');
     
     const completeness = heuristicCompleteness(query, response);
     const accuracy = heuristicAccuracy(query, response);
@@ -456,6 +460,15 @@ export async function validateQuality(
     );
   }
   
+  // ==================== v74.8 PATCHES: NC-GUARD-001 + NC-GUARD-002 ====================
+  // Scientific basis: G-Eval (Liu et al., 2023) + RAGAS Answer Completeness (Es et al., 2023)
+  const patched = applyGuardianPatches(qualityScore, response, query);
+  if (patched.violated) {
+    allIssues.push(...patched.issues);
+    qualityScore = patched.adjustedScore;
+    reliabilityLogger.warn('guardian', `Guardian patch applied: ${patched.issues.join('; ')}`, { originalScore: patched.originalScore, adjustedScore: patched.adjustedScore });
+  }
+
   // ==================== HALLUCINATION RISK PENALTY ====================
   // Scientific basis: FActScore (Min et al., EMNLP 2023)
   if (hallucinationRisk === 'high') {
