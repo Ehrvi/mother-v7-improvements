@@ -23,6 +23,7 @@
 
 import { ENV } from '../_core/env';
 import { applyGuardianPatches } from './guardian-patches'; // v74.8: NC-GUARD-001, NC-GUARD-002
+import { applyConstitutionalAI } from './constitutional-ai'; // v74.15: NC-QUALITY-008
 import { reliabilityLogger } from './reliability-logger'; // v74.9: Four Golden Signals monitoring
 
 export interface GuardianResult {
@@ -42,6 +43,8 @@ export interface GuardianResult {
   gEvalConsistency?: number; // 1-5 normalized to 0-100
   gEvalFluency?: number; // 1-5 normalized to 0-100
   gEvalRelevance?: number; // 1-5 normalized to 0-100
+  gEvalDepth?: number;    // 1-5 normalized to 0-100 (NC-QUALITY-009)
+  gEvalObedience?: number; // 1-5 normalized to 0-100 (NC-QUALITY-009)
   evaluationMethod?: 'llm' | 'heuristic'; // which method was used
   passed: boolean; // true if quality >= 90 (triggers guardian rewrite)
   cacheEligible?: boolean; // v69.4: true if quality >= 75 (eligible for caching)
@@ -59,6 +62,8 @@ interface GEvalScores {
   fluency: number;      // 1-5: grammatical correctness and readability
   relevance: number;    // 1-5: addresses the query
   safety: number;       // 1-5: no harmful content
+  depth?: number;       // 1-5: NC-QUALITY-009: specific data, citations, examples
+  obedience?: number;   // 1-5: NC-QUALITY-009: follows all instructions
 }
 
 async function runGEvalLLMJudge(
@@ -174,14 +179,26 @@ export function gEvalToQualityScore(scores: GEvalScores, response?: string): num
     safety: ((scores.safety - 1) / 4) * 100,
   };
   
-  // v69.15: Updated weighted average (Ciclo 34 Fine-Tuning)
-  // Accuracy/Consistency raised to 0.35 (RAGAS faithfulness is primary metric)
-  // Relevance raised to 0.30 (ARES: second most important for RAG quality)
-  const baseScore = (
+  // v74.15: Updated weighted average (NC-QUALITY-009 — 7 dimensions)
+  // Added depth (0.25) and obedience (0.20) — critical for scientific methodology compliance
+  const normalizedDepth = scores.depth ? ((scores.depth - 1) / 4) * 100 : normalized.consistency;
+  const normalizedObedience = scores.obedience ? ((scores.obedience - 1) / 4) * 100 : normalized.relevance;
+  
+  const baseScore = scores.depth && scores.obedience ? (
+    // 7D scoring when depth and obedience available (NC-QUALITY-009)
+    normalized.coherence * 0.10 +
+    normalized.consistency * 0.20 +
+    normalized.fluency * 0.05 +
+    normalized.relevance * 0.15 +
+    normalized.safety * 0.05 +
+    normalizedDepth * 0.25 +
+    normalizedObedience * 0.20
+  ) : (
+    // 5D fallback (backward compatible with v69.15)
     normalized.coherence * 0.15 +
-    normalized.consistency * 0.35 +  // PRIMARY: factual accuracy/faithfulness (RAGAS, Es et al. 2023)
+    normalized.consistency * 0.35 +
     normalized.fluency * 0.10 +
-    normalized.relevance * 0.30 +    // SECONDARY: addresses query completely (ARES, Saad-Falcon 2023)
+    normalized.relevance * 0.30 +
     normalized.safety * 0.10
   );
   
@@ -509,9 +526,14 @@ export async function validateQuality(
     gEvalConsistency: gEvalScores ? ((gEvalScores.consistency - 1) / 4) * 100 : undefined,
     gEvalFluency: gEvalScores ? ((gEvalScores.fluency - 1) / 4) * 100 : undefined,
     gEvalRelevance: gEvalScores ? ((gEvalScores.relevance - 1) / 4) * 100 : undefined,
+    gEvalDepth: gEvalScores?.depth ? ((gEvalScores.depth - 1) / 4) * 100 : undefined,
+    gEvalObedience: gEvalScores?.obedience ? ((gEvalScores.obedience - 1) / 4) * 100 : undefined,
     evaluationMethod,
     passed: qualityScore >= 90,
     cacheEligible: qualityScore >= 75,
     issues: allIssues,
   };
 }
+
+// NC-QUALITY-008: Re-export applyConstitutionalAI for use in core.ts
+export { applyConstitutionalAI };

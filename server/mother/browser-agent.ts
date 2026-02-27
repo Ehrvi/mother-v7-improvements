@@ -25,6 +25,7 @@
  * - Auto-closes browser after each operation to conserve memory
  */
 import { createLogger } from '../_core/logger';
+import { addKnowledge } from './knowledge'; // NC-RESEARCH-001: auto-index to bd_central
 // pdf-parse: use require for CommonJS compatibility
 const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string; numpages: number }>;
 
@@ -407,4 +408,101 @@ export async function searchSoftwareManual(software: string, topic: string): Pro
   }
 
   return { url: '', title: '', content: '', success: false, error: `No manual found for ${software}` };
+}
+
+// ── Auto-Index to bd_central (NC-RESEARCH-001) ───────────────────────────────
+/**
+ * Automatically index extracted content (PDF, web page, forum post) into bd_central.
+ * Scientific basis: RAG with persistent memory (Lewis et al., arXiv:2005.11401, 2020)
+ * 
+ * This enables MOTHER to accumulate knowledge from Anna's Archive, forums, and manuals
+ * into her persistent bd_central, making it available for future CRAG queries.
+ * 
+ * @param title - Title of the document
+ * @param content - Extracted text content (will be chunked if > 3000 chars)
+ * @param source - Source URL or identifier
+ * @param category - Knowledge category (research, forum, manual, etc.)
+ * @returns Array of inserted knowledge IDs
+ */
+export async function indexInBdCentral(
+  title: string,
+  content: string,
+  source: string,
+  category: string = 'research'
+): Promise<number[]> {
+  const ids: number[] = [];
+  
+  // Chunk content into 2500-char segments with 200-char overlap
+  // Scientific basis: optimal chunk size for RAG (Shi et al., arXiv:2310.06025, 2023)
+  const CHUNK_SIZE = 2500;
+  const OVERLAP = 200;
+  
+  if (content.length <= CHUNK_SIZE) {
+    // Single chunk
+    try {
+      const id = await addKnowledge(title, content, category, source);
+      ids.push(id);
+      log.info('Indexed to bd_central', { title, source, category, id });
+    } catch (err) {
+      log.warn('Failed to index to bd_central', { title, error: String(err) });
+    }
+  } else {
+    // Multiple chunks
+    let chunkIndex = 0;
+    let start = 0;
+    while (start < content.length) {
+      const end = Math.min(start + CHUNK_SIZE, content.length);
+      const chunk = content.slice(start, end);
+      const chunkTitle = `${title} [Part ${chunkIndex + 1}]`;
+      
+      try {
+        const id = await addKnowledge(chunkTitle, chunk, category, source);
+        ids.push(id);
+        chunkIndex++;
+      } catch (err) {
+        log.warn('Failed to index chunk to bd_central', { chunkTitle, error: String(err) });
+      }
+      
+      start = end - OVERLAP;
+      if (start >= content.length) break;
+    }
+    log.info('Indexed chunks to bd_central', { title, source, chunks: chunkIndex, ids });
+  }
+  
+  return ids;
+}
+
+/**
+ * Search Anna's Archive AND automatically index results to bd_central.
+ * This is the "research + learn" pipeline for NC-RESEARCH-001.
+ * 
+ * @param query - Search query
+ * @param options - Search options
+ * @returns Search results (also indexed to bd_central if extractText=true)
+ */
+export async function searchAndIndexAnnasArchive(
+  query: string,
+  options: {
+    limit?: number;
+    autoIndex?: boolean; // if true, automatically index extracted PDFs to bd_central
+  } = {}
+): Promise<AnnasArchiveResult[]> {
+  const { limit = 5, autoIndex = true } = options;
+  
+  // Search with text extraction enabled
+  const results = await searchAnnasArchive(query, { limit, extractText: true });
+  
+  if (autoIndex) {
+    // Index each result with extracted text to bd_central
+    for (const result of results) {
+      if (result.extractedText && result.extractedText.length > 200) {
+        const source = result.downloadUrl || result.pageUrl;
+        const title = `[Anna's Archive] ${result.title} — ${result.author || 'Unknown Author'}`;
+        await indexInBdCentral(title, result.extractedText, source, 'research');
+      }
+    }
+    log.info('Anna Archive search+index complete', { query, indexed: results.filter(r => r.extractedText).length });
+  }
+  
+  return results;
 }

@@ -80,7 +80,7 @@ import { getAutonomySummary } from './autonomy'; // v74.6: Anti-hallucination au
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v74.14'; // NC-QUALITY-006-007: CRAG v2 + Self-Refine Phase 3
+export const MOTHER_VERSION = 'v74.15'; // NC-QUALITY-006-007: CRAG v2 + Self-Refine Phase 3
 
 const log = createLogger('CORE');
 
