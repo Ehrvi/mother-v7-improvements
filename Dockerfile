@@ -45,6 +45,14 @@ COPY --from=prod-deps /app/node_modules ./node_modules
 # Copy built application
 COPY --from=build /app/dist ./dist
 
+# Copy TypeScript source files for self-code-reader (read-only introspection)
+# Scientific basis: Godel Machine (Schmidhuber, 2003) -- self-referential system requires
+# access to its own source code for autonomous improvement proposals.
+# Without this, self-code-reader returns empty modules and LLM cannot perform self-diagnosis.
+# Root cause of self-diagnosis failure: esbuild bundles everything into dist/index.js,
+# so server/*.ts files do not exist in the final image without this explicit COPY.
+COPY --from=build /app/server ./server
+
 # Copy package.json for pnpm start command
 COPY --from=build /app/package.json ./
 

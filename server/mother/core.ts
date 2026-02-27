@@ -63,7 +63,12 @@ import { createLogger } from '../_core/logger'; // v74.0: NC-003 — structured 
 // v74.2: Ação 1 (GITHUB_TOKEN in cloudbuild.yaml — enables full DGM execution)
 //        Ação 5 (version-based cache invalidation — queryHash includes MOTHER_VERSION)
 //        Scientific basis: Fowler, Patterns of Enterprise Application Architecture (2002)
-export const MOTHER_VERSION = 'v74.2';
+// v74.3: ROOT CAUSE FIX — self-code-reader always returned empty in production Docker
+//        Cause: esbuild bundles everything into dist/index.js; server/*.ts NOT copied to image
+//        Fix: Dockerfile COPY --from=build /app/server ./server
+//        Scientific basis: Gödel Machine (Schmidhuber, 2003) — self-referential system
+//        requires access to its own source code for autonomous improvement
+export const MOTHER_VERSION = 'v74.3';
 
 const log = createLogger('CORE');
 
