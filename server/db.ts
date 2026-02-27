@@ -77,7 +77,8 @@ export async function getDb() {
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0,
-        connectTimeout: 30000
+        connectTimeout: 30000,
+        ssl: { rejectUnauthorized: false }
       };
     }
 

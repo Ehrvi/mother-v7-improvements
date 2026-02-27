@@ -1,5 +1,5 @@
 /**
- * MOTHER v68.8 - Sprint 2: TypeScript Clean + Final Audit (Ciclo 6)
+ * MOTHER v70.0 - Ciclos 36-40: Knowledge Graph + Abductive Engine + DPO Builder + RLVR Verifier + Self-Improve Orchestrator
  * Orchestrates all 7 layers for end-to-end query processing
  *
  * v67.5 Changes:
@@ -50,9 +50,10 @@ import { runMetricsJobs } from './metrics-aggregation-job'; // v69.12: Fix P0 �
 import { MOTHER_TOOLS, executeTool, formatToolResult } from './tool-engine';
 import { ENV } from '../_core/env';
 import { generateFichamento } from './fichamento';
+import { requiresAbductiveReasoning, performAbductiveReasoning, formatAbductiveContext } from './abductive-engine';
 
 // ─── MOTHER Version (single source of truth) ─────────────────────────────────
-export const MOTHER_VERSION = 'v69.15';
+export const MOTHER_VERSION = 'v70.0';
 
 
 // v69.11: Creator email from centralized user-hierarchy module (NIST RBAC SP 800-162)
@@ -319,6 +320,23 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
     if (userMemoryContext) console.log(`[MOTHER] User memory context injected for user ${userId}`);
   }
   
+  // ==================== CICLO 37: ABDUCTIVE REASONING (v70.0) ====================
+  // Apply abductive reasoning for queries requiring hypothesis generation
+  // Scientific basis: Peirce (1878); Lipton (2004) — Inference to the Best Explanation
+  let abductiveContext = '';
+  if (requiresAbductiveReasoning(query)) {
+    try {
+      const domain = routingDecision.category === 'research' ? 'AI/ML' : 'General';
+      const abductiveResult = await performAbductiveReasoning(query, domain, knowledgeContext);
+      abductiveContext = formatAbductiveContext(abductiveResult);
+      if (abductiveContext) {
+        console.log(`[MOTHER] Abductive Engine: ${abductiveResult.hypotheses.length} hypotheses, confidence=${abductiveResult.scientificConfidence.toFixed(2)}`);
+      }
+    } catch (abductiveErr) {
+      console.warn('[MOTHER] Abductive reasoning failed (non-blocking):', (abductiveErr as Error).message);
+    }
+  }
+
   // Extract Research result
   let researchContext = '';
   if (researchResultRaw.status === 'fulfilled' && researchResultRaw.value) {
@@ -398,7 +416,7 @@ You have access to the following real system tools. When the user asks for somet
 
 ### ARCHITECTURE
 
-- **Version:** ${MOTHER_VERSION} (CRAG + Language Matching Fix + Cache Threshold Fix + Streaming + Grounding Engine + Agentic Learning Loop + Guardian Regeneration + Prometheus Auto-Dispatch + Domain Mapping + Schema Alignment + RAGAS Metrics + Real Self-Audit + Security Hardening + Knowledge Re-classification + Daily Self-Audit Scheduler + Parallel Context Build + Latency Optimizations + Two-Phase Execution + Embedding Cache + Routing Fix + Passive Auto-Study Trigger + Log Analysis + Behavior Corrections + Semantic Cache Fix + G-Eval Guardian)
+- **Version:** ${MOTHER_VERSION} (CRAG + Language Matching + Semantic Cache + Streaming SSE + Grounding Engine + Agentic Learning + Guardian Regeneration + Prometheus Auto-Dispatch + Parallel Context Build + Two-Phase Execution + Embedding Cache + Passive Auto-Study + G-Eval Guardian + arXiv Pipeline + Fine-Tuning Parameters + **Knowledge Graph [Ciclo 36]** + **Abductive Engine [Ciclo 37]** + **DPO Builder [Ciclo 38]** + **RLVR Verifier [Ciclo 39]** + **Self-Improve Orchestrator [Ciclo 40]**)
 - **DGM (Darwin Gödel Machine):** Active — analyzes metrics every 10 queries, generates self-improvement proposals
 - **7-Layer Cognitive Architecture:** Intelligence → Guardian → CRAG Knowledge → Execution → Grounding → Security → Agentic Learning
 - **CI/CD Pipeline:** GitHub Actions → Cloud Run (australia-southeast1)
@@ -431,7 +449,13 @@ ${knowledgeContext ? `
 ${knowledgeContext}
 ---
 
-` : ''}${omniscientContext}${episodicContext}${userMemoryContext}${researchContext}
+` : ''}${omniscientContext}${episodicContext}${userMemoryContext}${researchContext}${abductiveContext ? `
+
+---
+## 🔬 ABDUCTIVE REASONING (Ciclo 37 — Peirce 1878, Lipton 2004)
+${abductiveContext}
+---
+` : ''}
 
 **MANDATORY RESPONSE RULES (${MOTHER_VERSION}) — QUALITY PROTOCOL:**
 

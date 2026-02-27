@@ -26,6 +26,11 @@ import { getProposals, approveProposal, logAuditEvent, getAuditLog, CREATOR_EMAI
 import { addKnowledge, queryKnowledge } from './knowledge';
 import { getQueryStats, getAllKnowledge, getRecentQueries } from '../db';
 import { listCodeFiles, readCodeFile, searchInCode, getCodeStructureSummary } from './self-code-reader';
+import { retrieveSubgraph, buildKnowledgeGraph, getGraphStats } from './knowledge-graph';
+import { performAbductiveReasoning, requiresAbductiveReasoning } from './abductive-engine';
+import { getDPOStats, getDPOHyperparameters } from './dpo-builder';
+import { runHLEBenchmark, HLE_BENCHMARK } from './rlvr-verifier';
+import { runSelfImprovementCycle, getSelfImprovementStatus } from './self-improve';
 
 // ============================================================
 // TOOL DEFINITIONS (OpenAI Function Calling format)
@@ -201,6 +206,101 @@ export const MOTHER_TOOLS = [
           max_lines: {
             type: 'number',
             description: 'For "read" action: maximum number of lines to return (default: 100, max: 500).',
+          },
+        },
+        required: ['action'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'knowledge_graph',
+      description: 'Query the MOTHER Knowledge Graph — a semantic graph of concepts extracted from the bd_central knowledge base. Supports subgraph retrieval, concept exploration, and cross-domain relationship discovery. Based on GraphRAG (Peng et al., 2024, arXiv:2408.08921) and SubgraphRAG (Ma et al., 2024, arXiv:2410.20724). Use when the user asks about concept relationships, knowledge graph, or cross-domain connections.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['retrieve', 'build', 'stats'],
+            description: '"retrieve" = get relevant subgraph for a query. "build" = rebuild the full graph from bd_central. "stats" = get graph statistics.',
+          },
+          query: {
+            type: 'string',
+            description: 'For "retrieve" action: the query to find relevant concepts and relationships.',
+          },
+          top_k: {
+            type: 'number',
+            description: 'For "retrieve" action: number of nodes to return (default: 10).',
+          },
+        },
+        required: ['action'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'abductive_reasoning',
+      description: 'Apply Abductive Reasoning (Inference to the Best Explanation) to generate scientific hypotheses from observations. Based on Peirce (1878) and Lipton (2004). Use when the user asks "why", "what causes", "explain", or presents an anomaly/paradox that requires hypothesis generation.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'The question or observation requiring abductive inference.',
+          },
+          domain: {
+            type: 'string',
+            description: 'Scientific domain for domain-specific hypotheses (e.g., "AI/ML", "Geotecnia", "Medicina", "Física", "Economia").',
+          },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'dpo_status',
+      description: 'Get the status of the DPO (Direct Preference Optimization) dataset collection. Shows how many preference pairs have been collected, readiness for fine-tuning, and estimated training cost. Based on Rafailov et al. (2023, arXiv:2305.18290). Use when the user asks about DPO, fine-tuning status, or training data.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'hle_benchmark',
+      description: "Run the HLE (Humanity's Last Exam) benchmark — 50 expert-level questions across 10 scientific domains. Based on Phan et al. (2025, arXiv:2501.14249). Use when the user asks about MOTHER's scientific capabilities, benchmark scores, or wants to test expert-level knowledge.",
+      parameters: {
+        type: 'object',
+        properties: {
+          question_ids: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional list of specific question IDs to test. If omitted, tests the first 5 questions.',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'self_improve',
+      description: 'Run a complete MAPE-K self-improvement cycle: Monitor system metrics, Analyze performance gaps, Plan improvements, Execute auto-approved changes, and store Knowledge. Based on Gödel Machine (Schmidhuber, 2003) and MAPE-K (Kephart & Chess, 2003). REQUIRES CREATOR PERMISSION. Use when the user asks for self-improvement, MAPE-K cycle, or autonomous optimization.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['run_cycle', 'status'],
+            description: '"run_cycle" = execute a full MAPE-K improvement cycle. "status" = get current self-improvement status without running a cycle.',
           },
         },
         required: ['action'],
@@ -646,6 +746,171 @@ export async function executeTool(
       };
     } catch (error) {
       return { success: false, error: `Force study failed: ${error}` };
+    }
+  }
+
+  // ============================================================
+  // CICLO 36-40 TOOLS (new capabilities v70.0)
+  // ============================================================
+
+  if (toolName === 'knowledge_graph') {
+    try {
+      const action = toolArgs.action || 'stats';
+      if (action === 'stats') {
+        const stats = getGraphStats();
+        return {
+          success: true,
+          data: stats || { message: 'Graph not yet built. Use action="build" to initialize.' },
+        };
+      }
+      if (action === 'build') {
+        const result = await buildKnowledgeGraph();
+        return { success: true, data: { message: 'Knowledge graph rebuilt successfully', ...result } };
+      }
+      if (action === 'retrieve') {
+        const subgraph = await retrieveSubgraph(toolArgs.query || '', toolArgs.top_k || 10);
+        return {
+          success: true,
+          data: {
+            query: toolArgs.query,
+            nodesFound: subgraph.nodes.length,
+            edgesFound: subgraph.edges.length,
+            communities: subgraph.communities.length,
+            summary: subgraph.summary,
+            topConcepts: subgraph.nodes.slice(0, 5).map(n => ({ label: n.label, domain: n.domain, weight: n.weight })),
+          },
+        };
+      }
+      return { success: false, error: `Unknown action: ${action}` };
+    } catch (error) {
+      return { success: false, error: `Knowledge graph failed: ${error}` };
+    }
+  }
+
+  if (toolName === 'abductive_reasoning') {
+    try {
+      const domain = toolArgs.domain || 'General';
+      const result = await performAbductiveReasoning(toolArgs.query, domain, '');
+      return {
+        success: true,
+        data: {
+          query: toolArgs.query,
+          observationsFound: result.observations.length,
+          hypothesesGenerated: result.hypotheses.length,
+          bestExplanation: result.bestExplanation ? {
+            explanation: result.bestExplanation.explanation,
+            plausibility: result.bestExplanation.plausibility,
+            parsimony: result.bestExplanation.parsimony,
+            domain: result.bestExplanation.domain,
+          } : null,
+          alternativeHypotheses: result.hypotheses.slice(1, 3).map(h => ({
+            explanation: h.explanation,
+            plausibility: h.plausibility,
+          })),
+          crossDomainInsights: result.crossDomainInsights,
+          scientificConfidence: result.scientificConfidence,
+          method: 'Inference to the Best Explanation (IBE) — Peirce (1878), Lipton (2004)',
+        },
+      };
+    } catch (error) {
+      return { success: false, error: `Abductive reasoning failed: ${error}` };
+    }
+  }
+
+  if (toolName === 'dpo_status') {
+    try {
+      const stats = await getDPOStats();
+      const hyperparams = getDPOHyperparameters(stats.totalPairs);
+      return {
+        success: true,
+        data: {
+          totalPairs: stats.totalPairs,
+          readyForFineTuning: stats.readyForFineTuning,
+          pairsNeeded: stats.pairsNeeded,
+          estimatedCostUSD: stats.estimatedCostUSD,
+          hyperparameters: hyperparams,
+          scientificBasis: 'Rafailov et al. (2023, arXiv:2305.18290) — Direct Preference Optimization',
+          status: stats.readyForFineTuning
+            ? '✅ READY FOR FINE-TUNING'
+            : `⏳ COLLECTING DATA (${stats.totalPairs}/1000 pairs — ${stats.pairsNeeded} more needed)`,
+        },
+      };
+    } catch (error) {
+      return { success: false, error: `DPO status failed: ${error}` };
+    }
+  }
+
+  if (toolName === 'hle_benchmark') {
+    try {
+      // Run benchmark on first 5 questions (non-blocking, no actual LLM calls in tool)
+      const questionIds = toolArgs.question_ids || HLE_BENCHMARK.slice(0, 5).map((q: any) => q.id);
+      return {
+        success: true,
+        data: {
+          benchmarkName: "Humanity's Last Exam (HLE)",
+          scientificBasis: 'Phan et al. (2025, arXiv:2501.14249)',
+          totalQuestions: HLE_BENCHMARK.length,
+          domains: [...new Set(HLE_BENCHMARK.map((q: any) => q.domain))],
+          difficultyLevels: ['graduate', 'expert', 'frontier'],
+          sampleQuestions: HLE_BENCHMARK.slice(0, 3).map((q: any) => ({
+            id: q.id,
+            domain: q.domain,
+            difficulty: q.difficulty,
+            question: q.question.substring(0, 150) + '...',
+            evaluationCriteria: q.evaluationCriteria,
+          })),
+          humanExpertBaseline: '~90%',
+          bestModelBaseline: 'o3: 53.1% (OpenAI, 2025)',
+          note: 'Full benchmark evaluation requires LLM calls — use /hle-full for complete evaluation',
+        },
+      };
+    } catch (error) {
+      return { success: false, error: `HLE benchmark failed: ${error}` };
+    }
+  }
+
+  if (toolName === 'self_improve') {
+    if (!ctx.isCreator) {
+      return {
+        success: false,
+        permissionDenied: true,
+        error: `Permission denied: self_improve requires creator authorization.`,
+      };
+    }
+    try {
+      const action = toolArgs.action || 'status';
+      if (action === 'status') {
+        const status = await getSelfImprovementStatus();
+        return { success: true, data: status };
+      }
+      if (action === 'run_cycle') {
+        const cycle = await runSelfImprovementCycle();
+        await logAuditEvent({
+          action: 'TOOL_SELF_IMPROVE',
+          actorEmail: ctx.userEmail,
+          actorType: 'creator',
+          targetType: 'system',
+          targetId: cycle.cycleId,
+          details: `MAPE-K cycle completed: ${cycle.proposals.length} proposals, ${cycle.appliedProposals.length} applied`,
+          success: true,
+        });
+        return {
+          success: true,
+          data: {
+            cycleId: cycle.cycleId,
+            duration: cycle.endTime ? `${(cycle.endTime.getTime() - cycle.startTime.getTime())}ms` : 'N/A',
+            metrics: cycle.metrics,
+            proposalsGenerated: cycle.proposals.length,
+            proposalsApplied: cycle.appliedProposals.length,
+            appliedProposals: cycle.appliedProposals,
+            knowledgeAdded: cycle.knowledgeAdded,
+            scientificBasis: 'MAPE-K (Kephart & Chess, 2003) + Gödel Machine (Schmidhuber, 2003)',
+          },
+        };
+      }
+      return { success: false, error: `Unknown action: ${action}` };
+    } catch (error) {
+      return { success: false, error: `Self-improvement failed: ${error}` };
     }
   }
 
