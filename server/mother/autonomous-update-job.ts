@@ -253,9 +253,39 @@ export async function executeAutonomousUpdate(proposalId: number): Promise<Updat
       const authenticatedUrl = repoUrl.replace('https://', `https://x-access-token:${githubToken}@`);
       runCommand(tempDir, `git clone ${authenticatedUrl} repo`);
     } else {
-      // Fallback: use existing repo if available (for local testing)
-      reactObserve('WARNING: No GITHUB_TOKEN found. Using local repo copy.');
-      execSync(`cp -r /home/ubuntu/mother-code/mother-interface ${repoPath}`, { stdio: 'pipe' });
+      // v74.1 CRITICAL FIX: Resilient fallback for production Docker (no GITHUB_TOKEN)
+      // BEFORE: cp -r /home/ubuntu/... — path does NOT exist in Docker container → ENOENT → proposal fails
+      // AFTER: try /app (Docker container path) first, then /app/server as secondary
+      // Scientific basis: Defensive Programming (McConnell, Code Complete 2nd ed., 2004)
+      //                   — always validate path existence before file operations
+      reactObserve('WARNING: No GITHUB_TOKEN found. Attempting resilient local copy fallback.');
+      
+      // Detect environment: Docker (/app) vs local dev (/home/ubuntu/...)
+      const possibleSourcePaths = [
+        '/app',                                              // Docker production container
+        '/home/ubuntu/mother-code/mother-interface',        // Local dev environment
+        process.cwd(),                                       // Current working directory
+      ];
+      
+      let sourcePath: string | null = null;
+      for (const p of possibleSourcePaths) {
+        if (fs.existsSync(p) && fs.existsSync(path.join(p, 'package.json'))) {
+          sourcePath = p;
+          break;
+        }
+      }
+      
+      if (!sourcePath) {
+        // No valid source path found — mark proposal as failed with clear error
+        throw new Error(
+          'GITHUB_TOKEN not configured and no valid source path found. ' +
+          'To enable autonomous updates: add GITHUB_TOKEN to Cloud Run secrets via cloudbuild.yaml. ' +
+          'See AWAKE V124 NC-DGM-001 for implementation details.'
+        );
+      }
+      
+      reactObserve(`Using source path: ${sourcePath}`);
+      execSync(`cp -r ${sourcePath} ${repoPath}`, { stdio: 'pipe' });
     }
     
     reactObserve(`Repository cloned to ${repoPath}`);

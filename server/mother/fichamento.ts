@@ -1,21 +1,32 @@
 /**
- * FICHAMENTO DE CONHECIMENTO — v73.0
+ * FICHAMENTO DE CONHECIMENTO — v74.1
  * 
  * Gera rodapé de conhecimento absorvido para respostas analíticas de MOTHER.
  * 
  * CORREÇÕES v73.0 (baseadas em diagnóstico científico rigoroso):
  * 
- * PROBLEMA 1 — Auto-referência inválida (CORRIGIDO):
+ * PROBLEMA 1 — Auto-referência inválida (CORRIGIDO v73.0):
  *   ANTES: source: 'Resposta MOTHER' — circularidade epistêmica, viola princípio básico
  *          de que fontes devem ser externas e verificáveis (Zins & Santos, JASIST 2011)
  *   DEPOIS: Conceitos SEM citação externa verificada [N] são OMITIDOS do fichamento.
  *           Apenas conceitos com citação inline [N] do contexto RAG são incluídos.
  * 
- * PROBLEMA 2 — Referências fora de padrão tipográfico (CORRIGIDO):
+ * PROBLEMA 2 — Referências fora de padrão tipográfico (CORRIGIDO v73.0):
  *   ANTES: > **Conceito** — def *(Fonte: X)* — mesmo tamanho da fonte, sem hierarquia
  *   DEPOIS: Seção separada com hierarquia visual clara (tamanho menor via <small>),
  *           formato IEEE/ABNT NBR 6023:2018
  *           Hierarquia: resposta principal > rodapé de conhecimento > refs
+ * 
+ * PROBLEMA 3 — Texto repetido no output (CORRIGIDO v74.1):
+ *   ANTES: sentenceCitedPattern copiava frases completas (até 120 chars) da resposta
+ *          e as re-inseria no rodapé como 'definição', causando duplicação visível.
+ *          Além disso, quando ## Referências já estava no corpo, o fichamento ainda
+ *          adicionava conceitos duplicando conteúdo.
+ *   DEPOIS: (1) Se resposta já contém ## Referências → fichamento suprimido completamente
+ *           (2) definições limitadas a 60 chars (resumo, não cópia de frase)
+ *           (3) sentenceCitedPattern removido — apenas citedBoldPattern (termos explícitos)
+ *   Base científica: Redundancy Reduction (Shannon, 1948, Bell System Technical Journal)
+ *                    — informação redundante aumenta ruído sem aumentar entropia informacional
  * 
  * Base científica:
  * - ABNT NBR 6023:2018 — Informação e documentação: referências
@@ -71,34 +82,23 @@ function extractVerifiedConcepts(response: string): Array<{ concept: string; def
   
   // ONLY extract concepts that have real inline citations [N]
   // Pattern: "**Term** — definition [N]" or "**Term** (definition) [N]"
+  // v74.1: definition limited to 60 chars (was 150) to prevent sentence-level duplication
   const citedBoldPattern = /\*\*([^*]{3,50})\*\*[:\s—–-]+([^.\n]{20,200})\s*\[(\d+)\]/g;
   let match;
   while ((match = citedBoldPattern.exec(response)) !== null) {
     const concept = match[1].trim();
-    const definition = match[2].trim().replace(/\*\*/g, '').substring(0, 150);
+    // v74.1: 60 chars max — enough for a brief definition, not a full sentence copy
+    const definition = match[2].trim().replace(/\*\*/g, '').substring(0, 60);
     const citNum = match[3];
     if (concept.length > 2 && !concept.includes('\n')) {
       concepts.push({ concept, definition, source: `[${citNum}]` });
     }
   }
   
-  // Pattern: sentence ending with [N] — extract the key phrase
-  const sentenceCitedPattern = /([A-ZÁÉÍÓÚÀÂÊÔÃÕ][^.!?\n]{20,150})\s*\[(\d+)\]/g;
-  const citedConcepts: string[] = [];
-  while ((match = sentenceCitedPattern.exec(response)) !== null) {
-    const context = match[1].trim();
-    const citNum = match[2];
-    // Extract key noun phrase (remove leading articles)
-    const keyPhrase = context.replace(/^(The|A|An|O|A|Os|As|Um|Uma|Este|Esta|Esse|Essa)\s+/i, '').substring(0, 60);
-    if (keyPhrase.length > 10 && !citedConcepts.includes(keyPhrase)) {
-      citedConcepts.push(keyPhrase);
-      concepts.push({ 
-        concept: keyPhrase.split(' ').slice(0, 5).join(' '), 
-        definition: context.substring(0, 120),
-        source: `[${citNum}]`
-      });
-    }
-  }
+  // v74.1: sentenceCitedPattern REMOVED — it was copying full sentences (up to 120 chars)
+  // from the response body and re-inserting them as 'definitions', causing visible text repetition.
+  // Scientific basis: Shannon (1948) — redundant information increases noise without adding entropy.
+  // Only citedBoldPattern (explicit **Term** — definition [N]) is used now.
   
   // Deduplicate and limit to 3 most relevant
   const seen = new Set<string>();
@@ -158,6 +158,14 @@ export function generateFichamento(response: string, query: string): FichamentoR
   
   // Don't add fichamento to conversational/command responses (no citations present)
   if (response.length < 500 && !response.includes('[1]') && !response.includes('## Referências')) {
+    return { entries: [], references: [], formattedFootnote: '' };
+  }
+  
+  // v74.1: CRITICAL FIX — text repetition bug
+  // If response already contains ## Referências section, fichamento would duplicate content.
+  // Suppress fichamento entirely when the LLM already produced a proper references section.
+  // Scientific basis: Shannon (1948) redundancy reduction; DRY principle (Hunt & Thomas, 1999)
+  if (response.includes('## Referências') || response.includes('## References')) {
     return { entries: [], references: [], formattedFootnote: '' };
   }
   

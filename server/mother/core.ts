@@ -56,7 +56,11 @@ import { createLogger } from '../_core/logger'; // v74.0: NC-003 — structured 
 // ─── MOTHER Version (single source of truth) ─────────────────────────────────
 // v74.0: NC-010 (tier3 fix) + NC-008 (cache TTL 72h) + NC-011 (self-diagnosis routing)
 // + NC-003 (structured logger) — Scientific basis: ISO/IEC 25010:2023 quality model
-export const MOTHER_VERSION = 'v74.0';
+// v74.1: BUG-1 (__dirname ESM fix in self-code-reader/writer/worker-python-helper)
+//        BUG-2 (DGM resilient fallback — Docker path detection)
+//        BUG-4 (fichamento text repetition — sentenceCitedPattern removed, ## Referências guard)
+//        BUG-3 (quality 50% — consequence of BUG-1, resolves automatically)
+export const MOTHER_VERSION = 'v74.1';
 
 const log = createLogger('CORE');
 

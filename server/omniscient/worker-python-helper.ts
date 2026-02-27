@@ -7,6 +7,11 @@
 
 import { spawn } from 'child_process';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+// v74.1: ESM fix — __dirname is not defined in ESM ("type": "module")
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export interface PythonProcessResult {
   success: boolean;

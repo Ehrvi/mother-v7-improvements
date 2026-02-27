@@ -26,7 +26,14 @@
  */
 
 import { readFileSync, readdirSync, existsSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+// v74.1: ESM fix — __dirname is not available in ESM modules ("type": "module" in package.json)
+// Scientific basis: Node.js ESM docs (nodejs.org/api/esm.html#importmetaurl)
+// This was causing ReferenceError: __dirname is not defined when read_own_code tool was invoked
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Whitelist of accessible directories (relative to project root)
 const ALLOWED_PATHS = [

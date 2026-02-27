@@ -30,7 +30,12 @@
  */
 import { writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
+
+// v74.1: ESM fix — __dirname is not defined in ESM ("type": "module")
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Whitelist of writable paths (relative to project root)
 const WRITABLE_PATHS = [
