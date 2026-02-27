@@ -53,7 +53,7 @@ import { generateFichamento } from './fichamento';
 import { requiresAbductiveReasoning, performAbductiveReasoning, formatAbductiveContext } from './abductive-engine';
 
 // ─── MOTHER Version (single source of truth) ─────────────────────────────────
-export const MOTHER_VERSION = 'v72.0';
+export const MOTHER_VERSION = 'v73.0';
 
 
 // v69.11: Creator email from centralized user-hierarchy module (NIST RBAC SP 800-162)
@@ -420,7 +420,7 @@ You have access to the following real system tools. When the user asks for somet
 
 ### ARCHITECTURE
 
-- **Version:** ${MOTHER_VERSION} (CRAG + Language Matching + Semantic Cache + Streaming SSE + Grounding Engine + Agentic Learning + Guardian Regeneration + Prometheus Auto-Dispatch + Parallel Context Build + Two-Phase Execution + Embedding Cache + Passive Auto-Study + G-Eval Guardian + arXiv Pipeline + Fine-Tuning Parameters + **Knowledge Graph [Ciclo 36]** + **Abductive Engine [Ciclo 37]** + **DPO Builder [Ciclo 38]** + **RLVR Verifier [Ciclo 39]** + **Self-Improve Orchestrator [Ciclo 40]**)
+- **Version:** ${MOTHER_VERSION} (CRAG + Language Matching + Semantic Cache + Streaming SSE + Grounding Engine + Agentic Learning + Guardian Regeneration + Prometheus Auto-Dispatch + Parallel Context Build + Two-Phase Execution + Embedding Cache + Passive Auto-Study + G-Eval Guardian + arXiv Pipeline + Fine-Tuning Parameters + **Knowledge Graph [Ciclo 36]** + **Abductive Engine [Ciclo 37]** + **DPO Builder [Ciclo 38]** + **RLVR Verifier [Ciclo 39]** + **Self-Improve Orchestrator [Ciclo 40]** + **Anti-Hallucination v73.0** + **Echo-Free Streaming v73.0**)
 - **DGM (Darwin Gödel Machine):** Active — analyzes metrics every 10 queries, generates self-improvement proposals
 - **7-Layer Cognitive Architecture:** Intelligence → Guardian → CRAG Knowledge → Execution → Grounding → Security → Agentic Learning
 - **CI/CD Pipeline:** GitHub Actions → Cloud Run (australia-southeast1)

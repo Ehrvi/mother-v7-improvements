@@ -57,7 +57,11 @@ export async function groundResponse(
       claims: [],
       totalClaims: 0,
       groundedClaims: 0,
-      hallucinationRisk: 'low', // v68.9: was 'high' — no context means no grounding needed, not high risk
+      // v73.0 FIX: No context = HIGH hallucination risk (inverted logic from v68.9)
+      // BEFORE (v68.9 bug): 'low' — reasoning: 'no grounding needed' (WRONG)
+      // AFTER (v73.0): 'high' — reasoning: 'no external context to verify claims against'
+      // Scientific basis: CRAG (Yan et al., 2024) — ungrounded responses have HIGH hallucination risk
+      hallucinationRisk: 'high', // v73.0: corrected from 'low'
       citationsInjected: 0,
     };
   }
@@ -70,7 +74,7 @@ export async function groundResponse(
       claims: [],
       totalClaims: 0,
       groundedClaims: 0,
-      hallucinationRisk: 'low',
+      hallucinationRisk: 'medium', // v73.0: short responses = medium (still unverified, not low)
       citationsInjected: 0,
     };
   }
