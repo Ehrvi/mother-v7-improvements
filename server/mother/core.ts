@@ -60,7 +60,10 @@ import { createLogger } from '../_core/logger'; // v74.0: NC-003 — structured 
 //        BUG-2 (DGM resilient fallback — Docker path detection)
 //        BUG-4 (fichamento text repetition — sentenceCitedPattern removed, ## Referências guard)
 //        BUG-3 (quality 50% — consequence of BUG-1, resolves automatically)
-export const MOTHER_VERSION = 'v74.1';
+// v74.2: Ação 1 (GITHUB_TOKEN in cloudbuild.yaml — enables full DGM execution)
+//        Ação 5 (version-based cache invalidation — queryHash includes MOTHER_VERSION)
+//        Scientific basis: Fowler, Patterns of Enterprise Application Architecture (2002)
+export const MOTHER_VERSION = 'v74.2';
 
 const log = createLogger('CORE');
 
@@ -126,7 +129,11 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   const { query, userId, userEmail, useCache = true, conversationHistory = [], onChunk } = request;
   
   // Generate query hash for caching (exact-match fallback)
-  const queryHash = createHash('sha256').update(query.toLowerCase().trim()).digest('hex');
+  // v74.2: Version-based cache invalidation — include MOTHER_VERSION in hash
+  // Scientific basis: Versioned cache keys (Fowler, Patterns of Enterprise Application Architecture, 2002)
+  // Ensures responses from previous versions are NEVER served after a version bump
+  // e.g., v74.0 cache entry for 'qual sua versão?' will NOT match v74.1 queryHash
+  const queryHash = createHash('sha256').update(`${MOTHER_VERSION}:${query.toLowerCase().trim()}`).digest('hex');
   
   // ==================== CACHING LAYER v69.5: SEMANTIC CACHE ====================
   // Scientific basis: GPTCache (Zeng et al., 2023); Krites (Apple ML, arXiv:2602.13165, 2026)
