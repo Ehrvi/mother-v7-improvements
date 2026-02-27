@@ -32,6 +32,8 @@ import { assessComplexity, classifyQuery, getModelForTier, calculateCost, calcul
 import { validateQuality, type GuardianResult } from './guardian';
 import { getKnowledgeContext } from './knowledge';
 import { cragRetrieve } from './crag';
+import { cragV2Retrieve } from './crag-v2'; // NC-QUALITY-006: CRAG v2 with query expansion + hybrid search
+import { selfRefinePhase3 } from './self-refine'; // NC-QUALITY-007: Self-Refine Phase 3 (3 iterations)
 import { searchSimilarChunksWithMetadata } from '../omniscient/search';
 import { groundResponse, needsGrounding } from './grounding';
 import { agenticLearningLoop } from './agentic-learning';
@@ -78,7 +80,7 @@ import { getAutonomySummary } from './autonomy'; // v74.6: Anti-hallucination au
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v74.11';
+export const MOTHER_VERSION = 'v74.14'; // NC-QUALITY-006-007: CRAG v2 + Self-Refine Phase 3
 
 const log = createLogger('CORE');
 
@@ -301,7 +303,7 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   ] = await Promise.allSettled([
     // Source 1: CRAG (Self-correcting RAG) — 8s budget (may trigger external search)
     withTimeout(
-      cragRetrieve(query, userId).catch(async (err) => {
+      cragV2Retrieve(query, userId).catch(async (err) => { // NC-QUALITY-006: CRAG v2
         log.error('[MOTHER] CRAG failed, falling back to legacy knowledge:', err);
         const fallback = await getKnowledgeContext(query);
         return { context: fallback, documents: [], correctiveSearchTriggered: false };
@@ -325,7 +327,7 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   let cragDocuments: import('./crag').CRAGDocument[] = [];
   if (cragResultRaw.status === 'fulfilled') {
     knowledgeContext = cragResultRaw.value.context;
-    cragDocuments = cragResultRaw.value.documents;
+    cragDocuments = cragResultRaw.value.documents as any; // NC-QUALITY-006: CRAGv2Document compatible with CRAGDocument
     if ((cragResultRaw.value as any).correctiveSearchTriggered) {
       log.info('[MOTHER] CRAG: Corrective search triggered — no local knowledge found');
     }
@@ -825,6 +827,29 @@ ${autonomyStatus}
       }
     } catch (retryErr) {
       console.error('[Guardian] Regeneration failed (non-blocking):', retryErr);
+    }
+  }
+  
+  // ==================== SELF-REFINE PHASE 3 (NC-QUALITY-007) ====================
+  // Scientific basis: Madaan et al. (arXiv:2303.17651, 2023): Self-Refine improves quality +20%
+  // Only triggered when quality < 80 AND response is substantive (> 200 chars)
+  // Max 3 iterations, early stop at quality >= 90
+  if (quality.qualityScore < 80 && response.length > 200) {
+    try {
+      log.info(`[Self-Refine] Phase 3 triggered (score ${quality.qualityScore} < 80)`);
+      const selfRefineResult = await selfRefinePhase3(
+        query,
+        response,
+        quality.qualityScore,
+        knowledgeContext || '',
+        systemPrompt
+      );
+      if (selfRefineResult.improved) {
+        response = selfRefineResult.finalResponse;
+        log.info(`[Self-Refine] Improved: ${selfRefineResult.initialScore} → ${selfRefineResult.finalScore} (${selfRefineResult.iterations} iterations)`);
+      }
+    } catch (selfRefineErr) {
+      log.warn('[Self-Refine] Phase 3 failed (non-blocking):', (selfRefineErr as Error).message);
     }
   }
   
