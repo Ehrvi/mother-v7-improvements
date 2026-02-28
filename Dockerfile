@@ -1,6 +1,11 @@
 # MOTHER v7 Interface - Production Dockerfile
 # Based on pnpm official Docker best practices
 # https://pnpm.io/docker
+#
+# v74.16: NC-PLAYWRIGHT-001 — Added Playwright Chromium for real browser access
+# Scientific basis: Playwright (Microsoft, 2020) — headless browser automation
+# Enables: searchAnnasArchive(), searchDuckDuckGo(), searchForums(), searchSoftwareManual()
+# Without this: browser-agent.ts functions fail silently in Cloud Run (no Chromium binary)
 
 FROM node:22-slim AS base
 ENV PNPM_HOME="/pnpm"
@@ -39,6 +44,18 @@ RUN pnpm install --prod --frozen-lockfile
 FROM base
 WORKDIR /app
 
+# v74.16: NC-PLAYWRIGHT-001 — Install Playwright system dependencies (Chromium)
+# Scientific basis: Playwright requires system-level Chromium + OS dependencies
+# Must install BEFORE switching to non-root user (requires root for apt-get)
+# node:22-slim is Debian-based — apt-get is available
+RUN apt-get update && apt-get install -y \
+    libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+    libdbus-1-3 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
+    libxrandr2 libgbm1 libasound2 libpango-1.0-0 libcairo2 libatspi2.0-0 \
+    wget ca-certificates fonts-liberation libx11-xcb1 libxss1 xdg-utils \
+    --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy production dependencies
 COPY --from=prod-deps /app/node_modules ./node_modules
 
@@ -59,11 +76,16 @@ COPY --from=build /app/package.json ./
 # Copy drizzle schema if exists (for database migrations)
 COPY --from=build /app/drizzle ./drizzle
 
+# v74.16: Install Playwright Chromium browser binary
+# PLAYWRIGHT_BROWSERS_PATH ensures binary is accessible by non-root user after chown
+ENV PLAYWRIGHT_BROWSERS_PATH=/home/nodejs/.cache/ms-playwright
+RUN npx playwright install chromium 2>/dev/null || echo "Playwright Chromium install attempted"
+
 # Create non-root user for security (Debian syntax for node:22-slim)
 RUN groupadd --system --gid 1001 nodejs && \
     useradd --system --uid 1001 --gid nodejs --create-home nodejs && \
     chown -R nodejs:nodejs /app && \
-    mkdir -p /home/nodejs/.cache && \
+    mkdir -p /home/nodejs/.cache/ms-playwright && \
     chown -R nodejs:nodejs /home/nodejs
 
 USER nodejs

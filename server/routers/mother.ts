@@ -154,8 +154,21 @@ export const motherRouter = router({
           );
           await logAuditEvent({ action: 'CREATOR_DIRECT_LEARN', actorType: 'creator', actorEmail: userEmail, targetType: 'knowledge', details: `Direct learn: ${args.slice(0, 100)}`, success: true });
           return { response: `✅ **Knowledge ingested successfully.**\n\n> ${args.slice(0, 200)}${args.length > 200 ? '...' : ''}\n\n_This information is now part of my permanent knowledge base._`, tier: 'gpt-4o-mini' as const, complexityScore: 0, confidenceScore: 1, quality: { passed: true, qualityScore: 100, issues: [] }, responseTime: 0, tokensUsed: 0, cost: 0, costReduction: 0, cacheHit: false, queryId: -1 };
+
+
         }
         // /fitness — Real-time fitness score from the database (v71.0 fix)
+                if (cmd === '/calibrate') {
+          // NC-CALIBRATION-001: Run 7D G-Eval weight calibration
+          // Scientific basis: Liu et al. (2023, arXiv:2303.16634)
+          try {
+            const { getCalibrationSummary } = await import('../mother/calibration.js');
+            const summary = await getCalibrationSummary();
+            return { response: `## Calibration Report\n\n${summary}`, tier: 'gpt-4o-mini' as const, complexityScore: 0, confidenceScore: 1, quality: { passed: true, qualityScore: 100, issues: [] }, responseTime: 0, tokensUsed: 0, cost: 0, costReduction: 0, cacheHit: false, queryId: -1 };
+          } catch (err) {
+            return { response: `❌ Calibration error: ${(err as Error).message}`, tier: 'gpt-4o-mini' as const, complexityScore: 0, confidenceScore: 1, quality: { passed: true, qualityScore: 100, issues: [] }, responseTime: 0, tokensUsed: 0, cost: 0, costReduction: 0, cacheHit: false, queryId: -1 };
+          }
+        }
         if (cmd === '/fitness') {
           const history = await getFitnessHistory(10).catch(() => []);
           const stats = await getSystemStats();
