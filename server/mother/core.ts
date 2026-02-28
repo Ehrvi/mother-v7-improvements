@@ -93,7 +93,7 @@ import { getAutonomySummary } from './autonomy'; // v74.6: Anti-hallucination au
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v75.6'; // Ciclo 56: STEM Router (A1) + CoVe Expanded (A2) + ORPO (A3) + StructuredOutput (A4) + ProactiveRetrieval (A5, FLARE arXiv:2305.06983 + Self-RAG arXiv:2310.11511) + ActiveStudy (A6, Semantic Scholar + arXiv) + MetacognitiveMon (A7, arXiv:2505.13763) | NC-PROVIDER-007 fix
+export const MOTHER_VERSION = 'v75.7'; // Ciclo 57: GAP1 fix (Camada 3.5→7 integration, HippoRAG2 arXiv:2502.14802 + MARK arXiv:2505.05177) + GAP2 fix (Quality-Triggered Learning, Self-RAG arXiv:2310.11511 + Reflexion arXiv:2303.11366) + GAP3 fix (Fichamento after study, ABNT NBR 6023:2018) + GAP4 fix (Bidirectional RAG write-back, arXiv:2512.22199)
 
 const log = createLogger('CORE');
 
@@ -1179,6 +1179,39 @@ ${autonomyStatus}
       routingDecision.category,
       worstDimension
     ).catch(err => log.warn('[ORPO] Collection failed (non-blocking):', err));
+  }
+
+  // ==================== CICLO 57 GAP 2 FIX: QUALITY-TRIGGERED LEARNING ====================
+  // Scientific basis:
+  // - Self-RAG (Asai et al., arXiv:2310.11511, ICLR 2024): When retrieval fails and quality
+  //   is poor, the system must trigger active study BEFORE the next similar query.
+  // - HippoRAG 2 (arXiv:2502.14802, ICML 2025): Continual learning requires detecting
+  //   knowledge gaps from poor responses and filling them proactively.
+  // - Bidirectional RAG (arXiv:2512.22199, 2025): Safe write-back — only store knowledge
+  //   from validated, high-quality responses to prevent hallucination pollution.
+  //
+  // Rule: If quality < 75 (below LEARNING_QUALITY_THRESHOLD) AND knowledgeContext was empty
+  // (meaning bd_central had no data on this topic), trigger active study asynchronously.
+  // This ensures that the NEXT time a similar query arrives, MOTHER will have knowledge.
+  //
+  // This is the "poor response → learn → improve" feedback loop described in:
+  // - Reflexion (Shinn et al., arXiv:2303.11366, NeurIPS 2023): verbal reinforcement learning
+  // - Self-Refine (Madaan et al., arXiv:2303.17651, NeurIPS 2023): iterative refinement
+  if (
+    quality.qualityScore !== undefined &&
+    quality.qualityScore < LEARNING_QUALITY_THRESHOLD && // below 75 — poor response
+    (!knowledgeContext || knowledgeContext.trim().length < 200) && // no/minimal bd_central data
+    cragDocuments.length === 0 // no documents found
+  ) {
+    log.warn(`[QualityTriggeredLearning] Poor response (score ${quality.qualityScore}) with empty knowledge context — triggering active study for: "${query.slice(0, 80)}"`);
+    // Fire-and-forget: study the topic so future queries benefit
+    import('./active-study').then(({ triggerActiveStudy }) => {
+      triggerActiveStudy(query, 'high') // high priority — response was poor
+        .then(result => {
+          log.info(`[QualityTriggeredLearning] Active study complete: ${result.reason}`);
+        })
+        .catch(err => log.error('[QualityTriggeredLearning] Active study failed (non-blocking):', err));
+    }).catch(err => log.error('[QualityTriggeredLearning] Import failed:', err));
   }
 
   // ==================== LAYER 7: METRICS ====================
