@@ -44,6 +44,9 @@ import { rerankDocuments, shouldRerank } from './rag-reranker'; // Ciclo 54 v2.0
 import { applyToT, shouldApplyToT } from './tot-router'; // Ciclo 54 v2.0 Action 5: ToT — Tree-of-Thoughts (Yao et al., arXiv:2305.10601, 2023)
 import { collectORPOPair } from './orpo-optimizer'; // Ciclo 56 Action 3: ORPO — Odds Ratio Preference Optimization (Hong et al., arXiv:2403.07691, EMNLP 2024)
 import { enforceStructuredOutput } from './structured-output'; // Ciclo 56 Action 4: Structured Output Enforcement (Beurer-Kellner et al., arXiv:2212.06094, LMQL 2023)
+import { shouldProactivelyRetrieve, executeProactiveRetrieval, assessContextSufficiency, generateProactiveContextMarker } from './proactive-retrieval'; // Ciclo 56 Action 5: Proactive Knowledge Retrieval (FLARE arXiv:2305.06983, Self-RAG arXiv:2310.11511)
+import { shouldTriggerActiveStudy, triggerActiveStudy, enrichResearchWithSemanticScholar } from './active-study'; // Ciclo 56 Action 6: Active Academic Study (Semantic Scholar + arXiv, Proactive Agents arXiv:2410.12361)
+import { assessKnowledgeState, formatMetacognitiveStatus } from './metacognitive-monitor'; // Ciclo 56 Action 7: Metacognitive Monitoring (Ji-An et al., arXiv:2505.13763, NeurIPS 2024 arXiv:2406.08391)
 import { searchSimilarChunksWithMetadata } from '../omniscient/search';
 import { groundResponse, needsGrounding } from './grounding';
 import { agenticLearningLoop } from './agentic-learning';
@@ -90,7 +93,7 @@ import { getAutonomySummary } from './autonomy'; // v74.6: Anti-hallucination au
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v75.5'; // Ciclo 56: STEM Router (A1, MMLU 2020) + CoVe Expanded (A2, arXiv:2309.11495) + ORPO (A3, arXiv:2403.07691) + StructuredOutput (A4, arXiv:2212.06094) | NC-PROVIDER-007 fix
+export const MOTHER_VERSION = 'v75.6'; // Ciclo 56: STEM Router (A1) + CoVe Expanded (A2) + ORPO (A3) + StructuredOutput (A4) + ProactiveRetrieval (A5, FLARE arXiv:2305.06983 + Self-RAG arXiv:2310.11511) + ActiveStudy (A6, Semantic Scholar + arXiv) + MetacognitiveMon (A7, arXiv:2505.13763) | NC-PROVIDER-007 fix
 
 const log = createLogger('CORE');
 
@@ -450,6 +453,82 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
     }
   }
   
+  // ==================== CICLO 56 ACTION 5: PROACTIVE KNOWLEDGE RETRIEVAL ====================
+  // Scientific basis: FLARE (Jiang et al., arXiv:2305.06983, EMNLP 2023) — forward-looking active retrieval
+  // Self-RAG (Asai et al., arXiv:2310.11511, ICLR 2024) — adaptive retrieval with reflection tokens
+  // Agentic RAG (Singh et al., arXiv:2501.09136, 2025) — autonomous context management
+  let proactiveContext = '';
+  let proactiveMarker = '';
+  const omniscientResultCount = omniscientResultRaw.status === 'fulfilled' ? omniscientResultRaw.value.length : 0;
+  const proactiveCheck = shouldProactivelyRetrieve(
+    query,
+    knowledgeContext,
+    cragDocuments.length,
+    routingDecision.category
+  );
+  if (proactiveCheck.should) {
+    try {
+      const proactiveResult = await executeProactiveRetrieval(query, routingDecision.category);
+      if (proactiveResult.additionalContext) {
+        proactiveContext = `\n\n## 🔍 PROACTIVE RETRIEVAL — bd_central (FLARE/Self-RAG)\n${proactiveResult.additionalContext}`;
+        // Merge into knowledgeContext if original was empty
+        if (!knowledgeContext || knowledgeContext.trim().length === 0) {
+          knowledgeContext = proactiveResult.additionalContext;
+        }
+      }
+      const sufficiencyAssessment = assessContextSufficiency(knowledgeContext, cragDocuments.length, routingDecision.category);
+      proactiveMarker = generateProactiveContextMarker(proactiveResult, sufficiencyAssessment);
+      log.info(`[ProactiveRetrieval] Triggered: ${proactiveResult.reason} | Results: ${proactiveResult.resultsFound}`);
+    } catch (proactiveErr) {
+      log.warn('[ProactiveRetrieval] Failed (non-blocking):', (proactiveErr as Error).message);
+    }
+  } else {
+    log.info(`[ProactiveRetrieval] Skipped: ${proactiveCheck.reason}`);
+  }
+
+  // ==================== CICLO 56 ACTION 6: ACTIVE ACADEMIC STUDY ====================
+  // Scientific basis: Proactive Agents (arXiv:2410.12361, 2024) — anticipate knowledge needs
+  // Semantic Scholar API (Allen Institute for AI) — 200M+ papers, free access
+  // Runs ASYNCHRONOUSLY (fire-and-forget) — does not block response generation
+  // Results available for FUTURE queries via bd_central
+  let semanticScholarContext = '';
+  const activeStudyCheck = shouldTriggerActiveStudy(
+    query,
+    cragDocuments.length,
+    routingDecision.category,
+    omniscientResultCount
+  );
+  if (activeStudyCheck.should) {
+    // Fire-and-forget: enrich bd_central for future queries
+    triggerActiveStudy(query, activeStudyCheck.priority).then(result => {
+      log.info(`[ActiveStudy] Background study complete: ${result.reason}`);
+    }).catch(err => {
+      log.warn('[ActiveStudy] Background study failed:', err.message);
+    });
+    // Also get immediate Semantic Scholar context for this response
+    try {
+      semanticScholarContext = await enrichResearchWithSemanticScholar(query, 2);
+      if (semanticScholarContext) {
+        log.info(`[ActiveStudy] Semantic Scholar context injected for this response`);
+      }
+    } catch (s2Err) {
+      log.warn('[ActiveStudy] Semantic Scholar enrichment failed (non-blocking):', (s2Err as Error).message);
+    }
+  }
+
+  // ==================== CICLO 56 ACTION 7: METACOGNITIVE MONITORING ====================
+  // Scientific basis: Metacognitive Monitoring (Ji-An et al., arXiv:2505.13763, 2025)
+  // NeurIPS 2024 Uncertainty (Kapoor et al., arXiv:2406.08391) — objective uncertainty criteria
+  // Proactive Agents (arXiv:2410.12361, 2024) — active intelligence
+  const metacogAssessment = assessKnowledgeState(
+    query,
+    knowledgeContext,
+    omniscientContext,
+    cragDocuments.length,
+    routingDecision.category
+  );
+  log.info(formatMetacognitiveStatus(metacogAssessment));
+
   // ==================== LAYER 4: EXECUTION ====================
   // Execute query with selected LLM tier
   
@@ -569,13 +648,13 @@ ${knowledgeContext ? `
 ${knowledgeContext}
 ---
 
-` : ''}${omniscientContext}${episodicContext}${userMemoryContext}${researchContext}${abductiveContext ? `
+` : ''}${omniscientContext}${episodicContext}${userMemoryContext}${researchContext}${semanticScholarContext}${proactiveContext}${abductiveContext ? `
 
 ---
 ## 🔬 ABDUCTIVE REASONING (Ciclo 37 — Peirce 1878, Lipton 2004)
 ${abductiveContext}
 ---
-` : ''}
+` : ''}${proactiveMarker}${metacogAssessment.systemPromptMarker}
 
 **MANDATORY RESPONSE RULES (${MOTHER_VERSION}) — QUALITY PROTOCOL:**
 
@@ -585,14 +664,21 @@ MOTHER uses a 3-layer knowledge hierarchy:
 2. **bd_central** (central shared DB) — searched via search_knowledge
 3. **force_study** — ACTIVE: Creator calls directly | PASSIVE: System auto-triggers
 
-When a user asks about a topic:
-- FIRST: check the RETRIEVED KNOWLEDGE context above (already from bd_central)
-- If context is SUFFICIENT: answer with citations from it
-- If context is INSUFFICIENT: call search_knowledge tool to expand the search
+When a user asks about a topic (v75.6 — OBJECTIVE SUFFICIENCY CRITERIA based on FLARE arXiv:2305.06983 + Self-RAG arXiv:2310.11511):
+- FIRST: check the METACOGNITIVE ASSESSMENT section above — it tells you the coverage score and recommendation
+- **OBJECTIVE INSUFFICIENCY CRITERIA (call search_knowledge if ANY is true):**
+  1. RETRIEVED KNOWLEDGE section is empty or missing
+  2. Context length < 300 characters
+  3. CRAG documents = 0 (no bd_central data found)
+  4. Metacognitive Assessment says recommendation = 'search_first' or 'study_required'
+  5. Query category is 'research', 'complex_reasoning', or 'stem' AND coverage score < 70%
+- **If context is OBJECTIVELY SUFFICIENT (coverage ≥ 70%, ≥ 2 documents, ≥ 300 chars):** answer with citations from it
+- **If context is INSUFFICIENT:** call search_knowledge tool IMMEDIATELY before answering
 - search_knowledge will AUTOMATICALLY trigger a passive force_study if bd_central has no data on the topic — the system will learn and return fresh results
 - If search_knowledge returns autoStudyTriggered=true: inform the user that the system just learned about the topic and cite the newly acquired knowledge
 - NEVER call force_study directly unless you are the Creator — passive auto-study is handled transparently by search_knowledge itself
 - If auto-study also fails: say "Não encontrei dados verificados sobre [tópico] mesmo após busca automática. O Criador pode usar force_study para ingerir literatura específica."
+- **ACTIVE INTELLIGENCE RULE (v75.6):** For STEM/research queries, ALWAYS call search_knowledge first, even if some context exists. Proactive retrieval > passive generation.
 
 **ESTRUTURA (obrigatória para respostas não-triviais):**
 - Use Markdown adequado: ## títulos, **negrito** para termos-chave, \`code blocks\` para código, listas numeradas para passos
