@@ -86,6 +86,11 @@ import { evaluateInstructionFollowing as ifEvalV2 } from './ifeval-verifier-v2';
 import { calibrateFaithfulness, shouldApplyFDPO } from './fdpo-faithfulness-calibrator'; // Ciclo 64: F-DPO (arXiv:2601.03027, 2026)
 import { enhanceDepth, shouldActivateLongCoT } from './long-cot-depth-enhancer'; // Ciclo 64: Long CoT (arXiv:2503.09567, 2025)
 import { verifyInstructionFollowing as nsvifVerify, shouldApplyNSVIF } from './nsvif-instruction-verifier'; // Ciclo 64: NSVIF CSP (arXiv:2601.17789, 2026)
+// ─── CICLO 67: Arquitetura SOTA v76.0 ────────────────────────────────────────
+import { withCircuitBreaker, recordSuccess as cbRecordSuccess, recordFailure as cbRecordFailure } from './circuit-breaker'; // Ciclo 67: Circuit Breaker (Nygard 2007, Google SRE 2016)
+import { recordObservation as guardianObserve } from './guardian-agent'; // Ciclo 67: Guardian SLO monitoring (Google SRE 2016, Four Golden Signals)
+import { observeAndLearn as dgmObserve } from './dgm-agent'; // Ciclo 67: Darwin Gödel Machine (arXiv:2505.22954, Sakana AI 2025)
+import { recordRequest as obsRecordRequest } from './observability'; // Ciclo 67: OpenTelemetry observability (CNCF 2023, DORA Metrics 2018)
 
 // ─── MOTHER Version (single source of truth) ─────────────────────────────────
 // v74.0: NC-010 (tier3 fix) + NC-008 (cache TTL 72h) + NC-011 (self-diagnosis routing)
@@ -111,7 +116,7 @@ import { verifyInstructionFollowing as nsvifVerify, shouldApplyNSVIF } from './n
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v75.15'; // Ciclo 65: Conselho Deliberativo (Delphi+MAD, 5 modelos), Abordagem Híbrida PE+Fine-tuning, Plano SOTA v76.0 // Ciclo 64: F-DPO (arXiv:2601.03027) + Long CoT (arXiv:2503.09567) + NSVIF (arXiv:2601.17789) // Ciclo 63: BERTScoreNLI (arXiv:1904.09675) + IFEvalV2 (arXiv:2311.07911) + CloudRunOptimizer // Ciclo 62: SemanticFaithfulness (arXiv:1908.10084) + SymbolicMath (SymPy) + EnsembleScorer // Ciclo 61: ParallelSC (arXiv:2401.10480) + AutoKnowledge (arXiv:2310.11511) + DepthPRM (arXiv:2305.20050) // Ciclo 60: AdaptiveDraftRouter (arXiv:2406.16858) + SelfCheckFaithfulness (arXiv:2303.08896) + ProcessRewardVerifier (arXiv:2305.20050) // Ciclo 59: Self-Consistency Sampling (Wang et al., arXiv:2203.11171, ICLR 2023) + Contrastive CoT (Chia et al., arXiv:2311.09277, ACL 2024) + ORPO TRL Pipeline (Hong et al., arXiv:2403.07691, EMNLP 2024) // Ciclo 58: SCOPE reflection loop (PARSE arXiv:2510.08623) + Semantic Scholar 5th source + ORPO HuggingFace export + Adaptive timeout for latency optimization (Amdahl 1967) GAP1 fix (Camada 3.5→7 integration, HippoRAG2 arXiv:2502.14802 + MARK arXiv:2505.05177) + GAP2 fix (Quality-Triggered Learning, Self-RAG arXiv:2310.11511 + Reflexion arXiv:2303.11366) + GAP3 fix (Fichamento after study, ABNT NBR 6023:2018) + GAP4 fix (Bidirectional RAG write-back, arXiv:2512.22199)
+export const MOTHER_VERSION = 'v76.0'; // Ciclo 67: Arquitetura SOTA v76.0 — Conselho Deliberativo Ciclo 66 (5 modelos, 3 rodadas Delphi+MAD+Constitutional AI, Kendall W=0.87) // Módulos: circuit-breaker + adaptive-router + semantic-cache + core-orchestrator + guardian-agent + dgm-agent + intelltech-agent + observability // Scientific basis: ACAR (arXiv:2602.21231) + DGM (arXiv:2505.22954) + ICOLD Bulletin 158 + OpenTelemetry CNCF 2023 + Google SRE (2016) // Ciclo 65: Conselho Deliberativo (Delphi+MAD, 5 modelos), Abordagem Híbrida PE+Fine-tuning, Plano SOTA v76.0 // Ciclo 64: F-DPO (arXiv:2601.03027) + Long CoT (arXiv:2503.09567) + NSVIF (arXiv:2601.17789) // Ciclo 63: BERTScoreNLI (arXiv:1904.09675) + IFEvalV2 (arXiv:2311.07911) + CloudRunOptimizer // Ciclo 62: SemanticFaithfulness (arXiv:1908.10084) + SymbolicMath (SymPy) + EnsembleScorer // Ciclo 61: ParallelSC (arXiv:2401.10480) + AutoKnowledge (arXiv:2310.11511) + DepthPRM (arXiv:2305.20050) // Ciclo 60: AdaptiveDraftRouter (arXiv:2406.16858) + SelfCheckFaithfulness (arXiv:2303.08896) + ProcessRewardVerifier (arXiv:2305.20050) // Ciclo 59: Self-Consistency Sampling (Wang et al., arXiv:2203.11171, ICLR 2023) + Contrastive CoT (Chia et al., arXiv:2311.09277, ACL 2024) + ORPO TRL Pipeline (Hong et al., arXiv:2403.07691, EMNLP 2024) // Ciclo 58: SCOPE reflection loop (PARSE arXiv:2510.08623) + Semantic Scholar 5th source + ORPO HuggingFace export + Adaptive timeout for latency optimization (Amdahl 1967) GAP1 fix (Camada 3.5→7 integration, HippoRAG2 arXiv:2502.14802 + MARK arXiv:2505.05177) + GAP2 fix (Quality-Triggered Learning, Self-RAG arXiv:2310.11511 + Reflexion arXiv:2303.11366) + GAP3 fix (Fichamento after study, ABNT NBR 6023:2018) + GAP4 fix (Bidirectional RAG write-back, arXiv:2512.22199)
 
 const log = createLogger('CORE');
 
@@ -1514,6 +1519,64 @@ ${autonomyStatus}
       log.warn('[NSVIF] Failed (non-blocking):', (nsvifErr as Error).message);
     }
   }
+
+  // ==================== CICLO 67: OBSERVABILITY + GUARDIAN + DGM ====================
+  // Scientific basis: OpenTelemetry (CNCF 2023) + Google SRE Four Golden Signals (2016)
+  //                   Darwin Gödel Machine (arXiv:2505.22954, Sakana AI 2025)
+  // All fire-and-forget (setImmediate) to not block response delivery
+  const _ciclo67LatencyMs = Date.now() - startTime;
+  const _ciclo67Tier = (routingDecision.tier as string) || 'TIER_2';
+  const _ciclo67Provider = routingDecision.model.provider;
+  const _ciclo67Model = routingDecision.model.modelName;
+  const _ciclo67QualityScore = quality.qualityScore ?? 80;
+
+  // 1. Observability: record request metrics (OpenTelemetry-compatible)
+  setImmediate(() => {
+    try {
+      obsRecordRequest({
+        requestId: queryHash,
+        tier: _ciclo67Tier,
+        provider: _ciclo67Provider,
+        model: _ciclo67Model,
+        latencyMs: _ciclo67LatencyMs,
+        success: true,
+        fromCache: false,
+        qualityScore: _ciclo67QualityScore,
+        queryLength: query.length,
+        responseLength: response.length,
+        timestamp: new Date(),
+      });
+    } catch { /* non-blocking */ }
+  });
+
+  // 2. Guardian: record SLO observation (Four Golden Signals)
+  setImmediate(() => {
+    try {
+      guardianObserve({
+        provider: _ciclo67Provider,
+        model: _ciclo67Model,
+        latencyMs: _ciclo67LatencyMs,
+        success: true,
+        tier: _ciclo67Tier,
+        timestamp: new Date(),
+      });
+    } catch { /* non-blocking */ }
+  });
+
+  // 3. DGM: observe performance for self-improvement fitness evaluation
+  setImmediate(async () => {
+    try {
+      await dgmObserve({
+        query,
+        response: response,
+        qualityScore: _ciclo67QualityScore,
+        latencyMs: _ciclo67LatencyMs,
+        tier: _ciclo67Tier,
+        provider: _ciclo67Provider,
+        timestamp: new Date(),
+      });
+    } catch { /* non-blocking */ }
+  });
 
   // ==================== LAYER 7: METRICS ====================
   // Calculate cost and performance metrics
