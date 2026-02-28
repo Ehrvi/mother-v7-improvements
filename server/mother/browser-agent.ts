@@ -26,8 +26,15 @@
  */
 import { createLogger } from '../_core/logger';
 import { addKnowledge } from './knowledge'; // NC-RESEARCH-001: auto-index to bd_central
-// pdf-parse: use require for CommonJS compatibility
-const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string; numpages: number }>;
+// pdf-parse: lazy import for ESM compatibility (avoids __require crash in ESM bundles)
+let _pdfParse: ((buffer: Buffer) => Promise<{ text: string; numpages: number }>) | null = null;
+async function getPdfParse() {
+  if (!_pdfParse) {
+    const mod = await import('pdf-parse');
+    _pdfParse = (mod.default || mod) as any;
+  }
+  return _pdfParse!;
+}
 
 const log = createLogger('BROWSER-AGENT');
 
@@ -274,6 +281,7 @@ export async function downloadAndExtractPdf(url: string): Promise<string> {
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const buffer = Buffer.from(await response.arrayBuffer());
+    const pdfParse = await getPdfParse();
     const data = await pdfParse(buffer);
     log.info('PDF extracted', { pages: data.numpages, chars: data.text.length });
     return data.text;
