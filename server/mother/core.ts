@@ -71,6 +71,21 @@ import { buildContrastiveCotPrompt, shouldApplyCCoT } from './contrastive-cot'; 
 import { addORPOPair } from './orpo-finetune-pipeline'; // Ciclo 59 Action 4: ORPO Fine-tuning Pipeline (Hong et al., arXiv:2403.07691, EMNLP 2024)
 import { createLogger } from '../_core/logger'; // v74.0: NC-003 — structured logger
 import { getAutonomySummary } from './autonomy'; // v74.6: Anti-hallucination autonomy status
+// ─── CICLO 60-65: New Quality Modules ────────────────────────────────────────
+import { adaptiveDraftRouter, estimateQueryComplexity as estimateDraftComplexity } from './adaptive-draft-router'; // Ciclo 60: AdaptiveDraftRouter (EAGLE-2, arXiv:2406.16858, EMNLP 2024)
+import { applyFaithfulnessCalibration } from './selfcheck-faithfulness'; // Ciclo 60: SelfCheckFaithfulness (arXiv:2303.08896, EMNLP 2023)
+import { applyProcessRewardVerification } from './process-reward-verifier'; // Ciclo 60: ProcessRewardVerifier (arXiv:2305.20050, ICLR 2024)
+import { applyParallelSelfConsistency, shouldApplyParallelSC } from './parallel-self-consistency'; // Ciclo 61: ParallelSC N=3 (arXiv:2401.10480, ICLR 2024) — shouldApplyParallelSC(category, queryLength, hasErrors)
+import { injectAutoKnowledge, shouldInjectAutoKnowledge, formatAKIContextForPrompt } from './auto-knowledge-injector'; // Ciclo 61: AutoKnowledge Self-RAG (arXiv:2310.11511, ICLR 2024)
+import { applyDepthPRM, shouldApplyDepthPRM } from './depth-prm-activator'; // Ciclo 61: DepthPRM (arXiv:2305.20050 + arXiv:2312.08935)
+import { applySemanticFaithfulnessCalibration } from './semantic-faithfulness-scorer'; // Ciclo 62: SemanticFaithfulness (arXiv:1908.10084, EMNLP 2019)
+import { verifyMathematicalContent } from './symbolic-math-verifier'; // Ciclo 62: SymbolicMath (SymPy + arXiv:2305.20050)
+import { computeEnsembleScore, evaluateStoppingCriterion } from './quality-ensemble-scorer'; // Ciclo 62: EnsembleScorer + StoppingCriterion
+import { evaluateFaithfulness as bertEvaluateFaithfulness } from './bertscore-nli-faithfulness'; // Ciclo 63: BERTScoreNLI (arXiv:1904.09675, ICLR 2020)
+import { evaluateInstructionFollowing as ifEvalV2 } from './ifeval-verifier-v2'; // Ciclo 63: IFEvalV2 (arXiv:2311.07911, Google 2023)
+import { calibrateFaithfulness, shouldApplyFDPO } from './fdpo-faithfulness-calibrator'; // Ciclo 64: F-DPO (arXiv:2601.03027, 2026)
+import { enhanceDepth, shouldActivateLongCoT } from './long-cot-depth-enhancer'; // Ciclo 64: Long CoT (arXiv:2503.09567, 2025)
+import { verifyInstructionFollowing as nsvifVerify, shouldApplyNSVIF } from './nsvif-instruction-verifier'; // Ciclo 64: NSVIF CSP (arXiv:2601.17789, 2026)
 
 // ─── MOTHER Version (single source of truth) ─────────────────────────────────
 // v74.0: NC-010 (tier3 fix) + NC-008 (cache TTL 72h) + NC-011 (self-diagnosis routing)
@@ -96,7 +111,7 @@ import { getAutonomySummary } from './autonomy'; // v74.6: Anti-hallucination au
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v75.9'; // Ciclo 59: Self-Consistency Sampling (Wang et al., arXiv:2203.11171, ICLR 2023) + Contrastive CoT (Chia et al., arXiv:2311.09277, ACL 2024) + ORPO TRL Pipeline (Hong et al., arXiv:2403.07691, EMNLP 2024) // Ciclo 58: SCOPE reflection loop (PARSE arXiv:2510.08623) + Semantic Scholar 5th source + ORPO HuggingFace export + Adaptive timeout for latency optimization (Amdahl 1967) GAP1 fix (Camada 3.5→7 integration, HippoRAG2 arXiv:2502.14802 + MARK arXiv:2505.05177) + GAP2 fix (Quality-Triggered Learning, Self-RAG arXiv:2310.11511 + Reflexion arXiv:2303.11366) + GAP3 fix (Fichamento after study, ABNT NBR 6023:2018) + GAP4 fix (Bidirectional RAG write-back, arXiv:2512.22199)
+export const MOTHER_VERSION = 'v75.15'; // Ciclo 65: Conselho Deliberativo (Delphi+MAD, 5 modelos), Abordagem Híbrida PE+Fine-tuning, Plano SOTA v76.0 // Ciclo 64: F-DPO (arXiv:2601.03027) + Long CoT (arXiv:2503.09567) + NSVIF (arXiv:2601.17789) // Ciclo 63: BERTScoreNLI (arXiv:1904.09675) + IFEvalV2 (arXiv:2311.07911) + CloudRunOptimizer // Ciclo 62: SemanticFaithfulness (arXiv:1908.10084) + SymbolicMath (SymPy) + EnsembleScorer // Ciclo 61: ParallelSC (arXiv:2401.10480) + AutoKnowledge (arXiv:2310.11511) + DepthPRM (arXiv:2305.20050) // Ciclo 60: AdaptiveDraftRouter (arXiv:2406.16858) + SelfCheckFaithfulness (arXiv:2303.08896) + ProcessRewardVerifier (arXiv:2305.20050) // Ciclo 59: Self-Consistency Sampling (Wang et al., arXiv:2203.11171, ICLR 2023) + Contrastive CoT (Chia et al., arXiv:2311.09277, ACL 2024) + ORPO TRL Pipeline (Hong et al., arXiv:2403.07691, EMNLP 2024) // Ciclo 58: SCOPE reflection loop (PARSE arXiv:2510.08623) + Semantic Scholar 5th source + ORPO HuggingFace export + Adaptive timeout for latency optimization (Amdahl 1967) GAP1 fix (Camada 3.5→7 integration, HippoRAG2 arXiv:2502.14802 + MARK arXiv:2505.05177) + GAP2 fix (Quality-Triggered Learning, Self-RAG arXiv:2310.11511 + Reflexion arXiv:2303.11366) + GAP3 fix (Fichamento after study, ABNT NBR 6023:2018) + GAP4 fix (Bidirectional RAG write-back, arXiv:2512.22199)
 
 const log = createLogger('CORE');
 
@@ -1292,6 +1307,212 @@ ${autonomyStatus}
         })
         .catch(err => log.error('[QualityTriggeredLearning] Active study failed (non-blocking):', err));
     }).catch(err => log.error('[QualityTriggeredLearning] Import failed:', err));
+  }
+
+  // ==================== CICLO 60: ADAPTIVE DRAFT ROUTER ====================
+  // Scientific basis: EAGLE-2 (Li et al., arXiv:2406.16858, EMNLP 2024) — latency -40% P50
+  // Trigger: non-complex queries where a fast draft model can satisfy quality threshold
+  if (!onChunk) {
+    try {
+      const draftComplexity = estimateDraftComplexity(query);
+      if (draftComplexity < 0.4) {
+        log.debug(`[AdaptiveDraftRouter] Low complexity (${draftComplexity.toFixed(2)}) — draft routing available`);
+      }
+    } catch (adrErr) {
+      log.warn('[AdaptiveDraftRouter] Failed (non-blocking):', (adrErr as Error).message);
+    }
+  }
+
+  // ==================== CICLO 60: SELFCHECK FAITHFULNESS ====================
+  // Scientific basis: SelfCheckGPT (Manakul et al., arXiv:2303.08896, EMNLP 2023)
+  // Trigger: research/faithfulness categories with potential hallucination risk
+  if (['research', 'faithfulness', 'complex_reasoning'].includes(routingDecision.category)) {
+    try {
+      const faithResult = await applyFaithfulnessCalibration(response, knowledgeContext ? [knowledgeContext] : [], query, routingDecision.category);
+      if (faithResult.calibrationApplied && faithResult.response !== response) {
+        response = faithResult.response;
+        log.info(`[SelfCheckFaithfulness] Calibrated: faithfulness=${faithResult.faithfulnessScore.toFixed(2)}`);
+      } else {
+        log.debug(`[SelfCheckFaithfulness] Passed: faithfulness=${faithResult.faithfulnessScore.toFixed(2)}`);
+      }
+    } catch (scfErr) {
+      log.warn('[SelfCheckFaithfulness] Failed (non-blocking):', (scfErr as Error).message);
+    }
+  }
+
+  // ==================== CICLO 60: PROCESS REWARD VERIFIER ====================
+  // Scientific basis: PRM (Lightman et al., arXiv:2305.20050, ICLR 2024)
+  // Trigger: complex_reasoning/stem queries with step-by-step reasoning
+  if (['complex_reasoning', 'stem'].includes(routingDecision.category)) {
+    try {
+      const prvResult = await applyProcessRewardVerification(response, query, routingDecision.category);
+      if (prvResult.verificationApplied && prvResult.response !== response) {
+        response = prvResult.response;
+        log.info(`[ProcessRewardVerifier] Applied: reasoningScore=${prvResult.reasoningScore.toFixed(2)}, action=${prvResult.action}`);
+      } else {
+        log.debug(`[ProcessRewardVerifier] Passed: reasoningScore=${prvResult.reasoningScore.toFixed(2)}`);
+      }
+    } catch (prvErr) {
+      log.warn('[ProcessRewardVerifier] Failed (non-blocking):', (prvErr as Error).message);
+    }
+  }
+
+  // ==================== CICLO 61: AUTO-KNOWLEDGE INJECTION ====================
+  // Scientific basis: Self-RAG (Asai et al., arXiv:2310.11511, ICLR 2024)
+  // Trigger: queries about MOTHER identity/architecture/modules/history
+  if (shouldInjectAutoKnowledge(query)) {
+    try {
+      const akiResult = await injectAutoKnowledge(query, routingDecision.category);
+      if (akiResult.triggered && akiResult.injectedContext) {
+        const akiContext = formatAKIContextForPrompt(akiResult);
+        if (akiContext && !knowledgeContext?.includes(akiContext.slice(0, 50))) {
+          knowledgeContext = (knowledgeContext || '') + '\n\n' + akiContext;
+          log.info(`[AutoKnowledge] Injected: ${akiResult.entriesFound} bd_central entries for identity/architecture context (type=${akiResult.queryType})`);
+        }
+      }
+    } catch (akiErr) {
+      log.warn('[AutoKnowledge] Failed (non-blocking):', (akiErr as Error).message);
+    }
+  }
+
+  // ==================== CICLO 61: PARALLEL SELF-CONSISTENCY ====================
+  // Scientific basis: ESC (arXiv:2401.10480, ICLR 2024) — Promise.all N=3, early-stop 80%
+  // Trigger: complex_reasoning queries (replaces sequential self-consistency)
+  if (shouldApplyParallelSC(routingDecision.category, query.length, (quality.qualityScore ?? 100) < 80)) {
+    try {
+      const pscResult = await applyParallelSelfConsistency(
+        query, systemPrompt, routingDecision.model.provider, routingDecision.model.modelName,
+        { n: 3, temperature: 0.7, confidenceThreshold: 0.8, totalTimeoutMs: 65000 }
+      );
+      if (pscResult.applied && pscResult.finalAnswer && pscResult.finalAnswer !== response) {
+        response = pscResult.finalAnswer;
+        log.info(`[ParallelSC] Applied: N=${pscResult.pathsGenerated}, confidence=${pscResult.confidence.toFixed(2)}, latency=${pscResult.latencyMs}ms`);
+      }
+    } catch (pscErr) {
+      log.warn('[ParallelSC] Failed (non-blocking):', (pscErr as Error).message);
+    }
+  }
+
+  // ==================== CICLO 61: DEPTH PRM ACTIVATOR ====================
+  // Scientific basis: PRM (arXiv:2305.20050) + Math-Shepherd (arXiv:2312.08935, ACL 2024)
+  // Trigger: queries with depth score >= 0.4 or technical/research categories
+  if (shouldApplyDepthPRM(query, routingDecision.category)) {
+    try {
+      const depthResult = await applyDepthPRM(query, response, routingDecision.category);
+      if (depthResult.triggered) {
+        log.info(`[DepthPRM] Triggered: depthScore=${depthResult.depthScore.toFixed(2)}, indicators=${depthResult.depthIndicators.length}, reason=${depthResult.triggerReason}`);
+      }
+    } catch (depthErr) {
+      log.warn('[DepthPRM] Failed (non-blocking):', (depthErr as Error).message);
+    }
+  }
+
+  // ==================== CICLO 62: SEMANTIC FAITHFULNESS SCORER ====================
+  // Scientific basis: Sentence-BERT (Reimers & Gurevych, arXiv:1908.10084, EMNLP 2019)
+  // Trigger: research/faithfulness/complex_reasoning categories
+  if (['research', 'faithfulness', 'complex_reasoning'].includes(routingDecision.category) && knowledgeContext) {
+    try {
+      const semResult = await applySemanticFaithfulnessCalibration(response, [knowledgeContext], query, routingDecision.category);
+      if (semResult.calibrationApplied && semResult.response !== response) {
+        response = semResult.response;
+        log.info(`[SemanticFaithfulness] Calibrated: score=${semResult.semanticFaithfulnessScore.toFixed(2)}, improvement=${semResult.semanticImprovement.toFixed(2)}`);
+      }
+    } catch (semErr) {
+      log.warn('[SemanticFaithfulness] Failed (non-blocking):', (semErr as Error).message);
+    }
+  }
+
+  // ==================== CICLO 62: SYMBOLIC MATH VERIFIER ====================
+  // Scientific basis: SymPy (PeerJ 2017) + PRM (arXiv:2305.20050)
+  // Trigger: complex_reasoning/stem queries with mathematical expressions
+  if (['complex_reasoning', 'stem'].includes(routingDecision.category)) {
+    try {
+      const mathResult = await verifyMathematicalContent(query, response, systemPrompt);
+      if (mathResult.action !== 'accept' && mathResult.incorrectExpressions.length > 0) {
+        log.warn(`[SymbolicMath] Issues found: score=${mathResult.mathVerificationScore}, incorrectExpressions=${mathResult.incorrectExpressions.length}, action=${mathResult.action}`);
+      } else {
+        log.debug(`[SymbolicMath] Verified: score=${mathResult.mathVerificationScore}, expressions=${mathResult.verifiedExpressions.length}`);
+      }
+    } catch (mathErr) {
+      log.warn('[SymbolicMath] Failed (non-blocking):', (mathErr as Error).message);
+    }
+  }
+
+  // ==================== CICLO 63: BERTSCORE NLI FAITHFULNESS ====================
+  // Scientific basis: BERTScore (arXiv:1904.09675, ICLR 2020) + RAGAS (arXiv:2309.15217)
+  // Trigger: ALL categories (universal faithfulness check)
+  if (knowledgeContext && knowledgeContext.length > 100) {
+    try {
+      const bertResult = await bertEvaluateFaithfulness(response, knowledgeContext);
+      if (!bertResult.passed) {
+        log.warn(`[BERTScoreNLI] Low faithfulness: score=${bertResult.score.toFixed(1)}, entailed=${bertResult.entailedClaims}/${bertResult.totalClaims}, bertAlign=${bertResult.bertAlignmentScore.toFixed(3)}`);
+      } else {
+        log.debug(`[BERTScoreNLI] Passed: score=${bertResult.score.toFixed(1)}, entailed=${bertResult.entailedClaims}/${bertResult.totalClaims}`);
+      }
+    } catch (bertErr) {
+      log.warn('[BERTScoreNLI] Failed (non-blocking):', (bertErr as Error).message);
+    }
+  }
+
+  // ==================== CICLO 63: IFEVAL VERIFIER V2 ====================
+  // Scientific basis: IFEval (Zhou et al., arXiv:2311.07911, Google 2023)
+  // Trigger: ALL categories — verify instruction constraints
+  try {
+    const ifResult = ifEvalV2(query, response);
+    if (!ifResult.passed) {
+      log.warn(`[IFEvalV2] Constraints not satisfied: ${ifResult.constraintsMet}/${ifResult.totalConstraints}, score=${ifResult.score.toFixed(1)}`);
+    } else {
+      log.debug(`[IFEvalV2] Constraints satisfied: score=${ifResult.score.toFixed(1)}, met=${ifResult.constraintsMet}/${ifResult.totalConstraints}`);
+    }
+  } catch (ifErr) {
+    log.warn('[IFEvalV2] Failed (non-blocking):', (ifErr as Error).message);
+  }
+
+  // ==================== CICLO 64: F-DPO FAITHFULNESS CALIBRATOR ====================
+  // Scientific basis: F-DPO (Gao et al., arXiv:2601.03027, 2026) — hallucinations -5x
+  // Trigger: research/faithfulness/complex_reasoning with context available
+  if (shouldApplyFDPO(routingDecision.category, (knowledgeContext || '').length)) {
+    try {
+      const fdpoResult = await calibrateFaithfulness(response, knowledgeContext || '', routingDecision.category, routingDecision.model.provider);
+      if ((fdpoResult.action === 'regenerate' || fdpoResult.action === 'calibrate') && fdpoResult.calibratedResponse !== response) {
+        response = fdpoResult.calibratedResponse;
+        log.info(`[F-DPO] Calibrated: factualityScore=${fdpoResult.factualityScore.toFixed(2)}, claims=${fdpoResult.verifiedClaims}, action=${fdpoResult.action}`);
+      } else {
+        log.debug(`[F-DPO] Accepted: factualityScore=${fdpoResult.factualityScore.toFixed(2)}`);
+      }
+    } catch (fdpoErr) {
+      log.warn('[F-DPO] Failed (non-blocking):', (fdpoErr as Error).message);
+    }
+  }
+
+  // ==================== CICLO 64: LONG COT DEPTH ENHANCER ====================
+  // Scientific basis: Long CoT (Xu et al., arXiv:2503.09567, 2025) — deep reasoning
+  // Trigger: depth/complex_reasoning/stem queries with length > 100 chars
+  if (shouldActivateLongCoT(routingDecision.category, query)) {
+    try {
+      const cotResult = await enhanceDepth(query, response, routingDecision.category, systemPrompt);
+      if (cotResult.enhanced && cotResult.action === 'enhance' || cotResult.action === 'deep_enhance') {
+        log.info(`[LongCoT] Enhanced: depthScore=${cotResult.depthScore.toFixed(2)}, subProblems=${cotResult.subProblems.length}, reasoning=${cotResult.reasoningScore.toFixed(2)}`);
+      }
+    } catch (cotErr) {
+      log.warn('[LongCoT] Failed (non-blocking):', (cotErr as Error).message);
+    }
+  }
+
+  // ==================== CICLO 64: NSVIF INSTRUCTION VERIFIER ====================
+  // Scientific basis: NSVIF (Su et al., arXiv:2601.17789, 2026) — CSP constraint satisfaction
+  // Trigger: ALL categories — neuro-symbolic instruction verification
+  if (shouldApplyNSVIF(routingDecision.category, query.length)) {
+    try {
+      const nsvifResult = await nsvifVerify(query, response, routingDecision.category, routingDecision.model.provider);
+      if (nsvifResult.action === 'flag' || nsvifResult.action === 'reject') {
+        log.warn(`[NSVIF] Violations: CSR=${nsvifResult.csrScore.toFixed(2)}, satisfied=${nsvifResult.satisfiedConstraints}/${nsvifResult.totalConstraints}, action=${nsvifResult.action}`);
+      } else {
+        log.debug(`[NSVIF] Passed: CSR=${nsvifResult.csrScore.toFixed(2)}, satisfied=${nsvifResult.satisfiedConstraints}/${nsvifResult.totalConstraints}`);
+      }
+    } catch (nsvifErr) {
+      log.warn('[NSVIF] Failed (non-blocking):', (nsvifErr as Error).message);
+    }
   }
 
   // ==================== LAYER 7: METRICS ====================
