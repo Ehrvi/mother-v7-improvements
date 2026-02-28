@@ -84,7 +84,7 @@ import { getAutonomySummary } from './autonomy'; // v74.6: Anti-hallucination au
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v75.1'; // NC-ORCH-001 (Ciclo 46): MoA+Debate orchestration | NC-CONST-001 (Ciclo 47): Constitutional AI | NC-CICD-001 (Ciclo 49): main branch CI/CD | NC-SELFAUDIT-001 (Ciclo 50): 9-layer audit accuracy + cache bypass + scientific benchmarks
+export const MOTHER_VERSION = 'v75.2'; // NC-ORCH-001 (Ciclo 46): MoA+Debate orchestration | NC-CONST-001 (Ciclo 47): Constitutional AI | NC-CICD-001 (Ciclo 49): main branch CI/CD | NC-SELFAUDIT-001 (Ciclo 50): 9-layer audit accuracy + cache bypass + scientific benchmarks
 
 const log = createLogger('CORE');
 

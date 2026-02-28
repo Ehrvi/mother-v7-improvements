@@ -609,7 +609,17 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
       return invokeOpenAICompatible(params, "https://api.openai.com/v1/chat/completions", ENV.openaiApiKey);
 
     case 'deepseek':
-      if (!ENV.deepseekApiKey) throw new Error("DEEPSEEK_API_KEY is not configured");
+      // NC-PROVIDER-001 (Ciclo 52): Graceful fallback to OpenAI gpt-4o-mini when DeepSeek key absent
+      // Scientific basis: FrugalGPT (Chen et al., arXiv:2305.05176, 2023) — cascade fallback
+      if (!ENV.deepseekApiKey) {
+        if (!ENV.openaiApiKey) throw new Error("DEEPSEEK_API_KEY is not configured (fallback OPENAI_API_KEY also missing)");
+        console.warn('[LLM] DeepSeek key absent — falling back to gpt-4o-mini (NC-PROVIDER-001)');
+        return invokeOpenAICompatible(
+          { ...params, model: 'gpt-4o-mini' },
+          "https://api.openai.com/v1/chat/completions",
+          ENV.openaiApiKey
+        );
+      }
       return invokeOpenAICompatible(
         { ...params, model: model || 'deepseek-chat' },
         "https://api.deepseek.com/v1/chat/completions",
@@ -623,7 +633,16 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
       return invokeGoogle(params);
 
     case 'mistral':
-      if (!ENV.mistralApiKey) throw new Error("MISTRAL_API_KEY is not configured");
+      // NC-PROVIDER-001 (Ciclo 52): Graceful fallback to OpenAI when Mistral key absent
+      if (!ENV.mistralApiKey) {
+        if (!ENV.openaiApiKey) throw new Error("MISTRAL_API_KEY not configured; fallback OPENAI_API_KEY also missing");
+        console.warn('[LLM] NC-PROVIDER-001: Mistral key absent — auto-fallback to gpt-4o-mini');
+        return invokeOpenAICompatible(
+          { ...params, model: 'gpt-4o-mini' },
+          "https://api.openai.com/v1/chat/completions",
+          ENV.openaiApiKey
+        );
+      }
       return invokeOpenAICompatible(
         { ...params, model: model || 'mistral-small-latest' },
         "https://api.mistral.ai/v1/chat/completions",

@@ -327,11 +327,34 @@ Response → User
 | self-code-writer.ts | Gödel Machine write + deploy |
 | admin-docs.ts | Documentação creator-only |
 
-## Multi-Provider Cascade (v68.8)
+## Multi-Provider Cascade (v68.8 + NC-PROVIDER-001 v75.2)
 Ordem de fallback: OpenAI → Anthropic → Google
-- Tier 1 (simple): gpt-4o-mini → claude-3-haiku → gemini-1.5-flash
+- Tier 1 (simple): deepseek-chat → gpt-4o-mini (auto-fallback se DeepSeek key ausente)
 - Tier 2 (moderate): gpt-4o → claude-3.5-sonnet → gemini-1.5-pro
-- Tier 3 (complex): gpt-4o → claude-3.5-sonnet → gemini-2.0-flash`,
+- Tier 3 (complex): gpt-4o → claude-3.5-sonnet → gemini-2.0-flash
+
+**NC-PROVIDER-001 (Ciclo 52):** Graceful fallback implementado em llm.ts.
+Quando DeepSeek ou Mistral key ausente → auto-fallback para gpt-4o-mini sem crash.
+Base científica: FrugalGPT (Chen et al., arXiv:2305.05176, 2023).
+
+## DGM Roadmap — Gestão de Crashes (ROADMAP-DGM-CRASH-001)
+**Prioridade:** ALTA | **Status:** PLANEJADO | **Ciclo alvo:** 53-55
+
+Objetivo: DGM detecta automaticamente falhas de provider (HTTP 500/503) e:
+1. Cria proposta de update em update-proposals.ts com fallback chain corrigido
+2. Executa autonomous-update-job.ts para aplicar o fix sem intervenção humana
+3. Registra o incidente no bd_central com causa raiz e solução aplicada
+4. Notifica o criador via /status com summary do crash e auto-recovery
+
+Implementação planejada:
+- health-monitor.ts: detecta HTTP 500/503 consecutivos por provider
+- crash-recovery.ts: gera proposta DGM automaticamente
+- Threshold: 3 falhas consecutivas em 5 minutos → auto-proposta
+
+Base científica:
+- Gödel Machine (Schmidhuber, 2003) — self-modifying systems
+- MAPE-K (Kephart & Chess, 2003) — Monitor-Analyze-Plan-Execute loop
+- SWE-agent (Yang et al., arXiv:2405.15793, 2024) — autonomous code repair`,
 };
 
 /**
