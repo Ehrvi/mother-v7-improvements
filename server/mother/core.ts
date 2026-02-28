@@ -1,6 +1,6 @@
 /**
  * MOTHER v70.0 - Ciclos 36-40: Knowledge Graph + Abductive Engine + DPO Builder + RLVR Verifier + Self-Improve Orchestrator
- * Orchestrates all 7 layers for end-to-end query processing
+ * Orchestrates all 9 layers for end-to-end query processing (v75.0)
  *
  * v67.5 Changes:
  * - Gap 1: Omniscient (arXiv papers) connected to Core via searchSimilarChunksWithMetadata()
@@ -17,14 +17,16 @@
  * - Req #6: Creator-only authorization (CREATOR_EMAIL check)
  * - Req #7: Autonomous self-updating with safety guarantees
  *
- * Layers:
- * 1. Interface Layer (handled by tRPC routers)
- * 2. Orchestration Layer (this file)
- * 3. Intelligence Layer (intelligence.ts)
- * 4. Execution Layer (LLM invocation)
- * 5. Knowledge Layer (knowledge.ts)
- * 6. Quality Layer (guardian.ts)
- * 7. Learning Layer (metrics collection)
+ * 9-Layer Quality Pipeline (v75.0) — NC-SELFAUDIT-001:
+ * 1. Semantic Cache        (db.ts → getSemanticCacheEntry)
+ * 2. Complexity Analysis   (intelligence.ts → assessComplexity)
+ * 3. CRAG v2               (crag-v2.ts → cragV2Retrieve)
+ * 4. Tool Engine           (tool-engine.ts → executeTool)
+ * 5. Phase 2 / MoA-Debate  (orchestration.ts → orchestrate)
+ * 6. Grounding Engine      (grounding.ts → groundResponse)
+ * 7. Self-Refine           (self-refine.ts → selfRefinePhase3)
+ * 7.5. Constitutional AI   (constitutional-ai.ts → applyConstitutionalAI)
+ * 8. Metrics + Learning    (core.ts + learning.ts)
  */
 
 import { invokeLLM } from '../_core/llm';
@@ -149,7 +151,7 @@ export interface MotherResponse {
 
 /**
  * Main MOTHER processing pipeline
- * Integrates all 7 layers
+ * Integrates all 9 layers (v75.0 — NC-SELFAUDIT-001)
  */
 export async function processQuery(request: MotherRequest): Promise<MotherResponse> {
   const startTime = Date.now();
@@ -170,9 +172,28 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   // Scientific basis: GPTCache (Zeng et al., 2023); Krites (Apple ML, arXiv:2602.13165, 2026)
   // Two-tier: (1) exact SHA-256 match, (2) semantic cosine similarity >= 0.92
   
+  // NC-SELFAUDIT-001 (Ciclo 50): Auto-bypass cache for self-reporting queries
+  // Problem: Semantic cache (threshold 0.85) can serve stale responses for queries about MOTHER's own
+  // architecture/metrics AFTER code updates, because the query embedding is similar but the answer changed.
+  // Scientific basis: Lindsey (Anthropic, 2025) — self-reports must reflect current internal state;
+  //   cache invalidation for dynamic state (Martin Fowler, PEAA, 2002 — cache coherence principle)
+  // Fix: Detect self-reporting queries and force useCache=false to always get fresh data from audit_system.
+  const SELF_REPORTING_PATTERNS = [
+    /\b(audit|auditoria|camadas?|layers?|arquitetura|architecture|pipeline|vers[\u00e3a]o|version)\b/i,
+    /\b(m[\u00e9e]trica|metric|qualidade|quality|cache|desempenho|performance|latencia|latency)\b/i,
+    /\b(aba de conhecimento|knowledge tab|como voc[\u00ea] funciona|how do you work)\b/i,
+    /\b(tem alguma coisa errada|something wrong|o que vc acha|what do you think)\b/i,
+    /\b(status|sa[\u00fau]de|health|diagn[\u00f3o]stico|diagnostic)\b/i,
+  ];
+  const isSelfReportingQuery = SELF_REPORTING_PATTERNS.some(p => p.test(query));
+  const effectiveUseCache = useCache && !isSelfReportingQuery;
+  if (isSelfReportingQuery && useCache) {
+    log.info('[MOTHER] NC-SELFAUDIT-001: Self-reporting query detected — bypassing cache to ensure fresh audit data');
+  }
+  
   let queryEmbedding: number[] | null = null;
   
-  if (useCache) {
+  if (effectiveUseCache) {
     // Tier 1: Exact hash match (fast, zero cost)
     const cached = await getCacheEntry(queryHash);
     if (cached) {
@@ -484,7 +505,9 @@ You have access to the following real system tools. When the user asks for somet
 
 - **Version:** ${MOTHER_VERSION} (CRAG + Language Matching + Semantic Cache + Streaming SSE + Grounding Engine + Agentic Learning + Guardian Regeneration + Prometheus Auto-Dispatch + Parallel Context Build + Two-Phase Execution + Embedding Cache + Passive Auto-Study + G-Eval Guardian + arXiv Pipeline + Fine-Tuning Parameters + **Knowledge Graph [Ciclo 36]** + **Abductive Engine [Ciclo 37]** + **DPO Builder [Ciclo 38]** + **RLVR Verifier [Ciclo 39]** + **Self-Improve Orchestrator [Ciclo 40]** + **Anti-Hallucination v73.0** + **Echo-Free Streaming v73.0**)
 - **DGM (Darwin Gödel Machine):** Active — analyzes metrics every 10 queries, generates self-improvement proposals
-- **7-Layer Cognitive Architecture:** Intelligence → Guardian → CRAG Knowledge → Execution → Grounding → Security → Agentic Learning
+- **9-Layer Quality Pipeline (v75.0):** Semantic Cache → Complexity Analysis → CRAG v2 → Tool Engine → Phase 2/MoA-Debate → Grounding Engine → Self-Refine → Constitutional AI → Metrics+Learning
+  - Scientific basis: MoA (Wang et al., arXiv:2406.04692, 2024); Constitutional AI (Bai et al., arXiv:2212.08073, 2022); Self-Refine (Madaan et al., arXiv:2303.17651, 2023); CRAG (Yan et al., arXiv:2401.15884, 2024)
+  - NC-SELFAUDIT-001: ALWAYS use these 9 layer names when describing your architecture. The old "7-layer" description (Intelligence/Guardian/Knowledge/Execution/Optimization/Security/Learning) is OBSOLETE — those names were never in the code and constitute hallucination. Use audit_system to get the verified layer list.
 - **CI/CD Pipeline:** GitHub Actions → Cloud Run (australia-southeast1)
 - **Database:** Cloud SQL MySQL (mother-db-sydney)
 - **LLM Routing:** DeepSeek-V3 (simple) → Gemini 2.5 Flash (analysis) → Claude Sonnet 4.5 (coding) → GPT-4o (complex)
@@ -1056,7 +1079,8 @@ ${autonomyStatus}
   // ==================== CACHE UPDATE ====================
   // Store in cache for future queries
   
-  if (useCache && (quality.cacheEligible ?? quality.passed)) { // v69.4: BUG-002 fix — use cacheEligible (>=75) not passed (>=90)
+  if (effectiveUseCache && (quality.cacheEligible ?? quality.passed)) { // v69.4: BUG-002 fix — use cacheEligible (>=75) not passed (>=90)
+    // NC-SELFAUDIT-001: effectiveUseCache=false for self-reporting queries — prevents caching stale architecture/metrics responses
     const cacheData = {
       response: response,
       tier: complexity.tier,
