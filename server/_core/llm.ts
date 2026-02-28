@@ -627,9 +627,31 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
       );
 
     case 'anthropic':
+      // NC-PROVIDER-001 (Ciclo 53): Graceful fallback to OpenAI when Anthropic key absent
+      // Scientific basis: FrugalGPT (Chen et al., arXiv:2305.05176, 2023) — cascade fallback
+      if (!ENV.anthropicApiKey) {
+        if (!ENV.openaiApiKey) throw new Error('ANTHROPIC_API_KEY is not configured (fallback OPENAI_API_KEY also missing)');
+        console.warn('[LLM] NC-PROVIDER-001: Anthropic key absent — auto-fallback to gpt-4o-mini');
+        return invokeOpenAICompatible(
+          { ...params, model: 'gpt-4o-mini' },
+          'https://api.openai.com/v1/chat/completions',
+          ENV.openaiApiKey
+        );
+      }
       return invokeAnthropic(params);
 
     case 'google':
+      // NC-PROVIDER-001 (Ciclo 53): Graceful fallback to OpenAI when Google key absent
+      // Scientific basis: FrugalGPT (Chen et al., arXiv:2305.05176, 2023) — cascade fallback
+      if (!ENV.googleApiKey) {
+        if (!ENV.openaiApiKey) throw new Error('GOOGLE_AI_API_KEY is not configured (fallback OPENAI_API_KEY also missing)');
+        console.warn('[LLM] NC-PROVIDER-001: Google AI key absent — auto-fallback to gpt-4o-mini');
+        return invokeOpenAICompatible(
+          { ...params, model: 'gpt-4o-mini' },
+          'https://api.openai.com/v1/chat/completions',
+          ENV.openaiApiKey
+        );
+      }
       return invokeGoogle(params);
 
     case 'mistral':
