@@ -34,6 +34,7 @@ import { runSelfImprovementCycle, getSelfImprovementStatus } from './self-improv
 import { writeCodeFile, patchCodeFile, getDeployStatus, triggerDeploy } from './self-code-writer';
 import { getAdminDocs } from './admin-docs';
 import { browseUrl, searchAnnasArchive, searchDuckDuckGo, searchForums, searchSoftwareManual } from './browser-agent';
+import { generateImageWithDalle3, generateRevealSlides, generatePdfFromMarkdown } from './media-agent';
 import { executeCode } from './code-sandbox';
 
 // ============================================================
@@ -462,7 +463,76 @@ export const MOTHER_TOOLS = [
       },
     },
   },
+  // ============================================================
+  // NC-MEDIA-001: Image generation (DALL-E 3 + Forge API)
+  // ============================================================
+  {
+    type: 'function' as const,
+    function: {
+      name: 'generate_image',
+      description: 'Generate an image from a text prompt using DALL-E 3 (primary) or Forge API (fallback). Returns a URL to the generated image. Use for: illustrations, diagrams, visual content, infographics.',
+      parameters: {
+        type: 'object',
+        properties: {
+          prompt: { type: 'string', description: 'Detailed description of the image to generate.' },
+          size: { type: 'string', enum: ['1024x1024', '1792x1024', '1024x1792'], description: 'Image dimensions (default: 1024x1024)' },
+          quality: { type: 'string', enum: ['standard', 'hd'], description: 'Image quality (default: standard)' },
+          style: { type: 'string', enum: ['vivid', 'natural'], description: 'Image style (default: vivid)' },
+        },
+        required: ['prompt'],
+      },
+    },
+  },
+  // ============================================================
+  // NC-SLIDES-001: Slides and PDF generation
+  // ============================================================
+  {
+    type: 'function' as const,
+    function: {
+      name: 'generate_slides',
+      description: 'Generate a professional reveal.js HTML presentation. Use when user asks for slides, presentations, or PowerPoint-style content.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Presentation title' },
+          subtitle: { type: 'string', description: 'Optional subtitle' },
+          slides: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                title: { type: 'string' },
+                content: { type: 'string', description: 'Slide content (use - for bullets)' },
+                notes: { type: 'string', description: 'Speaker notes' },
+              },
+              required: ['title', 'content'],
+            },
+          },
+          theme: { type: 'string', enum: ['black', 'white', 'league', 'beige', 'sky', 'night', 'serif', 'simple', 'solarized'], description: 'Visual theme (default: black)' },
+          export_pdf: { type: 'boolean', description: 'Also export as PDF' },
+        },
+        required: ['title', 'slides'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'generate_pdf',
+      description: 'Generate a PDF document from Markdown content. Use when user asks for a PDF report or formatted document.',
+      parameters: {
+        type: 'object',
+        properties: {
+          content: { type: 'string', description: 'Markdown content to convert to PDF' },
+          title: { type: 'string', description: 'Document title' },
+          format: { type: 'string', enum: ['A4', 'Letter'], description: 'Page format (default: A4)' },
+        },
+        required: ['content', 'title'],
+      },
+    },
+  },
 ];
+
 // ============================================================
 // TOOL EXECUTION ENGINE
 // ============================================================
@@ -1191,6 +1261,63 @@ export async function executeTool(
       return { success: result.exitCode === 0, data: result, error: result.error };
     } catch (error) {
       return { success: false, error: `execute_code failed: ${error}` };
+    }
+  }
+
+  // ============================================================
+  // NC-MEDIA-001: generate_image
+  // ============================================================
+  if (toolName === 'generate_image') {
+    try {
+      const prompt = toolArgs.prompt as string;
+      if (!prompt) return { success: false, error: 'prompt is required' };
+      const size = (toolArgs.size as '1024x1024' | '1792x1024' | '1024x1792') || '1024x1024';
+      const quality = (toolArgs.quality as 'standard' | 'hd') || 'standard';
+      const style = (toolArgs.style as 'vivid' | 'natural') || 'vivid';
+      const result = await generateImageWithDalle3({ prompt, size, quality, style });
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: `generate_image failed: ${error}` };
+    }
+  }
+
+  // ============================================================
+  // NC-SLIDES-001: generate_slides
+  // ============================================================
+  if (toolName === 'generate_slides') {
+    try {
+      const title = toolArgs.title as string;
+      const slides = toolArgs.slides as Array<{ title: string; content: string; notes?: string }>;
+      if (!title || !slides?.length) return { success: false, error: 'title and slides are required' };
+      const result = await generateRevealSlides({
+        title,
+        subtitle: toolArgs.subtitle as string | undefined,
+        slides,
+        theme: (toolArgs.theme as 'black' | 'white' | 'league' | 'beige' | 'sky' | 'night' | 'serif' | 'simple' | 'solarized') || 'black',
+      });
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: `generate_slides failed: ${error}` };
+    }
+  }
+
+  // ============================================================
+  // NC-SLIDES-001: generate_pdf
+  // ============================================================
+  if (toolName === 'generate_pdf') {
+    try {
+      const content = toolArgs.content as string;
+      const title = toolArgs.title as string;
+      if (!content || !title) return { success: false, error: 'content and title are required' };
+      const result = await generatePdfFromMarkdown({
+        content,
+        title,
+        format: (toolArgs.format as 'A4' | 'Letter') || 'A4',
+        includeTableOfContents: Boolean(toolArgs.include_toc),
+      });
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: `generate_pdf failed: ${error}` };
     }
   }
 
