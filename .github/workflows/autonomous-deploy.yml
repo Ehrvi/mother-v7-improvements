@@ -136,14 +136,14 @@ jobs:
             --platform=managed \
             --allow-unauthenticated \
             --port=8080 \
-            --memory=1Gi \
+            --memory=4Gi \
             --cpu=2 \
             --min-instances=1 \
             --max-instances=10 \
             --timeout=300 \
             --service-account=mother-cloudrun-sa@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
             --add-cloudsql-instances=${{ env.PROJECT_ID }}:${{ env.REGION }}:mother-db-sydney \
-            --set-secrets=DATABASE_URL=mother-db-url:latest,OPENAI_API_KEY=mother-openai-api-key:latest,JWT_SECRET=mother-jwt-secret:latest,BUILT_IN_FORGE_API_URL=mother-forge-api-url:latest,BUILT_IN_FORGE_API_KEY=mother-forge-api-key:latest,GITHUB_TOKEN=mother-github-token:latest \
+            --set-secrets=DATABASE_URL=mother-db-url:latest,OPENAI_API_KEY=mother-openai-api-key:latest,JWT_SECRET=mother-jwt-secret:latest,BUILT_IN_FORGE_API_URL=mother-forge-api-url:latest,BUILT_IN_FORGE_API_KEY=mother-forge-api-key:latest,GITHUB_TOKEN=mother-github-token:latest,ANTHROPIC_API_KEY=mother-anthropic-api-key:latest,GOOGLE_AI_API_KEY=mother-google-ai-api-key:latest,DEEPSEEK_API_KEY=mother-deepseek-api-key:latest,MISTRAL_API_KEY=mother-mistral-api-key:latest \
             --set-env-vars=GIT_COMMIT_SHA=${{ github.sha }},VITE_APP_ID=mother-interface
 
       - name: Verify deployment

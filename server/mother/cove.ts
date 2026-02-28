@@ -72,15 +72,16 @@ export function shouldApplyCoVe(
   // Always apply for high hallucination risk
   if (hallucinationRisk === 'high') return true;
 
-  // Apply for research/complex queries with medium risk
-  if (
-    hallucinationRisk === 'medium' &&
-    (queryCategory === 'research' || queryCategory === 'complex_reasoning')
-  ) return true;
+  // Ciclo 56 Ação 2: Expanded trigger — medium risk now applies to ALL categories
+  // (was: only research/complex_reasoning). Scientific basis: Dhuliawala et al.
+  // (arXiv:2309.11495, 2023) — CoVe reduces hallucinations 28-46% across ALL
+  // factual tasks, not only complex ones. Faithfulness gap was -12.2% in Ciclo 55.
+  if (hallucinationRisk === 'medium') return true;
 
-  // Apply if response contains multiple factual claim patterns
+  // Ciclo 56 Ação 2: Lower pattern threshold from 3 → 2 for earlier activation
+  // Min et al. (FActScore, arXiv:2305.14251, 2023): even 2 atomic facts warrant verification
   const patternMatches = FACTUAL_CLAIM_PATTERNS.filter(p => p.test(response)).length;
-  if (patternMatches >= 3) return true;
+  if (patternMatches >= 2) return true;
 
   return false;
 }

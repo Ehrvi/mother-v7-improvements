@@ -182,6 +182,44 @@ export function classifyQuery(query: string): RoutingDecision {
   ];
   const codingScore = codingPatterns.filter(p => q.includes(normalize(p))).length;
 
+  // ── STEM Technical Depth Router (Ciclo 56, Ação 1) ─────────────────────────
+  // Scientific basis: Hendrycks et al. (arXiv:2009.03300, NeurIPS 2020) MMLU;
+  // Lightman et al. (arXiv:2305.20050, NeurIPS 2024) PRM800K — math/STEM requires
+  // frontier models. Queries with STEM depth indicators route to GPT-4o regardless
+  // of other scores, targeting depth gap (-16.0% in Ciclo 55 benchmark).
+  const stemDepthPatterns = [
+    // Mathematics & formal reasoning
+    'calcul', 'derivad', 'integral', 'equacao diferencial', 'differential equation',
+    'algebra linear', 'linear algebra', 'determinante', 'autovalor', 'eigenvalue',
+    'eigenvector', 'transformada', 'fourier', 'laplace', 'probabilidade condicional',
+    'distribuicao', 'teorema de bayes', 'bayes theorem', 'prova matematica',
+    'demonstracao', 'lema', 'corolario', 'complexidade computacional',
+    'np-hard', 'np-complete', 'big-o',
+    // Physics & engineering
+    'mecanica quantica', 'quantum mechanics', 'qubit', 'superposicao',
+    'relatividade', 'relativity', 'tensor', 'campo eletromagnetico',
+    'termodinamica', 'entropia', 'hamiltoniano', 'lagrangiano',
+    // Deep learning & ML theory
+    'backpropagation', 'gradient descent', 'stochastic gradient',
+    'attention mechanism', 'self-attention', 'convolucional', 'convolutional',
+    'recorrente', 'recurrent', 'lstm', 'gru', 'regularizacao', 'regularization',
+    'overfitting', 'underfitting', 'bias-variance', 'funcao de perda', 'loss function',
+    'cross-entropy', 'kl divergence', 'rede neural', 'neural network',
+    'deep learning', 'aprendizado profundo', 'fine-tuning', 'pre-training',
+    'transfer learning', 'rlhf', 'transformer architecture', 'language model',
+    'tokenization', 'embedding space', 'latent space',
+    // Systems & algorithms
+    'arvore b', 'b-tree', 'dijkstra', 'a-star', 'dynamic programming',
+    'programacao dinamica', 'greedy algorithm', 'divide and conquer',
+    'sistema distribuido', 'distributed system', 'consensus', 'raft', 'paxos',
+    'cache coherence', 'memory model', 'concorrencia', 'concurrency', 'deadlock',
+    // Comparative technical analysis (depth-requiring)
+    'cnn vs vit', 'cnn versus vit', 'compare cnn', 'compare vit',
+    'bert vs gpt', 'transformer vs', 'attention vs', 'rnn vs lstm',
+    'supervised vs unsupervised', 'discriminativo vs generativo',
+  ];
+  const stemDepthScore = stemDepthPatterns.filter(p => q.includes(normalize(p))).length;
+
   // ── Complex reasoning indicators ──────────────────────────────────────────
   const complexPatterns = [
     'analyze', 'compare', 'evaluate', 'synthesize', 'critique', 'argue',
@@ -236,6 +274,12 @@ export function classifyQuery(query: string): RoutingDecision {
     category = 'research';
     confidence = Math.min(0.97, 0.80 + researchScore * 0.05);
     reasoning = `Research/study query (${researchScore} indicators) → gpt-4o for tool use`;
+  } else if (stemDepthScore >= 1) {
+    // Ciclo 56 Ação 1: STEM depth queries always use GPT-4o
+    // Hendrycks et al. (MMLU, 2020): STEM requires frontier model capability
+    category = 'complex_reasoning';
+    confidence = Math.min(0.95, 0.80 + stemDepthScore * 0.05);
+    reasoning = `STEM technical depth (${stemDepthScore} indicators) → gpt-4o for depth`;
   } else if (codingScore >= 2) {
     category = 'coding';
     confidence = Math.min(0.95, 0.70 + codingScore * 0.05);

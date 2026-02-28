@@ -30,6 +30,7 @@ import { retrieveSubgraph, buildKnowledgeGraph, getGraphStats } from './knowledg
 import { performAbductiveReasoning, requiresAbductiveReasoning } from './abductive-engine';
 import { getDPOStats, getDPOHyperparameters } from './dpo-builder';
 import { getSimPOStats, SIMPO_CONFIG } from './simpo-optimizer'; // Ciclo 54 v2.0 Action 6: SimPO (Meng et al., NeurIPS 2024, arXiv:2405.14734)
+import { getORPOStats } from './orpo-optimizer'; // Ciclo 56 Action 3: ORPO (Hong et al., EMNLP 2024, arXiv:2403.07691)
 import { runHLEBenchmark, HLE_BENCHMARK } from './rlvr-verifier';
 import { runSelfImprovementCycle, getSelfImprovementStatus } from './self-improve';
 import { writeCodeFile, patchCodeFile, getDeployStatus, triggerDeploy } from './self-code-writer';
@@ -1066,7 +1067,7 @@ export async function executeTool(
 
   if (toolName === 'dpo_status') {
     try {
-      const [stats, simpoStats] = await Promise.all([getDPOStats(), getSimPOStats()]);
+      const [stats, simpoStats, orpoStats] = await Promise.all([getDPOStats(), getSimPOStats(), Promise.resolve(getORPOStats())]);
       const hyperparams = getDPOHyperparameters(stats.totalPairs);
       return {
         success: true,
@@ -1099,6 +1100,20 @@ export async function executeTool(
             status: simpoStats.readyForFineTuning
               ? '✅ READY FOR SIMPO FINE-TUNING'
               : `⏳ COLLECTING DATA (${simpoStats.validPairs}/100 valid pairs needed)`,
+          },
+          // ORPO (Hong et al., EMNLP 2024)
+          orpo: {
+            totalPairs: orpoStats.totalPairs,
+            avgOddsRatio: orpoStats.avgOddsRatio.toFixed(4),
+            pairsByDimension: orpoStats.pairsByDimension,
+            avgChosenScore: orpoStats.avgChosenScore.toFixed(1),
+            avgRejectedScore: orpoStats.avgRejectedScore.toFixed(1),
+            scientificBasis: 'Hong et al. (EMNLP 2024, arXiv:2403.07691) — ORPO: monolithic alignment without reference model',
+            advantage: 'No reference model needed; explicit SFT supervision for better instruction following',
+            targetDimensions: ['faithfulness', 'coherence'],
+            status: orpoStats.totalPairs >= 200
+              ? '✅ READY FOR ORPO FINE-TUNING'
+              : `⏳ COLLECTING DATA (${orpoStats.totalPairs}/200 pairs needed)`,
           },
         },
       };

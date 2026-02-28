@@ -42,6 +42,8 @@ import { applyIFV } from './ifv'; // Ciclo 54 v2.0 Action 2: IFV — Instruction
 import { applyCoVe, shouldApplyCoVe } from './cove'; // Ciclo 54 v2.0 Action 3: CoVe — Chain-of-Verification (Dhuliawala et al., arXiv:2309.11495, 2023)
 import { rerankDocuments, shouldRerank } from './rag-reranker'; // Ciclo 54 v2.0 Action 4: RAG Re-ranking (RankGPT, Sun et al., arXiv:2304.09542, 2023)
 import { applyToT, shouldApplyToT } from './tot-router'; // Ciclo 54 v2.0 Action 5: ToT — Tree-of-Thoughts (Yao et al., arXiv:2305.10601, 2023)
+import { collectORPOPair } from './orpo-optimizer'; // Ciclo 56 Action 3: ORPO — Odds Ratio Preference Optimization (Hong et al., arXiv:2403.07691, EMNLP 2024)
+import { enforceStructuredOutput } from './structured-output'; // Ciclo 56 Action 4: Structured Output Enforcement (Beurer-Kellner et al., arXiv:2212.06094, LMQL 2023)
 import { searchSimilarChunksWithMetadata } from '../omniscient/search';
 import { groundResponse, needsGrounding } from './grounding';
 import { agenticLearningLoop } from './agentic-learning';
@@ -88,7 +90,7 @@ import { getAutonomySummary } from './autonomy'; // v74.6: Anti-hallucination au
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v75.4'; // Ciclo 54 v2.0: IFV (Action 2, arXiv:2311.07911) + CoVe (Action 3, arXiv:2309.11495) + RAG Re-ranking (Action 4, arXiv:2304.09542) | NC-ORCH-001 (Ciclo 46) | NC-CONST-001 (Ciclo 47) | NC-SELFAUDIT-001 (Ciclo 50)
+export const MOTHER_VERSION = 'v75.5'; // Ciclo 56: STEM Router (A1, MMLU 2020) + CoVe Expanded (A2, arXiv:2309.11495) + ORPO (A3, arXiv:2403.07691) + StructuredOutput (A4, arXiv:2212.06094) | NC-PROVIDER-007 fix
 
 const log = createLogger('CORE');
 
@@ -1059,6 +1061,38 @@ ${autonomyStatus}
     }
   } catch (ifvErr) {
     log.warn('[IFV] Failed (non-blocking):', (ifvErr as Error).message);
+  }
+
+  // ==================== CICLO 56 ACTION 4: STRUCTURED OUTPUT ENFORCEMENT ====================
+  // Scientific basis: Beurer-Kellner et al. (arXiv:2212.06094, LMQL, 2023);
+  // Willard & Louf (arXiv:2307.09702, Outlines, 2023): constrained decoding for extraction.
+  // Target: extraction dimension gap (-2.2 points in Ciclo 55 benchmark).
+  try {
+    const structuredResult = await enforceStructuredOutput(query, response, systemPrompt);
+    if (structuredResult.applied && structuredResult.extractedResponse !== response) {
+      response = structuredResult.extractedResponse;
+      log.info(`[StructuredOutput] Applied: schema=${structuredResult.validated ? 'valid' : 'fallback'}, retries=${structuredResult.retries}`);
+    }
+  } catch (soErr) {
+    log.warn('[StructuredOutput] Failed (non-blocking):', (soErr as Error).message);
+  }
+
+  // ==================== CICLO 56 ACTION 3: ORPO PREFERENCE DATA COLLECTION ====================
+  // Scientific basis: Hong et al. (arXiv:2403.07691, EMNLP 2024): ORPO monolithic alignment.
+  // Collects (prompt, chosen, rejected) pairs for offline fine-tuning.
+  // Targets faithfulness (-12.2%) and coherence (-12.2%) gaps from Ciclo 55.
+  if (quality.qualityScore && quality.qualityScore < 85) {
+    const worstDimension = quality.issues?.[0]?.includes('faithful') ? 'faithfulness'
+      : quality.issues?.[0]?.includes('coher') ? 'coherence'
+      : quality.issues?.[0]?.includes('depth') ? 'depth'
+      : 'faithfulness';
+    collectORPOPair(
+      query,
+      response,
+      quality.qualityScore,
+      routingDecision.category,
+      worstDimension
+    ).catch(err => log.warn('[ORPO] Collection failed (non-blocking):', err));
   }
 
   // ==================== LAYER 7: METRICS ====================
