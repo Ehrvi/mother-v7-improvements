@@ -38,6 +38,10 @@ import { cragV2Retrieve } from './crag-v2'; // NC-QUALITY-006: CRAG v2 with quer
 import { selfRefinePhase3 } from './self-refine'; // NC-QUALITY-007: Self-Refine Phase 3 (3 iterations)
 import { orchestrate, shouldUseMoA, shouldUseDebate } from './orchestration'; // NC-ORCH-001: MoA + Debate (Ciclo 46)
 import { applyConstitutionalAI } from './constitutional-ai'; // NC-CONST-001: Constitutional AI Safety Layer (Ciclo 47)
+import { applyIFV } from './ifv'; // Ciclo 54 v2.0 Action 2: IFV — Instruction Following Verifier (Zhou et al., arXiv:2311.07911, 2023)
+import { applyCoVe, shouldApplyCoVe } from './cove'; // Ciclo 54 v2.0 Action 3: CoVe — Chain-of-Verification (Dhuliawala et al., arXiv:2309.11495, 2023)
+import { rerankDocuments, shouldRerank } from './rag-reranker'; // Ciclo 54 v2.0 Action 4: RAG Re-ranking (RankGPT, Sun et al., arXiv:2304.09542, 2023)
+import { applyToT, shouldApplyToT } from './tot-router'; // Ciclo 54 v2.0 Action 5: ToT — Tree-of-Thoughts (Yao et al., arXiv:2305.10601, 2023)
 import { searchSimilarChunksWithMetadata } from '../omniscient/search';
 import { groundResponse, needsGrounding } from './grounding';
 import { agenticLearningLoop } from './agentic-learning';
@@ -84,7 +88,7 @@ import { getAutonomySummary } from './autonomy'; // v74.6: Anti-hallucination au
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v75.2'; // NC-ORCH-001 (Ciclo 46): MoA+Debate orchestration | NC-CONST-001 (Ciclo 47): Constitutional AI | NC-CICD-001 (Ciclo 49): main branch CI/CD | NC-SELFAUDIT-001 (Ciclo 50): 9-layer audit accuracy + cache bypass + scientific benchmarks
+export const MOTHER_VERSION = 'v75.4'; // Ciclo 54 v2.0: IFV (Action 2, arXiv:2311.07911) + CoVe (Action 3, arXiv:2309.11495) + RAG Re-ranking (Action 4, arXiv:2304.09542) | NC-ORCH-001 (Ciclo 46) | NC-CONST-001 (Ciclo 47) | NC-SELFAUDIT-001 (Ciclo 50)
 
 const log = createLogger('CORE');
 
@@ -353,6 +357,27 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
     cragDocuments = cragResultRaw.value.documents as any; // NC-QUALITY-006: CRAGv2Document compatible with CRAGDocument
     if ((cragResultRaw.value as any).correctiveSearchTriggered) {
       log.info('[MOTHER] CRAG: Corrective search triggered — no local knowledge found');
+    }
+    // ==================== CICLO 54 v2.0 ACTION 4: RAG RE-RANKING ====================
+    // Scientific basis: RankGPT (Sun et al., arXiv:2304.09542, 2023): listwise re-ranking
+    // Bi-encoder (CRAG v2) → Cross-encoder (RankGPT) pipeline
+    // Trigger: 3+ documents available, research/complex queries
+    if (cragDocuments.length >= 3 && shouldRerank(cragDocuments.length, routingDecision.category, query.split(/\s+/).length)) {
+      try {
+        const docsForReranking = cragDocuments.map(d => ({
+          content: d.content,
+          source: d.source || 'unknown',
+          score: (d as any).relevanceScore || (d as any).hybridScore || 0.5,
+        }));
+        const rerankResult = await rerankDocuments(query, docsForReranking, 5);
+        if (rerankResult.applied) {
+          // Use re-ranked context instead of original CRAG context
+          knowledgeContext = rerankResult.topContext;
+          log.info(`[RAGReranker] Re-ranked ${cragDocuments.length} docs, order changed: ${JSON.stringify(rerankResult.originalOrder.slice(0,3))} → ${JSON.stringify(rerankResult.newOrder.slice(0,3))}`);
+        }
+      } catch (rerankErr) {
+        log.warn('[RAGReranker] Failed (non-blocking), using original CRAG context:', (rerankErr as Error).message);
+      }
     }
   }
   
@@ -828,6 +853,27 @@ ${autonomyStatus}
     }
   }
   
+  // ==================== CICLO 54 v2.0 ACTION 5: ToT — TREE-OF-THOUGHTS ====================
+  // Scientific basis: Yao et al. (arXiv:2305.10601, 2023): 74% improvement on complex reasoning
+  // Trigger: complex_reasoning/research queries with ToT-worthy patterns
+  // Non-blocking: errors caught, original response preserved
+  if (!onChunk && shouldApplyToT(query, routingDecision.category)) {
+    try {
+      const totResult = await applyToT(
+        query,
+        systemPrompt,
+        knowledgeContext || '',
+        { maxBranches: 2, maxDepth: 2 }
+      );
+      if (totResult.applied && totResult.finalResponse && totResult.finalResponse.length > 200) {
+        response = totResult.finalResponse;
+        log.info(`[ToT] Applied: ${totResult.depthReached} depths, ${totResult.branchesExplored} branches explored`);
+      }
+    } catch (totErr) {
+      log.warn('[ToT] Failed (non-blocking):', (totErr as Error).message);
+    }
+  }
+
   let hallucinationRisk: 'low' | 'medium' | 'high' = 'low';
   // ==================== GROUNDING ENGINE (v67.0) ====================
   // Verify factual claims and inject citations to prevent hallucination
@@ -965,6 +1011,54 @@ ${autonomyStatus}
     } catch (constErr) {
       log.warn('[Constitutional AI] Failed (non-blocking):', (constErr as Error).message);
     }
+  }
+
+  // ==================== CICLO 54 v2.0 ACTION 3: CoVe — CHAIN-OF-VERIFICATION ====================
+  // Scientific basis: Dhuliawala et al. (arXiv:2309.11495, 2023): 28-46% hallucination reduction
+  // Trigger: research/complex_reasoning queries with medium/high hallucination risk
+  // Non-blocking: errors caught, original response preserved
+  if (shouldApplyCoVe(response, routingDecision.category, hallucinationRisk)) {
+    try {
+      const coveResult = await applyCoVe(
+        query,
+        response,
+        systemPrompt,
+        knowledgeContext || '',
+        routingDecision.category,
+        hallucinationRisk
+      );
+      if (coveResult.wasRevised && coveResult.revisedResponse) {
+        response = coveResult.revisedResponse;
+        log.info(`[CoVe] Response revised: ${coveResult.inconsistenciesFound} inconsistencies corrected, faithfulness=${coveResult.faithfulnessScore}%`);
+      } else if (coveResult.applied) {
+        log.info(`[CoVe] Verification passed: faithfulness=${coveResult.faithfulnessScore}%, no revision needed`);
+      }
+    } catch (coveErr) {
+      log.warn('[CoVe] Failed (non-blocking):', (coveErr as Error).message);
+    }
+  }
+
+  // ==================== CICLO 54 v2.0 ACTION 2: IFV — INSTRUCTION FOLLOWING VERIFIER ====================
+  // Scientific basis: IFEval (Zhou et al., arXiv:2311.07911, 2023); arXiv:2601.03269 (2026)
+  // Trigger: queries with explicit format/length/content/style/structure constraints
+  // Non-blocking: errors caught, original response preserved
+  try {
+    const ifvResult = await applyIFV(
+      query,
+      response,
+      systemPrompt,
+      { enableRegeneration: true, maxConstraintsToVerify: 5 }
+    );
+    if (ifvResult.hasConstraints) {
+      if (ifvResult.wasRevised && ifvResult.revisedResponse) {
+        response = ifvResult.revisedResponse;
+        log.info(`[IFV] Response revised: ${ifvResult.constraints.filter(c => !c.satisfied).length} constraints satisfied, ifvScore=${ifvResult.ifvScore}%`);
+      } else {
+        log.info(`[IFV] Constraints verified: ${ifvResult.constraints.length} constraints, satisfactionRate=${(ifvResult.satisfactionRate * 100).toFixed(0)}%, ifvScore=${ifvResult.ifvScore}%`);
+      }
+    }
+  } catch (ifvErr) {
+    log.warn('[IFV] Failed (non-blocking):', (ifvErr as Error).message);
   }
 
   // ==================== LAYER 7: METRICS ====================

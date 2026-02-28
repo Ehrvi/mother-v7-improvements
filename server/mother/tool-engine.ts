@@ -29,6 +29,7 @@ import { listCodeFiles, readCodeFile, searchInCode, getCodeStructureSummary } fr
 import { retrieveSubgraph, buildKnowledgeGraph, getGraphStats } from './knowledge-graph';
 import { performAbductiveReasoning, requiresAbductiveReasoning } from './abductive-engine';
 import { getDPOStats, getDPOHyperparameters } from './dpo-builder';
+import { getSimPOStats, SIMPO_CONFIG } from './simpo-optimizer'; // Ciclo 54 v2.0 Action 6: SimPO (Meng et al., NeurIPS 2024, arXiv:2405.14734)
 import { runHLEBenchmark, HLE_BENCHMARK } from './rlvr-verifier';
 import { runSelfImprovementCycle, getSelfImprovementStatus } from './self-improve';
 import { writeCodeFile, patchCodeFile, getDeployStatus, triggerDeploy } from './self-code-writer';
@@ -268,7 +269,7 @@ export const MOTHER_TOOLS = [
     type: 'function' as const,
     function: {
       name: 'dpo_status',
-      description: 'Get the status of the DPO (Direct Preference Optimization) dataset collection. Shows how many preference pairs have been collected, readiness for fine-tuning, and estimated training cost. Based on Rafailov et al. (2023, arXiv:2305.18290). Use when the user asks about DPO, fine-tuning status, or training data.',
+      description: 'Get the status of the DPO and SimPO (Simple Preference Optimization) dataset collection. Shows how many preference pairs have been collected, readiness for fine-tuning, SimPO margins, and estimated training cost. Based on Rafailov et al. (2023, arXiv:2305.18290) and Meng et al. (NeurIPS 2024, arXiv:2405.14734). Use when the user asks about DPO, SimPO, fine-tuning status, or training data.',
       parameters: {
         type: 'object',
         properties: {},
@@ -1065,20 +1066,40 @@ export async function executeTool(
 
   if (toolName === 'dpo_status') {
     try {
-      const stats = await getDPOStats();
+      const [stats, simpoStats] = await Promise.all([getDPOStats(), getSimPOStats()]);
       const hyperparams = getDPOHyperparameters(stats.totalPairs);
       return {
         success: true,
         data: {
-          totalPairs: stats.totalPairs,
-          readyForFineTuning: stats.readyForFineTuning,
-          pairsNeeded: stats.pairsNeeded,
-          estimatedCostUSD: stats.estimatedCostUSD,
-          hyperparameters: hyperparams,
-          scientificBasis: 'Rafailov et al. (2023, arXiv:2305.18290) — Direct Preference Optimization',
-          status: stats.readyForFineTuning
-            ? '✅ READY FOR FINE-TUNING'
-            : `⏳ COLLECTING DATA (${stats.totalPairs}/1000 pairs — ${stats.pairsNeeded} more needed)`,
+          // DPO (Rafailov et al., 2023)
+          dpo: {
+            totalPairs: stats.totalPairs,
+            readyForFineTuning: stats.readyForFineTuning,
+            pairsNeeded: stats.pairsNeeded,
+            estimatedCostUSD: stats.estimatedCostUSD,
+            hyperparameters: hyperparams,
+            scientificBasis: 'Rafailov et al. (2023, arXiv:2305.18290) — Direct Preference Optimization',
+            status: stats.readyForFineTuning
+              ? '✅ READY FOR FINE-TUNING'
+              : `⏳ COLLECTING DATA (${stats.totalPairs}/1000 pairs — ${stats.pairsNeeded} more needed)`,
+          },
+          // SimPO (Meng et al., NeurIPS 2024)
+          simpo: {
+            datasetSize: simpoStats.datasetSize,
+            validPairs: simpoStats.validPairs,
+            avgMargin: simpoStats.avgMargin.toFixed(4),
+            readyForFineTuning: simpoStats.readyForFineTuning,
+            config: {
+              beta: SIMPO_CONFIG.beta,
+              gamma: SIMPO_CONFIG.gamma,
+              description: 'Length-normalized reward without reference model',
+            },
+            scientificBasis: 'Meng et al. (NeurIPS 2024, arXiv:2405.14734) — SimPO outperforms DPO by 6.4% on AlpacaEval 2.0',
+            advantage: 'No reference model required — 50% less memory than DPO',
+            status: simpoStats.readyForFineTuning
+              ? '✅ READY FOR SIMPO FINE-TUNING'
+              : `⏳ COLLECTING DATA (${simpoStats.validPairs}/100 valid pairs needed)`,
+          },
         },
       };
     } catch (error) {
