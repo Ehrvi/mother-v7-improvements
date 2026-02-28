@@ -1,18 +1,24 @@
 /**
- * MOTHER v54.0 - Scientific Research Module
- * 
+ * MOTHER v75.8 - Scientific Research Module (Ciclo 58 Enhanced)
+ *
  * Implements autonomous web search and scientific literature retrieval.
- * 
+ *
  * Scientific basis:
  * - ReAct (Yao et al., ICLR 2023): Reason + Act paradigm for tool-augmented LLMs
  * - WebGPT (Nakano et al., 2021): LLM with web browsing capability
  * - Toolformer (Schick et al., NeurIPS 2023): Self-supervised tool use
  * - RAG (Lewis et al., NeurIPS 2020): Retrieval-Augmented Generation
- * 
- * Architecture:
+ * - Semantic Scholar (AI2, 2015): 200M+ papers, citation-ranked quality signal
+ *
+ * Architecture (5 parallel sources):
  * 1. Query classification: detect if query requires external knowledge
- * 2. Source selection: arXiv, Anna's Archive, DuckDuckGo, Wikipedia
- * 3. Result synthesis: extract relevant information and cite sources
+ * 2. Source selection: arXiv, Semantic Scholar, DuckDuckGo, Wikipedia, OpenAI Search
+ * 3. Citation-ranked quality filtering: Semantic Scholar papers sorted by citation count
+ * 4. Result synthesis: extract relevant information and cite sources
+ *
+ * Ciclo 58 additions:
+ * - Semantic Scholar API as 5th parallel source (citation-ranked, peer-validated)
+ * - Citation count as quality signal for faithfulness improvement
  */
 
 import { invokeLLM } from '../_core/llm';
@@ -29,7 +35,9 @@ export interface ResearchSource {
   title: string;
   url: string;
   snippet: string;
-  type: 'arxiv' | 'web' | 'wikipedia' | 'annas_archive';
+  type: 'arxiv' | 'web' | 'wikipedia' | 'annas_archive' | 'semantic_scholar';
+  citationCount?: number;  // Semantic Scholar: citation count for quality ranking
+  year?: number;           // Semantic Scholar: publication year
 }
 
 /**
@@ -93,6 +101,78 @@ function extractEnglishKeywords(query: string): string {
   const words = query.split(/\s+/).filter(w => w.length > 3 && !noiseWords.has(w));
   const englishLike = words.filter(w => !/[áàâãéêíóôõúçÁÀÂÃÉÊÍÓÔÕÚÇ]/.test(w));
   return englishLike.slice(0, 6).join(' ') || query.slice(0, 100);
+}
+
+/**
+ * Search Semantic Scholar for high-citation academic papers.
+ * Scientific basis: Semantic Scholar (AI2, 2015) — 200M+ papers, free API, no key required.
+ * Advantage over arXiv: citation count enables quality ranking (high-citation = peer-validated).
+ * API: https://api.semanticscholar.org/graph/v1/paper/search
+ *
+ * Ciclo 58 addition: Provides citation-ranked results for better faithfulness.
+ */
+async function searchSemanticScholar(query: string, maxResults = 3): Promise<ResearchSource[]> {
+  try {
+    const searchQuery = extractEnglishKeywords(query);
+    const encodedQuery = encodeURIComponent(searchQuery);
+    const url = `https://api.semanticscholar.org/graph/v1/paper/search?query=${encodedQuery}&limit=${maxResults}&fields=title,abstract,year,citationCount,externalIds,url`;
+
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'MOTHER-Scientific-Agent/75.8',
+        'Accept': 'application/json',
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!response.ok) return [];
+
+    const data = await response.json() as {
+      data?: Array<{
+        paperId: string;
+        title: string;
+        abstract?: string;
+        year?: number;
+        citationCount?: number;
+        externalIds?: { ArXiv?: string; DOI?: string };
+        url?: string;
+      }>;
+    };
+
+    const papers = data.data || [];
+    const sources: ResearchSource[] = [];
+
+    for (const paper of papers.slice(0, maxResults)) {
+      if (!paper.title) continue;
+
+      // Prefer arXiv URL if available, otherwise use Semantic Scholar URL
+      const paperUrl = paper.externalIds?.ArXiv
+        ? `https://arxiv.org/abs/${paper.externalIds.ArXiv}`
+        : (paper.url || `https://www.semanticscholar.org/paper/${paper.paperId}`);
+
+      const citationLabel = paper.citationCount !== undefined
+        ? ` [${paper.citationCount} citations]`
+        : '';
+
+      sources.push({
+        title: `[Semantic Scholar ${paper.year || ''}${citationLabel}] ${paper.title}`,
+        url: paperUrl,
+        snippet: (paper.abstract || '').slice(0, 400) + ((paper.abstract?.length || 0) > 400 ? '...' : ''),
+        type: 'semantic_scholar',
+        citationCount: paper.citationCount,
+        year: paper.year,
+      });
+    }
+
+    // Sort by citation count (highest first) for quality ranking
+    sources.sort((a, b) => (b.citationCount || 0) - (a.citationCount || 0));
+
+    console.log(`[Research] Semantic Scholar: ${sources.length} papers found for "${searchQuery.slice(0, 50)}"`);
+    return sources;
+  } catch (error) {
+    console.error('[Research] Semantic Scholar search failed:', error);
+    return [];
+  }
 }
 
 /**
@@ -299,23 +379,34 @@ export async function conductResearch(query: string): Promise<ResearchResult> {
   const sources: ResearchSource[] = [];
   let openAISearchResult = '';
   
-  // Run searches in parallel for speed
-  const [arxivResults, wikiResults, ddgResults, openAIResult] = await Promise.allSettled([
+  // Run searches in parallel for speed (5 sources: arXiv, Semantic Scholar, Wikipedia, DuckDuckGo, OpenAI)
+  // Ciclo 58: Added Semantic Scholar (AI2) for citation-ranked peer-validated papers
+  const [arxivResults, wikiResults, ddgResults, openAIResult, semanticScholarResults] = await Promise.allSettled([
     searchArxiv(query),
     searchWikipedia(query),
     searchDuckDuckGo(query),
     searchWithOpenAI(query),
+    searchSemanticScholar(query),  // NEW: citation-ranked academic papers
   ]);
   
   if (arxivResults.status === 'fulfilled') sources.push(...arxivResults.value);
   if (wikiResults.status === 'fulfilled') sources.push(...wikiResults.value);
   if (ddgResults.status === 'fulfilled') sources.push(...ddgResults.value);
   if (openAIResult.status === 'fulfilled') openAISearchResult = openAIResult.value;
+  // Semantic Scholar: add citation-ranked papers (dedup with arXiv by URL)
+  if (semanticScholarResults.status === 'fulfilled') {
+    const existingUrls = new Set(sources.map(s => s.url));
+    const newPapers = semanticScholarResults.value.filter(s => !existingUrls.has(s.url));
+    sources.push(...newPapers);
+  }
   
-  // v55.0: Trigger async paper ingestion for arXiv results
+  // v55.0 + Ciclo 58: Trigger async paper ingestion for arXiv + Semantic Scholar papers
   // This runs in background — does NOT block the response to the user
   // Pipeline: arXiv metadata → PDF download → text extraction → chunking → embedding → DB
-  const arxivSources = sources.filter(s => s.type === 'arxiv');
+  const arxivSources = sources.filter(s =>
+    s.type === 'arxiv' ||
+    (s.type === 'semantic_scholar' && s.url.includes('arxiv.org'))
+  );
   if (arxivSources.length > 0) {
     const arxivUrls = arxivSources.map(s => s.url);
     console.log(`[Research] Triggering async paper ingestion for ${arxivUrls.length} arXiv papers`);

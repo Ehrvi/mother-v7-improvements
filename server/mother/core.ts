@@ -93,7 +93,7 @@ import { getAutonomySummary } from './autonomy'; // v74.6: Anti-hallucination au
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v75.7'; // Ciclo 57: GAP1 fix (Camada 3.5→7 integration, HippoRAG2 arXiv:2502.14802 + MARK arXiv:2505.05177) + GAP2 fix (Quality-Triggered Learning, Self-RAG arXiv:2310.11511 + Reflexion arXiv:2303.11366) + GAP3 fix (Fichamento after study, ABNT NBR 6023:2018) + GAP4 fix (Bidirectional RAG write-back, arXiv:2512.22199)
+export const MOTHER_VERSION = 'v75.8'; // Ciclo 58: SCOPE reflection loop (PARSE arXiv:2510.08623) + Semantic Scholar 5th source + ORPO HuggingFace export + Adaptive timeout for latency optimization (Amdahl 1967) GAP1 fix (Camada 3.5→7 integration, HippoRAG2 arXiv:2502.14802 + MARK arXiv:2505.05177) + GAP2 fix (Quality-Triggered Learning, Self-RAG arXiv:2310.11511 + Reflexion arXiv:2303.11366) + GAP3 fix (Fichamento after study, ABNT NBR 6023:2018) + GAP4 fix (Bidirectional RAG write-back, arXiv:2512.22199)
 
 const log = createLogger('CORE');
 
@@ -468,7 +468,14 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   );
   if (proactiveCheck.should) {
     try {
-      const proactiveResult = await executeProactiveRetrieval(query, routingDecision.category);
+      // Ciclo 58: Adaptive timeout — complex_reasoning/research get 12s, others get 6s
+      // Scientific basis: Amdahl's Law (Amdahl, 1967) — bounded latency prevents tail-latency
+      const proactiveTimeout = ['complex_reasoning', 'research'].includes(routingDecision.category) ? 12000 : 6000;
+      const proactiveResult = await withTimeout(
+        executeProactiveRetrieval(query, routingDecision.category),
+        proactiveTimeout,
+        'ProactiveRetrieval'
+      );
       if (proactiveResult.additionalContext) {
         proactiveContext = `\n\n## 🔍 PROACTIVE RETRIEVAL — bd_central (FLARE/Self-RAG)\n${proactiveResult.additionalContext}`;
         // Merge into knowledgeContext if original was empty

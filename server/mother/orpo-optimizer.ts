@@ -36,6 +36,8 @@
 
 import { createLogger } from '../_core/logger';
 import { invokeLLM } from '../_core/llm';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const log = createLogger('ORPO');
 
@@ -208,25 +210,80 @@ export function getORPOStats(): ORPOStats {
 }
 
 /**
- * Export ORPO dataset in Hugging Face format for offline fine-tuning.
- * Format compatible with TRL's ORPOTrainer (huggingface/trl).
+ * Export ORPO dataset in HuggingFace TRL format for offline fine-tuning.
+ * Scientific basis: Hong et al. (ORPO, arXiv:2403.07691, EMNLP 2024) — Section 3.2
  *
- * Scientific basis: Hong et al. (ORPO, 2024) — Section 3.2 Training Data Format
+ * TRL ORPOTrainer format:
+ *   {"prompt": "...",
+ *    "chosen": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}],
+ *    "rejected": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]}
+ *
+ * Compatible with: trl.ORPOTrainer, trl.DPOTrainer, axolotl (preference format),
+ *                  LLaMA-Factory, FastChat, OpenRLHF
  */
-export function exportORPODataset(): Array<{
-  prompt: string;
-  chosen: string;
-  rejected: string;
-  odds_ratio: number;
-}> {
-  return orpoPairs
-    .filter(p => p.oddsRatio > 0.5) // Only high-signal pairs
-    .map(p => ({
+export function exportORPODataset(format: 'simple' | 'trl' = 'trl'): Array<Record<string, unknown>> {
+  const highSignalPairs = orpoPairs.filter(p => p.oddsRatio > 0.5);
+
+  if (format === 'trl') {
+    // HuggingFace TRL format — compatible with ORPOTrainer and DPOTrainer
+    return highSignalPairs.map(p => ({
       prompt: p.prompt,
-      chosen: p.chosen,
-      rejected: p.rejected,
-      odds_ratio: p.oddsRatio,
+      chosen: [
+        { role: 'user', content: p.prompt },
+        { role: 'assistant', content: p.chosen }
+      ],
+      rejected: [
+        { role: 'user', content: p.prompt },
+        { role: 'assistant', content: p.rejected }
+      ],
+      metadata: {
+        odds_ratio: p.oddsRatio,
+        dimension: p.dimension,
+        chosen_score: p.chosenScore,
+        rejected_score: p.rejectedScore,
+        source: 'MOTHER_production',
+        timestamp: p.timestamp,
+      }
     }));
+  }
+
+  // Simple format (backward compatible)
+  return highSignalPairs.map(p => ({
+    prompt: p.prompt,
+    chosen: p.chosen,
+    rejected: p.rejected,
+    odds_ratio: p.oddsRatio,
+  }));
+}
+
+/**
+ * Export ORPO dataset to JSONL file for offline fine-tuning.
+ * Scientific basis: UltraFeedback dataset format (Cui et al., 2023)
+ *
+ * Output: /tmp/orpo_dataset_<timestamp>.jsonl
+ * Compatible with: trl.ORPOTrainer, axolotl, LLaMA-Factory, OpenRLHF
+ *
+ * Usage (Python):
+ *   from datasets import load_dataset
+ *   dataset = load_dataset('json', data_files='orpo_dataset_*.jsonl')
+ *   trainer = ORPOTrainer(model=model, args=orpo_args, train_dataset=dataset)
+ */
+export function exportORPODatasetToFile(): string {
+  const dataset = exportORPODataset('trl');
+  if (dataset.length === 0) {
+    log.info('[ORPO] No high-signal pairs to export yet (need oddsRatio > 0.5, collect more production data)');
+    return '';
+  }
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const outputPath = path.join('/tmp', `orpo_dataset_${timestamp}.jsonl`);
+
+  const jsonlContent = dataset.map(pair => JSON.stringify(pair)).join('\n');
+  fs.writeFileSync(outputPath, jsonlContent, 'utf-8');
+
+  log.info(`[ORPO] Exported ${dataset.length} pairs to ${outputPath} (TRL format)`);
+  log.info(`[ORPO] Fine-tune with: trl.ORPOTrainer(model, args, train_dataset=load_dataset('json', data_files='${outputPath}'))`);
+  return outputPath;
 }
 
 /**

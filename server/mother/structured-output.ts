@@ -1,8 +1,12 @@
 /**
- * Structured Output Enforcement
- * MOTHER v75.5 — Ciclo 56 — Action 4
+ * Structured Output Enforcement with SCOPE Reflection Loop
+ * MOTHER v75.8 — Ciclo 58 — Enhanced
  *
  * Scientific basis:
+ *   - PARSE / SCOPE (Shrimal et al., arXiv:2510.08623, EMNLP 2025):
+ *     Schema-guided extraction with reflection loop. SCOPE reduces extraction
+ *     errors by 92% within first retry via error-specific feedback. Key insight:
+ *     generic retry prompts fail; error-specific feedback enables self-correction.
  *   - OpenAI Structured Outputs (Achiam et al., 2023): JSON Schema-constrained
  *     generation eliminates parsing failures and ensures extractable data.
  *   - LMQL (Beurer-Kellner et al., arXiv:2212.06094, 2023): constrained
@@ -14,14 +18,15 @@
  * Problem addressed:
  *   - Ciclo 55 benchmark: extraction dimension gap of 2.2 points vs Manus
  *   - Root cause: LLM sometimes returns prose instead of structured data
- *   - Solution: Enforce JSON Schema on extraction queries + retry on failure
+ *   - Solution: SCOPE reflection loop — retry with specific error feedback
  *
- * Architecture:
+ * Architecture (SCOPE):
  *   1. Detect if query requires structured output (extraction patterns)
  *   2. Inject JSON Schema into system prompt
  *   3. Validate response against schema
- *   4. Retry with stricter prompt if validation fails (up to 2 retries)
- *   5. Fall back to prose extraction if schema enforcement fails
+ *   4. On failure: identify SPECIFIC error (missing field, wrong type, etc.)
+ *   5. Retry with error-specific feedback (not generic retry)
+ *   6. Fall back to prose extraction if SCOPE fails
  */
 
 import { invokeLLM } from '../_core/llm';
@@ -181,6 +186,64 @@ function validateAgainstSchema(data: object, schema: Record<string, unknown>): b
 }
 
 /**
+ * SCOPE: Diagnose specific extraction error for reflection feedback.
+ * Scientific basis: PARSE (Shrimal et al., arXiv:2510.08623, EMNLP 2025) — Table 3
+ *
+ * Error categories:
+ *   - MISSING_FIELD: Required field absent from output
+ *   - WRONG_TYPE: Field present but wrong type (e.g., string instead of array)
+ *   - INVALID_JSON: Response is not valid JSON at all
+ *   - EMPTY_ARRAY: Required array field is empty
+ */
+function diagnoseSCOPEError(
+  content: string,
+  schema: Record<string, unknown>,
+  parseError?: string
+): string {
+  if (parseError) {
+    // JSON parse error — most common failure mode
+    const snippet = content.slice(0, 200).replace(/\n/g, ' ');
+    return `INVALID_JSON: The response is not valid JSON. Parse error: ${parseError}. ` +
+           `Your response started with: "${snippet}...". ` +
+           `Return ONLY a raw JSON object, no markdown code blocks, no explanation text.`;
+  }
+
+  try {
+    const parsed = JSON.parse(content) as Record<string, unknown>;
+    const required = (schema.required as string[]) || [];
+
+    for (const field of required) {
+      if (!(field in parsed)) {
+        return `MISSING_FIELD: Required field "${field}" is missing from your JSON response. ` +
+               `You returned: ${JSON.stringify(Object.keys(parsed))}. ` +
+               `Add the "${field}" field to your response.`;
+      }
+
+      const props = schema.properties as Record<string, Record<string, unknown>> | undefined;
+      if (props && props[field]) {
+        const expectedType = props[field].type as string;
+        const actualValue = parsed[field];
+        const actualType = Array.isArray(actualValue) ? 'array' : typeof actualValue;
+
+        if (expectedType === 'array' && !Array.isArray(actualValue)) {
+          return `WRONG_TYPE: Field "${field}" must be an array but you returned ${actualType}. ` +
+                 `Wrap the value in square brackets: ["item1", "item2"]`;
+        }
+
+        if (expectedType === 'array' && Array.isArray(actualValue) && actualValue.length === 0) {
+          return `EMPTY_ARRAY: Field "${field}" is an empty array. ` +
+                 `Provide at least one item based on the query content.`;
+        }
+      }
+    }
+  } catch (e) {
+    return `INVALID_JSON: Could not parse response as JSON. Error: ${(e as Error).message}`;
+  }
+
+  return 'UNKNOWN_ERROR: Response did not match schema. Review all required fields and types.';
+}
+
+/**
  * Convert structured data to readable prose response.
  * Ensures the final response is human-readable even when structured.
  */
@@ -277,20 +340,20 @@ export async function enforceStructuredOutput(
     }
   }
 
-  // Retry with explicit schema enforcement (up to 2 retries)
+  // SCOPE Reflection Loop: retry with error-specific feedback (arXiv:2510.08623)
   let retries = 0;
   const maxRetries = 2;
+  let scopeErrorFeedback = '';
 
   while (retries < maxRetries) {
     retries++;
 
     const schemaStr = JSON.stringify(detection.schema, null, 2);
-    const retryPrompt = `${systemPrompt}
-
-IMPORTANT: Your response MUST be valid JSON conforming to this schema:
-${schemaStr}
-
-Return ONLY the JSON object, no markdown, no explanation.`;
+    // SCOPE: Include specific error diagnosis on retry 2 (reflection)
+    const scopeSection = scopeErrorFeedback
+      ? `\n\nSCOPE REFLECTION — Your previous attempt had this specific error:\n${scopeErrorFeedback}\nFix ONLY this issue.`
+      : '';
+    const retryPrompt = `${systemPrompt}\n\nIMPORTANT: Your response MUST be valid JSON conforming to this schema:\n${schemaStr}${scopeSection}\n\nReturn ONLY the JSON object, no markdown, no explanation.`;
 
     try {
       const retryResult = await invokeLLM({
@@ -316,7 +379,7 @@ Return ONLY the JSON object, no markdown, no explanation.`;
         const parsed = JSON.parse(jsonStr.trim());
         if (validateAgainstSchema(parsed, detection.schema as Record<string, unknown>)) {
           const proseResponse = structuredToProse(parsed, detection.schemaType);
-          log.info(`[StructuredOutput] Schema validated after ${retries} retries`);
+          log.info(`[StructuredOutput] SCOPE validated after ${retries} retries`);
           return {
             applied: true,
             validated: true,
@@ -325,9 +388,15 @@ Return ONLY the JSON object, no markdown, no explanation.`;
             structuredData: parsed,
             extractedResponse: proseResponse || response,
           };
+        } else {
+          // SCOPE: diagnose specific validation error for next retry
+          scopeErrorFeedback = diagnoseSCOPEError(jsonStr.trim(), detection.schema as Record<string, unknown>);
+          log.warn(`[StructuredOutput] SCOPE error on retry ${retries}: ${scopeErrorFeedback.slice(0, 100)}`);
         }
-      } catch {
-        log.warn(`[StructuredOutput] JSON parse failed on retry ${retries}`);
+      } catch (parseErr) {
+        // SCOPE: diagnose JSON parse error for next retry
+        scopeErrorFeedback = diagnoseSCOPEError(content, detection.schema as Record<string, unknown>, (parseErr as Error).message);
+        log.warn(`[StructuredOutput] SCOPE JSON parse error on retry ${retries}: ${scopeErrorFeedback.slice(0, 100)}`);
       }
     } catch (err) {
       log.warn(`[StructuredOutput] Retry ${retries} failed:`, (err as Error).message);
