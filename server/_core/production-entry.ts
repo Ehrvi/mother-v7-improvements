@@ -27,6 +27,7 @@ import { appRouter } from '../routers.js';
 import { registerOAuthRoutes } from './oauth.js';
 import { getDb } from '../db.js';
 import { invokeGEASupervisor } from '../mother/gea_supervisor.js';
+import { a2aRouter } from '../mother/a2a-server.js'; // NC-COLLAB-001: A2A protocol
 import { processQuery as _processQuery } from '../mother/core.js';
 import { runSelfAudit } from '../mother/self-audit-engine.js';
 import { runHourlyAggregation } from '../mother/metrics-aggregation-job.js'; // v69.12: Fix P0 — system_metrics aggregation
@@ -160,6 +161,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // OAuth routes
 registerOAuthRoutes(app);
+app.use(a2aRouter); // NC-COLLAB-001: A2A protocol endpoints (/api/a2a/*)
 
 /**
  * v45.0: Cloud Tasks DGM Execute Endpoint
