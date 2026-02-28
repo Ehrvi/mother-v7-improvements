@@ -5,15 +5,19 @@ name: MOTHER Autonomous Deploy Pipeline
 # Scientific basis: SWE-agent (Yang et al., 2024), DGM (Zhang et al., 2025)
 #
 # Triggers:
-#   1. Push to master: TypeScript check + Cloud Run deploy
+#   1. Push to master/main: TypeScript check + Cloud Run deploy
 #   2. Push to autonomous/*: TypeScript check + auto-merge to master
 #   3. workflow_dispatch: Manual trigger
+# NC-CICD-001 (Ciclo 49): Added 'main' branch to triggers
+# Scientific basis: GitFlow (Driessen, 2010) — both main and master should trigger production deploy
+# Root cause: previous deploys to 'main' were silently ignored, requiring manual workflow_dispatch
 # ============================================================
 
 on:
   push:
     branches:
       - master
+      - main  # NC-CICD-001: Ciclo 49 — main branch now triggers deploy
       - 'autonomous/**'
       - 'feature/auto-*'
   workflow_dispatch:
@@ -93,7 +97,7 @@ jobs:
     name: Build and Deploy to Production
     runs-on: ubuntu-latest
     needs: typecheck
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    if: (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main') && github.event_name == 'push'  # NC-CICD-001: Deploy from both master and main
 
     steps:
       - name: Checkout code

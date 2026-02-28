@@ -34,6 +34,8 @@ import { getKnowledgeContext } from './knowledge';
 import { cragRetrieve } from './crag';
 import { cragV2Retrieve } from './crag-v2'; // NC-QUALITY-006: CRAG v2 with query expansion + hybrid search
 import { selfRefinePhase3 } from './self-refine'; // NC-QUALITY-007: Self-Refine Phase 3 (3 iterations)
+import { orchestrate, shouldUseMoA, shouldUseDebate } from './orchestration'; // NC-ORCH-001: MoA + Debate (Ciclo 46)
+import { applyConstitutionalAI } from './constitutional-ai'; // NC-CONST-001: Constitutional AI Safety Layer (Ciclo 47)
 import { searchSimilarChunksWithMetadata } from '../omniscient/search';
 import { groundResponse, needsGrounding } from './grounding';
 import { agenticLearningLoop } from './agentic-learning';
@@ -80,7 +82,7 @@ import { getAutonomySummary } from './autonomy'; // v74.6: Anti-hallucination au
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v74.17'; // NC-PLAYWRIGHT-001: Playwright in Dockerfile + NC-CALIBRATION-001: 7D weight calibration
+export const MOTHER_VERSION = 'v75.0'; // NC-ORCH-001 (Ciclo 46): MoA+Debate orchestration | NC-CONST-001 (Ciclo 47): Constitutional AI | NC-CICD-001 (Ciclo 49): main branch CI/CD
 
 const log = createLogger('CORE');
 
@@ -715,30 +717,91 @@ ${autonomyStatus}
     //   - FrugalGPT (Chen et al., arXiv:2305.05176, 2023): route to specialized models per category
     //   - RouteLLM (Ong et al., arXiv:2406.18665, 2024): quality improves when correct model is used
     //   - Commey et al. (arXiv:2601.22025, 2026): task-specific prompts outperform generic ones
-    log.info(`[MOTHER] Phase 2: calling ${selectedProvider}/${selectedModel} T=${selectedTemperature} for ${routingDecision.category}`);
-    {
-      // All categories: dedicated call to the specialized model for maximum quality
-      const phase2Response = await invokeLLM({
-        model: selectedModel,
-        provider: selectedProvider,
-        messages: [
-          { role: 'system' as LLMRole, content: systemPrompt },
-          ...historyMessages,
-          { role: 'user' as LLMRole, content: query },
-        ],
-        // v69.5: Pass streaming callback if provided (SSE endpoint)
-        ...(onChunk ? { onChunk } : {}),
-        // v74.11: Per-model calibrated temperature
-        temperature: selectedTemperature,
-      });
-      const phase2Content = phase2Response.choices[0]?.message?.content;
-      response = typeof phase2Content === 'string' ? phase2Content : 'No response generated';
-      const phase2Usage = phase2Response.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
-      usage = {
-        prompt_tokens: usage.prompt_tokens + phase2Usage.prompt_tokens,
-        completion_tokens: usage.completion_tokens + phase2Usage.completion_tokens,
-        total_tokens: usage.total_tokens + phase2Usage.total_tokens,
-      };
+    // ==================== NC-ORCH-001: ORCHESTRATION LAYER (Ciclo 46) ====================
+    // Scientific basis:
+    //   - MoA (Wang et al., arXiv:2406.04692, 2024): 65.1% AlpacaEval 2.0, beats GPT-4o (57.5%)
+    //   - Multi-Agent Debate (Du et al., arXiv:2305.14325, 2023): +11% factual accuracy
+    //   - Society of Mind (Liang et al., arXiv:2305.19118, 2023): -15% hallucination
+    // Routing: MoA for complex_reasoning/research (complexity >= 0.7), Debate for ambiguous queries
+    // Restriction: orchestration only for non-streaming (MoA/Debate require multiple sequential calls)
+    const useOrchestration = !onChunk && (
+      shouldUseMoA(complexity.complexityScore, routingDecision.category) ||
+      shouldUseDebate(query)
+    );
+    if (useOrchestration) {
+      log.info(`[MOTHER] Phase 2: ORCHESTRATION (MoA/Debate) — category=${routingDecision.category} complexity=${complexity.complexityScore.toFixed(2)}`);
+      try {
+        const orchResult = await orchestrate(
+          {
+            query,
+            systemPrompt,
+            conversationHistory: historyMessages.map(m => ({
+              role: m.role as 'user' | 'assistant',
+              content: typeof m.content === 'string' ? m.content : '',
+            })),
+            knowledgeContext: knowledgeContext || undefined,
+          },
+          {
+            complexityScore: complexity.complexityScore,
+            category: routingDecision.category,
+          }
+        );
+        response = orchResult.response;
+        log.info(`[MOTHER] Orchestration complete: pattern=${orchResult.pattern}, tokens=${orchResult.totalTokens || 0}`);
+        const orchTokens = orchResult.totalTokens || 0;
+        usage = {
+          prompt_tokens: usage.prompt_tokens + Math.floor(orchTokens * 0.7),
+          completion_tokens: usage.completion_tokens + Math.floor(orchTokens * 0.3),
+          total_tokens: usage.total_tokens + orchTokens,
+        };
+      } catch (orchErr) {
+        log.warn('[MOTHER] Orchestration failed, falling back to single model:', (orchErr as Error).message);
+        log.info(`[MOTHER] Phase 2 (fallback): calling ${selectedProvider}/${selectedModel} T=${selectedTemperature}`);
+        const phase2Response = await invokeLLM({
+          model: selectedModel,
+          provider: selectedProvider,
+          messages: [
+            { role: 'system' as LLMRole, content: systemPrompt },
+            ...historyMessages,
+            { role: 'user' as LLMRole, content: query },
+          ],
+          temperature: selectedTemperature,
+        });
+        const phase2Content = phase2Response.choices[0]?.message?.content;
+        response = typeof phase2Content === 'string' ? phase2Content : 'No response generated';
+        const phase2Usage = phase2Response.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+        usage = {
+          prompt_tokens: usage.prompt_tokens + phase2Usage.prompt_tokens,
+          completion_tokens: usage.completion_tokens + phase2Usage.completion_tokens,
+          total_tokens: usage.total_tokens + phase2Usage.total_tokens,
+        };
+      }
+    } else {
+      log.info(`[MOTHER] Phase 2: calling ${selectedProvider}/${selectedModel} T=${selectedTemperature} for ${routingDecision.category}`);
+      {
+        // All categories: dedicated call to the specialized model for maximum quality
+        const phase2Response = await invokeLLM({
+          model: selectedModel,
+          provider: selectedProvider,
+          messages: [
+            { role: 'system' as LLMRole, content: systemPrompt },
+            ...historyMessages,
+            { role: 'user' as LLMRole, content: query },
+          ],
+          // v69.5: Pass streaming callback if provided (SSE endpoint)
+          ...(onChunk ? { onChunk } : {}),
+          // v74.11: Per-model calibrated temperature
+          temperature: selectedTemperature,
+        });
+        const phase2Content = phase2Response.choices[0]?.message?.content;
+        response = typeof phase2Content === 'string' ? phase2Content : 'No response generated';
+        const phase2Usage = phase2Response.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+        usage = {
+          prompt_tokens: usage.prompt_tokens + phase2Usage.prompt_tokens,
+          completion_tokens: usage.completion_tokens + phase2Usage.completion_tokens,
+          total_tokens: usage.total_tokens + phase2Usage.total_tokens,
+        };
+      }
     }
   }
   
@@ -852,7 +915,35 @@ ${autonomyStatus}
       log.warn('[Self-Refine] Phase 3 failed (non-blocking):', (selfRefineErr as Error).message);
     }
   }
-  
+
+  // ==================== NC-CONST-001: CONSTITUTIONAL AI SAFETY LAYER (Ciclo 47) ====================
+  // Scientific basis:
+  //   - Constitutional AI (Bai et al., arXiv:2212.08073, 2022): critique-revise loop reduces harm 90%
+  //   - RLHF (Ouyang et al., arXiv:2203.02155, 2022): constitutional principles as reward signal
+  //   - Anthropic Responsible Scaling Policy (2023): safety layers mandatory for autonomous agents
+  // Trigger: only when quality < 80 (low-quality responses need constitutional review)
+  // Non-blocking: errors caught and logged, original response preserved
+  if (quality.qualityScore < 80) {
+    try {
+      const constResult = await applyConstitutionalAI(
+        query,
+        response,
+        quality.qualityScore,
+        knowledgeContext || undefined
+      );
+      if (constResult.wasRevised && constResult.revisedResponse) {
+        response = constResult.revisedResponse;
+        log.info(`[Constitutional AI] Revised: score ${constResult.critiqueScore} → ${constResult.constitutionalScore}, violations=${constResult.violatedPrinciples.length}`);
+        // Update quality score with constitutional improvement
+        Object.assign(quality, { qualityScore: constResult.constitutionalScore });
+      } else {
+        log.info(`[Constitutional AI] No revision needed (score=${constResult.constitutionalScore}, violations=0)`);
+      }
+    } catch (constErr) {
+      log.warn('[Constitutional AI] Failed (non-blocking):', (constErr as Error).message);
+    }
+  }
+
   // ==================== LAYER 7: METRICS ====================
   // Calculate cost and performance metrics
   

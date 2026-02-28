@@ -30,7 +30,7 @@ import { addKnowledge } from './knowledge'; // NC-RESEARCH-001: auto-index to bd
 let _pdfParse: ((buffer: Buffer) => Promise<{ text: string; numpages: number }>) | null = null;
 async function getPdfParse() {
   if (!_pdfParse) {
-    const mod = await import('pdf-parse');
+    const mod = await import('pdf-parse') as any;
     _pdfParse = (mod.default || mod) as any;
   }
   return _pdfParse!;
