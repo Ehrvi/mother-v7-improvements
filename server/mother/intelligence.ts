@@ -79,6 +79,14 @@ const PRICING: Record<LLMProvider, Record<string, { input: number; output: numbe
     // FollowBench (Jiang et al., arXiv:2310.20410) — multi-level constraint following
     // Job: ftjob-kEvXJdrvKJ0kuD6VXcNsJ067 (status: succeeded, 60 arch + 20 IF pairs)
     'ft:gpt-4o-mini-2024-07-18:personal:mother-v81-arch-if-ciclo81:DEWl6cWa': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
+    // Ciclo 83: DPO fine-tuned model for instruction_following (60 pairs, IFEval+FollowBench)
+    // Scientific basis: IFEval (Zhou et al., arXiv:2311.07911) + FollowBench (Jiang et al., arXiv:2310.20410)
+    // Job: ftjob-wlZf1ho7GLAXSHlQ7q9vmB5f (status: succeeded)
+    'ft:gpt-4o-mini-2024-07-18:personal:mother-v82-if-ciclo82:DEXNfTCC': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
+    // Ciclo 83: DPO fine-tuned model for identity (60 pairs, SPIN+InternalConsistency)
+    // Scientific basis: SPIN (Chen et al., arXiv:2401.01335, ICML 2024) + Internal Consistency (Liang et al., arXiv:2407.14507)
+    // Job: ftjob-pyamBytteZbLmsNb2PjrF8mg (status: succeeded)
+    'ft:gpt-4o-mini-2024-07-18:personal:mother-v82-identity-ciclo82:DEXNizqV': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
   },
   mistral: { 'mistral-small-latest': { input: 0.10 / 1_000_000, output: 0.30 / 1_000_000 } },
 };
@@ -93,13 +101,16 @@ export function getModelForCategory(category: QueryCategory): LLMModel {
   }
 }
 
-// Ciclo 80: Identity model override — DETdYCLK (300 pairs, Ciclo 76)
+// Ciclo 83: Identity model override — DEXNizqV (60 pairs SPIN+InternalConsistency, Ciclo 82)
+// UPGRADED from DETdYCLK (300 pairs C76) to DEXNizqV (60 pairs SPIN, C82)
 // Scientific basis: SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — self-play identity alignment
-// Internal Consistency (Liang et al., arXiv:2407.14507) — identity queries need fine-tuned model
+// Internal Consistency (Liang et al., arXiv:2407.14507) — identity self-knowledge alignment
+// Routing: Varangot-Reille et al. (arXiv:2502.00409, 2025) — semantic routing for specialized models
+// Job: ftjob-pyamBytteZbLmsNb2PjrF8mg (succeeded, 60 pairs: 20 acronym + 20 creator + 20 generic)
 export function getIdentityModelOverride(query: string): string | null {
-  const identityIndicators = /\b(quem criou|quem te criou|who created|who made you|seu criador|your creator|sua empresa|your company|Everton|Wizards|MOTHER significa|MOTHER sigla|o que e MOTHER|what is MOTHER|sua identidade|your identity|voce e|you are|seu nome|your name|criado por|created by|pertence a|belongs to|proprietario|owner|fundador|founder)\b/i;
+  const identityIndicators = /\b(quem criou|quem te criou|who created|who made you|seu criador|your creator|sua empresa|your company|Everton|Wizards|MOTHER significa|MOTHER sigla|o que e MOTHER|what is MOTHER|sua identidade|your identity|voce e|you are|seu nome|your name|criado por|created by|pertence a|belongs to|proprietario|owner|fundador|founder|acrônimo|acronimo|sigla|cada letra|expanda|expand.*MOTHER|M.*O.*T.*H.*E.*R|Modular|Orchestrated|Hierarchical|Execution.*Runtime|você é um|are you a|assistente genérico|generic assistant)\b/i;
   if (identityIndicators.test(query)) {
-    return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v78-identity-ciclo76:DETdYCLK';
+    return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v82-identity-ciclo82:DEXNizqV';
   }
   return null;
 }
@@ -127,28 +138,33 @@ export function getComplexReasoningModelOverride(query: string): string | null {
   return null;
 }
 
-// Ciclo 82: Fine-tuned model selector for architecture queries — DEWl6cWa ACTIVATED (upgraded)
+// Ciclo 83: Fine-tuned model selector for architecture queries — DEW7PUMv RESTORED (conflict fix)
+// BUG FIX (C83): DEWl6cWa was overriding architecture queries causing regression (25.0 → 6.25)
+// Conselho C82 (W=0.94): conflito de routing entre DEW7PUMv e DEWl6cWa — DEW7PUMv restaurado
 // Scientific basis: SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — self-play architecture DPO
-// Internal Consistency (Liang et al., arXiv:2407.14507) — architecture self-knowledge alignment
-// FollowBench (Jiang et al., arXiv:2310.20410) — multi-level constraint following
-// Job: ftjob-kEvXJdrvKJ0kuD6VXcNsJ067 (succeeded, 80 pairs: 60 arch + 20 IF, model: DEWl6cWa)
+// Varangot-Reille et al. (arXiv:2502.00409, 2025) — task-specific routing prevents interference
+// Job: ftjob-HoC6M3rVDBb2QOabPTihxM10 (succeeded, 30 pairs, model: DEW7PUMv)
 export function getArchitectureModelOverride(query: string): string | null {
-  const archIndicators = /\b(pipeline|camadas|layers|Guardian|Self.Consistency|Constitutional|Faithfulness|PRM|Long CoT|Depth|G.Eval|SRP|core\.ts|intelligence\.ts|adaptive.router|bd_central|Darwin|Godel|AWAKE|MCC|benchmark|HELM|fine.tuning.*pipeline|deploy.*Cloud Run|commit|repositorio|repository|modulo|module|arquitetura|architecture|como.*MOTHER.*funciona|how.*MOTHER.*works|quantas camadas|how many layers)\b/i;
+  // PRIORITY: architecture override must take precedence over IF override
+  // Narrow, architecture-specific keywords only — avoid overlap with IF keywords
+  const archIndicators = /\b(pipeline.*camadas|camadas.*pipeline|quantas camadas|how many layers|Guardian.*MOTHER|Self.Consistency.*MOTHER|Constitutional.*AI.*MOTHER|SRP.*Phase|core-quality-runner|core-learning-builder|core-system-prompt|core-system-utils|core-cache-writer|bd_central|Darwin.*Godel|Godel.*Machine|dgm-agent|AWAKE.*versão|MCC.*score|benchmark.*MOTHER|fine.tuning.*pipeline|deploy.*Cloud Run|adaptive.router|intelligence\.ts.*MOTHER|arquitetura.*MOTHER|architecture.*MOTHER|como.*MOTHER.*funciona|how.*MOTHER.*works|9 camadas|nine layers|modulos.*SRP|SRP.*modulos)\b/i;
   if (archIndicators.test(query)) {
-    return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v81-arch-if-ciclo81:DEWl6cWa';
+    return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v78-architecture-ciclo80:DEW7PUMv';
   }
   return null;
 }
 
-// Ciclo 82: Fine-tuned model selector for instruction-following queries — DEWl6cWa ACTIVATED
+// Ciclo 83: Fine-tuned model selector for instruction-following queries — DEXNfTCC ACTIVATED
+// UPGRADED from DEWl6cWa (80 pairs C81) to DEXNfTCC (60 pairs IFEval+FollowBench, C82)
 // Scientific basis: IFEval (Zhou et al., arXiv:2311.07911) — verifiable instruction following benchmark
 // FollowBench (Jiang et al., arXiv:2310.20410) — multi-level fine-grained constraint following
 // High-Precision Reward (arXiv:2601.04954) — verifiable hard constraints outperform soft preferences
-// Job: ftjob-kEvXJdrvKJ0kuD6VXcNsJ067 (succeeded, 80 pairs: 60 arch + 20 IF, model: DEWl6cWa)
+// Varangot-Reille et al. (arXiv:2502.00409, 2025) — specialized routing for IF tasks
+// Job: ftjob-wlZf1ho7GLAXSHlQ7q9vmB5f (succeeded, 60 pairs: 15 count + 15 binary + 15 format + 15 length)
 export function getInstructionFollowingModelOverride(query: string): string | null {
   const ifIndicators = /\b(liste exatamente|list exactly|responda (SIM|NAO|sim|nao|YES|NO)|em ordem alfabetica|in alphabetical order|cite \d+|list \d+|numere|number the|formato (JSON|XML|CSV|markdown)|format as|use bullet|use bullets|sem introducao|without introduction|apenas|only|somente|exactly \d+|exatamente \d+|palavras|words|linhas|lines|caracteres|characters|resposta curta|short answer|uma palavra|one word|duas palavras|two words|tres palavras|three words|em uma frase|in one sentence|em duas frases|in two sentences)\b/i;
   if (ifIndicators.test(query)) {
-    return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v81-arch-if-ciclo81:DEWl6cWa';
+    return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v82-if-ciclo82:DEXNfTCC';
   }
   return null;
 }
