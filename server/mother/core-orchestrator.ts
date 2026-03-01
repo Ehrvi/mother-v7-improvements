@@ -1,6 +1,7 @@
 /**
  * MOTHER v78.9 — Core Orchestrator
  * Ciclo 86: Identity fix — import MOTHER_IDENTITY_FACTS_SECTION + ARCHITECTURE_FACTS_SECTION
+ * Ciclo 88: SRP Phase 11 — extracted callProvider, streamResponse, GovernanceResult, layers 5-7
  * Ciclo 67: Arquitetura SOTA v76.0 — Conselho Deliberativo Ciclo 66
  *
  * Scientific basis:
@@ -44,6 +45,13 @@ import {
   getAllCircuitStats,
   type CircuitBreakerConfig,
 } from './circuit-breaker';
+import { callProvider, streamResponse } from './core-provider-caller';
+import {
+  layer5_symbolicGovernance,
+  layer6_memoryWriteBack,
+  layer7_dgmMetaObservation,
+  type GovernanceResult,
+} from './core-governance-layers';
 
 // ============================================================
 // TYPES
@@ -308,135 +316,6 @@ async function layer4_neuralGeneration(
   }
 }
 
-async function callProvider(
-  provider: string,
-  model: string,
-  messages: Array<{ role: string; content: string }>,
-  temperature: number,
-  maxTokens: number,
-  onChunk?: (chunk: string) => void,
-  signal?: AbortSignal,
-): Promise<string> {
-  const { ENV } = await import('../_core/env');
-
-  if (provider === 'openai') {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${ENV.openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature,
-        max_tokens: maxTokens,
-        stream: !!onChunk,
-      }),
-      signal,
-    });
-
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`OpenAI ${response.status}: ${err.slice(0, 200)}`);
-    }
-
-    if (onChunk && response.body) {
-      return streamResponse(response.body, onChunk);
-    }
-
-    const data = await response.json() as { choices: Array<{ message: { content: string } }> };
-    return data.choices[0]?.message?.content ?? '';
-  }
-
-  if (provider === 'anthropic') {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': ENV.anthropicApiKey ?? '',
-        'anthropic-version': '2023-06-01',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: maxTokens,
-        messages: messages.filter(m => m.role !== 'system'),
-        system: messages.find(m => m.role === 'system')?.content ?? '',
-        temperature,
-      }),
-      signal,
-    });
-
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`Anthropic ${response.status}: ${err.slice(0, 200)}`);
-    }
-
-    const data = await response.json() as { content: Array<{ text: string }> };
-    return data.content[0]?.text ?? '';
-  }
-
-  if (provider === 'google') {
-    const apiKey = ENV.googleApiKey ?? '';
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: messages
-            .filter(m => m.role !== 'system')
-            .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
-          systemInstruction: { parts: [{ text: messages.find(m => m.role === 'system')?.content ?? '' }] },
-          generationConfig: { temperature, maxOutputTokens: maxTokens },
-        }),
-        signal,
-      }
-    );
-
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`Google ${response.status}: ${err.slice(0, 200)}`);
-    }
-
-    const data = await response.json() as {
-      candidates: Array<{ content: { parts: Array<{ text: string }> } }>
-    };
-    return data.candidates[0]?.content?.parts[0]?.text ?? '';
-  }
-
-  throw new Error(`Unknown provider: ${provider}`);
-}
-
-async function streamResponse(body: ReadableStream<Uint8Array>, onChunk: (chunk: string) => void): Promise<string> {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let fullResponse = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    const text = decoder.decode(value, { stream: true });
-    const lines = text.split('\n').filter(l => l.startsWith('data: '));
-
-    for (const line of lines) {
-      const data = line.slice(6);
-      if (data === '[DONE]') continue;
-      try {
-        const parsed = JSON.parse(data) as { choices: Array<{ delta: { content?: string } }> };
-        const chunk = parsed.choices[0]?.delta?.content ?? '';
-        if (chunk) {
-          fullResponse += chunk;
-          onChunk(chunk);
-        }
-      } catch { /* skip malformed chunks */ }
-    }
-  }
-
-  return fullResponse;
-}
-
 function buildSystemPrompt(context: ContextBundle, routing: AdaptiveRoutingDecision): string {
   // Ciclo 86: Identity fix — include MOTHER_IDENTITY_FACTS_SECTION + ARCHITECTURE_FACTS_SECTION
   // Scientific basis: SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — self-play identity alignment
@@ -477,118 +356,9 @@ function buildMessages(
 
 // ============================================================
 // LAYER 5: SYMBOLIC GOVERNANCE (quality gate)
-// ============================================================
 
-interface GovernanceResult {
-  qualityScore: number;
-  passed: boolean;
-  issues: string[];
-  durationMs: number;
-}
 
-async function layer5_symbolicGovernance(
-  query: string,
-  response: string,
-  tier: string,
-): Promise<GovernanceResult> {
-  const start = Date.now();
-  const issues: string[] = [];
-  let score = 80;  // base score
 
-  // Basic quality checks
-  if (response.length < 50) {
-    issues.push('Response too short (<50 chars)');
-    score -= 20;
-  }
-
-  if (response.includes('I cannot') || response.includes('I am unable')) {
-    issues.push('Refusal detected');
-    score -= 10;
-  }
-
-  // Check for hallucination markers
-  if (/\b(definitely|certainly|absolutely|100%)\b/i.test(response) && tier !== 'TIER_1') {
-    issues.push('Overconfident language detected');
-    score -= 5;
-  }
-
-  // Relevance check (simple keyword overlap)
-  const queryWords = new Set(query.toLowerCase().split(/\s+/).filter(w => w.length > 4));
-  const responseWords = new Set(response.toLowerCase().split(/\s+/).filter(w => w.length > 4));
-  const overlap = [...queryWords].filter(w => responseWords.has(w)).length;
-  const relevance = queryWords.size > 0 ? overlap / queryWords.size : 0.5;
-
-  if (relevance < 0.1) {
-    issues.push(`Low relevance score (${(relevance * 100).toFixed(0)}%)`);
-    score -= 15;
-  }
-
-  return {
-    qualityScore: Math.max(0, Math.min(100, score)),
-    passed: score >= 60,
-    issues,
-    durationMs: Date.now() - start,
-  };
-}
-
-// ============================================================
-// LAYER 6: MEMORY WRITE-BACK (async)
-// ============================================================
-
-function layer6_memoryWriteBack(
-  req: OrchestratorRequest,
-  response: string,
-  provider: string,
-  model: string,
-  tier: string,
-  qualityScore: number,
-): void {
-  // Fire-and-forget — never blocks response delivery
-  setImmediate(async () => {
-    try {
-      // Store in semantic cache
-      await storeInCache(req.query, response, provider, model, tier, qualityScore);
-
-      // Store in episodic memory if user session (Ciclo 70: use embeddings.ts generateAndStoreEmbedding)
-      // Note: episodic-memory.ts not yet implemented; using embeddings.ts as fallback
-      // TODO: Implement episodic-memory.ts with full session-aware storage (Ciclo 71)
-      // Note: episodic-memory.ts not yet implemented (Ciclo 71 TODO)
-      // Memory write-back handled by semantic-cache.ts storeInCache above
-    } catch (err: any) {
-      console.warn('[Orchestrator] Layer 6 memory write-back failed (non-blocking):', err.message);
-    }
-  });
-}
-
-// ============================================================
-// LAYER 7: DGM META-OBSERVATION (async)
-// ============================================================
-
-function layer7_dgmMetaObservation(
-  req: OrchestratorRequest,
-  response: string,
-  qualityScore: number,
-  latencyMs: number,
-  tier: string,
-): void {
-  // Fire-and-forget — DGM observes performance for self-improvement
-  setImmediate(async () => {
-    try {
-      const { observeAndLearn } = await import('./dgm-agent');
-      await observeAndLearn({
-        query: req.query,
-        response,
-        qualityScore,
-        latencyMs,
-        tier,
-        provider: 'orchestrator',
-        timestamp: new Date(),
-      });
-    } catch {
-      // DGM is optional — non-blocking
-    }
-  });
-}
 
 // ============================================================
 // MAIN ORCHESTRATE FUNCTION
