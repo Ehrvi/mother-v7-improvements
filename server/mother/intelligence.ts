@@ -66,6 +66,14 @@ const PRICING: Record<LLMProvider, Record<string, { input: number; output: numbe
     // + RACE-Align (Yan et al., arXiv:2506.02726) — RAG+CoT augmented faithfulness pairs
     // Job: ftjob-h138nPj8JNKGdTA5helsfTvW (status: succeeded, 54680 tokens)
     'ft:gpt-4o-mini-2024-07-18:personal:mother-v78-faithfulness-ciclo78:DEUdKUgr': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
+    // Ciclo 81: DPO fine-tuned model for complex_reasoning dimension (23 pairs, 3 epochs)
+    // Scientific basis: CoT-DPO (Liu et al., arXiv:2502.11656) — CoT-augmented DPO for multi-step reasoning
+    // Job: ftjob-vXkKmzQX7PfYCck9MiDEusBC (status: succeeded, 29673 tokens)
+    'ft:gpt-4o-mini-2024-07-18:personal:mother-v79-complex-reasoning-ciclo79:DEVeDXUM': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
+    // Ciclo 81: DPO fine-tuned model for architecture dimension (30 pairs, 4 epochs)
+    // Scientific basis: SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — self-play architecture alignment
+    // Job: ftjob-HoC6M3rVDBb2QOabPTihxM10 (status: succeeded, 35760 tokens)
+    'ft:gpt-4o-mini-2024-07-18:personal:mother-v78-architecture-ciclo80:DEW7PUMv': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
   },
   mistral: { 'mistral-small-latest': { input: 0.10 / 1_000_000, output: 0.30 / 1_000_000 } },
 };
@@ -102,12 +110,27 @@ export function getFaithfulnessModelOverride(query: string): string | null {
   return null;
 }
 
-// Ciclo 79: Fine-tuned model selector for complex reasoning queries
+// Ciclo 81: Fine-tuned model selector for complex reasoning queries — DEVeDXUM ACTIVATED
 // Scientific basis: CoT-DPO (Liu et al., arXiv:2502.11656) — CoT-augmented DPO improves multi-step reasoning
 // SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — self-play fine-tuning for reasoning alignment
-// Job: ftjob-vXkKmzQX7PfYCck9MiDEusBC | Status: check in Ciclo 81 for model ID
-export function getComplexReasoningModelOverride(_query: string): string | null {
-  // TODO Ciclo 81: Activate after confirming ftjob-vXkKmzQX7PfYCck9MiDEusBC model ID
+// Job: ftjob-vXkKmzQX7PfYCck9MiDEusBC (succeeded, 29673 tokens, model: DEVeDXUM)
+export function getComplexReasoningModelOverride(query: string): string | null {
+  const crIndicators = /\b(calcul|derive|prove|demonstr|gradient|backprop|chain rule|KL divergence|DPO.*loss|PPO.*clip|reward.*model|RLHF.*pipeline|passo a passo|step.by.step|raciocin|reasoning|multi.step|como funciona|explain.*mechanism|por que|why does|matematica|mathematics|equacao|equation|formula|teorema|theorem|convergencia|convergence)\b/i;
+  if (crIndicators.test(query)) {
+    return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v79-complex-reasoning-ciclo79:DEVeDXUM';
+  }
+  return null;
+}
+
+// Ciclo 81: Fine-tuned model selector for architecture queries — DEW7PUMv ACTIVATED
+// Scientific basis: SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — self-play architecture DPO
+// Internal Consistency (Liang et al., arXiv:2407.14507) — architecture self-knowledge alignment
+// Job: ftjob-HoC6M3rVDBb2QOabPTihxM10 (succeeded, 35760 tokens, model: DEW7PUMv)
+export function getArchitectureModelOverride(query: string): string | null {
+  const archIndicators = /\b(pipeline|camadas|layers|Guardian|Self.Consistency|Constitutional|Faithfulness|PRM|Long CoT|Depth|G.Eval|SRP|core\.ts|intelligence\.ts|adaptive.router|bd_central|Darwin|Godel|AWAKE|MCC|benchmark|HELM|fine.tuning.*pipeline|deploy.*Cloud Run|commit|repositorio|repository|modulo|module|arquitetura|architecture|como.*MOTHER.*funciona|how.*MOTHER.*works|quantas camadas|how many layers)\b/i;
+  if (archIndicators.test(query)) {
+    return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v78-architecture-ciclo80:DEW7PUMv';
+  }
   return null;
 }
 

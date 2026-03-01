@@ -30,7 +30,7 @@
  */
 
 import { invokeLLM } from '../_core/llm';
-import { assessComplexity, classifyQuery, getModelForTier, calculateCost, calculateCostForModel, calculateBaselineCost, calculateCostReduction, getIdentityModelOverride, getFaithfulnessModelOverride, getDepthModelOverride, getComplexReasoningModelOverride, type LLMTier } from './intelligence';
+import { assessComplexity, classifyQuery, getModelForTier, calculateCost, calculateCostForModel, calculateBaselineCost, calculateCostReduction, getIdentityModelOverride, getFaithfulnessModelOverride, getDepthModelOverride, getComplexReasoningModelOverride, getArchitectureModelOverride, type LLMTier } from './intelligence';
 import { validateQuality, type GuardianResult } from './guardian';
 import { getKnowledgeContext } from './knowledge';
 import { cragRetrieve } from './crag';
@@ -969,6 +969,7 @@ ${autonomyStatus}
   const faithfulnessOverride = getFaithfulnessModelOverride(query);
   const depthOverride = getDepthModelOverride(query);
   const complexReasoningOverride = getComplexReasoningModelOverride(query);
+  const architectureOverride = getArchitectureModelOverride(query);
   // Priority: identity > faithfulness > depth > complex_reasoning > default routing
   const dpoOverride = identityOverride ?? faithfulnessOverride ?? depthOverride ?? complexReasoningOverride;
   const selectedProvider = dpoOverride ? 'openai' : routingDecision.model.provider;
