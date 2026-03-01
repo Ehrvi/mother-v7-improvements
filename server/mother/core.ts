@@ -97,6 +97,51 @@ import { applyGRPOReasoning, shouldApplyGRPO } from './grpo-reasoning-enhancer';
 import { applyTTCScaling, shouldApplyTTCScaling } from './test-time-compute-scaler'; // Ciclo 74: TTC Scaling Best-of-N (Snell et al., arXiv:2408.03314, 2024 + GenPRM arXiv:2504.00891, 2025)
 import { runQualityPipeline } from './core-quality-runner'; // Ciclo 77: SRP Phase 2 — Quality pipeline extracted (Fowler 1999, McConnell 2004)
 
+// ============================================================
+// SRP Phase 4 (Ciclo 80): Extract Method — Fowler (Refactoring, 2018)
+// Scientific basis: Single Responsibility Principle (Martin, 2003)
+// SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — self-improvement via modular isolation
+// ============================================================
+
+/**
+ * Calculates cost metrics for a query response.
+ * Extracted from core.ts Layer 7 post-processing (SRP Phase 4).
+ */
+function calculateQueryMetrics(
+  model: import('./intelligence').LLMModel,
+  promptTokens: number,
+  completionTokens: number,
+  startTime: number
+): { cost: number; baselineCost: number; costReduction: number; responseTimeMs: number } {
+  const cost = calculateCostForModel(model, promptTokens, completionTokens);
+  const baselineCost = calculateBaselineCost(promptTokens, completionTokens);
+  const costReduction = calculateCostReduction(cost, baselineCost);
+  const responseTimeMs = Date.now() - startTime;
+  return { cost, baselineCost, costReduction, responseTimeMs };
+}
+
+/**
+ * Detects and removes echo patterns from LLM responses.
+ * Echo = LLM repeating the user query at the start of its response.
+ * Scientific basis: Self-Refine (Madaan et al., arXiv:2303.17651, 2023)
+ * Extracted from core.ts v72.0 echo detection block (SRP Phase 4).
+ */
+function detectAndRemoveEcho(query: string, response: string): string {
+  const queryNorm = query.trim().toLowerCase();
+  const responseNorm = response.slice(0, 300).toLowerCase();
+  const echoThreshold = Math.min(60, Math.floor(queryNorm.length * 0.6));
+  const queryPrefix = queryNorm.slice(0, echoThreshold);
+  if (queryPrefix.length > 20 && responseNorm.startsWith(queryPrefix)) {
+    console.warn('[MOTHER v72.0] Echo detected: response starts with user query. Removing echo.');
+    const echoEnd = response.toLowerCase().indexOf(queryNorm.slice(0, echoThreshold)) + echoThreshold;
+    const cleaned = response.slice(echoEnd).replace(/^[\s\n\r:.,;!?-]+/, '').trim();
+    return cleaned.length < 20
+      ? 'Desculpe, ocorreu um erro ao gerar a resposta. Por favor, tente novamente.'
+      : cleaned;
+  }
+  return response;
+}
+
 // ─── MOTHER Version (single source of truth) ─────────────────────────────────
 // v74.0: NC-010 (tier3 fix) + NC-008 (cache TTL 72h) + NC-011 (self-diagnosis routing)
 // + NC-003 (structured logger) — Scientific basis: ISO/IEC 25010:2023 quality model
@@ -1153,14 +1198,10 @@ ${autonomyStatus}
     // ==================== LAYER 7: METRICS ====================
   // Calculate cost and performance metrics
   
-  // v69.0 BUG FIX: Use actual model pricing instead of legacy tier system
-  // Previously: calculateCost(complexity.tier) used gpt-4o pricing for ALL models
-  // Now: calculateCostForModel uses the actual provider/model pricing table
-  const cost = calculateCostForModel(routingDecision.model, usage.prompt_tokens, usage.completion_tokens);
-  const baselineCost = calculateBaselineCost(usage.prompt_tokens, usage.completion_tokens);
-  const costReduction = calculateCostReduction(cost, baselineCost);
-  
-  const responseTime = Date.now() - startTime;
+  // SRP Phase 4 (Ciclo 80): Extracted to calculateQueryMetrics()
+  // Fowler (Refactoring, 2018) — Extract Method pattern
+  const { cost, baselineCost, costReduction, responseTimeMs: responseTime } =
+    calculateQueryMetrics(routingDecision.model, usage.prompt_tokens, usage.completion_tokens, startTime);
   
   log.info(`[MOTHER] Cost: $${cost.toFixed(6)} (${costReduction.toFixed(1)}% reduction vs baseline)`);
   log.info(`[MOTHER] Response Time: ${responseTime}ms`);
@@ -1337,24 +1378,9 @@ ${autonomyStatus}
     log.info(`[MOTHER] Fichamento: ${fichamento.entries.length} concepts annotated, ${fichamento.references.length} refs`);
   }
   // ==================== v72.0: ECHO DETECTION POST-PROCESSING ====================
-  // Scientific basis: Self-Refine (Madaan et al., arXiv:2303.17651, 2023)
-  // Detects and removes response echo (LLM repeating user's query in response)
-  // This is a known failure mode of instruction-tuned LLMs when system prompt is large
-  {
-    const queryNorm = query.trim().toLowerCase();
-    const responseNorm = response.slice(0, 300).toLowerCase();
-    // Detect if response starts with the user's query text (echo pattern)
-    const echoThreshold = Math.min(60, Math.floor(queryNorm.length * 0.6));
-    const queryPrefix = queryNorm.slice(0, echoThreshold);
-    if (queryPrefix.length > 20 && responseNorm.startsWith(queryPrefix)) {
-      console.warn('[MOTHER v72.0] Echo detected: response starts with user query. Removing echo.');
-      const echoEnd = response.toLowerCase().indexOf(queryNorm.slice(0, echoThreshold)) + echoThreshold;
-      response = response.slice(echoEnd).replace(/^[\s\n\r:.,;!?-]+/, '').trim();
-      if (response.length < 20) {
-        response = 'Desculpe, ocorreu um erro ao gerar a resposta. Por favor, tente novamente.';
-      }
-    }
-  }
+  // SRP Phase 4 (Ciclo 80): Extracted to detectAndRemoveEcho()
+  // Fowler (Refactoring, 2018) — Extract Method pattern
+  response = detectAndRemoveEcho(query, response);
   // ==================== RETURN RESPONSE ====================
   
   return {

@@ -91,6 +91,20 @@ export function getFaithfulnessModelOverride(query: string): string | null {
   return null;
 }
 
+// Ciclo 79: Fine-tuned model selector for complex reasoning queries
+// Scientific basis: CoT-DPO (Liu et al., arXiv:2502.11656) — CoT-augmented DPO improves multi-step reasoning
+// SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — self-play fine-tuning for reasoning alignment
+// Job: ftjob-vXkKmzQX7PfYCck9MiDEusBC | Status: training
+// TODO Ciclo 80: Activate when job completes — update model ID below
+export function getComplexReasoningModelOverride(_query: string): string | null {
+  // Activate after ftjob-vXkKmzQX7PfYCck9MiDEusBC succeeds:
+  // const complexIndicators = /\b(calcule|calcula|compute|step by step|passo a passo|prove|demonstre|derive|gradiente|gradient|backprop|loss function|funcao de perda|KL divergence|PPO.*DPO|DPO.*PPO|matematicamente|mathematically|equacao|equation|formula|derivada|integral|probabilidade|probability|bayesian|bayes|otimizacao|optimization|convergencia|convergence|algoritmo|algorithm|raciocinio|reasoning|inferencia|inference|logica|logic|prova|proof)\b/i;
+  // if (complexIndicators.test(query)) {
+  //   return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v79-complex-reasoning-ciclo79:PENDING';
+  // }
+  return null;
+}
+
 // Ciclo 77: Fine-tuned model selector for depth-heavy queries
 // Scientific basis: BPO (Wang et al., NAACL 2025) — depth-aware routing improves knowledge richness
 export function getDepthModelOverride(query: string): string | null {
