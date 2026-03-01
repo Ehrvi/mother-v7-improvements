@@ -97,6 +97,7 @@ import { applyGRPOReasoning, shouldApplyGRPO } from './grpo-reasoning-enhancer';
 import { applyTTCScaling, shouldApplyTTCScaling } from './test-time-compute-scaler'; // Ciclo 74: TTC Scaling Best-of-N (Snell et al., arXiv:2408.03314, 2024 + GenPRM arXiv:2504.00891, 2025)
 import { runQualityPipeline } from './core-quality-runner'; // Ciclo 77: SRP Phase 2 — Quality pipeline extracted (Fowler 1999, McConnell 2004)
 import { STATIC_SYSTEM_PROMPT_SECTIONS } from './core-system-prompt'; // Ciclo 81: SRP Phase 5 — Static prompt sections extracted (Fowler 2018, Martin 2017)
+import { executeLearningPipeline } from './core-learning-builder'; // Ciclo 82: SRP Phase 6 — Learning/persistence extracted (Fowler 2018, Martin 2017)
 
 // ============================================================
 // SRP Phase 4 (Ciclo 80): Extract Method — Fowler (Refactoring, 2018)
@@ -1226,99 +1227,29 @@ ${autonomyStatus}
   log.info(`[MOTHER] Cost: $${cost.toFixed(6)} (${costReduction.toFixed(1)}% reduction vs baseline)`);
   log.info(`[MOTHER] Response Time: ${responseTime}ms`);
   
-  // ==================== PERSISTENCE ====================
-  // Store query log for learning (with retry logic)
-  // Async logging: Don't block response if INSERT fails
-  
-  let queryId: number | null = null;
-  
-  // Fire-and-forget async logging
-  retryDbOperation(() => insertQuery({
-    userId: userId || null,
+  // ==================== SRP Phase 6 (Ciclo 82): LEARNING PIPELINE ====================
+  // Extracted to core-learning-builder.ts (Fowler 2018 — Extract Method)
+  // Scientific basis: SRP (Martin 2003), Continual Learning (Parisi et al. 2019),
+  //   Generative Agents (Park et al. 2023), MemGPT (Packer et al. 2023)
+  const learningResult = await executeLearningPipeline({
     query,
     response,
-    tier: complexity.tier as LLMTier,
-    complexityScore: (complexity.complexityScore ?? 0).toString(),
-    confidenceScore: (complexity.confidenceScore ?? 0).toString(),
-    qualityScore: (quality.qualityScore ?? 0).toString(),
-    completenessScore: (quality.completenessScore ?? 0).toString(),
-    accuracyScore: (quality.accuracyScore ?? 0).toString(),
-    relevanceScore: (quality.relevanceScore ?? 0).toString(),
-    coherenceScore: quality.coherenceScore?.toString() || null,
-    safetyScore: quality.safetyScore?.toString() || null,
-    responseTime: responseTime ?? 0,
-    tokensUsed: usage?.total_tokens ?? 0,
-    cost: (cost ?? 0).toString(),
-    cacheHit: 0,
-    // v68.8: Multi-provider cascade router — persist routing decision
-    provider: selectedProvider,
-    modelName: selectedModel,
-    queryCategory: routingDecision.category,
-    // v68.3: Sprint 3 — Persist RAGAS metrics and costReduction
-    costReduction: costReduction.toString(),
-    ragasFaithfulness: quality.ragasFaithfulness?.toString() || null,
-    ragasAnswerRelevancy: quality.ragasAnswerRelevancy?.toString() || null,
-    ragasContextPrecision: quality.ragasContextPrecision?.toString() || null,
-  }))
-    .then(id => {
-      queryId = id;
-      log.info(`[MOTHER] Query logged successfully: ID ${id}`);
-      // v30.0: Generate and store embedding asynchronously (fire-and-forget)
-      generateAndStoreEmbedding(id, query).catch(err => 
-        log.error('[MOTHER] Embedding generation failed (non-blocking):', err.message)
-      );
-    })
-    .catch(error => {
-      log.error('[MOTHER] Failed to log query (non-blocking):', error.message);
-    });
-  
-  // ==================== v56.0: CONTINUOUS LEARNING (Req #3) ====================
-  // Learn from high-quality responses (fire-and-forget)
-  // Threshold: quality ≥75% (lowered from 95% for gradual learning)
-  // Scientific basis: Parisi et al. (2019) — Continual Learning
-  
-  // ==================== AGENTIC LEARNING LOOP (v67.0) ====================
-  // Proactively identify and capture learning opportunities
-  // Scientific basis: Generative Agents (Park et al., 2023), MemGPT (Packer et al., 2023)
-  if (quality.qualityScore && quality.qualityScore >= LEARNING_QUALITY_THRESHOLD) {
-    agenticLearningLoop(query, response, knowledgeContext, quality.qualityScore, userId)
-      .then(result => {
-        if (result.learned) log.info(`[MOTHER] 🧠 Agentic Learning: ${result.reason}`);
-      })
-      .catch(err => log.error('[MOTHER] Agentic learning failed (non-blocking):', err));
-  }
-
-  if (quality.qualityScore && quality.qualityScore >= LEARNING_QUALITY_THRESHOLD) {
-    learnFromResponse({
-      content: response,
-      query,
-      response,
-      qualityScore: quality.qualityScore,
-      timestamp: new Date(),
-      userId,
-    })
-      .then(result => {
-        if (result.learned) {
-          log.info(`[MOTHER] 🧠 Learned new knowledge: ${result.reason}`);
-        } else {
-          log.info(`[MOTHER] No learning: ${result.reason}`);
-        }
-      })
-      .catch(error => {
-        log.error('[MOTHER] Learning failed (non-blocking):', error.message);
-      });
-  }
-
-  // ==================== v56.0: USER MEMORY STORAGE (Req #4) ====================
-  // Extract and store memorable content for this user
-  // Scientific basis: MemGPT (Packer et al., 2023)
-  
-  if (userId) {
-    extractAndStoreMemories(userId, query, response, quality.qualityScore)
-      .catch(error => {
-        log.error('[MOTHER] User memory storage failed (non-blocking):', error.message);
-      });
-  }
+    knowledgeContext,
+    quality,
+    complexity,
+    usage,
+    routingDecision,
+    selectedProvider,
+    selectedModel,
+    queryHash,
+    queryEmbedding,
+    cost,
+    costReduction,
+    responseTime,
+    effectiveUseCache,
+    userId,
+  });
+  const queryId = learningResult.queryId;
   
   // ==================== CACHE UPDATE ====================
   // Store in cache for future queries
