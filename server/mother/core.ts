@@ -30,7 +30,7 @@
  */
 
 import { invokeLLM } from '../_core/llm';
-import { assessComplexity, classifyQuery, getModelForTier, calculateCost, calculateCostForModel, calculateBaselineCost, calculateCostReduction, type LLMTier } from './intelligence';
+import { assessComplexity, classifyQuery, getModelForTier, calculateCost, calculateCostForModel, calculateBaselineCost, calculateCostReduction, getIdentityModelOverride, getFaithfulnessModelOverride, getDepthModelOverride, getComplexReasoningModelOverride, type LLMTier } from './intelligence';
 import { validateQuality, type GuardianResult } from './guardian';
 import { getKnowledgeContext } from './knowledge';
 import { cragRetrieve } from './crag';
@@ -942,8 +942,22 @@ ${autonomyStatus}
   //   - FrugalGPT (Chen et al., arXiv:2305.05176, 2023): cascade routing saves 98%
   //   - RouteLLM (Ong et al., arXiv:2406.18665, 2024): routing with preference data
   //   - OpenAI Cookbook (2024): gpt-4o has best tool-use accuracy for Phase 1
-  const selectedProvider = routingDecision.model.provider;
-  const selectedModel = routingDecision.model.modelName;
+  // Ciclo 80: DPO model overrides — activate fine-tuned models for specific dimensions
+  // Scientific basis: Rafailov et al. (arXiv:2305.18290, NeurIPS 2023) DPO
+  // Context-DPO (Bi et al., arXiv:2412.15280, ACL 2025) — faithfulness override
+  // BPO (Wang et al., NAACL 2025) — depth override
+  // CoT-DPO (Liu et al., arXiv:2502.11656) — complex_reasoning override
+  const identityOverride = getIdentityModelOverride(query);
+  const faithfulnessOverride = getFaithfulnessModelOverride(query);
+  const depthOverride = getDepthModelOverride(query);
+  const complexReasoningOverride = getComplexReasoningModelOverride(query);
+  // Priority: identity > faithfulness > depth > complex_reasoning > default routing
+  const dpoOverride = identityOverride ?? faithfulnessOverride ?? depthOverride ?? complexReasoningOverride;
+  const selectedProvider = dpoOverride ? 'openai' : routingDecision.model.provider;
+  const selectedModel = dpoOverride ?? routingDecision.model.modelName;
+  if (dpoOverride) {
+    log.info(`[MOTHER] Ciclo 80 DPO override active: ${dpoOverride} (faith=${!!faithfulnessOverride}, depth=${!!depthOverride}, cr=${!!complexReasoningOverride})`);
+  }
   log.info(`[MOTHER] v69.1 Two-Phase: P1=gpt-4o (tool detect), P2=${selectedProvider}/${selectedModel} (generate)`);
 
   // v69.15: Per-tier temperature (Ciclo 34 Fine-Tuning)

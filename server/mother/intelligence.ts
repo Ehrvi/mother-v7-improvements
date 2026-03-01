@@ -80,11 +80,22 @@ export function getModelForCategory(category: QueryCategory): LLMModel {
   }
 }
 
+// Ciclo 80: Identity model override — DETdYCLK (300 pairs, Ciclo 76)
+// Scientific basis: SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — self-play identity alignment
+// Internal Consistency (Liang et al., arXiv:2407.14507) — identity queries need fine-tuned model
+export function getIdentityModelOverride(query: string): string | null {
+  const identityIndicators = /\b(quem criou|quem te criou|who created|who made you|seu criador|your creator|sua empresa|your company|Everton|Wizards|MOTHER significa|MOTHER sigla|o que e MOTHER|what is MOTHER|sua identidade|your identity|voce e|you are|seu nome|your name|criado por|created by|pertence a|belongs to|proprietario|owner|fundador|founder)\b/i;
+  if (identityIndicators.test(query)) {
+    return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v78-identity-ciclo76:DETdYCLK';
+  }
+  return null;
+}
+
 // Ciclo 78: Fine-tuned model selector for faithfulness-critical queries
 // Scientific basis: Context-DPO (Bi et al., arXiv:2412.15280) — RAG-grounded faithfulness
 // F-DPO (Chaduvula et al., arXiv:2601.03027) — factuality-aware preference optimization
 export function getFaithfulnessModelOverride(query: string): string | null {
-  const faithfulnessIndicators = /\b(contexto|context|baseado em|according to|de acordo com|o documento|the document|piezometro|inclinometro|marco superficial|alerta|alert|limite|threshold|sensor|leitura|reading|quem criou|who created|Everton Garcia|Wizards Down Under|IntellTech|MOTHER foi|MOTHER was|factual|factualidade|alucinacao|hallucination|citar|cite|fonte|source|referencia|reference)\b/i;
+  const faithfulnessIndicators = /\b(contexto|context|baseado em|according to|de acordo com|o documento|the document|piezometro|inclinometro|marco superficial|alerta|alert|limite|threshold|sensor|leitura|reading|factual|factualidade|alucinacao|hallucination|citar|cite|fonte|source|referencia|reference)\b/i;
   if (faithfulnessIndicators.test(query)) {
     return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v78-faithfulness-ciclo78:DEUdKUgr';
   }
@@ -94,14 +105,9 @@ export function getFaithfulnessModelOverride(query: string): string | null {
 // Ciclo 79: Fine-tuned model selector for complex reasoning queries
 // Scientific basis: CoT-DPO (Liu et al., arXiv:2502.11656) — CoT-augmented DPO improves multi-step reasoning
 // SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — self-play fine-tuning for reasoning alignment
-// Job: ftjob-vXkKmzQX7PfYCck9MiDEusBC | Status: training
-// TODO Ciclo 80: Activate when job completes — update model ID below
+// Job: ftjob-vXkKmzQX7PfYCck9MiDEusBC | Status: check in Ciclo 81 for model ID
 export function getComplexReasoningModelOverride(_query: string): string | null {
-  // Activate after ftjob-vXkKmzQX7PfYCck9MiDEusBC succeeds:
-  // const complexIndicators = /\b(calcule|calcula|compute|step by step|passo a passo|prove|demonstre|derive|gradiente|gradient|backprop|loss function|funcao de perda|KL divergence|PPO.*DPO|DPO.*PPO|matematicamente|mathematically|equacao|equation|formula|derivada|integral|probabilidade|probability|bayesian|bayes|otimizacao|optimization|convergencia|convergence|algoritmo|algorithm|raciocinio|reasoning|inferencia|inference|logica|logic|prova|proof)\b/i;
-  // if (complexIndicators.test(query)) {
-  //   return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v79-complex-reasoning-ciclo79:PENDING';
-  // }
+  // TODO Ciclo 81: Activate after confirming ftjob-vXkKmzQX7PfYCck9MiDEusBC model ID
   return null;
 }
 
