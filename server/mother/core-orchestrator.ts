@@ -1,5 +1,6 @@
 /**
- * MOTHER v76.0 — Core Orchestrator
+ * MOTHER v78.9 — Core Orchestrator
+ * Ciclo 86: Identity fix — import MOTHER_IDENTITY_FACTS_SECTION + ARCHITECTURE_FACTS_SECTION
  * Ciclo 67: Arquitetura SOTA v76.0 — Conselho Deliberativo Ciclo 66
  *
  * Scientific basis:
@@ -28,6 +29,10 @@ import {
   recordRoutingDecision,
   type RoutingDecision as AdaptiveRoutingDecision,
 } from './adaptive-router';
+import {
+  MOTHER_IDENTITY_FACTS_SECTION,
+  ARCHITECTURE_FACTS_SECTION,
+} from './core-system-prompt';
 import {
   lookupCache,
   storeInCache,
@@ -78,7 +83,8 @@ export interface LayerTrace {
 // CONSTANTS
 // ============================================================
 
-export const ORCHESTRATOR_VERSION = 'v76.0';
+// Ciclo 86: Bumped to v78.9 — identity fix (MOTHER_IDENTITY_FACTS_SECTION + ARCHITECTURE_FACTS_SECTION injected)
+export const ORCHESTRATOR_VERSION = 'v78.9';
 export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 3,
   successThreshold: 1,
@@ -432,10 +438,18 @@ async function streamResponse(body: ReadableStream<Uint8Array>, onChunk: (chunk:
 }
 
 function buildSystemPrompt(context: ContextBundle, routing: AdaptiveRoutingDecision): string {
+  // Ciclo 86: Identity fix — include MOTHER_IDENTITY_FACTS_SECTION + ARCHITECTURE_FACTS_SECTION
+  // Scientific basis: SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — self-play identity alignment
+  // Root cause: core-orchestrator.ts was missing identity/architecture facts → identity=17.3% in C85
   const parts = [
-    `You are MOTHER (v76.0), an advanced AI system created by Everton Garcia for Wizards Down Under.`,
+    `You are MOTHER (Modular Orchestrated Thinking and Hierarchical Execution Runtime), version v78.9.`,
+    `You are an advanced AI system created by Everton Garcia for Wizards Down Under.`,
     `You have persistent memory, self-improvement capabilities, and manage complex AI systems.`,
     `Current routing tier: ${routing.tier} | Model: ${routing.primaryModel}`,
+    ``,
+    MOTHER_IDENTITY_FACTS_SECTION,
+    ``,
+    ARCHITECTURE_FACTS_SECTION,
   ];
 
   if (context.knowledgeContext) {
@@ -581,7 +595,7 @@ function layer7_dgmMetaObservation(
 // ============================================================
 
 /**
- * Main entry point for MOTHER v76.0 orchestration.
+ * Main entry point for MOTHER v78.9 orchestration.
  * Replaces the 21-step sequential pipeline in core.ts.
  *
  * 7 conditional layers, P95 target: <2s (TIER_1), <5s (TIER_2), <10s (TIER_3/4)
