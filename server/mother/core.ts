@@ -116,7 +116,7 @@ import { recordRequest as obsRecordRequest } from './observability'; // Ciclo 67
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v76.0'; // Ciclo 67: Arquitetura SOTA v76.0 — Conselho Deliberativo Ciclo 66 (5 modelos, 3 rodadas Delphi+MAD+Constitutional AI, Kendall W=0.87) // Módulos: circuit-breaker + adaptive-router + semantic-cache + core-orchestrator + guardian-agent + dgm-agent + intelltech-agent + observability // Scientific basis: ACAR (arXiv:2602.21231) + DGM (arXiv:2505.22954) + ICOLD Bulletin 158 + OpenTelemetry CNCF 2023 + Google SRE (2016) // Ciclo 65: Conselho Deliberativo (Delphi+MAD, 5 modelos), Abordagem Híbrida PE+Fine-tuning, Plano SOTA v76.0 // Ciclo 64: F-DPO (arXiv:2601.03027) + Long CoT (arXiv:2503.09567) + NSVIF (arXiv:2601.17789) // Ciclo 63: BERTScoreNLI (arXiv:1904.09675) + IFEvalV2 (arXiv:2311.07911) + CloudRunOptimizer // Ciclo 62: SemanticFaithfulness (arXiv:1908.10084) + SymbolicMath (SymPy) + EnsembleScorer // Ciclo 61: ParallelSC (arXiv:2401.10480) + AutoKnowledge (arXiv:2310.11511) + DepthPRM (arXiv:2305.20050) // Ciclo 60: AdaptiveDraftRouter (arXiv:2406.16858) + SelfCheckFaithfulness (arXiv:2303.08896) + ProcessRewardVerifier (arXiv:2305.20050) // Ciclo 59: Self-Consistency Sampling (Wang et al., arXiv:2203.11171, ICLR 2023) + Contrastive CoT (Chia et al., arXiv:2311.09277, ACL 2024) + ORPO TRL Pipeline (Hong et al., arXiv:2403.07691, EMNLP 2024) // Ciclo 58: SCOPE reflection loop (PARSE arXiv:2510.08623) + Semantic Scholar 5th source + ORPO HuggingFace export + Adaptive timeout for latency optimization (Amdahl 1967) GAP1 fix (Camada 3.5→7 integration, HippoRAG2 arXiv:2502.14802 + MARK arXiv:2505.05177) + GAP2 fix (Quality-Triggered Learning, Self-RAG arXiv:2310.11511 + Reflexion arXiv:2303.11366) + GAP3 fix (Fichamento after study, ABNT NBR 6023:2018) + GAP4 fix (Bidirectional RAG write-back, arXiv:2512.22199)
+export const MOTHER_VERSION = 'v76.1'; // Ciclo 68: NC-FAITHFULNESS-002 FIX (Semantic Scholar 1.5s timeout, Amdahl 1967 + ACAR arXiv:2602.21231) + MCC Stopping Criterion (HELM arXiv:2211.09110 + Benchmark Saturation arXiv:2602.16763 + Cohen 1988 + SRE SLOs) // Ciclo 67: Arquitetura SOTA v76.0 — Conselho Deliberativo Ciclo 66 (5 modelos, 3 rodadas Delphi+MAD+Constitutional AI, Kendall W=0.87) // Módulos: circuit-breaker + adaptive-router + semantic-cache + core-orchestrator + guardian-agent + dgm-agent + intelltech-agent + observability // Scientific basis: ACAR (arXiv:2602.21231) + DGM (arXiv:2505.22954) + ICOLD Bulletin 158 + OpenTelemetry CNCF 2023 + Google SRE (2016) // Ciclo 65: Conselho Deliberativo (Delphi+MAD, 5 modelos), Abordagem Híbrida PE+Fine-tuning, Plano SOTA v76.0 // Ciclo 64: F-DPO (arXiv:2601.03027) + Long CoT (arXiv:2503.09567) + NSVIF (arXiv:2601.17789) // Ciclo 63: BERTScoreNLI (arXiv:1904.09675) + IFEvalV2 (arXiv:2311.07911) + CloudRunOptimizer // Ciclo 62: SemanticFaithfulness (arXiv:1908.10084) + SymbolicMath (SymPy) + EnsembleScorer // Ciclo 61: ParallelSC (arXiv:2401.10480) + AutoKnowledge (arXiv:2310.11511) + DepthPRM (arXiv:2305.20050) // Ciclo 60: AdaptiveDraftRouter (arXiv:2406.16858) + SelfCheckFaithfulness (arXiv:2303.08896) + ProcessRewardVerifier (arXiv:2305.20050) // Ciclo 59: Self-Consistency Sampling (Wang et al., arXiv:2203.11171, ICLR 2023) + Contrastive CoT (Chia et al., arXiv:2311.09277, ACL 2024) + ORPO TRL Pipeline (Hong et al., arXiv:2403.07691, EMNLP 2024) // Ciclo 58: SCOPE reflection loop (PARSE arXiv:2510.08623) + Semantic Scholar 5th source + ORPO HuggingFace export + Adaptive timeout for latency optimization (Amdahl 1967) GAP1 fix (Camada 3.5→7 integration, HippoRAG2 arXiv:2502.14802 + MARK arXiv:2505.05177) + GAP2 fix (Quality-Triggered Learning, Self-RAG arXiv:2310.11511 + Reflexion arXiv:2303.11366) + GAP3 fix (Fichamento after study, ABNT NBR 6023:2018) + GAP4 fix (Bidirectional RAG write-back, arXiv:2512.22199)
 
 const log = createLogger('CORE');
 
@@ -535,11 +535,18 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
     }).catch(err => {
       log.warn('[ActiveStudy] Background study failed:', err.message);
     });
-    // Also get immediate Semantic Scholar context for this response
+    // NC-FAITHFULNESS-002 FIX (Ciclo 68): Semantic Scholar with strict 1.5s timeout
+    // Scientific basis: Amdahl's Law (1967) — latency budget must not exceed P95 SLO
+    // ACAR (arXiv:2602.21231, 2026) — Tier-1 queries must complete in <1.5s
+    // Benchmark Saturation (arXiv:2602.16763, 2026) — non-blocking external calls mandatory
     try {
-      semanticScholarContext = await enrichResearchWithSemanticScholar(query, 2);
+      const s2Promise = enrichResearchWithSemanticScholar(query, 2);
+      const timeoutPromise = new Promise<string>((resolve) => setTimeout(() => resolve(''), 1500));
+      semanticScholarContext = await Promise.race([s2Promise, timeoutPromise]);
       if (semanticScholarContext) {
-        log.info(`[ActiveStudy] Semantic Scholar context injected for this response`);
+        log.info(`[ActiveStudy] Semantic Scholar context injected (within 1.5s budget)`);
+      } else {
+        log.info(`[ActiveStudy] Semantic Scholar skipped (timeout 1.5s — NC-FAITHFULNESS-002 fix)`);
       }
     } catch (s2Err) {
       log.warn('[ActiveStudy] Semantic Scholar enrichment failed (non-blocking):', (s2Err as Error).message);
