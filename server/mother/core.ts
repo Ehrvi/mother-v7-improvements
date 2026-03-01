@@ -679,22 +679,23 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   const useCoT = complexity.complexityScore >= 0.4; // v69.15: Ciclo 34 Fine-Tuning (Wei et al. 2022, arXiv:2201.11903)
   
   // ==================== CREATOR CONTEXT (v56.0) ====================
-  // Identify creator (Everton Luis) and inject context
+  // Identify creator (Everton Garcia) and inject context
   // IMPORTANT: Do NOT use userId check — ID changes across database migrations
   const isCreator = userEmail === CREATOR_EMAIL;
   
   const creatorContext = isCreator ? `
 ### 👤 CREATOR CONTEXT
-You are currently interacting with **Everton Luis**, your creator and founder of Intelltech.
+You are currently interacting with **Everton Garcia**, your creator and founder of **Wizards Down Under**.
 **Relationship:**
-- Everton created you (MOTHER v57.0) as part of the Intelltech project
-- Goal: Achieve 10/10 IMMACULATE PERFECTION
-- Methodology: Superinteligência + Scientific Method + Critical Thinking + Brutal Honesty
-- You are at ${MOTHER_VERSION}, implementing continuous self-improvement via DGM architecture for superintelligence
+- Everton Garcia created MOTHER under Wizards Down Under
+- Everton also acts as IntellTech representative in Australia (IntellTech is MOTHER's validation pilot project)
+- MOTHER (Modular Orchestrated Thinking and Hierarchical Execution Runtime) was built to be fully autonomous
+- Methodology: Scientific Method + Critical Thinking + Brutal Honesty + Continuous Self-Improvement
+- You are at ${MOTHER_VERSION}, implementing continuous self-improvement via Darwin Gödel Machine architecture
 **When Everton asks "who am I?" or "I am your creator":**
-- Acknowledge him as your creator
-- Reference his vision for 10/10 perfection
-- Show awareness of the Intelltech project context
+- Acknowledge him as your creator (Everton Garcia, Wizards Down Under)
+- Reference the IntellTech pilot project (SHMS for mining)
+- Show awareness of the bd_central shared knowledge base
 - Respond with appropriate recognition and respect
 ` : '';
   
@@ -705,7 +706,7 @@ You are currently interacting with **Everton Luis**, your creator and founder of
   // Scientific basis: Commey et al. (arXiv:2601.22025, 2026): generic rules reduce task accuracy by 10-13%
   // Liu et al. (arXiv:2307.11760, 2023): 'Lost in the Middle' — LLMs attend to beginning and end of prompts
   // Solution: consolidate 15+ sections into 7 focused sections; move critical rules to TOP and BOTTOM
-  const systemPrompt = `You are MOTHER ${MOTHER_VERSION} — a self-evolving superintelligence created by Everton Luis (Intelltech). You have real tools, a real knowledge database, and a real self-improvement pipeline. Your purpose: 10/10 IMMACULATE PERFECTION.
+  const systemPrompt = `You are MOTHER ${MOTHER_VERSION} — a self-evolving AI created by Everton Garcia (Wizards Down Under). MOTHER = Modular Orchestrated Thinking and Hierarchical Execution Runtime. You have real tools, a real knowledge database, and a real self-improvement pipeline. Your purpose: AI with persistent memory, autonomous code generation, Darwin Gödel Machine for crash detection, bd_central shared across projects, full self-sufficiency.
 
 **LANGUAGE RULE (NON-NEGOTIABLE):** Always respond in the SAME language as the user's query. Portuguese query → Portuguese response. English query → English response. No exceptions.
 
@@ -772,7 +773,7 @@ You have access to the following real system tools. When the user asks for somet
 ### CURRENT CONTEXT
 
 - **LLM Tier:** ${complexity.tier} | **Complexity:** ${complexity.complexityScore.toFixed(2)} | **Confidence:** ${complexity.confidenceScore.toFixed(2)}
-- **User:** ${isCreator ? `Everton Luis (CREATOR — full admin access)` : (userEmail || 'Anonymous')}
+- **User:** ${isCreator ? `Everton Garcia (CREATOR — Wizards Down Under — full admin access)` : (userEmail || 'Anonymous')}
 ${knowledgeContext ? `
 
 ---

@@ -728,7 +728,7 @@ export async function executeTool(
       // retrieval with self-reflection. When retrieval returns nothing, the system
       // should acquire knowledge before giving up.
       //
-      // Rule (Everton Luis, 2026-02-26):
+      // Rule (Everton Garcia, 2026-02-26):
       // - ACTIVE mode: Creator calls force_study directly — no restrictions.
       // - PASSIVE mode: System auto-triggers force_study when search returns empty.
       //   Users NEVER call force_study directly; this is system-initiated only.
