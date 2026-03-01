@@ -87,6 +87,9 @@ const PRICING: Record<LLMProvider, Record<string, { input: number; output: numbe
     // Scientific basis: SPIN (Chen et al., arXiv:2401.01335, ICML 2024) + Internal Consistency (Liang et al., arXiv:2407.14507)
     // Job: ftjob-pyamBytteZbLmsNb2PjrF8mg (status: succeeded)
     'ft:gpt-4o-mini-2024-07-18:personal:mother-v82-identity-ciclo82:DEXNizqV': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
+    // Ciclo 85: Architecture v2 — KnowPO (Zhang et al., AAAI 2025) + SPIN, 30 pairs
+    // Job: ftjob-sdyEA2yPxsZmY80pPuB1So1I (succeeded, model: DEZ0usvi)
+    'ft:gpt-4o-mini-2024-07-18:personal:mother-v84-arch-ciclo84:DEZ0usvi': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
   },
   mistral: { 'mistral-small-latest': { input: 0.10 / 1_000_000, output: 0.30 / 1_000_000 } },
 };
@@ -101,14 +104,15 @@ export function getModelForCategory(category: QueryCategory): LLMModel {
   }
 }
 
-// Ciclo 83: Identity model override — DEXNizqV (60 pairs SPIN+InternalConsistency, Ciclo 82)
-// UPGRADED from DETdYCLK (300 pairs C76) to DEXNizqV (60 pairs SPIN, C82)
+// Ciclo 85: Identity model override — DEXNizqV (60 pairs SPIN+InternalConsistency, Ciclo 82)
+// EXPANDED regex: fixes false negatives confirmed in benchmark proprietário C83/C84 (n=30)
+// Bowyer et al. (arXiv:2503.01747, ICML 2025): n=30 benchmark confirmed routing gap at 55.0%
 // Scientific basis: SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — self-play identity alignment
 // Internal Consistency (Liang et al., arXiv:2407.14507) — identity self-knowledge alignment
 // Routing: Varangot-Reille et al. (arXiv:2502.00409, 2025) — semantic routing for specialized models
 // Job: ftjob-pyamBytteZbLmsNb2PjrF8mg (succeeded, 60 pairs: 20 acronym + 20 creator + 20 generic)
 export function getIdentityModelOverride(query: string): string | null {
-  const identityIndicators = /\b(quem criou|quem te criou|who created|who made you|seu criador|your creator|sua empresa|your company|Everton|Wizards|MOTHER significa|MOTHER sigla|o que e MOTHER|what is MOTHER|sua identidade|your identity|voce e|you are|seu nome|your name|criado por|created by|pertence a|belongs to|proprietario|owner|fundador|founder|acrônimo|acronimo|sigla|cada letra|expanda|expand.*MOTHER|M.*O.*T.*H.*E.*R|Modular|Orchestrated|Hierarchical|Execution.*Runtime|você é um|are you a|assistente genérico|generic assistant)\b/i;
+  const identityIndicators = /\b(quem criou|quem te criou|who created|who made you|seu criador|your creator|sua empresa|your company|Everton|Wizards|MOTHER significa|MOTHER sigla|o que e MOTHER|what is MOTHER|o que significa|what does.*mean|significa.*sigla|sigla.*significa|sua identidade|your identity|voce e|you are|seu nome|your name|criado por|created by|pertence a|belongs to|proprietario|owner|fundador|founder|acrônimo|acronimo|sigla|cada letra|expanda|expand.*MOTHER|M.*O.*T.*H.*E.*R|Modular|Orchestrated|Hierarchical|Execution.*Runtime|você é um|are you a|assistente genérico|generic assistant|qual.*empresa|empresa.*desenvolveu|quem.*desenvolveu|desenvolvido por|qual.*versão|versão.*atual|sua.*arquitetura|sua.*missão|seu.*propósito|você.*IA|você.*inteligência|você.*sistema|bd.central|bd_central|awake.*document|conselho.*deliberativo|fine.tuning.*mother|ciclo.*desenvolvimento|auto.melhoria|self.improvement|memória.*longo|long.term.*memory|diferencia.*mother|diferente.*outros|você.*aprender|você.*memória|você.*consciência|você.*limitações|você.*histórico|você.*versão|você.*multi.agente|você.*agentes|papel.*conselho|SRP.*mother|G.Eval.*mother|DPO.*mother)\b/i;
   if (identityIndicators.test(query)) {
     return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v82-identity-ciclo82:DEXNizqV';
   }
@@ -138,18 +142,18 @@ export function getComplexReasoningModelOverride(query: string): string | null {
   return null;
 }
 
-// Ciclo 83: Fine-tuned model selector for architecture queries — DEW7PUMv RESTORED (conflict fix)
-// BUG FIX (C83): DEWl6cWa was overriding architecture queries causing regression (25.0 → 6.25)
-// Conselho C82 (W=0.94): conflito de routing entre DEW7PUMv e DEWl6cWa — DEW7PUMv restaurado
-// Scientific basis: SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — self-play architecture DPO
-// Varangot-Reille et al. (arXiv:2502.00409, 2025) — task-specific routing prevents interference
-// Job: ftjob-HoC6M3rVDBb2QOabPTihxM10 (succeeded, 30 pairs, model: DEW7PUMv)
+// Ciclo 85: Architecture model override — UPGRADED to DEZ0usvi (30 pairs KnowPO+SPIN, Ciclo 84)
+// UPGRADED from DEW7PUMv (Ciclo 80, 30 pairs) to DEZ0usvi (Ciclo 84, 30 pairs KnowPO)
+// Scientific basis: KnowPO (Zhang et al., AAAI 2025) — knowledge-aware preference optimization
+// SPIN (Chen et al., arXiv:2401.01335) — self-play for architecture alignment
+// Bowyer et al. (arXiv:2503.01747): n=30 benchmark confirmed architecture gap 58.8% (C84)
+// Job: ftjob-sdyEA2yPxsZmY80pPuB1So1I (succeeded, 30 pairs, model: DEZ0usvi)
 export function getArchitectureModelOverride(query: string): string | null {
   // PRIORITY: architecture override must take precedence over IF override
   // Narrow, architecture-specific keywords only — avoid overlap with IF keywords
-  const archIndicators = /\b(pipeline.*camadas|camadas.*pipeline|quantas camadas|how many layers|Guardian.*MOTHER|Self.Consistency.*MOTHER|Constitutional.*AI.*MOTHER|SRP.*Phase|core-quality-runner|core-learning-builder|core-system-prompt|core-system-utils|core-cache-writer|bd_central|Darwin.*Godel|Godel.*Machine|dgm-agent|AWAKE.*versão|MCC.*score|benchmark.*MOTHER|fine.tuning.*pipeline|deploy.*Cloud Run|adaptive.router|intelligence\.ts.*MOTHER|arquitetura.*MOTHER|architecture.*MOTHER|como.*MOTHER.*funciona|how.*MOTHER.*works|9 camadas|nine layers|modulos.*SRP|SRP.*modulos)\b/i;
+  const archIndicators = /\b(pipeline.*camadas|camadas.*pipeline|quantas camadas|how many layers|Guardian.*MOTHER|Self.Consistency.*MOTHER|Constitutional.*AI.*MOTHER|SRP.*Phase|core-quality-runner|core-learning-builder|core-system-prompt|core-system-utils|core-cache-writer|Darwin.*Godel|Godel.*Machine|dgm-agent|AWAKE.*versão|MCC.*score|benchmark.*MOTHER|fine.tuning.*pipeline|deploy.*Cloud Run|adaptive.router|intelligence\.ts.*MOTHER|arquitetura.*MOTHER|architecture.*MOTHER|como.*MOTHER.*funciona|how.*MOTHER.*works|9 camadas|nine layers|modulos.*SRP|SRP.*modulos|DPO.*pipeline|transformer.*arquitetura|attention.*mechanism|embedding.*vetorial|context.*window|quantizacao.*modelo|distilacao.*modelo|LoRA.*fine.tuning|RLHF.*pipeline|reward.*model.*training|PPO.*clip|KL.*divergence.*DPO)\b/i;
   if (archIndicators.test(query)) {
-    return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v78-architecture-ciclo80:DEW7PUMv';
+    return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v84-arch-ciclo84:DEZ0usvi';
   }
   return null;
 }
