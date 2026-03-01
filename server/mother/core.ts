@@ -41,6 +41,7 @@ import { applyConstitutionalAI } from './constitutional-ai'; // NC-CONST-001: Co
 import { applyIFV } from './ifv'; // Ciclo 54 v2.0 Action 2: IFV — Instruction Following Verifier (Zhou et al., arXiv:2311.07911, 2023)
 import { applyCoVe, shouldApplyCoVe } from './cove'; // Ciclo 54 v2.0 Action 3: CoVe — Chain-of-Verification (Dhuliawala et al., arXiv:2309.11495, 2023)
 import { rerankDocuments, shouldRerank } from './rag-reranker'; // Ciclo 54 v2.0 Action 4: RAG Re-ranking (RankGPT, Sun et al., arXiv:2304.09542, 2023)
+import { extractContextResults } from './core-context-extractor'; // SRP Phase 9 (Ciclo 85): Context extraction
 import { applyToT, shouldApplyToT } from './tot-router'; // Ciclo 54 v2.0 Action 5: ToT — Tree-of-Thoughts (Yao et al., arXiv:2305.10601, 2023)
 import { collectORPOPair } from './orpo-optimizer'; // Ciclo 56 Action 3: ORPO — Odds Ratio Preference Optimization (Hong et al., arXiv:2403.07691, EMNLP 2024)
 import { enforceStructuredOutput } from './structured-output'; // Ciclo 56 Action 4: Structured Output Enforcement (Beurer-Kellner et al., arXiv:2212.06094, LMQL 2023)
@@ -499,74 +500,27 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   ]);
   
   log.info(`[MOTHER] Parallel context build: ${Date.now() - contextBuildStart}ms`);
-  
-  // Extract CRAG result
-  let knowledgeContext = '';
-  let cragDocuments: import('./crag').CRAGDocument[] = [];
-  if (cragResultRaw.status === 'fulfilled') {
-    knowledgeContext = cragResultRaw.value.context;
-    cragDocuments = cragResultRaw.value.documents as any; // NC-QUALITY-006: CRAGv2Document compatible with CRAGDocument
-    if ((cragResultRaw.value as any).correctiveSearchTriggered) {
-      log.info('[MOTHER] CRAG: Corrective search triggered — no local knowledge found');
-    }
-    // ==================== CICLO 54 v2.0 ACTION 4: RAG RE-RANKING ====================
-    // Scientific basis: RankGPT (Sun et al., arXiv:2304.09542, 2023): listwise re-ranking
-    // Bi-encoder (CRAG v2) → Cross-encoder (RankGPT) pipeline
-    // Trigger: 3+ documents available, research/complex queries
-    if (cragDocuments.length >= 3 && shouldRerank(cragDocuments.length, routingDecision.category, query.split(/\s+/).length)) {
-      try {
-        const docsForReranking = cragDocuments.map(d => ({
-          content: d.content,
-          source: d.source || 'unknown',
-          score: (d as any).relevanceScore || (d as any).hybridScore || 0.5,
-        }));
-        const rerankResult = await rerankDocuments(query, docsForReranking, 5);
-        if (rerankResult.applied) {
-          // Use re-ranked context instead of original CRAG context
-          knowledgeContext = rerankResult.topContext;
-          log.info(`[RAGReranker] Re-ranked ${cragDocuments.length} docs, order changed: ${JSON.stringify(rerankResult.originalOrder.slice(0,3))} → ${JSON.stringify(rerankResult.newOrder.slice(0,3))}`);
-        }
-      } catch (rerankErr) {
-        log.warn('[RAGReranker] Failed (non-blocking), using original CRAG context:', (rerankErr as Error).message);
-      }
-    }
-  }
-  
-  // Extract Omniscient result
-  let omniscientContext = '';
-  if (omniscientResultRaw.status === 'fulfilled' && omniscientResultRaw.value.length > 0) {
-    const paperResults = omniscientResultRaw.value;
-    omniscientContext = `\n\n## 📚 OMNISCIENT — INDEXED SCIENTIFIC PAPERS (${paperResults.length} results)\n` +
-      paperResults.map((r, i) => {
-        const authors = r.paperAuthors ? r.paperAuthors.split(',')[0].trim() + ' et al.' : 'Unknown authors';
-        const arxivId = r.arxivId || 'unknown';
-        const citation = `${authors}, arXiv:${arxivId}`;
-        return `[Paper ${i+1} | Similarity: ${r.similarity.toFixed(3)} | ${citation}]\nTitle: ${r.paperTitle || 'Unknown'}\n${r.content.slice(0, 1200)}`;
-      }).join('\n\n');
-    log.info(`[MOTHER] Omniscient: ${paperResults.length} paper chunks injected (top similarity: ${paperResults[0].similarity.toFixed(3)})`);
-  } else {
-    log.info('[MOTHER] Omniscient: No indexed papers found or search failed');
-  }
-  
-  // Extract Episodic memory result
-  let episodicContext = '';
-  if (episodicResultRaw.status === 'fulfilled' && episodicResultRaw.value.length > 0) {
-    const memories = episodicResultRaw.value;
-    episodicContext = `\n\nRELEVANT PAST INTERACTIONS (Episodic Memory):\n` +
-      memories.map((m, i) => 
-        `[Memory ${i+1} | Similarity: ${m.similarity.toFixed(3)} | Quality: ${m.qualityScore || 'N/A'}]\n` +
-        `Q: ${m.query.slice(0, 200)}\n` +
-        `A: ${m.response.slice(0, 400)}`
-      ).join('\n\n');
-    log.info(`[MOTHER] Episodic memory: ${memories.length} relevant past interactions injected`);
-  }
-  
-  // Extract User memory result
-  let userMemoryContext = '';
-  if (userMemoryResultRaw.status === 'fulfilled' && userMemoryResultRaw.value) {
-    userMemoryContext = userMemoryResultRaw.value as string;
-    if (userMemoryContext) log.info(`[MOTHER] User memory context injected for user ${userId}`);
-  }
+
+  // ==================== SRP Phase 9 (Ciclo 85): CONTEXT EXTRACTION ====================
+  // Extracted to core-context-extractor.ts — extractContextResults()
+  // Scientific basis: Fowler (1999) Refactoring — Extract Function pattern
+  const {
+    knowledgeContext: knowledgeContextRaw,
+    cragDocuments,
+    omniscientContext,
+    omniscientResultCount,
+    episodicContext,
+    userMemoryContext,
+  } = await extractContextResults({
+    query,
+    userId,
+    routingCategory: routingDecision.category,
+    cragResultRaw: cragResultRaw as any,
+    omniscientResultRaw: omniscientResultRaw as any,
+    episodicResultRaw: episodicResultRaw as any,
+    userMemoryResultRaw: userMemoryResultRaw as any,
+  });
+  let knowledgeContext = knowledgeContextRaw;
   
   // ==================== CICLO 37: ABDUCTIVE REASONING (v70.0) ====================
   // Apply abductive reasoning for queries requiring hypothesis generation
@@ -605,7 +559,6 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   // Agentic RAG (Singh et al., arXiv:2501.09136, 2025) — autonomous context management
   let proactiveContext = '';
   let proactiveMarker = '';
-  const omniscientResultCount = omniscientResultRaw.status === 'fulfilled' ? omniscientResultRaw.value.length : 0;
   const proactiveCheck = shouldProactivelyRetrieve(
     query,
     knowledgeContext,
