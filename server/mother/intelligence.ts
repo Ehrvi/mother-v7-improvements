@@ -57,7 +57,6 @@ const PRICING: Record<LLMProvider, Record<string, { input: number; output: numbe
     // Scientific basis: DPO (Rafailov et al., arXiv:2305.18290, NeurIPS 2023)
     // Job: ftjob-CSfkN1jaB2KwqANkgsVzTEFD (status: succeeded, 2026-03-01)
     'ft:gpt-4o-mini-2024-07-18:personal:mother-v78-identity-ciclo76:DETdYCLK': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
-    'ft:gpt-4o-mini-2024-07-18:personal:mother-v78-identity-ciclo76:DETdYCLK': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 }, // Ciclo 76: 300 DPO pairs identity/architecture
   },
   mistral: { 'mistral-small-latest': { input: 0.10 / 1_000_000, output: 0.30 / 1_000_000 } },
 };
