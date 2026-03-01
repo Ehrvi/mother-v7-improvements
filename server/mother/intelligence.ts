@@ -57,6 +57,10 @@ const PRICING: Record<LLMProvider, Record<string, { input: number; output: numbe
     // Scientific basis: DPO (Rafailov et al., arXiv:2305.18290, NeurIPS 2023)
     // Job: ftjob-CSfkN1jaB2KwqANkgsVzTEFD (status: succeeded, 2026-03-01)
     'ft:gpt-4o-mini-2024-07-18:personal:mother-v78-identity-ciclo76:DETdYCLK': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
+    // Ciclo 77: DPO fine-tuned model for depth dimension (71 pairs, 4 epochs)
+    // Scientific basis: BPO (Wang et al., NAACL 2025) + RACE-Align (Yan et al., arXiv:2506.02726)
+    // Job: ftjob-RvR2C0fezIhUjK4tWZUZIwRf (status: succeeded, 89040 tokens)
+    'ft:gpt-4o-mini-2024-07-18:personal:mother-v78-depth-ciclo77:DEU139CT': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
   },
   mistral: { 'mistral-small-latest': { input: 0.10 / 1_000_000, output: 0.30 / 1_000_000 } },
 };
@@ -69,6 +73,16 @@ export function getModelForCategory(category: QueryCategory): LLMModel {
     case 'complex_reasoning': return { provider: 'openai', modelName: 'gpt-4o' };
     case 'research': return { provider: 'openai', modelName: 'gpt-4o' };
   }
+}
+
+// Ciclo 77: Fine-tuned model selector for depth-heavy queries
+// Scientific basis: BPO (Wang et al., NAACL 2025) — depth-aware routing improves knowledge richness
+export function getDepthModelOverride(query: string): string | null {
+  const depthIndicators = /\b(RLHF|PPO|KL divergence|reward model|piezômetro|recalque|adensamento|Terzaghi|attention mechanism|sqrt.*d_k|fine.tuning|SFT|GRPO|Constitutional AI|Self-Consistency|Process Reward|Long CoT)\b/i;
+  if (depthIndicators.test(query)) {
+    return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v78-depth-ciclo77:DEU139CT';
+  }
+  return null;
 }
 
 export function classifyQuery(query: string): RoutingDecision {
