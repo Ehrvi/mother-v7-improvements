@@ -53,6 +53,10 @@ const PRICING: Record<LLMProvider, Record<string, { input: number; output: numbe
     'gpt-4o': { input: 2.50 / 1_000_000, output: 10.00 / 1_000_000 },
     'gpt-4o-mini': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
     'gpt-4': { input: 30.00 / 1_000_000, output: 60.00 / 1_000_000 },
+    // Ciclo 72: DPO fine-tuned model (NC-IDENTITY-001 + NC-ARCHITECTURE-001)
+    // Scientific basis: DPO (Rafailov et al., arXiv:2305.18290, NeurIPS 2023)
+    // Job: ftjob-CSfkN1jaB2KwqANkgsVzTEFD (status: succeeded, 2026-03-01)
+    'ft:gpt-4o-mini-2024-07-18:personal:mother-v76-identity-architecture-ciclo70:DEPn6tAD': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
   },
   mistral: { 'mistral-small-latest': { input: 0.10 / 1_000_000, output: 0.30 / 1_000_000 } },
 };

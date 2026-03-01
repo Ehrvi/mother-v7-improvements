@@ -18,4 +18,8 @@ export const ENV = {
   googleApiKey: process.env.GOOGLE_AI_API_KEY ?? "",
   deepseekApiKey: process.env.DEEPSEEK_API_KEY ?? "",
   mistralApiKey: process.env.MISTRAL_API_KEY ?? "",
+  // Ciclo 72: DPO fine-tuned model for identity/architecture queries (NC-IDENTITY-001 + NC-ARCHITECTURE-001)
+  // Scientific basis: DPO (Rafailov et al., arXiv:2305.18290, NeurIPS 2023)
+  // Job: ftjob-CSfkN1jaB2KwqANkgsVzTEFD (status: succeeded, 2026-03-01)
+  dpoFineTunedModel: process.env.DPO_FINE_TUNED_MODEL ?? 'ft:gpt-4o-mini-2024-07-18:personal:mother-v76-identity-architecture-ciclo70:DEPn6tAD',
 };

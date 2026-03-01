@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 30
+    },
+    "auditLog": "/tmp/mother-repo/logs/.44d3e4a453b75386c9172ccc89c42c6ff67e09a8-audit.json",
+    "files": [
+        {
+            "date": 1772241179233,
+            "name": "/tmp/mother-repo/logs/rejections-2026-02-27.log",
+            "hash": "af18e949ab3394171bf2e1fea9d56159335771947d3ed4246217579baa41270b"
+        }
+    ],
+    "hashType": "sha256"
+}
