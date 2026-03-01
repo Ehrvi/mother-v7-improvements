@@ -19,6 +19,8 @@
  * Expected improvement: median latency 12s → 1.2s (-90%) for simple queries (60% of traffic)
  */
 
+import { getIdentityModelOverride, getFaithfulnessModelOverride, getDepthModelOverride } from './intelligence';
+
 export type RoutingTier = 'TIER_1' | 'TIER_2' | 'TIER_3' | 'TIER_4';
 
 export interface ComplexitySignals {
@@ -184,6 +186,16 @@ export function buildRoutingDecision(query: string, availableProviders?: Set<str
   };
 
   const config = tierConfigs[tier];
+
+  // Ciclo 80: DPO model overrides — activate fine-tuned models for specific dimensions
+  // Scientific basis: Rafailov et al. (arXiv:2305.18290, NeurIPS 2023) DPO
+  // SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — identity alignment
+  // Context-DPO (Bi et al., arXiv:2412.15280, ACL 2025) — faithfulness
+  const dpoOverride = getIdentityModelOverride(query) ?? getFaithfulnessModelOverride(query) ?? getDepthModelOverride(query);
+  if (dpoOverride) {
+    config.primaryModel = dpoOverride;
+    config.primaryProvider = 'openai';
+  }
 
   // Build rationale
   const activeSignals = Object.entries(signals)
