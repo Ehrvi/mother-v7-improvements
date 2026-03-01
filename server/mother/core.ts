@@ -51,6 +51,7 @@ import { searchSimilarChunksWithMetadata } from '../omniscient/search';
 import { groundResponse, needsGrounding } from './grounding';
 import { agenticLearningLoop } from './agentic-learning';
 import { insertQuery, getCacheEntry, insertCacheEntry, getSemanticCacheEntry, insertSemanticCacheEntry, getDb } from '../db';
+import { writeCacheEntry } from './core-cache-writer'; // SRP Phase 7 (Ciclo 83)
 import { retryDbOperation } from './db-retry';
 import { learnFromResponse, LEARNING_QUALITY_THRESHOLD } from './learning';
 import { processWithReAct } from './react';
@@ -1251,53 +1252,24 @@ ${autonomyStatus}
   });
   const queryId = learningResult.queryId;
   
-  // ==================== CACHE UPDATE ====================
-  // Store in cache for future queries
-  
-  if (effectiveUseCache && (quality.cacheEligible ?? quality.passed)) { // v69.4: BUG-002 fix — use cacheEligible (>=75) not passed (>=90)
-    // NC-SELFAUDIT-001: effectiveUseCache=false for self-reporting queries — prevents caching stale architecture/metrics responses
-    const cacheData = {
-      response: response,
-      tier: complexity.tier,
-      complexityScore: complexity.complexityScore,
-      confidenceScore: complexity.confidenceScore,
-      quality,
-      tokensUsed: usage.total_tokens,
-      cost,
-      costReduction,
-      queryId,
-    };
-    
-    // v74.0: NC-008 fix — increase exact cache TTL from 24h to 72h
-    // Scientific basis: GPTCache (Zeng et al., 2023) — longer TTL improves hit rate;
-    // Redis best practices (2024) — stable knowledge queries benefit from 3-day TTL
-    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72 hours (was 24h)
-    
-    await retryDbOperation(() => insertCacheEntry({
-      queryHash,
-      query,
-      response: JSON.stringify(cacheData),
-      embedding: null,
-      hitCount: 0,
-      lastHit: null,
-      ttl: 259200, // 72 hours in seconds (was 86400 = 24h)
-      expiresAt,
-    }));
-    
-    // v69.6: Write to semantic_cache table for cosine-similarity lookup
-    // Scientific basis: GPTCache (Zeng et al., 2023); schema aligned with actual DB columns
-    if (queryEmbedding) {
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days TTL
-      insertSemanticCacheEntry({
-        queryHash: queryHash,
-        queryText: query,
-        queryEmbedding: JSON.stringify(queryEmbedding),
-        response: JSON.stringify(cacheData),
-        hitCount: 0,
-        expiresAt,
-      }).catch((err: Error) => log.warn('[MOTHER] Semantic cache write failed (non-blocking):', err.message));
-    }
-  }
+  // ==================== SRP Phase 7 (Ciclo 83): CACHE UPDATE ====================
+  // Extracted to core-cache-writer.ts (Fowler 2018 — Extract Method)
+  // Scientific basis: SRP (Martin 2017), GPTCache (Zeng et al., 2023)
+  await writeCacheEntry({
+    query,
+    queryHash,
+    queryEmbedding,
+    response,
+    tier: complexity.tier,
+    complexityScore: complexity.complexityScore,
+    confidenceScore: complexity.confidenceScore,
+    quality,
+    tokensUsed: usage.total_tokens,
+    cost,
+    costReduction,
+    queryId,
+    effectiveUseCache,
+  });
   
   // ==================== v57.0: SYSTEM METRICS LOGGING ====================
   // Scientific basis: SRE Golden Signals (Beyer et al., 2016)
