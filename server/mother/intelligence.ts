@@ -61,6 +61,11 @@ const PRICING: Record<LLMProvider, Record<string, { input: number; output: numbe
     // Scientific basis: BPO (Wang et al., NAACL 2025) + RACE-Align (Yan et al., arXiv:2506.02726)
     // Job: ftjob-RvR2C0fezIhUjK4tWZUZIwRf (status: succeeded, 89040 tokens)
     'ft:gpt-4o-mini-2024-07-18:personal:mother-v78-depth-ciclo77:DEU139CT': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
+    // Ciclo 78: DPO fine-tuned model for faithfulness dimension (53 pairs, 4 epochs)
+    // Scientific basis: Context-DPO (Bi et al., arXiv:2412.15280) + F-DPO (Chaduvula et al., arXiv:2601.03027)
+    // + RACE-Align (Yan et al., arXiv:2506.02726) — RAG+CoT augmented faithfulness pairs
+    // Job: ftjob-h138nPj8JNKGdTA5helsfTvW (status: succeeded, 54680 tokens)
+    'ft:gpt-4o-mini-2024-07-18:personal:mother-v78-faithfulness-ciclo78:DEUdKUgr': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
   },
   mistral: { 'mistral-small-latest': { input: 0.10 / 1_000_000, output: 0.30 / 1_000_000 } },
 };
@@ -73,6 +78,17 @@ export function getModelForCategory(category: QueryCategory): LLMModel {
     case 'complex_reasoning': return { provider: 'openai', modelName: 'gpt-4o' };
     case 'research': return { provider: 'openai', modelName: 'gpt-4o' };
   }
+}
+
+// Ciclo 78: Fine-tuned model selector for faithfulness-critical queries
+// Scientific basis: Context-DPO (Bi et al., arXiv:2412.15280) — RAG-grounded faithfulness
+// F-DPO (Chaduvula et al., arXiv:2601.03027) — factuality-aware preference optimization
+export function getFaithfulnessModelOverride(query: string): string | null {
+  const faithfulnessIndicators = /\b(contexto|context|baseado em|according to|de acordo com|o documento|the document|piezometro|inclinometro|marco superficial|alerta|alert|limite|threshold|sensor|leitura|reading|quem criou|who created|Everton Garcia|Wizards Down Under|IntellTech|MOTHER foi|MOTHER was|factual|factualidade|alucinacao|hallucination|citar|cite|fonte|source|referencia|reference)\b/i;
+  if (faithfulnessIndicators.test(query)) {
+    return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v78-faithfulness-ciclo78:DEUdKUgr';
+  }
+  return null;
 }
 
 // Ciclo 77: Fine-tuned model selector for depth-heavy queries
