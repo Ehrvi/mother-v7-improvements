@@ -29,14 +29,13 @@
  * 8. Metrics + Learning    (core.ts + learning.ts)
  */
 
-import { invokeLLM } from '../_core/llm';
+// SRP Phase 10 (Ciclo 86): invokeLLM, orchestrate, MOTHER_TOOLS, executeTool, formatToolResult moved to core-tool-executor.ts
 import { assessComplexity, classifyQuery, getModelForTier, calculateCost, calculateCostForModel, calculateBaselineCost, calculateCostReduction, getIdentityModelOverride, getFaithfulnessModelOverride, getDepthModelOverride, getComplexReasoningModelOverride, getArchitectureModelOverride, getInstructionFollowingModelOverride, type LLMTier } from './intelligence';
 import { validateQuality, type GuardianResult } from './guardian';
 import { getKnowledgeContext } from './knowledge';
 import { cragRetrieve } from './crag';
 import { cragV2Retrieve } from './crag-v2'; // NC-QUALITY-006: CRAG v2 with query expansion + hybrid search
 import { selfRefinePhase3 } from './self-refine'; // NC-QUALITY-007: Self-Refine Phase 3 (3 iterations)
-import { orchestrate, shouldUseMoA, shouldUseDebate } from './orchestration'; // NC-ORCH-001: MoA + Debate (Ciclo 46)
 import { applyConstitutionalAI } from './constitutional-ai'; // NC-CONST-001: Constitutional AI Safety Layer (Ciclo 47)
 import { applyIFV } from './ifv'; // Ciclo 54 v2.0 Action 2: IFV — Instruction Following Verifier (Zhou et al., arXiv:2311.07911, 2023)
 import { applyCoVe, shouldApplyCoVe } from './cove'; // Ciclo 54 v2.0 Action 3: CoVe — Chain-of-Verification (Dhuliawala et al., arXiv:2309.11495, 2023)
@@ -65,7 +64,6 @@ import { logAuditEvent } from './update-proposals';
 import { CREATOR_EMAIL as _HIERARCHY_CREATOR_EMAIL } from './user-hierarchy';
 import { maybeRunAnalysis } from './self-proposal-engine';
 import { runMetricsJobs } from './metrics-aggregation-job'; // v69.12: Fix P0 — populate fitness_history, system_metrics, learning_patterns
-import { MOTHER_TOOLS, executeTool, formatToolResult } from './tool-engine';
 import { ENV } from '../_core/env';
 import { generateFichamento } from './fichamento';
 import { requiresAbductiveReasoning, performAbductiveReasoning, formatAbductiveContext } from './abductive-engine';
@@ -101,6 +99,7 @@ import { applyTTCScaling, shouldApplyTTCScaling } from './test-time-compute-scal
 import { runQualityPipeline } from './core-quality-runner'; // Ciclo 77: SRP Phase 2 — Quality pipeline extracted (Fowler 1999, McConnell 2004)
 import { STATIC_SYSTEM_PROMPT_SECTIONS } from './core-system-prompt'; // Ciclo 81: SRP Phase 5 — Static prompt sections extracted (Fowler 2018, Martin 2017)
 import { executeLearningPipeline } from './core-learning-builder'; // Ciclo 82: SRP Phase 6 — Learning/persistence extracted (Fowler 2018, Martin 2017)
+import { executeTwoPhase } from './core-tool-executor'; // Ciclo 86: SRP Phase 10 — Two-phase tool execution extracted (Fowler 2018, Martin 2017)
 
 // ============================================================
 // SRP Phase 4 (Ciclo 80): Extract Method — Fowler (Refactoring, 2018)
@@ -750,165 +749,27 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   };
   const selectedTemperature = tierTemperatureMap[selectedModel] ?? 0.5;
 
-  // ── PHASE 1: Tool detection (always gpt-4o) ──────────────────────────────────────────────
-  // v74.11 NC-QUALITY-002: Phase 1 uses T=0.1 for deterministic tool detection
-  // Scientific basis: OpenAI Cookbook (2024) — function calling accuracy peaks at T≤0.2
-  const toolDetectionResponse = await invokeLLM({
-    model: 'gpt-4o',
-    provider: 'openai',
-    messages: [
-      { role: 'system' as LLMRole, content: systemPrompt },
-      ...historyMessages,
-      { role: 'user' as LLMRole, content: query },
-    ],
-    tools: MOTHER_TOOLS,
-    tool_choice: 'auto',
-    temperature: 0.1, // v74.11: deterministic tool detection
+  // ==================== SRP Phase 10 (Ciclo 86): TWO-PHASE TOOL EXECUTION ====================
+  // Extracted to core-tool-executor.ts — executeTwoPhase()
+  // Fowler (Refactoring, 2018) — Extract Method pattern
+  // Scientific basis: FrugalGPT (arXiv:2305.05176) + RouteLLM (arXiv:2406.18665)
+  // 159 lines → 12 lines call site. core.ts: 1139 → ~992 lines (target < 1000)
+  const twoPhaseResult = await executeTwoPhase({
+    query,
+    systemPrompt,
+    historyMessages: historyMessages as Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: string }>,
+    selectedProvider: selectedProvider as import('./intelligence').LLMProvider,
+    selectedModel,
+    selectedTemperature,
+    routingDecision,
+    complexity,
+    knowledgeContext,
+    toolCtx,
+    onChunk,
   });
-  let response: string;
-  let usage = toolDetectionResponse.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
-  const toolCalls = toolDetectionResponse.choices[0]?.message?.tool_calls;
+  let response = twoPhaseResult.response;
+  let usage = twoPhaseResult.usage;
 
-  if (toolCalls && toolCalls.length > 0) {
-    // ── Tool execution path: gpt-4o handles tool result synthesis ────────────
-    log.info(`[MOTHER] Tool calls requested: ${toolCalls.map((t: any) => t.function.name).join(', ')}`);
-    const toolResults: Array<{ toolName: string; result: string }> = [];
-    for (const toolCall of toolCalls) {
-      const toolName = toolCall.function.name;
-      let toolArgs: Record<string, any> = {};
-      try { toolArgs = JSON.parse(toolCall.function.arguments || '{}'); } catch { toolArgs = {}; }
-      const result = await executeTool(toolName, toolArgs, toolCtx);
-      toolResults.push({ toolName, result: formatToolResult(toolName, result) });
-      log.info(`[MOTHER] Tool ${toolName} executed: ${result.success ? 'SUCCESS' : 'FAILED'}`);
-    }
-    const toolResultMessages = toolCalls.map((tc: any, i: number) => ({
-      role: 'tool' as LLMRole,
-      content: toolResults[i].result,
-      tool_call_id: tc.id,
-    }));
-    const apiUrl = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1/chat/completions';
-    const finalPayload = {
-      model: 'gpt-4o',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...historyMessages.map(m => ({ role: m.role, content: m.content })),
-        { role: 'user', content: query },
-        { role: 'assistant', content: null, tool_calls: toolCalls },
-        ...toolResultMessages.map(m => ({ role: 'tool', content: m.content, tool_call_id: (m as any).tool_call_id })),
-      ],
-      max_tokens: 4096,
-    };
-    const finalFetch = await fetch(apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ENV.openaiApiKey}` },
-      body: JSON.stringify(finalPayload),
-    });
-    const finalResponse = await finalFetch.json() as any;
-    const finalContent = finalResponse.choices[0]?.message?.content;
-    response = typeof finalContent === 'string' ? finalContent : 'Tool executed but no response generated';
-    const finalUsage = finalResponse.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
-    usage = {
-      prompt_tokens: usage.prompt_tokens + finalUsage.prompt_tokens,
-      completion_tokens: usage.completion_tokens + finalUsage.completion_tokens,
-      total_tokens: usage.total_tokens + finalUsage.total_tokens,
-    };
-  } else {
-    // ── PHASE 2: No tools — use routingDecision.model for generation ────────
-    // v74.11 NC-QUALITY-003: ALL categories MUST go through Phase 2 with the correct specialized model.
-    // PREVIOUS BUG: simple/general used Phase 1 (gpt-4o T=0.1) as final response — this was the
-    // PRIMARY cause of poor quality. Phase 1 is ONLY for tool detection, never for final answers.
-    // Scientific basis:
-    //   - FrugalGPT (Chen et al., arXiv:2305.05176, 2023): route to specialized models per category
-    //   - RouteLLM (Ong et al., arXiv:2406.18665, 2024): quality improves when correct model is used
-    //   - Commey et al. (arXiv:2601.22025, 2026): task-specific prompts outperform generic ones
-    // ==================== NC-ORCH-001: ORCHESTRATION LAYER (Ciclo 46) ====================
-    // Scientific basis:
-    //   - MoA (Wang et al., arXiv:2406.04692, 2024): 65.1% AlpacaEval 2.0, beats GPT-4o (57.5%)
-    //   - Multi-Agent Debate (Du et al., arXiv:2305.14325, 2023): +11% factual accuracy
-    //   - Society of Mind (Liang et al., arXiv:2305.19118, 2023): -15% hallucination
-    // Routing: MoA for complex_reasoning/research (complexity >= 0.7), Debate for ambiguous queries
-    // Restriction: orchestration only for non-streaming (MoA/Debate require multiple sequential calls)
-    const useOrchestration = !onChunk && (
-      shouldUseMoA(complexity.complexityScore, routingDecision.category) ||
-      shouldUseDebate(query)
-    );
-    if (useOrchestration) {
-      log.info(`[MOTHER] Phase 2: ORCHESTRATION (MoA/Debate) — category=${routingDecision.category} complexity=${complexity.complexityScore.toFixed(2)}`);
-      try {
-        const orchResult = await orchestrate(
-          {
-            query,
-            systemPrompt,
-            conversationHistory: historyMessages.map(m => ({
-              role: m.role as 'user' | 'assistant',
-              content: typeof m.content === 'string' ? m.content : '',
-            })),
-            knowledgeContext: knowledgeContext || undefined,
-          },
-          {
-            complexityScore: complexity.complexityScore,
-            category: routingDecision.category,
-          }
-        );
-        response = orchResult.response;
-        log.info(`[MOTHER] Orchestration complete: pattern=${orchResult.pattern}, tokens=${orchResult.totalTokens || 0}`);
-        const orchTokens = orchResult.totalTokens || 0;
-        usage = {
-          prompt_tokens: usage.prompt_tokens + Math.floor(orchTokens * 0.7),
-          completion_tokens: usage.completion_tokens + Math.floor(orchTokens * 0.3),
-          total_tokens: usage.total_tokens + orchTokens,
-        };
-      } catch (orchErr) {
-        log.warn('[MOTHER] Orchestration failed, falling back to single model:', (orchErr as Error).message);
-        log.info(`[MOTHER] Phase 2 (fallback): calling ${selectedProvider}/${selectedModel} T=${selectedTemperature}`);
-        const phase2Response = await invokeLLM({
-          model: selectedModel,
-          provider: selectedProvider,
-          messages: [
-            { role: 'system' as LLMRole, content: systemPrompt },
-            ...historyMessages,
-            { role: 'user' as LLMRole, content: query },
-          ],
-          temperature: selectedTemperature,
-        });
-        const phase2Content = phase2Response.choices[0]?.message?.content;
-        response = typeof phase2Content === 'string' ? phase2Content : 'No response generated';
-        const phase2Usage = phase2Response.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
-        usage = {
-          prompt_tokens: usage.prompt_tokens + phase2Usage.prompt_tokens,
-          completion_tokens: usage.completion_tokens + phase2Usage.completion_tokens,
-          total_tokens: usage.total_tokens + phase2Usage.total_tokens,
-        };
-      }
-    } else {
-      log.info(`[MOTHER] Phase 2: calling ${selectedProvider}/${selectedModel} T=${selectedTemperature} for ${routingDecision.category}`);
-      {
-        // All categories: dedicated call to the specialized model for maximum quality
-        const phase2Response = await invokeLLM({
-          model: selectedModel,
-          provider: selectedProvider,
-          messages: [
-            { role: 'system' as LLMRole, content: systemPrompt },
-            ...historyMessages,
-            { role: 'user' as LLMRole, content: query },
-          ],
-          // v69.5: Pass streaming callback if provided (SSE endpoint)
-          ...(onChunk ? { onChunk } : {}),
-          // v74.11: Per-model calibrated temperature
-          temperature: selectedTemperature,
-        });
-        const phase2Content = phase2Response.choices[0]?.message?.content;
-        response = typeof phase2Content === 'string' ? phase2Content : 'No response generated';
-        const phase2Usage = phase2Response.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
-        usage = {
-          prompt_tokens: usage.prompt_tokens + phase2Usage.prompt_tokens,
-          completion_tokens: usage.completion_tokens + phase2Usage.completion_tokens,
-          total_tokens: usage.total_tokens + phase2Usage.total_tokens,
-        };
-      }
-    }
-  }
-  
   // ==================== CICLO 54 v2.0 ACTION 5: ToT — TREE-OF-THOUGHTS ====================
   // Scientific basis: Yao et al. (arXiv:2305.10601, 2023): 74% improvement on complex reasoning
   // Trigger: complex_reasoning/research queries with ToT-worthy patterns
