@@ -340,7 +340,7 @@ a2aRouter.post('/api/a2a/query', authenticateA2A, async (req: Request, res: Resp
       conversationHistory,
     });
 
-    log.info('Query processed via A2A', { category: result.tier, quality: result.quality.qualityScore });
+    log.info('Query processed via A2A', { category: result.tier, quality: result.quality?.qualityScore });
     res.json(result);
   } catch (err) {
     log.error('A2A query error', { error: String(err) });

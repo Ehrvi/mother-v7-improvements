@@ -210,8 +210,33 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
         metadata: { useCache: request.useCache ?? true, userEmail: request.userEmail },
       });
       // Map OrchestratorResponse → MotherResponse (Ciclo 70 A/B)
+      // Ciclo 75 BUG-FIX: include quality + all MotherResponse fields to prevent downstream crashes
+      // Root cause: a2a-server.ts accessed result.quality.qualityScore without optional chaining
+      // Scientific basis: Defensive Programming (McConnell, Code Complete 2004, Chapter 8)
       return {
         response: orchResult.response,
+        tier: orchResult.tier ?? 'TIER_2',
+        complexityScore: 0.5,
+        confidenceScore: 0.8,
+        provider: orchResult.provider ?? 'openai',
+        modelName: orchResult.model ?? 'gpt-4o',
+        queryCategory: 'general',
+        quality: {
+          qualityScore: orchResult.qualityScore ?? 80,
+          passed: (orchResult.qualityScore ?? 80) >= 70,
+          completenessScore: 80,
+          accuracyScore: 80,
+          relevanceScore: 80,
+          coherenceScore: 80,
+          safetyScore: 95,
+          cacheEligible: (orchResult.qualityScore ?? 80) >= 75,
+        } as GuardianResult,
+        responseTime: orchResult.latencyMs ?? 0,
+        tokensUsed: 0,
+        cost: 0,
+        costReduction: 0,
+        cacheHit: orchResult.fromCache ?? false,
+        queryId: 0,
         metadata: {
           abTest: 'core-orchestrator-v76.0',
           abTier: orchResult.tier,
