@@ -31,10 +31,6 @@ import {
   type RoutingDecision as AdaptiveRoutingDecision,
 } from './adaptive-router';
 import {
-  MOTHER_IDENTITY_FACTS_SECTION,
-  ARCHITECTURE_FACTS_SECTION,
-} from './core-system-prompt';
-import {
   lookupCache,
   storeInCache,
   getCacheStats,
@@ -46,6 +42,14 @@ import {
   type CircuitBreakerConfig,
 } from './circuit-breaker';
 import { callProvider, streamResponse } from './core-provider-caller';
+import {
+  fetchKnowledgeContext,
+  fetchEpisodicContext,
+  buildConversationContext,
+  buildSystemPrompt,
+  buildMessages,
+  type ContextBundle,
+} from './core-prompt-builder';
 import {
   layer5_symbolicGovernance,
   layer6_memoryWriteBack,
@@ -149,13 +153,6 @@ function layer2_adaptiveRouting(
 // LAYER 3: CONTEXT ASSEMBLY (parallel)
 // ============================================================
 
-interface ContextBundle {
-  knowledgeContext: string;
-  episodicContext: string;
-  conversationContext: string;
-  durationMs: number;
-}
-
 async function layer3_contextAssembly(
   req: OrchestratorRequest,
   routing: AdaptiveRoutingDecision,
@@ -186,43 +183,6 @@ async function layer3_contextAssembly(
   };
 }
 
-async function fetchKnowledgeContext(query: string, tier: string): Promise<string> {
-  // Import dynamically to avoid circular deps
-  try {
-    const { queryKnowledge } = await import('./knowledge');
-    const results = await Promise.race([
-      queryKnowledge(query).then(r => r.map(k => k.content).join('\n\n')),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
-    ]);
-    return results as string;
-  } catch {
-    return '';
-  }
-}
-
-async function fetchEpisodicContext(userId: string | undefined, query: string): Promise<string> {
-  if (!userId) return '';
-  try {
-    const { searchEpisodicMemory } = await import('./embeddings');
-    const result = await Promise.race([
-      searchEpisodicMemory(query, 3).then(mems => mems.map(m => `Q: ${m.query}\nA: ${m.response}`).join('\n---\n')),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000)),
-    ]);
-    return result as string;
-  } catch {
-    return '';
-  }
-}
-
-function buildConversationContext(
-  history?: Array<{ role: 'user' | 'assistant'; content: string }>,
-): string {
-  if (!history || history.length === 0) return '';
-  return history
-    .slice(-6)  // last 3 turns
-    .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content.slice(0, 500)}`)
-    .join('\n');
-}
 
 // ============================================================
 // LAYER 4: NEURAL GENERATION (with circuit breaker)
@@ -244,7 +204,7 @@ async function layer4_neuralGeneration(
   const start = Date.now();
 
   const systemPrompt = buildSystemPrompt(context, routing);
-  const messages = buildMessages(req, systemPrompt);
+  const messages = buildMessages(req.query, systemPrompt);
 
   // Try primary provider with circuit breaker
   try {
@@ -316,43 +276,6 @@ async function layer4_neuralGeneration(
   }
 }
 
-function buildSystemPrompt(context: ContextBundle, routing: AdaptiveRoutingDecision): string {
-  // Ciclo 86: Identity fix — include MOTHER_IDENTITY_FACTS_SECTION + ARCHITECTURE_FACTS_SECTION
-  // Scientific basis: SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — self-play identity alignment
-  // Root cause: core-orchestrator.ts was missing identity/architecture facts → identity=17.3% in C85
-  const parts = [
-    `You are MOTHER (Modular Orchestrated Thinking and Hierarchical Execution Runtime), version v79.0.`,
-    `You are an advanced AI system created by Everton Garcia for Wizards Down Under.`,
-    `You have persistent memory, self-improvement capabilities, and manage complex AI systems.`,
-    `Current routing tier: ${routing.tier} | Model: ${routing.primaryModel}`,
-    ``,
-    MOTHER_IDENTITY_FACTS_SECTION,
-    ``,
-    ARCHITECTURE_FACTS_SECTION,
-  ];
-
-  if (context.knowledgeContext) {
-    parts.push(`\n## Knowledge Context (bd_central)\n${context.knowledgeContext}`);
-  }
-  if (context.episodicContext) {
-    parts.push(`\n## Episodic Memory\n${context.episodicContext}`);
-  }
-  if (context.conversationContext) {
-    parts.push(`\n## Recent Conversation\n${context.conversationContext}`);
-  }
-
-  return parts.join('\n');
-}
-
-function buildMessages(
-  req: OrchestratorRequest,
-  systemPrompt: string,
-): Array<{ role: string; content: string }> {
-  return [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: req.query },
-  ];
-}
 
 // ============================================================
 // LAYER 5: SYMBOLIC GOVERNANCE (quality gate)
