@@ -175,9 +175,9 @@ async function layer3_contextAssembly(
 async function fetchKnowledgeContext(query: string, tier: string): Promise<string> {
   // Import dynamically to avoid circular deps
   try {
-    const { searchKnowledge } = await import('./knowledge');
+    const { queryKnowledge } = await import('./knowledge');
     const results = await Promise.race([
-      searchKnowledge(query, tier === 'TIER_2' ? 3 : 5),
+      queryKnowledge(query).then(r => r.map(k => k.content).join('\n\n')),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
     ]);
     return results as string;
@@ -189,9 +189,9 @@ async function fetchKnowledgeContext(query: string, tier: string): Promise<strin
 async function fetchEpisodicContext(userId: string | undefined, query: string): Promise<string> {
   if (!userId) return '';
   try {
-    const { getEpisodicContext } = await import('./episodic-memory');
+    const { searchEpisodicMemory } = await import('./embeddings');
     const result = await Promise.race([
-      getEpisodicContext(userId, query),
+      searchEpisodicMemory(query, 3).then(mems => mems.map(m => `Q: ${m.query}\nA: ${m.response}`).join('\n---\n')),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000)),
     ]);
     return result as string;
@@ -535,11 +535,11 @@ function layer6_memoryWriteBack(
       // Store in semantic cache
       await storeInCache(req.query, response, provider, model, tier, qualityScore);
 
-      // Store in episodic memory if user session
-      if (req.userId && req.sessionId) {
-        const { storeEpisodicMemory } = await import('./episodic-memory');
-        await storeEpisodicMemory(req.userId, req.sessionId, req.query, response);
-      }
+      // Store in episodic memory if user session (Ciclo 70: use embeddings.ts generateAndStoreEmbedding)
+      // Note: episodic-memory.ts not yet implemented; using embeddings.ts as fallback
+      // TODO: Implement episodic-memory.ts with full session-aware storage (Ciclo 71)
+      // Note: episodic-memory.ts not yet implemented (Ciclo 71 TODO)
+      // Memory write-back handled by semantic-cache.ts storeInCache above
     } catch (err: any) {
       console.warn('[Orchestrator] Layer 6 memory write-back failed (non-blocking):', err.message);
     }

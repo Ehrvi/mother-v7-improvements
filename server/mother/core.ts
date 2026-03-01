@@ -91,6 +91,8 @@ import { withCircuitBreaker, recordSuccess as cbRecordSuccess, recordFailure as 
 import { recordObservation as guardianObserve } from './guardian-agent'; // Ciclo 67: Guardian SLO monitoring (Google SRE 2016, Four Golden Signals)
 import { observeAndLearn as dgmObserve } from './dgm-agent'; // Ciclo 67: Darwin Gödel Machine (arXiv:2505.22954, Sakana AI 2025)
 import { recordRequest as obsRecordRequest } from './observability'; // Ciclo 67: OpenTelemetry observability (CNCF 2023, DORA Metrics 2018)
+// ─── CICLO 70: A/B Test — core-orchestrator.ts (10% traffic canary) ──────────
+import { orchestrate as coreOrchestrate } from './core-orchestrator'; // Ciclo 70: Canary A/B 10% (Oracle Medium 2025 + Google SRE Canary Deployment + ACAR arXiv:2602.21231)
 
 // ─── MOTHER Version (single source of truth) ─────────────────────────────────
 // v74.0: NC-010 (tier3 fix) + NC-008 (cache TTL 72h) + NC-011 (self-diagnosis routing)
@@ -116,7 +118,7 @@ import { recordRequest as obsRecordRequest } from './observability'; // Ciclo 67
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v76.1'; // Ciclo 68: NC-FAITHFULNESS-002 FIX (Semantic Scholar 1.5s timeout, Amdahl 1967 + ACAR arXiv:2602.21231) + MCC Stopping Criterion (HELM arXiv:2211.09110 + Benchmark Saturation arXiv:2602.16763 + Cohen 1988 + SRE SLOs) // Ciclo 67: Arquitetura SOTA v76.0 — Conselho Deliberativo Ciclo 66 (5 modelos, 3 rodadas Delphi+MAD+Constitutional AI, Kendall W=0.87) // Módulos: circuit-breaker + adaptive-router + semantic-cache + core-orchestrator + guardian-agent + dgm-agent + intelltech-agent + observability // Scientific basis: ACAR (arXiv:2602.21231) + DGM (arXiv:2505.22954) + ICOLD Bulletin 158 + OpenTelemetry CNCF 2023 + Google SRE (2016) // Ciclo 65: Conselho Deliberativo (Delphi+MAD, 5 modelos), Abordagem Híbrida PE+Fine-tuning, Plano SOTA v76.0 // Ciclo 64: F-DPO (arXiv:2601.03027) + Long CoT (arXiv:2503.09567) + NSVIF (arXiv:2601.17789) // Ciclo 63: BERTScoreNLI (arXiv:1904.09675) + IFEvalV2 (arXiv:2311.07911) + CloudRunOptimizer // Ciclo 62: SemanticFaithfulness (arXiv:1908.10084) + SymbolicMath (SymPy) + EnsembleScorer // Ciclo 61: ParallelSC (arXiv:2401.10480) + AutoKnowledge (arXiv:2310.11511) + DepthPRM (arXiv:2305.20050) // Ciclo 60: AdaptiveDraftRouter (arXiv:2406.16858) + SelfCheckFaithfulness (arXiv:2303.08896) + ProcessRewardVerifier (arXiv:2305.20050) // Ciclo 59: Self-Consistency Sampling (Wang et al., arXiv:2203.11171, ICLR 2023) + Contrastive CoT (Chia et al., arXiv:2311.09277, ACL 2024) + ORPO TRL Pipeline (Hong et al., arXiv:2403.07691, EMNLP 2024) // Ciclo 58: SCOPE reflection loop (PARSE arXiv:2510.08623) + Semantic Scholar 5th source + ORPO HuggingFace export + Adaptive timeout for latency optimization (Amdahl 1967) GAP1 fix (Camada 3.5→7 integration, HippoRAG2 arXiv:2502.14802 + MARK arXiv:2505.05177) + GAP2 fix (Quality-Triggered Learning, Self-RAG arXiv:2310.11511 + Reflexion arXiv:2303.11366) + GAP3 fix (Fichamento after study, ABNT NBR 6023:2018) + GAP4 fix (Bidirectional RAG write-back, arXiv:2512.22199)
+export const MOTHER_VERSION = 'v76.2'; // Ciclo 70: A/B Canary core-orchestrator.ts (10% traffic, Oracle Medium 2025 + Google SRE 2016 + ACAR arXiv:2602.21231) + DPO fine-tuning pipeline execution + 3 module merges (TIES-Merging arXiv:2408.07666) // Ciclo 68: NC-FAITHFULNESS-002 FIX (Semantic Scholar 1.5s timeout, Amdahl 1967 + ACAR arXiv:2602.21231) + MCC Stopping Criterion (HELM arXiv:2211.09110 + Benchmark Saturation arXiv:2602.16763 + Cohen 1988 + SRE SLOs) // Ciclo 67: Arquitetura SOTA v76.0 — Conselho Deliberativo Ciclo 66 (5 modelos, 3 rodadas Delphi+MAD+Constitutional AI, Kendall W=0.87) // Módulos: circuit-breaker + adaptive-router + semantic-cache + core-orchestrator + guardian-agent + dgm-agent + intelltech-agent + observability // Scientific basis: ACAR (arXiv:2602.21231) + DGM (arXiv:2505.22954) + ICOLD Bulletin 158 + OpenTelemetry CNCF 2023 + Google SRE (2016) // Ciclo 65: Conselho Deliberativo (Delphi+MAD, 5 modelos), Abordagem Híbrida PE+Fine-tuning, Plano SOTA v76.0 // Ciclo 64: F-DPO (arXiv:2601.03027) + Long CoT (arXiv:2503.09567) + NSVIF (arXiv:2601.17789) // Ciclo 63: BERTScoreNLI (arXiv:1904.09675) + IFEvalV2 (arXiv:2311.07911) + CloudRunOptimizer // Ciclo 62: SemanticFaithfulness (arXiv:1908.10084) + SymbolicMath (SymPy) + EnsembleScorer // Ciclo 61: ParallelSC (arXiv:2401.10480) + AutoKnowledge (arXiv:2310.11511) + DepthPRM (arXiv:2305.20050) // Ciclo 60: AdaptiveDraftRouter (arXiv:2406.16858) + SelfCheckFaithfulness (arXiv:2303.08896) + ProcessRewardVerifier (arXiv:2305.20050) // Ciclo 59: Self-Consistency Sampling (Wang et al., arXiv:2203.11171, ICLR 2023) + Contrastive CoT (Chia et al., arXiv:2311.09277, ACL 2024) + ORPO TRL Pipeline (Hong et al., arXiv:2403.07691, EMNLP 2024) // Ciclo 58: SCOPE reflection loop (PARSE arXiv:2510.08623) + Semantic Scholar 5th source + ORPO HuggingFace export + Adaptive timeout for latency optimization (Amdahl 1967) GAP1 fix (Camada 3.5→7 integration, HippoRAG2 arXiv:2502.14802 + MARK arXiv:2505.05177) + GAP2 fix (Quality-Triggered Learning, Self-RAG arXiv:2310.11511 + Reflexion arXiv:2303.11366) + GAP3 fix (Fichamento after study, ABNT NBR 6023:2018) + GAP4 fix (Bidirectional RAG write-back, arXiv:2512.22199)
 
 const log = createLogger('CORE');
 
@@ -187,7 +189,44 @@ export interface MotherResponse {
  */
 export async function processQuery(request: MotherRequest): Promise<MotherResponse> {
   const startTime = Date.now();
-  
+
+  // ==================== CICLO 70: A/B CANARY — core-orchestrator.ts (10% traffic) ====================
+  // Scientific basis:
+  // - Canary Deployment (Oracle Medium, 2025): route 1-10% traffic to candidate, compare P95 latency + error rate
+  // - Google SRE (2016): progressive rollout with automatic rollback on SLO breach
+  // - ACAR (arXiv:2602.21231, 2026): adaptive complexity routing — Tier-1 (simple) 1.2s, Tier-3 (complex) 5-15s
+  // - Render.com Best Practices (Jan 2026): sticky sessions + probabilistic routing for A/B LLM tests
+  // Feature toggle: MOTHER_ORCHESTRATOR_AB_RATE (default 0.10 = 10%)
+  const AB_RATE = parseFloat(process.env.MOTHER_ORCHESTRATOR_AB_RATE ?? '0.10');
+  const AB_ENABLED = process.env.MOTHER_ORCHESTRATOR_AB !== 'false'; // default enabled
+  if (AB_ENABLED && Math.random() < AB_RATE) {
+    try {
+      const orchResult = await coreOrchestrate({
+        query: request.query,
+        userId: request.userId != null ? String(request.userId) : undefined,
+        conversationHistory: request.conversationHistory ?? [],
+        metadata: { useCache: request.useCache ?? true, userEmail: request.userEmail },
+      });
+      // Map OrchestratorResponse → MotherResponse (Ciclo 70 A/B)
+      return {
+        response: orchResult.response,
+        metadata: {
+          abTest: 'core-orchestrator-v76.0',
+          abTier: orchResult.tier,
+          abLatencyMs: orchResult.latencyMs,
+          abProvider: orchResult.provider,
+          abModel: orchResult.model,
+          abFromCache: orchResult.fromCache,
+          abQualityScore: orchResult.qualityScore,
+          abVersion: orchResult.version,
+        },
+      } as unknown as MotherResponse;
+    } catch (orchErr) {
+      // Automatic rollback on error — fall through to legacy core.ts pipeline
+      log.warn('[A/B] core-orchestrator error — falling back to core.ts', { error: String(orchErr) });
+    }
+  }
+
   // ==================== LAYER 2: ORCHESTRATION ====================
   // Request routing and preprocessing
   
