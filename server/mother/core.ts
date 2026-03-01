@@ -96,6 +96,7 @@ import { orchestrate as coreOrchestrate } from './core-orchestrator'; // Ciclo 7
 import { applyGRPOReasoning, shouldApplyGRPO } from './grpo-reasoning-enhancer'; // Ciclo 73: GRPO Reasoning Enhancer (Shao et al., arXiv:2402.03300 DeepSeekMath 2024 + DeepSeek-R1 arXiv:2501.12948 2025)
 import { applyTTCScaling, shouldApplyTTCScaling } from './test-time-compute-scaler'; // Ciclo 74: TTC Scaling Best-of-N (Snell et al., arXiv:2408.03314, 2024 + GenPRM arXiv:2504.00891, 2025)
 import { runQualityPipeline } from './core-quality-runner'; // Ciclo 77: SRP Phase 2 — Quality pipeline extracted (Fowler 1999, McConnell 2004)
+import { STATIC_SYSTEM_PROMPT_SECTIONS } from './core-system-prompt'; // Ciclo 81: SRP Phase 5 — Static prompt sections extracted (Fowler 2018, Martin 2017)
 
 // ============================================================
 // SRP Phase 4 (Ciclo 80): Extract Method — Fowler (Refactoring, 2018)
