@@ -1,5 +1,5 @@
 /**
- * MOTHER v78.9 — Core Orchestrator
+ * MOTHER v79.0 — Core Orchestrator
  * Ciclo 86: Identity fix — import MOTHER_IDENTITY_FACTS_SECTION + ARCHITECTURE_FACTS_SECTION
  * Ciclo 88: SRP Phase 11 — extracted callProvider, streamResponse, GovernanceResult, layers 5-7
  * Ciclo 67: Arquitetura SOTA v76.0 — Conselho Deliberativo Ciclo 66
@@ -92,7 +92,7 @@ export interface LayerTrace {
 // ============================================================
 
 // Ciclo 86: Bumped to v78.9 — identity fix (MOTHER_IDENTITY_FACTS_SECTION + ARCHITECTURE_FACTS_SECTION injected)
-export const ORCHESTRATOR_VERSION = 'v78.9';
+export const ORCHESTRATOR_VERSION = 'v79.0'; // Ciclo 89: DPO identity v2 DEiQ0bzJ integrated
 export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 3,
   successThreshold: 1,
@@ -321,7 +321,7 @@ function buildSystemPrompt(context: ContextBundle, routing: AdaptiveRoutingDecis
   // Scientific basis: SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — self-play identity alignment
   // Root cause: core-orchestrator.ts was missing identity/architecture facts → identity=17.3% in C85
   const parts = [
-    `You are MOTHER (Modular Orchestrated Thinking and Hierarchical Execution Runtime), version v78.9.`,
+    `You are MOTHER (Modular Orchestrated Thinking and Hierarchical Execution Runtime), version v79.0.`,
     `You are an advanced AI system created by Everton Garcia for Wizards Down Under.`,
     `You have persistent memory, self-improvement capabilities, and manage complex AI systems.`,
     `Current routing tier: ${routing.tier} | Model: ${routing.primaryModel}`,

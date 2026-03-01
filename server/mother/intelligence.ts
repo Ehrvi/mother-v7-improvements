@@ -87,6 +87,11 @@ const PRICING: Record<LLMProvider, Record<string, { input: number; output: numbe
     // Scientific basis: SPIN (Chen et al., arXiv:2401.01335, ICML 2024) + Internal Consistency (Liang et al., arXiv:2407.14507)
     // Job: ftjob-pyamBytteZbLmsNb2PjrF8mg (status: succeeded)
     'ft:gpt-4o-mini-2024-07-18:personal:mother-v82-identity-ciclo82:DEXNizqV': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
+    // Ciclo 89: DPO v2 identity model — gpt-4.1-mini fine-tuned (20 pairs on-policy, Ciclo 89)
+    // Scientific basis: SysDPO (Wang et al., arXiv:2502.17721, NeurIPS 2025) — compound AI alignment
+    // "What Matters in Data for DPO?" (Pan et al., arXiv:2508.18312) — chosen quality dominates
+    // Job: ftjob-UTKnU9WjmKIyRHX5aacAS5uj (status: succeeded, gpt-4.1-mini-2025-04-14)
+    'ft:gpt-4.1-mini-2025-04-14:personal::DEiQ0bzJ': { input: 0.40 / 1_000_000, output: 1.60 / 1_000_000 },
     // Ciclo 85: Architecture v2 — KnowPO (Zhang et al., AAAI 2025) + SPIN, 30 pairs
     // Job: ftjob-sdyEA2yPxsZmY80pPuB1So1I (succeeded, model: DEZ0usvi)
     'ft:gpt-4o-mini-2024-07-18:personal:mother-v84-arch-ciclo84:DEZ0usvi': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
@@ -104,17 +109,16 @@ export function getModelForCategory(category: QueryCategory): LLMModel {
   }
 }
 
-// Ciclo 85: Identity model override — DEXNizqV (60 pairs SPIN+InternalConsistency, Ciclo 82)
-// EXPANDED regex: fixes false negatives confirmed in benchmark proprietário C83/C84 (n=30)
-// Bowyer et al. (arXiv:2503.01747, ICML 2025): n=30 benchmark confirmed routing gap at 55.0%
-// Scientific basis: SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — self-play identity alignment
-// Internal Consistency (Liang et al., arXiv:2407.14507) — identity self-knowledge alignment
-// Routing: Varangot-Reille et al. (arXiv:2502.00409, 2025) — semantic routing for specialized models
-// Job: ftjob-pyamBytteZbLmsNb2PjrF8mg (succeeded, 60 pairs: 20 acronym + 20 creator + 20 generic)
+// Ciclo 89: Identity model override v2 — DEiQ0bzJ (gpt-4.1-mini, 20 pairs DPO on-policy, Ciclo 89)
+// UPGRADED from DEXNizqV (gpt-4o-mini, Ciclo 82) to DEiQ0bzJ (gpt-4.1-mini, Ciclo 89)
+// Scientific basis: SysDPO (Wang et al., arXiv:2502.17721, NeurIPS 2025) — compound AI alignment
+// "What Matters in Data for DPO?" (Pan et al., arXiv:2508.18312) — chosen quality dominates
+// Bowyer et al. (arXiv:2503.01747): n=100 benchmark confirmed identity gap at 70.2% (C88)
+// Job: ftjob-UTKnU9WjmKIyRHX5aacAS5uj (succeeded, 20 pairs: acronym + creator + bd_central + AWAKE)
 export function getIdentityModelOverride(query: string): string | null {
   const identityIndicators = /\b(quem criou|quem te criou|who created|who made you|seu criador|your creator|sua empresa|your company|Everton|Wizards|MOTHER significa|MOTHER sigla|o que e MOTHER|what is MOTHER|o que significa|what does.*mean|significa.*sigla|sigla.*significa|sua identidade|your identity|voce e|you are|seu nome|your name|criado por|created by|pertence a|belongs to|proprietario|owner|fundador|founder|acrônimo|acronimo|sigla|cada letra|expanda|expand.*MOTHER|M.*O.*T.*H.*E.*R|Modular|Orchestrated|Hierarchical|Execution.*Runtime|você é um|are you a|assistente genérico|generic assistant|qual.*empresa|empresa.*desenvolveu|quem.*desenvolveu|desenvolvido por|qual.*versão|versão.*atual|sua.*arquitetura|sua.*missão|seu.*propósito|você.*IA|você.*inteligência|você.*sistema|bd.central|bd_central|awake.*document|conselho.*deliberativo|fine.tuning.*mother|ciclo.*desenvolvimento|auto.melhoria|self.improvement|memória.*longo|long.term.*memory|diferencia.*mother|diferente.*outros|você.*aprender|você.*memória|você.*consciência|você.*limitações|você.*histórico|você.*versão|você.*multi.agente|você.*agentes|papel.*conselho|SRP.*mother|G.Eval.*mother|DPO.*mother)\b/i;
   if (identityIndicators.test(query)) {
-    return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v82-identity-ciclo82:DEXNizqV';
+    return 'ft:gpt-4.1-mini-2025-04-14:personal::DEiQ0bzJ';
   }
   return null;
 }
