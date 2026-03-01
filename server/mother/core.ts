@@ -30,7 +30,7 @@
  */
 
 import { invokeLLM } from '../_core/llm';
-import { assessComplexity, classifyQuery, getModelForTier, calculateCost, calculateCostForModel, calculateBaselineCost, calculateCostReduction, getIdentityModelOverride, getFaithfulnessModelOverride, getDepthModelOverride, getComplexReasoningModelOverride, getArchitectureModelOverride, type LLMTier } from './intelligence';
+import { assessComplexity, classifyQuery, getModelForTier, calculateCost, calculateCostForModel, calculateBaselineCost, calculateCostReduction, getIdentityModelOverride, getFaithfulnessModelOverride, getDepthModelOverride, getComplexReasoningModelOverride, getArchitectureModelOverride, getInstructionFollowingModelOverride, type LLMTier } from './intelligence';
 import { validateQuality, type GuardianResult } from './guardian';
 import { getKnowledgeContext } from './knowledge';
 import { cragRetrieve } from './crag';
@@ -954,12 +954,15 @@ ${autonomyStatus}
   const depthOverride = getDepthModelOverride(query);
   const complexReasoningOverride = getComplexReasoningModelOverride(query);
   const architectureOverride = getArchitectureModelOverride(query);
-  // Priority: identity > faithfulness > depth > complex_reasoning > default routing
-  const dpoOverride = identityOverride ?? faithfulnessOverride ?? depthOverride ?? complexReasoningOverride;
+  const instructionFollowingOverride = getInstructionFollowingModelOverride(query);
+  // Priority: identity > faithfulness > depth > complex_reasoning > architecture > instruction_following > default routing
+  // Ciclo 82: Added architectureOverride (DEWl6cWa) + instructionFollowingOverride (DEWl6cWa)
+  // IFEval (Zhou et al., arXiv:2311.07911) + FollowBench (Jiang et al., arXiv:2310.20410)
+  const dpoOverride = identityOverride ?? faithfulnessOverride ?? depthOverride ?? complexReasoningOverride ?? architectureOverride ?? instructionFollowingOverride;
   const selectedProvider = dpoOverride ? 'openai' : routingDecision.model.provider;
   const selectedModel = dpoOverride ?? routingDecision.model.modelName;
   if (dpoOverride) {
-    log.info(`[MOTHER] Ciclo 80 DPO override active: ${dpoOverride} (faith=${!!faithfulnessOverride}, depth=${!!depthOverride}, cr=${!!complexReasoningOverride})`);
+    log.info(`[MOTHER] Ciclo 82 DPO override active: ${dpoOverride} (id=${!!identityOverride}, faith=${!!faithfulnessOverride}, depth=${!!depthOverride}, cr=${!!complexReasoningOverride}, arch=${!!architectureOverride}, if=${!!instructionFollowingOverride})`);
   }
   log.info(`[MOTHER] v69.1 Two-Phase: P1=gpt-4o (tool detect), P2=${selectedProvider}/${selectedModel} (generate)`);
 

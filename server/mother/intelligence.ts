@@ -74,6 +74,11 @@ const PRICING: Record<LLMProvider, Record<string, { input: number; output: numbe
     // Scientific basis: SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — self-play architecture alignment
     // Job: ftjob-HoC6M3rVDBb2QOabPTihxM10 (status: succeeded, 35760 tokens)
     'ft:gpt-4o-mini-2024-07-18:personal:mother-v78-architecture-ciclo80:DEW7PUMv': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
+    // Ciclo 82: DPO fine-tuned model for architecture+instruction_following (80 pairs, 4 epochs)
+    // Scientific basis: IFEval (Zhou et al., arXiv:2311.07911) + SPIN (Chen et al., arXiv:2401.01335)
+    // FollowBench (Jiang et al., arXiv:2310.20410) — multi-level constraint following
+    // Job: ftjob-kEvXJdrvKJ0kuD6VXcNsJ067 (status: succeeded, 60 arch + 20 IF pairs)
+    'ft:gpt-4o-mini-2024-07-18:personal:mother-v81-arch-if-ciclo81:DEWl6cWa': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
   },
   mistral: { 'mistral-small-latest': { input: 0.10 / 1_000_000, output: 0.30 / 1_000_000 } },
 };
@@ -122,14 +127,28 @@ export function getComplexReasoningModelOverride(query: string): string | null {
   return null;
 }
 
-// Ciclo 81: Fine-tuned model selector for architecture queries — DEW7PUMv ACTIVATED
+// Ciclo 82: Fine-tuned model selector for architecture queries — DEWl6cWa ACTIVATED (upgraded)
 // Scientific basis: SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — self-play architecture DPO
 // Internal Consistency (Liang et al., arXiv:2407.14507) — architecture self-knowledge alignment
-// Job: ftjob-HoC6M3rVDBb2QOabPTihxM10 (succeeded, 35760 tokens, model: DEW7PUMv)
+// FollowBench (Jiang et al., arXiv:2310.20410) — multi-level constraint following
+// Job: ftjob-kEvXJdrvKJ0kuD6VXcNsJ067 (succeeded, 80 pairs: 60 arch + 20 IF, model: DEWl6cWa)
 export function getArchitectureModelOverride(query: string): string | null {
   const archIndicators = /\b(pipeline|camadas|layers|Guardian|Self.Consistency|Constitutional|Faithfulness|PRM|Long CoT|Depth|G.Eval|SRP|core\.ts|intelligence\.ts|adaptive.router|bd_central|Darwin|Godel|AWAKE|MCC|benchmark|HELM|fine.tuning.*pipeline|deploy.*Cloud Run|commit|repositorio|repository|modulo|module|arquitetura|architecture|como.*MOTHER.*funciona|how.*MOTHER.*works|quantas camadas|how many layers)\b/i;
   if (archIndicators.test(query)) {
-    return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v78-architecture-ciclo80:DEW7PUMv';
+    return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v81-arch-if-ciclo81:DEWl6cWa';
+  }
+  return null;
+}
+
+// Ciclo 82: Fine-tuned model selector for instruction-following queries — DEWl6cWa ACTIVATED
+// Scientific basis: IFEval (Zhou et al., arXiv:2311.07911) — verifiable instruction following benchmark
+// FollowBench (Jiang et al., arXiv:2310.20410) — multi-level fine-grained constraint following
+// High-Precision Reward (arXiv:2601.04954) — verifiable hard constraints outperform soft preferences
+// Job: ftjob-kEvXJdrvKJ0kuD6VXcNsJ067 (succeeded, 80 pairs: 60 arch + 20 IF, model: DEWl6cWa)
+export function getInstructionFollowingModelOverride(query: string): string | null {
+  const ifIndicators = /\b(liste exatamente|list exactly|responda (SIM|NAO|sim|nao|YES|NO)|em ordem alfabetica|in alphabetical order|cite \d+|list \d+|numere|number the|formato (JSON|XML|CSV|markdown)|format as|use bullet|use bullets|sem introducao|without introduction|apenas|only|somente|exactly \d+|exatamente \d+|palavras|words|linhas|lines|caracteres|characters|resposta curta|short answer|uma palavra|one word|duas palavras|two words|tres palavras|three words|em uma frase|in one sentence|em duas frases|in two sentences)\b/i;
+  if (ifIndicators.test(query)) {
+    return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v81-arch-if-ciclo81:DEWl6cWa';
   }
   return null;
 }

@@ -19,7 +19,7 @@
  * Expected improvement: median latency 12s → 1.2s (-90%) for simple queries (60% of traffic)
  */
 
-import { getIdentityModelOverride, getFaithfulnessModelOverride, getDepthModelOverride, getComplexReasoningModelOverride, getArchitectureModelOverride } from './intelligence';
+import { getIdentityModelOverride, getFaithfulnessModelOverride, getDepthModelOverride, getComplexReasoningModelOverride, getArchitectureModelOverride, getInstructionFollowingModelOverride } from './intelligence';
 
 export type RoutingTier = 'TIER_1' | 'TIER_2' | 'TIER_3' | 'TIER_4';
 
@@ -187,11 +187,12 @@ export function buildRoutingDecision(query: string, availableProviders?: Set<str
 
   const config = tierConfigs[tier];
 
-  // Ciclo 80: DPO model overrides — activate fine-tuned models for specific dimensions
+  // Ciclo 80-82: DPO model overrides — activate fine-tuned models for specific dimensions
   // Scientific basis: Rafailov et al. (arXiv:2305.18290, NeurIPS 2023) DPO
   // SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — identity alignment
   // Context-DPO (Bi et al., arXiv:2412.15280, ACL 2025) — faithfulness
-  const dpoOverride = getIdentityModelOverride(query) ?? getFaithfulnessModelOverride(query) ?? getDepthModelOverride(query) ?? getComplexReasoningModelOverride(query) ?? getArchitectureModelOverride(query);
+  // IFEval (Zhou et al., arXiv:2311.07911) + FollowBench (Jiang et al., arXiv:2310.20410) — instruction following
+  const dpoOverride = getIdentityModelOverride(query) ?? getFaithfulnessModelOverride(query) ?? getDepthModelOverride(query) ?? getComplexReasoningModelOverride(query) ?? getArchitectureModelOverride(query) ?? getInstructionFollowingModelOverride(query);
   if (dpoOverride) {
     config.primaryModel = dpoOverride;
     config.primaryProvider = 'openai';
