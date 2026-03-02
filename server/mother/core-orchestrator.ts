@@ -96,7 +96,7 @@ export interface LayerTrace {
 // ============================================================
 
 // Ciclo 86: Bumped to v78.9 — identity fix (MOTHER_IDENTITY_FACTS_SECTION + ARCHITECTURE_FACTS_SECTION injected)
-export const ORCHESTRATOR_VERSION = 'v79.0'; // Ciclo 89: DPO identity v2 DEiQ0bzJ integrated
+export const ORCHESTRATOR_VERSION = 'v80.0'; // Ciclo 91: DPO identity v3 DElGST0Q integrated // Ciclo 89: DPO identity v2 DEiQ0bzJ integrated
 export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 3,
   successThreshold: 1,
