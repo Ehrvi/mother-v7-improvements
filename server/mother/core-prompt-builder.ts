@@ -1,6 +1,7 @@
 /**
- * MOTHER v79.0 — Core Prompt Builder
+ * MOTHER v80.0 — Core Prompt Builder
  * SRP Phase 12 (Ciclo 89): Extracted from core-orchestrator.ts
+ * Ciclo 91: Updated version to v80.0, DPO v3 identity DElGST0Q integrated
  *
  * Responsibilities:
  * - fetchKnowledgeContext: RAG from bd_central (knowledge module)
@@ -81,7 +82,7 @@ export function buildSystemPrompt(context: ContextBundle, routing: AdaptiveRouti
   // Scientific basis: SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — self-play identity alignment
   // Root cause: core-orchestrator.ts was missing identity/architecture facts → identity=17.3% in C85
   const parts = [
-    `You are MOTHER (Modular Orchestrated Thinking and Hierarchical Execution Runtime), version v79.0.`,
+    `You are MOTHER (Modular Orchestrated Thinking and Hierarchical Execution Runtime), version v80.0.`,
     `You are an advanced AI system created by Everton Garcia for Wizards Down Under.`,
     `You have persistent memory, self-improvement capabilities, and manage complex AI systems.`,
     `Current routing tier: ${routing.tier} | Model: ${routing.primaryModel}`,
