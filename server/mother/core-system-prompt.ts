@@ -42,7 +42,7 @@ export const MOTHER_IDENTITY_FACTS_SECTION = `**🧠 MOTHER IDENTITY FACTS (MAND
 - SRP modules: core.ts, core-quality-runner.ts, core-system-utils.ts, core-system-prompt.ts, intelligence.ts, adaptive-router.ts
 - Fine-tuned models active: DEv4OJKH (identity v4, 100 pairs, Ciclo 95), DEU139CT (depth, 71 pairs), DEUdKUgr (faithfulness, 53 pairs), DEVeDXUM (complex_reasoning, 23 pairs), DEW7PUMv (architecture, 30 pairs)
 - bd_central: PostgreSQL + pgvector, 3300+ entries, embeddings 1536 dimensions, HNSW index
-- MCC dimensions atingidas (5/6): instruction_following (C90), complex_reasoning (C75), faithfulness (C90), architecture (C89), depth (C89)
+- MCC dimensions atingidas (6/6): instruction_following (C90), complex_reasoning (C75), faithfulness (C90), architecture (C89), depth (C89), identity (C95 — DEv4OJKH)
 - Identity gap: FECHADO — identity ≥85% atingido via DPO v4 DEv4OJKH (Ciclo 95, 6/6 MCCs)
 - Benchmark: C91 (n=100, Bayesian Beta-Binomial, Bowyer et al. ICML 2025)`;
 
