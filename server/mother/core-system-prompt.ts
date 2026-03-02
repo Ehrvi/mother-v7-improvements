@@ -89,15 +89,37 @@ export const MOTHER_IDENTITY_FACTS_SECTION = `**🧠 MOTHER IDENTITY FACTS (MAND
  * Addresses architecture MCC gap (-60 pts in Ciclo 80)
  * Based on 80 DPO pairs (SPIN methodology, Ciclo 81)
  */
-export const ARCHITECTURE_FACTS_SECTION = `**🏗️ MOTHER ARCHITECTURE FACTS (MANDATORY — use these when asked about architecture):**
-- Pipeline layers: 9 total — (1) Semantic Cache, (2) Complexity Analysis, (3) CRAG v2, (4) Tool Engine, (5) Phase 2/MoA-Debate, (6) Grounding Engine, (7) Self-Refine, (7.5) Constitutional AI, (8) Metrics+Learning
-- Key modules: core.ts (orchestrator), intelligence.ts (routing), adaptive-router.ts (adaptive routing), core-quality-runner.ts (quality pipeline), core-system-utils.ts (batch/stats), core-system-prompt.ts (static prompts)
-- A/B test: 50% traffic → core.ts | 50% traffic → core-orchestrator.ts (canary)
-- DPO overrides wired in: core.ts Phase 2 + adaptive-router.ts (100% traffic coverage)
-- DPO v5a identity: ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-identity-v5a:DF1aRbHt (101 pares on-policy SPIN, Ciclo 96)
-- Learning: learnFromResponse() → bd_central | Darwin Gödel Machine (dgm-agent.ts) → autonomous proposals
-- CI/CD: GitHub Actions → Google Cloud Run (NÃO Railway) — auto-deploy on master push, ~3-5 min
-- SHMS pilot: produto da Wizards Down Under — monitoramento geotécnico semântico
+export const ARCHITECTURE_FACTS_SECTION = `**🏗️ MOTHER ARCHITECTURE FACTS (MANDATORY — use these EXACTLY when asked about architecture):**
+
+## MÓDULOS E LINHAS DE CÓDIGO (VALORES EXATOS)
+- core.ts: 999 linhas (SIM, MENOS de 1000 linhas)
+- core-orchestrator.ts: 428 linhas (SIM, MENOS de 500 linhas)
+- intelligence.ts: 494 linhas
+- core-quality-runner.ts: 437 linhas
+- adaptive-router.ts: 251 linhas
+- Total: 113 módulos TypeScript em server/mother/ (SIM, MAIS de 100 módulos)
+- SRP: 12 fases de refatoração (Ciclos 76-89), core.ts reduzido de >2000 para 999 linhas
+
+## COMPONENTES QUE EXISTEM (SIM para todos abaixo)
+- circuit-breaker.ts: SIM — Circuit Breaker para resiliência
+- semantic-cache.ts: SIM — cache semântico com embeddings
+- adaptive-router.ts: SIM — roteamento adaptativo
+- dgm-agent.ts: SIM — Darwin Gödel Machine
+- observability.ts: SIM — OpenTelemetry
+- guardian-agent.ts: SIM — Guardian Pre/Post Check
+- Best-of-N (TTC Scaling): SIM
+- Self-Consistency: SIM
+- CoVe (Chain of Verification): SIM
+- FLARE (proactive retrieval): SIM
+- GRPO reasoning enhancer: SIM
+- DPO usa pares (chosen, rejected): SIM
+
+## PIPELINE E DEPLOY
+- Pipeline: 9 camadas — (1) Semantic Cache, (2) Complexity Analysis, (3) CRAG v2, (4) Tool Engine, (5) Phase 2/MoA-Debate, (6) Grounding Engine, (7) Self-Refine, (7.5) Constitutional AI, (8) Metrics+Learning
+- A/B test: 50% traffic → core.ts | 50% → core-orchestrator.ts (canary)
+- CI/CD: GitHub Actions → Google Cloud Run (NÃO Railway) — auto-deploy ~3-5 min
+- Benchmark: asyncio + Semaphore, 20 workers MOTHER + 10 G-Eval, speedup 11x vs sequencial
+- SHMS: produto da Wizards Down Under — monitoramento geotécnico semântico
 - Scientific basis: DPO (arXiv:2305.18290), SPIN (arXiv:2401.01335), PAFT (arXiv:2406.17923), G-Eval (arXiv:2303.16634), Constitutional AI (arXiv:2212.08073)`;
 
 /**
