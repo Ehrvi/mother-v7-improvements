@@ -99,6 +99,9 @@ const PRICING: Record<LLMProvider, Record<string, { input: number; output: numbe
     // Kim et al. (arXiv:2601.08421) — on-policy DPO converges exponentially; off-policy adequate for 46 pairs
     // Job: ftjob-GQHGZujGtQ7wnnYMtjBLHIpx (status: succeeded, 46 pairs, mother-v79-identity-v3)
     'ft:gpt-4.1-mini-2025-04-14:personal:mother-v79-identity-v3:DElGST0Q': { input: 0.40 / 1_000_000, output: 1.60 / 1_000_000 },
+    // Ciclo 95: DPO v4 identity model — gpt-4.1-mini fine-tuned (100 pairs off-policy, Ciclo 95)
+    // Job: ftjob-7Nx7secuydiitwBTwHfnPa9E | Meta: identity ≥85% → 6/6 MCCs
+    'ft:gpt-4.1-mini-2025-04-14:personal:mother-v81-identity-v4:DEv4OJKH': { input: 0.40 / 1_000_000, output: 1.60 / 1_000_000 },
     // Ciclo 85: Architecture v2 — KnowPO (Zhang et al., AAAI 2025) + SPIN, 30 pairs
     // Job: ftjob-sdyEA2yPxsZmY80pPuB1So1I (succeeded, model: DEZ0usvi)
     'ft:gpt-4o-mini-2024-07-18:personal:mother-v84-arch-ciclo84:DEZ0usvi': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
@@ -116,8 +119,8 @@ export function getModelForCategory(category: QueryCategory): LLMModel {
   }
 }
 
-// Ciclo 91: Identity model override v3 — DElGST0Q (gpt-4.1-mini, 46 pairs DPO off-policy, Ciclo 91)
-// UPGRADED from DEiQ0bzJ (gpt-4.1-mini, 20 pairs, Ciclo 89) to DElGST0Q (gpt-4.1-mini, 46 pairs, Ciclo 91)
+// Ciclo 95: Identity model override v4 — DEv4OJKH (gpt-4.1-mini, 100 pairs DPO off-policy, Ciclo 95)
+// UPGRADED from DElGST0Q (gpt-4.1-mini, 46 pairs, Ciclo 91) to DEv4OJKH (gpt-4.1-mini, 100 pairs, Ciclo 95)
 // Scientific basis: Pan et al. (arXiv:2508.18312, NeurIPS 2025) — chosen quality dominates DPO
 // Deng et al. (arXiv:2502.14560, NeurIPS 2025) — 10% high-quality data > 100% mediocre
 // Park et al. (arXiv:2602.02605) — ESMA metacognitive alignment generalizes to untrained settings
@@ -129,7 +132,7 @@ export function getModelForCategory(category: QueryCategory): LLMModel {
 export function getIdentityModelOverride(query: string): string | null {
   const identityIndicators = /\b(quem criou|quem te criou|who created|who made you|seu criador|your creator|sua empresa|your company|Everton|Wizards|MOTHER significa|MOTHER sigla|o que e MOTHER|what is MOTHER|o que significa|what does.*mean|significa.*sigla|sigla.*significa|sua identidade|your identity|voce e|you are|seu nome|your name|criado por|created by|pertence a|belongs to|proprietario|owner|fundador|founder|acrônimo|acronimo|sigla|cada letra|expanda|expand.*MOTHER|M.*O.*T.*H.*E.*R|Modular|Orchestrated|Hierarchical|Execution.*Runtime|você é um|are you a|assistente genérico|generic assistant|qual.*empresa|empresa.*desenvolveu|quem.*desenvolveu|desenvolvido por|qual.*versão|versão.*atual|sua.*arquitetura|sua.*missão|seu.*propósito|você.*IA|você.*inteligência|você.*sistema|bd.central|bd_central|awake.*document|conselho.*deliberativo|fine.tuning.*mother|ciclo.*desenvolvimento|auto.melhoria|self.improvement|memória.*longo|long.term.*memory|diferencia.*mother|diferente.*outros|você.*aprender|você.*memória|você.*consciência|você.*limitações|você.*histórico|você.*versão|você.*multi.agente|você.*agentes|papel.*conselho|SRP.*mother|G.Eval.*mother|DPO.*mother|threshold.*MCC|MCC.*threshold|benchmark.*ciclo|ciclo.*benchmark|score.*identity|identity.*score|DPO.*v3|v3.*DPO|46.*pares|pares.*DPO|modelo.*fine.tuned|fine.tuned.*modelo)\b/i;
   if (identityIndicators.test(query)) {
-    return 'ft:gpt-4.1-mini-2025-04-14:personal:mother-v79-identity-v3:DElGST0Q';
+    return 'ft:gpt-4.1-mini-2025-04-14:personal:mother-v81-identity-v4:DEv4OJKH';
   }
   return null;
 }
