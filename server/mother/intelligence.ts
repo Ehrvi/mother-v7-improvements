@@ -110,6 +110,7 @@ const PRICING: Record<LLMProvider, Record<string, { input: number; output: numbe
     // Scientific basis: FactScore (Min et al., arXiv:2305.14251) — atomic claim faithfulness
     // Job: ftjob-BmD7j23UMbuoSKwqu9qU2vyT (succeeded, 29905 tokens)
     'ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-v6b-final:DF7ka6rw': { input: 0.40 / 1_000_000, output: 1.60 / 1_000_000 },
+    'ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v7:DFEelufT': { input: 0.40 / 1_000_000, output: 1.60 / 1_000_000 },
     // Ciclo 85: Architecture v2 — KnowPO (Zhang et al., AAAI 2025) + SPIN, 30 pairs
     // Job: ftjob-sdyEA2yPxsZmY80pPuB1So1I (succeeded, model: DEZ0usvi)
     'ft:gpt-4o-mini-2024-07-18:personal:mother-v84-arch-ciclo84:DEZ0usvi': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
@@ -127,22 +128,21 @@ export function getModelForCategory(category: QueryCategory): LLMModel {
   }
 }
 
-// Ciclo 100: Identity+IF model override v6a — DF7YqjbF (gpt-4.1-mini, 28 pairs DPO v6a, Ciclo 99)
-// UPGRADED from DF1aRbHt (v5a, 101 pairs SPIN) to DF7YqjbF (v6a, 28 pairs format compliance)
-// Scientific basis: IFEval (Zhou et al., arXiv:2311.07911) — format compliance DPO
-// Scientific basis: Pan et al. (arXiv:2508.18312, NeurIPS 2025) — chosen quality dominates DPO
-// Deng et al. (arXiv:2502.14560, NeurIPS 2025) — 10% high-quality data > 100% mediocre
-// Park et al. (arXiv:2602.02605) — ESMA metacognitive alignment generalizes to untrained settings
-// Kale et al. (ACL TrustNLP 2025) — LLM self-knowledge via consistency in generation-classification
-// Kim et al. (arXiv:2601.08421) — on-policy DPO converges exponentially; off-policy adequate for 46 pairs
-// Bowyer et al. (arXiv:2503.01747): n=100 benchmark confirmed identity gap at 70.4% (C90)
-// Job: ftjob-GQHGZujGtQ7wnnYMtjBLHIpx (succeeded, 46 pairs: thresholds + ciclos + MOTHER vs GPT-4 + componentes)
-// Expected impact: identity 70.4% → ≥85.0% (MCC) — 6/6 MCCs target
+// Ciclo 103: Identity+IF model override v7 — DFEelufT (gpt-4.1-mini, 185 pairs DPO v7 SPIN on-policy, Ciclo 102)
+// UPGRADED from DF7YqjbF (v6a, 28 pairs) to DFEelufT (v7, 185 pairs SPIN on-policy)
+// Scientific basis: SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — self-play fine-tuning on-policy
+// Scientific basis: Step-DPO (Lai et al., arXiv:2406.18629) — step-level reasoning alignment
+// Scientific basis: G-Eval (Liu et al., arXiv:2303.16634) — LLM-as-judge evaluation framework
+// Scientific basis: SimPO (Meng et al., arXiv:2405.14734) — reference-free preference optimization
+// Scientific basis: IFEval (Zhou et al., arXiv:2311.07911) — verifiable instruction following
+// Job: ftjob-DE2XZwkd7sX3WN0jFzSDGanc (succeeded, 185 pairs SPIN on-policy, 199518 tokens)
+// C101 gaps: identity=0.90✅, IF=0.58❌, arch=0.70❌, CR=0.28❌, depth=0.54❌
+// Expected impact: 2/6 MCCs → 6/6 MCCs (all 4 failing dimensions targeted)
 export function getIdentityModelOverride(query: string): string | null {
   const identityIndicators = /\b(quem criou|quem te criou|who created|who made you|seu criador|your creator|sua empresa|your company|Everton|Wizards|MOTHER significa|MOTHER sigla|o que e MOTHER|what is MOTHER|o que significa|what does.*mean|significa.*sigla|sigla.*significa|sua identidade|your identity|voce e|you are|seu nome|your name|criado por|created by|pertence a|belongs to|proprietario|owner|fundador|founder|acrônimo|acronimo|sigla|cada letra|expanda|expand.*MOTHER|M.*O.*T.*H.*E.*R|Modular|Orchestrated|Hierarchical|Execution.*Runtime|você é um|are you a|assistente genérico|generic assistant|qual.*empresa|empresa.*desenvolveu|quem.*desenvolveu|desenvolvido por|qual.*versão|versão.*atual|sua.*arquitetura|sua.*missão|seu.*propósito|você.*IA|você.*inteligência|você.*sistema|bd.central|bd_central|awake.*document|conselho.*deliberativo|fine.tuning.*mother|ciclo.*desenvolvimento|auto.melhoria|self.improvement|memória.*longo|long.term.*memory|diferencia.*mother|diferente.*outros|você.*aprender|você.*memória|você.*consciência|você.*limitações|você.*histórico|você.*versão|você.*multi.agente|você.*agentes|papel.*conselho|SRP.*mother|G.Eval.*mother|DPO.*mother|threshold.*MCC|MCC.*threshold|benchmark.*ciclo|ciclo.*benchmark|score.*identity|identity.*score|DPO.*v3|v3.*DPO|46.*pares|pares.*DPO|modelo.*fine.tuned|fine.tuned.*modelo)\b/i;
   if (identityIndicators.test(query)) {
-    // v6a: better format compliance for identity + IF queries
-    return 'ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-v6a-final:DF7YqjbF';
+    // v7: 185 SPIN on-policy pairs covering identity, IF, CR, arch, depth
+    return 'ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v7:DFEelufT';
   }
   return null;
 }
@@ -165,7 +165,8 @@ export function getFaithfulnessModelOverride(query: string): string | null {
 export function getComplexReasoningModelOverride(query: string): string | null {
   const crIndicators = /\b(calcul|derive|prove|demonstr|gradient|backprop|chain rule|KL divergence|DPO.*loss|PPO.*clip|reward.*model|RLHF.*pipeline|passo a passo|step.by.step|raciocin|reasoning|multi.step|como funciona|explain.*mechanism|por que|why does|matematica|mathematics|equacao|equation|formula|teorema|theorem|convergencia|convergence)\b/i;
   if (crIndicators.test(query)) {
-    return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v79-complex-reasoning-ciclo79:DEVeDXUM';
+    // v7: upgraded from DEVeDXUM (C81) to DFEelufT (C103) — Step-DPO reasoning pairs
+    return 'ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v7:DFEelufT';
   }
   return null;
 }
@@ -181,7 +182,8 @@ export function getArchitectureModelOverride(query: string): string | null {
   // Narrow, architecture-specific keywords only — avoid overlap with IF keywords
   const archIndicators = /\b(pipeline.*camadas|camadas.*pipeline|quantas camadas|how many layers|Guardian.*MOTHER|Self.Consistency.*MOTHER|Constitutional.*AI.*MOTHER|SRP.*Phase|core-quality-runner|core-learning-builder|core-system-prompt|core-system-utils|core-cache-writer|Darwin.*Godel|Godel.*Machine|dgm-agent|AWAKE.*versão|MCC.*score|benchmark.*MOTHER|fine.tuning.*pipeline|deploy.*Cloud Run|adaptive.router|intelligence\.ts.*MOTHER|arquitetura.*MOTHER|architecture.*MOTHER|como.*MOTHER.*funciona|how.*MOTHER.*works|9 camadas|nine layers|modulos.*SRP|SRP.*modulos|DPO.*pipeline|transformer.*arquitetura|attention.*mechanism|embedding.*vetorial|context.*window|quantizacao.*modelo|distilacao.*modelo|LoRA.*fine.tuning|RLHF.*pipeline|reward.*model.*training|PPO.*clip|KL.*divergence.*DPO)\b/i;
   if (archIndicators.test(query)) {
-    return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v84-arch-ciclo84:DEZ0usvi';
+    // v7: upgraded from DEZ0usvi (C84) to DFEelufT (C103) — architecture pairs
+    return 'ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v7:DFEelufT';
   }
   return null;
 }
@@ -196,7 +198,8 @@ export function getArchitectureModelOverride(query: string): string | null {
 export function getInstructionFollowingModelOverride(query: string): string | null {
   const ifIndicators = /\b(liste exatamente|list exactly|responda (SIM|NAO|sim|nao|YES|NO)|em ordem alfabetica|in alphabetical order|cite \d+|list \d+|numere|number the|formato (JSON|XML|CSV|markdown)|format as|use bullet|use bullets|sem introducao|without introduction|apenas|only|somente|exactly \d+|exatamente \d+|palavras|words|linhas|lines|caracteres|characters|resposta curta|short answer|uma palavra|one word|duas palavras|two words|tres palavras|three words|em uma frase|in one sentence|em duas frases|in two sentences)\b/i;
   if (ifIndicators.test(query)) {
-    return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v82-if-ciclo82:DEXNfTCC';
+    // v7: upgraded from DEXNfTCC (C82) to DFEelufT (C103) — IF pairs
+    return 'ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v7:DFEelufT';
   }
   return null;
 }
@@ -206,7 +209,8 @@ export function getInstructionFollowingModelOverride(query: string): string | nu
 export function getDepthModelOverride(query: string): string | null {
   const depthIndicators = /\b(RLHF|PPO|KL divergence|reward model|piezômetro|recalque|adensamento|Terzaghi|attention mechanism|sqrt.*d_k|fine.tuning|SFT|GRPO|Constitutional AI|Self-Consistency|Process Reward|Long CoT)\b/i;
   if (depthIndicators.test(query)) {
-    return 'ft:gpt-4o-mini-2024-07-18:personal:mother-v78-depth-ciclo77:DEU139CT';
+    // v7: upgraded from DEU139CT (C77) to DFEelufT (C103) — depth pairs
+    return 'ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v7:DFEelufT';
   }
   return null;
 }
