@@ -102,6 +102,14 @@ const PRICING: Record<LLMProvider, Record<string, { input: number; output: numbe
     // Ciclo 95: DPO v4 identity model — gpt-4.1-mini fine-tuned (100 pairs off-policy, Ciclo 95)
     // Job: ftjob-7Nx7secuydiitwBTwHfnPa9E | Meta: identity ≥85% → 6/6 MCCs
     'ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-identity-v5a:DF1aRbHt': { input: 0.40 / 1_000_000, output: 1.60 / 1_000_000 },
+    // Ciclo 100: DPO v6a IF model — 28 pairs preferred_output format, Ciclo 99
+    // Scientific basis: IFEval (Zhou et al., arXiv:2311.07911) — format compliance
+    // Job: ftjob-cXue5c7E1eNjcS69xVHcwRLh (succeeded, 23760 tokens)
+    'ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-v6a-final:DF7YqjbF': { input: 0.40 / 1_000_000, output: 1.60 / 1_000_000 },
+    // Ciclo 100: DPO v6b Faithfulness model — 20 pairs preferred_output format, Ciclo 99
+    // Scientific basis: FactScore (Min et al., arXiv:2305.14251) — atomic claim faithfulness
+    // Job: ftjob-BmD7j23UMbuoSKwqu9qU2vyT (succeeded, 29905 tokens)
+    'ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-v6b-final:DF7ka6rw': { input: 0.40 / 1_000_000, output: 1.60 / 1_000_000 },
     // Ciclo 85: Architecture v2 — KnowPO (Zhang et al., AAAI 2025) + SPIN, 30 pairs
     // Job: ftjob-sdyEA2yPxsZmY80pPuB1So1I (succeeded, model: DEZ0usvi)
     'ft:gpt-4o-mini-2024-07-18:personal:mother-v84-arch-ciclo84:DEZ0usvi': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
@@ -119,8 +127,9 @@ export function getModelForCategory(category: QueryCategory): LLMModel {
   }
 }
 
-// Ciclo 95: Identity model override v4 — DEv4OJKH (gpt-4.1-mini, 100 pairs DPO off-policy, Ciclo 95)
-// UPGRADED from DElGST0Q (gpt-4.1-mini, 46 pairs, Ciclo 91) to DEv4OJKH (gpt-4.1-mini, 100 pairs, Ciclo 95)
+// Ciclo 100: Identity+IF model override v6a — DF7YqjbF (gpt-4.1-mini, 28 pairs DPO v6a, Ciclo 99)
+// UPGRADED from DF1aRbHt (v5a, 101 pairs SPIN) to DF7YqjbF (v6a, 28 pairs format compliance)
+// Scientific basis: IFEval (Zhou et al., arXiv:2311.07911) — format compliance DPO
 // Scientific basis: Pan et al. (arXiv:2508.18312, NeurIPS 2025) — chosen quality dominates DPO
 // Deng et al. (arXiv:2502.14560, NeurIPS 2025) — 10% high-quality data > 100% mediocre
 // Park et al. (arXiv:2602.02605) — ESMA metacognitive alignment generalizes to untrained settings
@@ -132,7 +141,8 @@ export function getModelForCategory(category: QueryCategory): LLMModel {
 export function getIdentityModelOverride(query: string): string | null {
   const identityIndicators = /\b(quem criou|quem te criou|who created|who made you|seu criador|your creator|sua empresa|your company|Everton|Wizards|MOTHER significa|MOTHER sigla|o que e MOTHER|what is MOTHER|o que significa|what does.*mean|significa.*sigla|sigla.*significa|sua identidade|your identity|voce e|you are|seu nome|your name|criado por|created by|pertence a|belongs to|proprietario|owner|fundador|founder|acrônimo|acronimo|sigla|cada letra|expanda|expand.*MOTHER|M.*O.*T.*H.*E.*R|Modular|Orchestrated|Hierarchical|Execution.*Runtime|você é um|are you a|assistente genérico|generic assistant|qual.*empresa|empresa.*desenvolveu|quem.*desenvolveu|desenvolvido por|qual.*versão|versão.*atual|sua.*arquitetura|sua.*missão|seu.*propósito|você.*IA|você.*inteligência|você.*sistema|bd.central|bd_central|awake.*document|conselho.*deliberativo|fine.tuning.*mother|ciclo.*desenvolvimento|auto.melhoria|self.improvement|memória.*longo|long.term.*memory|diferencia.*mother|diferente.*outros|você.*aprender|você.*memória|você.*consciência|você.*limitações|você.*histórico|você.*versão|você.*multi.agente|você.*agentes|papel.*conselho|SRP.*mother|G.Eval.*mother|DPO.*mother|threshold.*MCC|MCC.*threshold|benchmark.*ciclo|ciclo.*benchmark|score.*identity|identity.*score|DPO.*v3|v3.*DPO|46.*pares|pares.*DPO|modelo.*fine.tuned|fine.tuned.*modelo)\b/i;
   if (identityIndicators.test(query)) {
-    return 'ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-identity-v5a:DF1aRbHt';
+    // v6a: better format compliance for identity + IF queries
+    return 'ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-v6a-final:DF7YqjbF';
   }
   return null;
 }
