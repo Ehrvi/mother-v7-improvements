@@ -21,5 +21,5 @@ export const ENV = {
   // Ciclo 72: DPO fine-tuned model for identity/architecture queries (NC-IDENTITY-001 + NC-ARCHITECTURE-001)
   // Scientific basis: DPO (Rafailov et al., arXiv:2305.18290, NeurIPS 2023)
   // Job: ftjob-CSfkN1jaB2KwqANkgsVzTEFD (status: succeeded, 2026-03-01)
-  dpoFineTunedModel: process.env.DPO_FINE_TUNED_MODEL ?? 'ft:gpt-4o-mini-2024-07-18:personal:mother-v76-identity-architecture-ciclo70:DEPn6tAD',
+  dpoFineTunedModel: process.env.DPO_FINE_TUNED_MODEL ?? 'ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v7:DFEelufT',
 };
