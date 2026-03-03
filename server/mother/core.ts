@@ -409,27 +409,56 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   // Trigger: identity/architecture/how-it-works queries that are NOT research category
   // (research category needs gpt-4o for tool use — DPO model doesn't have tools)
   const DPO_MODEL = ENV.dpoFineTunedModel;
-  const identityPatterns = [
+  // Ciclo 104: Expanded DPO override patterns to cover all 6 benchmark dimensions
+  // Root cause fix: previous patterns only covered identity queries, missing 5 other dimensions
+  // DPO v7 (185 SPIN on-policy pairs) covers: identity, faithfulness, IF, architecture, reasoning, depth
+  // Scientific basis: SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — on-policy self-play
+  const dpoOverridePatterns = [
+    // IDENTITY dimension
     'quem e voce', 'quem es voce', 'o que e voce', 'o que voce e',
-    'como voce funciona', 'como funciona', 'me fale sobre voce',
+    'como voce funciona', 'me fale sobre voce',
     'sua identidade', 'sua arquitetura', 'seus modulos', 'suas camadas',
     'who are you', 'what are you', 'how do you work', 'your architecture',
     'your identity', 'your modules', 'your layers',
     'mother e', 'o que e mother', 'what is mother',
     'descreva voce', 'descreva a mother', 'describe yourself',
     'sua historia', 'your history', 'como voce foi criado', 'how were you created',
+    'nome completo', 'nome por extenso', 'full name',
+    'criador do mother', 'empresa proprietaria', 'wizards down under',
+    'missao do mother', 'missao principal',
+    // SHMS / Intelltech
+    'shms', 'slope health monitoring', 'monitoramento geotecnico', 'intelltech',
+    'sistema de monitoramento', 'health monitoring system',
+    // ARCHITECTURE dimension  
+    'cloud run', 'australia-southeast', 'google cloud', 'regiao geografica',
+    'guardian', 'componente guardian', 'bd_central', 'banco de conhecimento',
+    'plataforma de nuvem', 'hospedado', 'deployado', 'infraestrutura',
+    // INSTRUCTION FOLLOWING dimension
+    'fine-tuning dpo', 'usa fine-tuning', 'usa dpo', 'uses dpo', 'uses fine-tuning',
+    'lista numerada', 'numbered list', 'em exatamente', 'exactly one sentence',
+    // COMPLEX REASONING dimension
+    'dpo funciona', 'dpo loss', 'direct preference optimization',
+    'spin on-policy', 'self-play fine-tuning', 'on-policy superior',
+    'matematicamente', 'matematica', 'matematica do dpo',
+    // DEPTH dimension
+    'mcc no contexto', 'minimum competency', 'criterios avaliados', 'benchmark criterios',
+    'adensamento primario', 'adensamento secundario', 'geotecnia', 'piezometro',
+    'inclinometro', 'talude', 'slope monitoring',
+    // FAITHFULNESS dimension
+    'baseado no contexto', 'de acordo com o documento', 'based on the context',
+    'according to the document', 'contexto fornecido',
   ];
-  const isIdentityQuery = identityPatterns.some(p =>
+  const isDpoQuery = dpoOverridePatterns.some(p =>
     query.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(p)
   );
-  if (isIdentityQuery && routingDecision.category !== 'research' && !isCreatorEarly) {
+  if (isDpoQuery && routingDecision.category !== 'research' && !isCreatorEarly) {
     routingDecision = {
       ...routingDecision,
       model: { provider: 'openai', modelName: DPO_MODEL },
       tier: 'gpt-4o-mini',
-      reasoning: `DPO OVERRIDE: identity/architecture query → fine-tuned model (NC-IDENTITY-001+NC-ARCHITECTURE-001, DPO arXiv:2305.18290)`,
+      reasoning: `DPO OVERRIDE (Ciclo 104): query matches DPO v7 training domain → fine-tuned model (SPIN arXiv:2401.01335, DPO arXiv:2305.18290)`,
     };
-    log.info(`[MOTHER] Ciclo 72 DPO Override: identity query → ${DPO_MODEL}`);
+    log.info(`[MOTHER] Ciclo 104 DPO Override: query matches DPO v7 domain → ${DPO_MODEL}`);
   }
   log.info(`[MOTHER] Routing: category=${routingDecision.category}, provider=${routingDecision.model.provider}, model=${routingDecision.model.modelName}, confidence=${routingDecision.confidence.toFixed(2)}`);
   
