@@ -78,7 +78,7 @@ export interface LayerTrace {
 // CONSTANTS
 // ============================================================
 
-export const ORCHESTRATOR_VERSION = 'v76.0';
+export const ORCHESTRATOR_VERSION = 'v78.4';
 export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 3,
   successThreshold: 1,
@@ -628,6 +628,70 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     durationMs: l2.durationMs,
     status: 'ok',
     detail: l2.routing.rationale,
+  });
+
+  // ── Layer 2.5: DPO Override (NC-DPO-ORCHESTRATOR-001) ──────────
+  // CICLO 105 FIX: A/B canary routes 100% of traffic here, bypassing DPO override in core.ts.
+  // This layer replicates the DPO override so fine-tuned model v8e is used for identity/arch queries.
+  // Scientific basis: DPO (Rafailov et al., arXiv:2305.18290, NeurIPS 2023)
+  // Council consensus: DeepSeek-V3 + Claude Sonnet 4.5 + Mistral Large + GPT-4o (04/03/2026)
+  const l25Start = Date.now();
+  const { ENV: ENV_DPO } = await import('../_core/env');
+  if (ENV_DPO.dpoFineTunedModel && !l1.fromCache) {
+    const DPO_PATTERNS = [
+      // IDENTITY dimension
+      'quem e voce', 'quem es voce', 'o que e voce', 'o que voce e',
+      'como voce funciona', 'me fale sobre voce', 'sua identidade',
+      'sua arquitetura', 'seus modulos', 'suas camadas',
+      'who are you', 'what are you', 'how do you work', 'your architecture',
+      'your identity', 'your modules', 'your layers',
+      'mother e', 'o que e mother', 'what is mother',
+      'descreva voce', 'descreva a mother', 'describe yourself',
+      'sua historia', 'your history', 'como voce foi criado', 'how were you created',
+      'nome completo', 'nome por extenso', 'full name',
+      'criador do mother', 'empresa proprietaria', 'wizards down under',
+      'missao do mother', 'missao principal',
+      // SHMS / Intelltech
+      'shms', 'slope health monitoring', 'monitoramento geotecnico', 'intelltech',
+      'sistema de monitoramento', 'health monitoring system',
+      // ARCHITECTURE dimension
+      'cloud run', 'australia-southeast', 'google cloud', 'regiao geografica',
+      'guardian', 'componente guardian', 'bd_central', 'banco de conhecimento',
+      'plataforma de nuvem', 'hospedado', 'deployado', 'infraestrutura',
+      // INSTRUCTION FOLLOWING dimension
+      'fine-tuning dpo', 'usa fine-tuning', 'usa dpo', 'uses dpo', 'uses fine-tuning',
+      'lista numerada', 'numbered list', 'em exatamente', 'exactly one sentence',
+      // COMPLEX REASONING dimension
+      'dpo funciona', 'dpo loss', 'direct preference optimization',
+      'spin on-policy', 'self-play fine-tuning', 'on-policy superior',
+      'matematicamente', 'matematica', 'matematica do dpo',
+      // DEPTH dimension
+      'mcc no contexto', 'minimum competency', 'criterios avaliados', 'benchmark criterios',
+      'adensamento primario', 'adensamento secundario', 'geotecnia', 'piezometro',
+      'inclinometro', 'talude', 'slope monitoring',
+      // FAITHFULNESS dimension
+      'baseado no contexto', 'de acordo com o documento', 'based on the context',
+      'according to the document', 'contexto fornecido',
+    ];
+    const normalizedQuery = req.query.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const isDpoQuery = DPO_PATTERNS.some(p => normalizedQuery.includes(p));
+    if (isDpoQuery) {
+      l2.routing = {
+        ...l2.routing,
+        primaryProvider: 'openai',
+        primaryModel: ENV_DPO.dpoFineTunedModel,
+        useCache: false,
+        rationale: `DPO Override (NC-DPO-ORCHESTRATOR-001 Ciclo 105): query matches DPO v8e domain → ${ENV_DPO.dpoFineTunedModel}`,
+      };
+      console.log(`[Orchestrator] DPO Override ACTIVATED: ${ENV_DPO.dpoFineTunedModel}`);
+    }
+  }
+  layers.push({
+    layer: 2,
+    name: 'DPO Override Check',
+    durationMs: Date.now() - l25Start,
+    status: 'ok',
+    detail: l2.routing.primaryModel.startsWith('ft:') ? `DPO active: ${l2.routing.primaryModel}` : 'DPO not triggered',
   });
 
   // ── Layer 3: Context Assembly ────────────────────────────

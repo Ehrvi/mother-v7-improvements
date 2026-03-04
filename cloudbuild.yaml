@@ -59,7 +59,10 @@ steps:
       # v50.0: Added JWT_SECRET and forge API secrets (fixes 'Zero-length key' auth bug)
       # v74.2: Added GITHUB_TOKEN — enables DGM autonomous-update-job to push code changes
       # Scientific basis: McConnell (2004) Defensive Programming — env config must be explicit
-      - '--set-secrets=DATABASE_URL=mother-db-url:latest,OPENAI_API_KEY=mother-openai-api-key:latest,JWT_SECRET=mother-jwt-secret:latest,BUILT_IN_FORGE_API_URL=mother-forge-api-url:latest,BUILT_IN_FORGE_API_KEY=mother-forge-api-key:latest,ANTHROPIC_API_KEY=mother-anthropic-api-key:latest,GOOGLE_AI_API_KEY=mother-google-ai-api-key:latest,DEEPSEEK_API_KEY=mother-deepseek-api-key:latest,MISTRAL_API_KEY=mother-mistral-api-key:latest,GITHUB_TOKEN=mother-github-token:latest'
+      # v78.4: Ciclo 105 — Added OPENAI_API_KEY_EXTRA_SVCACCT (NC-CLOUDBUILD-001 fix)
+      # Scientific basis: AWAKE V207 Regra 107 — sk-svcacct-... from project 'Extra' is required
+      # to access DPO v8e model in :personal: namespace. Without this, every CI/CD build loses the key.
+      - '--set-secrets=DATABASE_URL=mother-db-url:latest,OPENAI_API_KEY=mother-openai-api-key:latest,JWT_SECRET=mother-jwt-secret:latest,BUILT_IN_FORGE_API_URL=mother-forge-api-url:latest,BUILT_IN_FORGE_API_KEY=mother-forge-api-key:latest,ANTHROPIC_API_KEY=mother-anthropic-api-key:latest,GOOGLE_AI_API_KEY=mother-google-ai-api-key:latest,DEEPSEEK_API_KEY=mother-deepseek-api-key:latest,MISTRAL_API_KEY=mother-mistral-api-key:latest,GITHUB_TOKEN=mother-github-token:latest,OPENAI_API_KEY_EXTRA_SVCACCT=mother-openai-api-key-extra-svcacct:latest'
       # v51.0: Added VITE_APP_ID (fixes 'Session payload missing required fields' auth bug)
       # v69.8: NODE_OPTIONS permanent fix — max-old-space-size=3072 prevents heap OOM
       - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA,VITE_APP_ID=mother-interface,NODE_OPTIONS=--max-old-space-size=3072'
