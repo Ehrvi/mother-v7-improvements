@@ -93,27 +93,33 @@ interface WriteIntent {
 }
 
 function extractWriteIntent(supervisorOutput: string): WriteIntent | null {
-  // Look for code blocks with file path annotations
-  // Pattern: ```typescript\n// file: server/mother/foo.ts\n...content...\n```
+  // Pattern 1: ```typescript\n// file: server/mother/foo.ts\n...content...\n```
   const filePathPattern = /```(?:typescript|javascript|ts|js)\s*\n\/\/\s*file:\s*([^\n]+)\n([\s\S]*?)```/i;
   const match = supervisorOutput.match(filePathPattern);
-
   if (match) {
-    return {
-      filePath: match[1].trim(),
-      content: match[2].trim(),
-    };
+    return { filePath: match[1].trim(), content: match[2].trim() };
   }
 
-  // Fallback: look for explicit write_file markers
+  // Pattern 2: raw // file: annotation followed by content (no backticks)
+  // Handles: [ArchiveNode] Error archiving data: ...\nparams: thread-xxx,,// file: path\n...code...
+  const rawFilePattern = /\/\/\s*file:\s*(server\/[^\n]+\.ts)\n([\s\S]+?)(?:\n\n\n|$)/;
+  const rawMatch = supervisorOutput.match(rawFilePattern);
+  if (rawMatch) {
+    return { filePath: rawMatch[1].trim(), content: rawMatch[2].trim() };
+  }
+
+  // Pattern 3: params: thread-xxx,,// file: path\n...content...
+  const paramsPattern = /params:[^\n]*,,\/\/\s*file:\s*(server\/[^\n]+\.ts)\n([\s\S]+?)(?:\n\n|$)/;
+  const paramsMatch = supervisorOutput.match(paramsPattern);
+  if (paramsMatch) {
+    return { filePath: paramsMatch[1].trim(), content: paramsMatch[2].trim() };
+  }
+
+  // Pattern 4: WRITE_FILE: path\n...content...\nEND_FILE
   const writePattern = /WRITE_FILE:\s*([^\n]+)\n([\s\S]*?)END_FILE/;
   const writeMatch = supervisorOutput.match(writePattern);
-
   if (writeMatch) {
-    return {
-      filePath: writeMatch[1].trim(),
-      content: writeMatch[2].trim(),
-    };
+    return { filePath: writeMatch[1].trim(), content: writeMatch[2].trim() };
   }
 
   return null;
