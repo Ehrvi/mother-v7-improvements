@@ -65,7 +65,10 @@ steps:
       - '--set-secrets=DATABASE_URL=mother-db-url:latest,OPENAI_API_KEY=mother-openai-api-key:latest,JWT_SECRET=mother-jwt-secret:latest,BUILT_IN_FORGE_API_URL=mother-forge-api-url:latest,BUILT_IN_FORGE_API_KEY=mother-forge-api-key:latest,ANTHROPIC_API_KEY=mother-anthropic-api-key:latest,GOOGLE_AI_API_KEY=mother-google-ai-api-key:latest,DEEPSEEK_API_KEY=mother-deepseek-api-key:latest,MISTRAL_API_KEY=mother-mistral-api-key:latest,GITHUB_TOKEN=mother-github-token:latest,OPENAI_API_KEY_EXTRA_SVCACCT=mother-openai-extra-svcacct:latest'
       # v51.0: Added VITE_APP_ID (fixes 'Session payload missing required fields' auth bug)
       # v69.8: NODE_OPTIONS permanent fix — max-old-space-size=3072 prevents heap OOM
-      - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA,VITE_APP_ID=mother-interface,NODE_OPTIONS=--max-old-space-size=3072'
+      # NC-CLOUDBUILD-002 Ciclo 108: DPO_FINE_TUNED_MODEL added permanently
+      # Scientific basis: AWAKE V212 Regra 107 — DPO v8e must survive every CI/CD cycle
+      # Without this, each new revision loses the fine-tuned model and falls back to gpt-4o-mini
+      - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA,VITE_APP_ID=mother-interface,NODE_OPTIONS=--max-old-space-size=3072,DPO_FINE_TUNED_MODEL=ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v8e:DFay6MHy'
 
   # v74.5: DGM-2 FIX — Migrate 100% traffic to new revision after deploy
   # gcloud run deploy does not have --traffic flag; use update-traffic separately

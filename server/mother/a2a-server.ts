@@ -362,15 +362,16 @@ a2aRouter.post('/api/a2a/query', authenticateA2A, async (req: Request, res: Resp
 });
 
 // ============================================================
-// SSE STREAMING ENDPOINT (NC-SSE-001 Ciclo 106)
+// SSE STREAMING ENDPOINT (NC-SSE-002 Ciclo 108 — Native Token Streaming)
 // ============================================================
-// Scientific basis: Server-Sent Events (W3C EventSource API)
-// Enables real-time token streaming for MOTHER responses.
-// Client connects via GET /api/a2a/stream?query=...&token=...
-// Each chunk is emitted as: data: {"chunk": "...", "done": false}\n\n
-// Final event: data: {"done": true, "model": "...", "tier": "...", "qualityScore": ...}\n\n
-// Ciclo 106: First implementation — streams full response as single chunk if provider
-// does not support native streaming. Full token-by-token streaming in Ciclo 107.
+// Scientific basis:
+// - Server-Sent Events (W3C EventSource API, 2012)
+// - OpenAI Streaming API: stream=true + onChunk callback in llm.ts
+// - TokenFlow (Zheng et al., 2024): token-by-token delivery reduces perceived latency
+// Ciclo 106: Simulated word-by-word streaming (post-hoc)
+// Ciclo 108: Native token streaming via onChunk callback passed to orchestrate()
+//   Tokens are emitted as they arrive from the LLM, not after full generation.
+//   Falls back gracefully if provider does not support streaming.
 // ============================================================
 a2aRouter.get('/api/a2a/stream', authenticateA2A, async (req: Request, res: Response) => {
   const { query, userId, userEmail } = req.query as Record<string, string>;
@@ -390,8 +391,10 @@ a2aRouter.get('/api/a2a/stream', authenticateA2A, async (req: Request, res: Resp
   // Send initial connection event
   res.write('event: connected\ndata: {"status": "streaming", "version": "' + MOTHER_VERSION + '"}\n\n');
 
+  let chunkIndex = 0;
   try {
-    // Use orchestrate directly (bypasses core.ts processQuery for direct streaming path)
+    // NC-SSE-002: Native token streaming via onChunk callback
+    // Tokens are emitted as they arrive from the LLM provider
     const { orchestrate } = await import('./core-orchestrator');
     const result = await orchestrate({
       query,
@@ -399,15 +402,24 @@ a2aRouter.get('/api/a2a/stream', authenticateA2A, async (req: Request, res: Resp
       sessionId: req.headers['x-session-id'] as string | undefined,
       conversationHistory: [],
       metadata: { userEmail, streaming: true, source: 'sse' },
+      onChunk: (chunk: string) => {
+        // Emit each token as it arrives from the LLM
+        chunkIndex++;
+        try {
+          res.write(`data: ${JSON.stringify({ chunk, done: false, index: chunkIndex })}\n\n`);
+        } catch { /* client disconnected */ }
+      },
     });
 
-    // Emit response as word-by-word chunks (simulated streaming until native streaming is implemented)
-    const words = result.response.split(' ');
-    for (let i = 0; i < words.length; i++) {
-      const chunk = i === 0 ? words[i] : ' ' + words[i];
-      res.write(`data: ${JSON.stringify({ chunk, done: false, index: i + 1 })}\n\n`);
-      // Small delay to simulate streaming (2ms per word)
-      await new Promise(resolve => setTimeout(resolve, 2));
+    // If no chunks were emitted (provider buffered), fall back to word-by-word
+    if (chunkIndex === 0 && result.response) {
+      const words = result.response.split(' ');
+      for (let i = 0; i < words.length; i++) {
+        const chunk = i === 0 ? words[i] : ' ' + words[i];
+        res.write(`data: ${JSON.stringify({ chunk, done: false, index: i + 1 })}\n\n`);
+        await new Promise(resolve => setTimeout(resolve, 2));
+      }
+      chunkIndex = words.length;
     }
 
     // Send final event with metadata
@@ -420,10 +432,11 @@ a2aRouter.get('/api/a2a/stream', authenticateA2A, async (req: Request, res: Resp
       latencyMs: result.latencyMs,
       fromCache: result.fromCache,
       version: result.version,
+      nativeStreaming: chunkIndex > 0,
       gEvalScores: result.layers?.find(l => l.name?.includes('G-Eval'))?.detail,
     })}\n\n`);
 
-    log.info('SSE stream completed', { tier: result.tier, words: words.length, latencyMs: result.latencyMs });
+    log.info('SSE stream completed', { tier: result.tier, chunks: chunkIndex, latencyMs: result.latencyMs, nativeStreaming: chunkIndex > 0 });
   } catch (err) {
     res.write(`data: ${JSON.stringify({ error: String(err), done: true })}\n\n`);
     log.error('SSE stream error', { error: String(err) });

@@ -1,5 +1,5 @@
 /**
- * MOTHER v79.0 — Core Orchestrator
+ * MOTHER v79.1 — Core Orchestrator
  * Ciclo 107: Supervisor Activator + Agent Loop + Milestone Zero
  * Ciclo 106: Guardian G-Eval + Tool Detection (Conselho 5 IAs + Roadmap SHMS Semana 1-2)
  *
