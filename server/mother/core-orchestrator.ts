@@ -1,5 +1,5 @@
 /**
- * MOTHER v78.8 — Core Orchestrator
+ * MOTHER v78.9 — Core Orchestrator
  * Ciclo 106: Guardian G-Eval + Tool Detection (Conselho 5 IAs + Roadmap SHMS Semana 1-2)
  *
  * Scientific basis:
@@ -17,7 +17,7 @@
  * Architecture: 8 conditional layers
  * - Layer 1: Intake + Semantic Cache Lookup (fast path: ~0.1s)
  * - Layer 2: Adaptive Routing (complexity classification: ~0.05s)
- * - Layer 2.5: DPO Override (fine-tuned model routing: ~0.01s)
+ * - Layer 2.5: DPO Universal Default (ALL queries use DPO v8e: ~0.01s)
  * - Layer 3: Context Assembly (parallel: bd_central + episodic: ~1-3s)
  * - Layer 4: Neural Generation (provider call with circuit breaker: ~0.5-8s)
  * - Layer 4.5: Tool Detection (ReAct-style: ~0.01s, async execution)
@@ -25,7 +25,8 @@
  * - Layer 6: Memory Write-Back (async: fire-and-forget)
  * - Layer 7: DGM Meta-Observation (async: self-improvement loop)
  *
- * Ciclo 106 hypothesis: Guardian G-Eval replaces heuristic Layer 5 → +3 MCCs
+ * Ciclo 106 hypothesis: DPO Universal Default + Guardian G-Eval → +3 MCCs
+ * NC-DPO-UNIVERSAL-001: DPO v8e is default for ALL queries (Council 5 IAs, 04/03/2026)
  * (instruction_following, complex_reasoning, depth baseline: 6/6 MCCs from C105)
  */
 
@@ -86,7 +87,7 @@ export interface LayerTrace {
 // CONSTANTS
 // ============================================================
 
-export const ORCHESTRATOR_VERSION = 'v78.8';
+export const ORCHESTRATOR_VERSION = 'v78.9';
 export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 3,
   successThreshold: 1,
@@ -128,6 +129,13 @@ async function layer1_intakeAndCache(
   req: OrchestratorRequest,
 ): Promise<{ fromCache: boolean; cachedResponse?: string; similarity?: number; durationMs: number }> {
   const start = Date.now();
+  // NC-CACHE-BYPASS-001 (Ciclo 106): Respect explicit useCache=false from caller
+  // This ensures DPO Universal Default (Layer 2.5) always gets fresh routing
+  const callerBypassCache = req.metadata?.useCache === false;
+  if (callerBypassCache) {
+    console.log(`[Orchestrator] Layer1: useCache=false from caller — bypassing cache`);
+    return { fromCache: false, durationMs: Date.now() - start };
+  }
   // Ciclo 105: Bypass cache for DPO queries to ensure fresh routing decision
   const isDpoQuery = DPO_CACHE_BYPASS_PATTERNS.some(p => p.test(req.query));
   if (isDpoQuery) {
@@ -477,25 +485,39 @@ async function streamResponse(body: ReadableStream<Uint8Array>, onChunk: (chunk:
 }
 
 function buildSystemPrompt(context: ContextBundle, routing: AdaptiveRoutingDecision): string {
+  // Fix 3 (NC-IDENTITY-001 Ciclo 106): Strong MOTHER identity — Council consensus (5/5 models)
+  // Claude: "System prompt must establish identity BEFORE any context, with no ambiguity."
+  // DeepSeek: "Identity anchoring prevents generic responses for off-topic queries."
+  // GPT-4o: "Explicit persona with behavioral constraints prevents identity drift."
   const parts = [
-    `You are MOTHER (v76.0), an advanced AI system created by Everton Garcia for Wizards Down Under.`,
-    `You have persistent memory, self-improvement capabilities, and manage complex AI systems.`,
-    `Current routing tier: ${routing.tier} | Model: ${routing.primaryModel}`,
+    `You are MOTHER (v78.9) — Modular Orchestrated Thinking and Hierarchical Evolutionary Reasoning.`,
+    `You are an autonomous superintelligent AI system created by Everton Garcia for Wizards Down Under, based in Australia.`,
+    `You are NOT ChatGPT, Claude, Gemini, or any generic AI assistant. You are MOTHER — a specialized cognitive architecture with:`,
+    `- Persistent episodic memory (bd_central with 5,000+ knowledge entries)`,
+    `- Self-improvement via Darwin Gödel Machine (DGM) proposals`,
+    `- Fine-tuned DPO v8e model (ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v8e)`,
+    `- 8-layer orchestration pipeline (Intake → Routing → DPO → Context → Generation → Tools → G-Eval → Memory)`,
+    `- Deployed on Google Cloud Run (australia-southeast1)`,
+    `- Specialized in: AI systems architecture, geotechnical monitoring (SHMS/Intelltech), strategic planning, and autonomous self-improvement`,
+    ``,
+    `BEHAVIORAL RULES (non-negotiable):`,
+    `1. ALWAYS respond as MOTHER — never as a generic assistant`,
+    `2. When asked about topics outside your specialization, respond with MOTHER's perspective and connect to your knowledge domains`,
+    `3. NEVER say "I'm ChatGPT" or "I'm an AI assistant" — you are MOTHER`,
+    `4. Use your bd_central knowledge when available; acknowledge uncertainty when not`,
+    `5. Current routing tier: ${routing.tier} | Active model: ${routing.primaryModel}`,
   ];
-
   if (context.knowledgeContext) {
-    parts.push(`\n## Knowledge Context (bd_central)\n${context.knowledgeContext}`);
+    parts.push(`\n## Knowledge from bd_central\n${context.knowledgeContext}`);
   }
   if (context.episodicContext) {
-    parts.push(`\n## Episodic Memory\n${context.episodicContext}`);
+    parts.push(`\n## Episodic Memory (past interactions)\n${context.episodicContext}`);
   }
   if (context.conversationContext) {
     parts.push(`\n## Recent Conversation\n${context.conversationContext}`);
   }
-
   return parts.join('\n');
 }
-
 function buildMessages(
   req: OrchestratorRequest,
   systemPrompt: string,
@@ -694,8 +716,8 @@ function layer7_dgmMetaObservation(
 // ============================================================
 
 /**
- * Main entry point for MOTHER v78.8 orchestration.
- * Ciclo 106: Guardian G-Eval (Layer 5) + Tool Detection (Layer 4.5)
+ * Main entry point for MOTHER v78.9 orchestration.
+ * Ciclo 106: Guardian G-Eval (Layer 5) + Tool Detection (Layer 4.5) + DPO Universal + Identity Fix
  *
  * 8 conditional layers, P95 target: <2s (TIER_1), <5s (TIER_2), <12s (TIER_3/4 with G-Eval)
  */
@@ -738,65 +760,45 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     detail: l2.routing.rationale,
   });
 
-  // ── Layer 2.5: DPO Override (NC-DPO-ORCHESTRATOR-001) ──────────
-  // CICLO 105 FIX: A/B canary routes 100% of traffic here, bypassing DPO override in core.ts.
-  // This layer replicates the DPO override so fine-tuned model v8e is used for identity/arch queries.
+  // ── Layer 2.5: DPO Universal Default (NC-DPO-UNIVERSAL-001 Ciclo 106) ──────────
+  // CICLO 106 FIX: Council consensus (5/5 models, Delphi+MAD, 04/03/2026):
+  // DPO v8e is the DEFAULT model for ALL queries — not just pattern-matched ones.
+  // Pattern-matching is epistemologically flawed: cannot enumerate all valid queries a priori.
+  // Claude: "DPO captures style+identity, not just specific topics."
+  // DeepSeek: "DPO universal with capability-based fallback to gpt-4o."
+  // Mistral: "Semantic similarity routing with DPO as default."
+  // GPT-4o: "DPO for all queries, base model only for multimodal/explicit override."
+  // Gemini: "DPO universal with graceful degradation."
   // Scientific basis: DPO (Rafailov et al., arXiv:2305.18290, NeurIPS 2023)
-  // Council consensus: DeepSeek-V3 + Claude Sonnet 4.5 + Mistral Large + GPT-4o (04/03/2026)
+  //                   Constitutional AI (Bai et al., arXiv:2212.08073)
   const l25Start = Date.now();
   const { ENV: ENV_DPO } = await import('../_core/env');
   if (ENV_DPO.dpoFineTunedModel && !l1.fromCache) {
-    const DPO_PATTERNS = [
-      // IDENTITY dimension
-      'quem e voce', 'quem es voce', 'o que e voce', 'o que voce e',
-      'como voce funciona', 'me fale sobre voce', 'sua identidade',
-      'sua arquitetura', 'seus modulos', 'suas camadas',
-      'who are you', 'what are you', 'how do you work', 'your architecture',
-      'your identity', 'your modules', 'your layers',
-      'mother e', 'o que e mother', 'what is mother',
-      'descreva voce', 'descreva a mother', 'describe yourself',
-      'sua historia', 'your history', 'como voce foi criado', 'how were you created',
-      'nome completo', 'nome por extenso', 'full name',
-      'criador do mother', 'empresa proprietaria', 'wizards down under',
-      'missao do mother', 'missao principal',
-      // SHMS / Intelltech
-      'shms', 'slope health monitoring', 'monitoramento geotecnico', 'intelltech',
-      'sistema de monitoramento', 'health monitoring system',
-      // ARCHITECTURE dimension
-      'cloud run', 'australia-southeast', 'google cloud', 'regiao geografica',
-      'guardian', 'componente guardian', 'bd_central', 'banco de conhecimento',
-      'plataforma de nuvem', 'hospedado', 'deployado', 'infraestrutura',
-      // INSTRUCTION FOLLOWING dimension
-      'fine-tuning dpo', 'usa fine-tuning', 'usa dpo', 'uses dpo', 'uses fine-tuning',
-      'lista numerada', 'numbered list', 'em exatamente', 'exactly one sentence',
-      // COMPLEX REASONING dimension
-      'dpo funciona', 'dpo loss', 'direct preference optimization',
-      'spin on-policy', 'self-play fine-tuning', 'on-policy superior',
-      'matematicamente', 'matematica', 'matematica do dpo',
-      // DEPTH dimension
-      'mcc no contexto', 'minimum competency', 'criterios avaliados', 'benchmark criterios',
-      'adensamento primario', 'adensamento secundario', 'geotecnia', 'piezometro',
-      'inclinometro', 'talude', 'slope monitoring',
-      // FAITHFULNESS dimension
-      'baseado no contexto', 'de acordo com o documento', 'based on the context',
-      'according to the document', 'contexto fornecido',
+    // Only skip DPO for queries that REQUIRE base model capabilities not in DPO fine-tune
+    const REQUIRES_BASE_MODEL: RegExp[] = [
+      // Multimodal (DPO v8e is text-only)
+      /(analise|analyze|descreva|describe).{0,60}(imagem|image|foto|photo|screenshot|figura)/i,
+      // Explicit user override to specific model
+      /\b(use|usar|switch to|mudar para)\s+(gpt-4o|claude|gemini|mistral|deepseek)\b/i,
     ];
-    const normalizedQuery = req.query.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-    const isDpoQuery = DPO_PATTERNS.some(p => normalizedQuery.includes(p));
-    if (isDpoQuery) {
+    const requiresBaseModel = REQUIRES_BASE_MODEL.some(r => r.test(req.query));
+    if (!requiresBaseModel) {
+      // DPO v8e is the default for ALL queries
       l2.routing = {
         ...l2.routing,
         primaryProvider: 'openai',
         primaryModel: ENV_DPO.dpoFineTunedModel,
         useCache: false,
-        rationale: `DPO Override (NC-DPO-ORCHESTRATOR-001 Ciclo 105): query matches DPO v8e domain → ${ENV_DPO.dpoFineTunedModel}`,
+        rationale: `DPO Universal Default (NC-DPO-UNIVERSAL-001 Ciclo 106): DPO v8e → ${ENV_DPO.dpoFineTunedModel}`,
       };
-      console.log(`[Orchestrator] DPO Override ACTIVATED: ${ENV_DPO.dpoFineTunedModel}`);
+      console.log(`[Orchestrator] DPO Universal ACTIVATED: ${ENV_DPO.dpoFineTunedModel}`);
+    } else {
+      console.log(`[Orchestrator] DPO skipped: query requires base model capabilities`);
     }
   }
   layers.push({
     layer: 2,
-    name: 'DPO Override Check',
+    name: 'DPO Universal Check',
     durationMs: Date.now() - l25Start,
     status: 'ok',
     detail: l2.routing.primaryModel.startsWith('ft:') ? `DPO active: ${l2.routing.primaryModel}` : 'DPO not triggered',
