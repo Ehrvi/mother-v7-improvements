@@ -322,11 +322,15 @@ a2aRouter.post('/api/a2a/knowledge', authenticateA2A, async (req: Request, res: 
 /**
  * POST /api/a2a/query
  * Send a query to MOTHER via A2A protocol.
- * Body: { query, useCache?, conversationHistory? }
+ * Body: { query, userId?, userEmail?, useCache?, conversationHistory? }
+ *
+ * Ciclo 105 fix (NC-A2A-PARAMS-001): Added userId, userEmail to body extraction.
+ * Previously these were ignored, preventing DPO routing and cache bypass.
+ * Scientific basis: A2A Protocol (Google, 2025) — full context propagation.
  */
 a2aRouter.post('/api/a2a/query', authenticateA2A, async (req: Request, res: Response) => {
   try {
-    const { query, useCache = true, conversationHistory = [] } = req.body;
+    const { query, userId, userEmail, useCache = true, conversationHistory = [] } = req.body;
     if (!query) {
       res.status(400).json({ error: 'query is required' });
       return;
@@ -336,6 +340,8 @@ a2aRouter.post('/api/a2a/query', authenticateA2A, async (req: Request, res: Resp
     const { processQuery } = await import('./core');
     const result = await processQuery({
       query,
+      userId,
+      userEmail,
       useCache,
       conversationHistory,
     });
