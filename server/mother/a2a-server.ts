@@ -1,5 +1,5 @@
 /**
- * MOTHER v74.13: A2A (Agent2Agent) Protocol Server — NC-COLLAB-001
+ * MOTHER v78.8: A2A (Agent2Agent) Protocol Server — NC-COLLAB-001
  *
  * Establishes direct Manus↔MOTHER communication channel via A2A protocol.
  *
@@ -351,5 +351,76 @@ a2aRouter.post('/api/a2a/query', authenticateA2A, async (req: Request, res: Resp
   } catch (err) {
     log.error('A2A query error', { error: String(err) });
     res.status(500).json({ error: String(err) });
+  }
+});
+
+// ============================================================
+// SSE STREAMING ENDPOINT (NC-SSE-001 Ciclo 106)
+// ============================================================
+// Scientific basis: Server-Sent Events (W3C EventSource API)
+// Enables real-time token streaming for MOTHER responses.
+// Client connects via GET /api/a2a/stream?query=...&token=...
+// Each chunk is emitted as: data: {"chunk": "...", "done": false}\n\n
+// Final event: data: {"done": true, "model": "...", "tier": "...", "qualityScore": ...}\n\n
+// Ciclo 106: First implementation — streams full response as single chunk if provider
+// does not support native streaming. Full token-by-token streaming in Ciclo 107.
+// ============================================================
+a2aRouter.get('/api/a2a/stream', authenticateA2A, async (req: Request, res: Response) => {
+  const { query, userId, userEmail } = req.query as Record<string, string>;
+
+  if (!query) {
+    res.status(400).json({ error: 'query is required' });
+    return;
+  }
+
+  // Set SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');  // Disable nginx/Cloud Run buffering
+  res.flushHeaders();
+
+  // Send initial connection event
+  res.write('event: connected\ndata: {"status": "streaming", "version": "' + MOTHER_VERSION + '"}\n\n');
+
+  try {
+    // Use orchestrate directly (bypasses core.ts processQuery for direct streaming path)
+    const { orchestrate } = await import('./core-orchestrator');
+    const result = await orchestrate({
+      query,
+      userId: userId || undefined,
+      sessionId: req.headers['x-session-id'] as string | undefined,
+      conversationHistory: [],
+      metadata: { userEmail, streaming: true, source: 'sse' },
+    });
+
+    // Emit response as word-by-word chunks (simulated streaming until native streaming is implemented)
+    const words = result.response.split(' ');
+    for (let i = 0; i < words.length; i++) {
+      const chunk = i === 0 ? words[i] : ' ' + words[i];
+      res.write(`data: ${JSON.stringify({ chunk, done: false, index: i + 1 })}\n\n`);
+      // Small delay to simulate streaming (2ms per word)
+      await new Promise(resolve => setTimeout(resolve, 2));
+    }
+
+    // Send final event with metadata
+    res.write(`data: ${JSON.stringify({
+      done: true,
+      model: result.model,
+      provider: result.provider,
+      tier: result.tier,
+      qualityScore: result.qualityScore,
+      latencyMs: result.latencyMs,
+      fromCache: result.fromCache,
+      version: result.version,
+      gEvalScores: result.layers?.find(l => l.name?.includes('G-Eval'))?.detail,
+    })}\n\n`);
+
+    log.info('SSE stream completed', { tier: result.tier, words: words.length, latencyMs: result.latencyMs });
+  } catch (err) {
+    res.write(`data: ${JSON.stringify({ error: String(err), done: true })}\n\n`);
+    log.error('SSE stream error', { error: String(err) });
+  } finally {
+    res.end();
   }
 });

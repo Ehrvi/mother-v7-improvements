@@ -1,26 +1,32 @@
 /**
- * MOTHER v76.0 — Core Orchestrator
- * Ciclo 67: Arquitetura SOTA v76.0 — Conselho Deliberativo Ciclo 66
+ * MOTHER v78.8 — Core Orchestrator
+ * Ciclo 106: Guardian G-Eval + Tool Detection (Conselho 5 IAs + Roadmap SHMS Semana 1-2)
  *
  * Scientific basis:
  * - Neuro-Symbolic AI Survey (arXiv:2501.05435, 2024) — hybrid neural/symbolic architecture
  * - ACAR (arXiv:2602.21231, 2026) — adaptive complexity routing with auditable traces
  * - Darwin Gödel Machine (arXiv:2505.22954, Sakana AI, 2025) — self-improving AI agents
- * - Me-Agent (2026) — persistent memory and dynamic personalization
+ * - G-Eval (Liu et al., arXiv:2303.16634, 2023) — LLM-as-judge with 7 dimensions (Layer 5)
+ * - Prometheus 2 (Kim et al., arXiv:2405.01535, 2024) — fine-grained evaluation
+ * - RAGAS (Es et al., arXiv:2309.15217, EACL 2024) — faithfulness + answer relevancy
+ * - ReAct (Yao et al., arXiv:2210.03629, ICLR 2023) — tool detection (Layer 4.5)
+ * - DPO (Rafailov et al., arXiv:2305.18290, NeurIPS 2023) — fine-tuned model routing
  * - HippoRAG 2 (arXiv:2502.14802, ICML 2025) — non-parametric continual learning
  * - Reflexion (Shinn et al., arXiv:2303.11366, NeurIPS 2023) — verbal reinforcement learning
- * - Constitutional AI (Bai et al., arXiv:2212.08073, Anthropic 2022) — safety constraints
  *
- * Architecture: 7 conditional layers (replaces 21 sequential steps)
+ * Architecture: 8 conditional layers
  * - Layer 1: Intake + Semantic Cache Lookup (fast path: ~0.1s)
  * - Layer 2: Adaptive Routing (complexity classification: ~0.05s)
- * - Layer 3: Context Assembly (parallel: bd_central + episodic + omniscient: ~1-3s)
+ * - Layer 2.5: DPO Override (fine-tuned model routing: ~0.01s)
+ * - Layer 3: Context Assembly (parallel: bd_central + episodic: ~1-3s)
  * - Layer 4: Neural Generation (provider call with circuit breaker: ~0.5-8s)
- * - Layer 5: Symbolic Governance (quality gate + faithfulness: ~0.2s)
+ * - Layer 4.5: Tool Detection (ReAct-style: ~0.01s, async execution)
+ * - Layer 5: Symbolic Governance — Guardian G-Eval (LLM-as-judge: ~1-3s, skipped for TIER_1)
  * - Layer 6: Memory Write-Back (async: fire-and-forget)
  * - Layer 7: DGM Meta-Observation (async: self-improvement loop)
  *
- * Expected improvement: P95 latency 15s → 2s (-87%), error rate 40% → <5%
+ * Ciclo 106 hypothesis: Guardian G-Eval replaces heuristic Layer 5 → +3 MCCs
+ * (instruction_following, complex_reasoning, depth baseline: 6/6 MCCs from C105)
  */
 
 import {
@@ -39,6 +45,8 @@ import {
   getAllCircuitStats,
   type CircuitBreakerConfig,
 } from './circuit-breaker';
+import { validateQuality, type GuardianResult } from './guardian';
+import { MOTHER_TOOLS, executeTool, type ToolExecutionContext } from './tool-engine';
 
 // ============================================================
 // TYPES
@@ -78,7 +86,7 @@ export interface LayerTrace {
 // CONSTANTS
 // ============================================================
 
-export const ORCHESTRATOR_VERSION = 'v78.7';
+export const ORCHESTRATOR_VERSION = 'v78.8';
 export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 3,
   successThreshold: 1,
@@ -499,59 +507,127 @@ function buildMessages(
 }
 
 // ============================================================
-// LAYER 5: SYMBOLIC GOVERNANCE (quality gate)
+// LAYER 4.5: TOOL DETECTION (NC-TOOL-001 Ciclo 106)
 // ============================================================
+// Scientific basis: ReAct (Yao et al., ICLR 2023 arXiv:2210.03629)
+// Detects if query requires tool execution and appends tool result to context.
+// Runs AFTER Layer 4 neural generation (tool result enriches response in Layer 6 write-back).
+// For now: detects tool intent and logs it; full agentic loop in Ciclo 107.
+// ============================================================
+interface ToolDetectionResult {
+  requiresTool: boolean;
+  toolName?: string;
+  toolArgs?: Record<string, unknown>;
+  toolResult?: string;
+  durationMs: number;
+}
 
+async function layer45_toolDetection(
+  req: OrchestratorRequest,
+): Promise<ToolDetectionResult> {
+  const start = Date.now();
+  // ReAct-style tool trigger patterns
+  const TOOL_PATTERNS: Array<{ pattern: RegExp; tool: string; args: Record<string, unknown> }> = [
+    { pattern: /\baudit\b|status do sistema|system audit|auditoria do sistema/i, tool: 'audit_system', args: { depth: 'detailed' } },
+    { pattern: /\bpropostas?\b|\bproposals?\b|\bdgm\b|self.improv/i, tool: 'get_proposals', args: { status: 'all' } },
+    { pattern: /\bbrowse\b|naveg(a|ue)|acesse a url|http[s]?:\/\//i, tool: 'browse_url', args: {} },
+    { pattern: /execute (o )?c[oó]digo|run code|sandbox exec/i, tool: 'execute_code', args: {} },
+  ];
+  for (const { pattern, tool, args } of TOOL_PATTERNS) {
+    if (pattern.test(req.query)) {
+      console.log(`[Orchestrator] Layer 4.5 Tool Detection: ${tool} triggered (NC-TOOL-001)`);
+      return { requiresTool: true, toolName: tool, toolArgs: args, durationMs: Date.now() - start };
+    }
+  }
+  return { requiresTool: false, durationMs: Date.now() - start };
+}
+
+// ============================================================
+// LAYER 5: SYMBOLIC GOVERNANCE — Guardian G-Eval (Ciclo 106)
+// ============================================================
+// Scientific basis:
+// - G-Eval (Liu et al., 2023 arXiv:2303.16634) — LLM-as-judge with 7 dimensions
+// - Prometheus 2 (Kim et al., 2024 arXiv:2405.01535) — fine-grained evaluation
+// - RAGAS (Es et al., EACL 2024 arXiv:2309.15217) — faithfulness + answer relevancy
+// Replaces heuristic Layer 5 with guardian.ts validateQuality (G-Eval LLM-as-judge)
+// TIER_1 is skipped to preserve latency (heuristic fallback: score=80, passed=true)
+// ============================================================
 interface GovernanceResult {
   qualityScore: number;
   passed: boolean;
   issues: string[];
   durationMs: number;
+  gEvalScores?: {
+    coherence?: number;
+    consistency?: number;
+    fluency?: number;
+    relevance?: number;
+    depth?: number;
+    obedience?: number;
+  };
+  evaluationMethod?: 'llm' | 'heuristic';
 }
 
 async function layer5_symbolicGovernance(
   query: string,
   response: string,
   tier: string,
+  knowledgeContext?: string,
 ): Promise<GovernanceResult> {
   const start = Date.now();
-  const issues: string[] = [];
-  let score = 80;  // base score
 
-  // Basic quality checks
-  if (response.length < 50) {
-    issues.push('Response too short (<50 chars)');
-    score -= 20;
+  // Skip expensive G-Eval for TIER_1 (cached/fast responses) to preserve latency
+  if (tier === 'TIER_1') {
+    return {
+      qualityScore: 80,
+      passed: true,
+      issues: [],
+      durationMs: Date.now() - start,
+      evaluationMethod: 'heuristic',
+    };
   }
 
-  if (response.includes('I cannot') || response.includes('I am unable')) {
-    issues.push('Refusal detected');
-    score -= 10;
+  try {
+    // Use guardian.ts G-Eval LLM-as-judge (7 dimensions: coherence, consistency, fluency, relevance, safety, depth, obedience)
+    const hallucinationRisk = tier === 'TIER_5' ? 'high' : tier === 'TIER_3' ? 'medium' : 'low';
+    const guardianResult: GuardianResult = await validateQuality(
+      query,
+      response,
+      2,  // phase 2: full evaluation with coherence + safety + depth + obedience
+      hallucinationRisk,
+      knowledgeContext,
+    );
+    console.log(`[Orchestrator] Layer 5 G-Eval: score=${guardianResult.qualityScore.toFixed(1)}, method=${guardianResult.evaluationMethod}, passed=${guardianResult.passed}`);
+    return {
+      qualityScore: guardianResult.qualityScore,
+      passed: guardianResult.passed,
+      issues: guardianResult.issues,
+      durationMs: Date.now() - start,
+      gEvalScores: {
+        coherence: guardianResult.gEvalCoherence,
+        consistency: guardianResult.gEvalConsistency,
+        fluency: guardianResult.gEvalFluency,
+        relevance: guardianResult.gEvalRelevance,
+        depth: guardianResult.gEvalDepth,
+        obedience: guardianResult.gEvalObedience,
+      },
+      evaluationMethod: guardianResult.evaluationMethod,
+    };
+  } catch (err: any) {
+    // Fallback to heuristic if G-Eval fails (non-blocking — never crash the pipeline)
+    console.warn(`[Orchestrator] Layer 5 G-Eval failed, heuristic fallback: ${err.message}`);
+    const issues: string[] = [`G-Eval failed: ${err.message}`];
+    let score = 75;
+    if (response.length < 50) { issues.push('Response too short'); score -= 20; }
+    if (response.includes('I cannot') || response.includes('I am unable')) { issues.push('Refusal detected'); score -= 10; }
+    return {
+      qualityScore: Math.max(0, Math.min(100, score)),
+      passed: score >= 60,
+      issues,
+      durationMs: Date.now() - start,
+      evaluationMethod: 'heuristic',
+    };
   }
-
-  // Check for hallucination markers
-  if (/\b(definitely|certainly|absolutely|100%)\b/i.test(response) && tier !== 'TIER_1') {
-    issues.push('Overconfident language detected');
-    score -= 5;
-  }
-
-  // Relevance check (simple keyword overlap)
-  const queryWords = new Set(query.toLowerCase().split(/\s+/).filter(w => w.length > 4));
-  const responseWords = new Set(response.toLowerCase().split(/\s+/).filter(w => w.length > 4));
-  const overlap = [...queryWords].filter(w => responseWords.has(w)).length;
-  const relevance = queryWords.size > 0 ? overlap / queryWords.size : 0.5;
-
-  if (relevance < 0.1) {
-    issues.push(`Low relevance score (${(relevance * 100).toFixed(0)}%)`);
-    score -= 15;
-  }
-
-  return {
-    qualityScore: Math.max(0, Math.min(100, score)),
-    passed: score >= 60,
-    issues,
-    durationMs: Date.now() - start,
-  };
 }
 
 // ============================================================
@@ -618,10 +694,10 @@ function layer7_dgmMetaObservation(
 // ============================================================
 
 /**
- * Main entry point for MOTHER v76.0 orchestration.
- * Replaces the 21-step sequential pipeline in core.ts.
+ * Main entry point for MOTHER v78.8 orchestration.
+ * Ciclo 106: Guardian G-Eval (Layer 5) + Tool Detection (Layer 4.5)
  *
- * 7 conditional layers, P95 target: <2s (TIER_1), <5s (TIER_2), <10s (TIER_3/4)
+ * 8 conditional layers, P95 target: <2s (TIER_1), <5s (TIER_2), <12s (TIER_3/4 with G-Eval)
  */
 export async function orchestrate(req: OrchestratorRequest): Promise<OrchestratorResponse> {
   const startTotal = Date.now();
@@ -759,14 +835,32 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     throw err;
   }
 
-  // ── Layer 5: Symbolic Governance ─────────────────────────
-  const l5 = await layer5_symbolicGovernance(req.query, l4.response, l2.routing.tier);
+  // ── Layer 4.5: Tool Detection (async, non-blocking) ────────
+  const l45Start = Date.now();
+  const l45 = await layer45_toolDetection(req);
+  layers.push({
+    layer: 4,  // logged as layer 4 sub-step
+    name: 'Tool Detection (4.5)',
+    durationMs: l45.durationMs,
+    status: 'ok',
+    detail: l45.requiresTool ? `Tool triggered: ${l45.toolName}` : 'No tool required',
+  });
+
+  // ── Layer 5: Symbolic Governance (Guardian G-Eval) ────────
+  // Ciclo 106: Replaces heuristic with G-Eval LLM-as-judge (arXiv:2303.16634)
+  // knowledgeContext passed for RAGAS faithfulness evaluation
+  const l5 = await layer5_symbolicGovernance(
+    req.query,
+    l4.response,
+    l2.routing.tier,
+    l3.knowledgeContext || undefined,
+  );
   layers.push({
     layer: 5,
-    name: 'Symbolic Governance',
+    name: `Symbolic Governance (${l5.evaluationMethod === 'llm' ? 'G-Eval' : 'heuristic'})`,
     durationMs: l5.durationMs,
     status: l5.passed ? 'ok' : 'error',
-    detail: `score=${l5.qualityScore}, issues=[${l5.issues.join(', ')}]`,
+    detail: `score=${l5.qualityScore.toFixed(1)}, method=${l5.evaluationMethod}, issues=[${l5.issues.slice(0, 2).join(', ')}]`,
   });
 
   // ── Layer 6: Memory Write-Back (async) ───────────────────
