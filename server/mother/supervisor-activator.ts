@@ -33,7 +33,8 @@
  * Ciclo 107 — Fase 1: Milestone Zero — MOTHER writes its first code
  */
 
-import { log } from './logger';
+import { createLogger } from '../_core/logger';
+const log = createLogger('SupervisorActivator');
 import { checkSafetyGate, logAgentAction, MAX_AGENT_ITERATIONS } from './safety-gate';
 import { storeEpisodicMemory, getRecentEpisodicMemories, generateReflection } from './episodic-memory';
 import { writeCodeFile, triggerDeploy } from './self-code-writer';
@@ -314,7 +315,7 @@ export async function executeAgentTask(task: AgentTask): Promise<AgentResult> {
     );
 
     sandboxResult = {
-      passed: tempCheck.success,
+      passed: tempCheck.exitCode === 0,
       output: tempCheck.stdout + (tempCheck.stderr || ''),
       exitCode: tempCheck.exitCode,
     };
@@ -362,15 +363,15 @@ export async function executeAgentTask(task: AgentTask): Promise<AgentResult> {
   try {
     log.info('AgentTask: Writing file', { taskId, filePath: writeIntent.filePath });
 
-    const writeResult = await writeCodeFile({
-      filePath: writeIntent.filePath,
-      content: writeIntent.content,
-      commitMessage: `feat(agent): ${task.task.slice(0, 60)} [MOTHER-AGENT ${taskId}]`,
-      branch: `agent/${taskId}`,
-    });
+    const writeResult = await writeCodeFile(
+      writeIntent.filePath,
+      writeIntent.content,
+      `feat(agent): ${task.task.slice(0, 60)} [MOTHER-AGENT ${taskId}]`,
+      false  // don't auto-trigger deploy — we handle it explicitly below
+    );
 
     if (writeResult.success) {
-      commitHash = writeResult.commitHash;
+      commitHash = writeResult.commitSha;
       log.info('AgentTask: File written and committed', { taskId, commitHash });
     } else {
       writeError = writeResult.error || 'Unknown write error';
@@ -416,7 +417,7 @@ export async function executeAgentTask(task: AgentTask): Promise<AgentResult> {
     try {
       log.info('AgentTask: Triggering production deploy', { taskId });
       const deployResult = await triggerDeploy(`Agent task ${taskId}: ${task.task.slice(0, 50)}`);
-      deployedRevision = deployResult.revision;
+      deployedRevision = deployResult.buildId;
       log.info('AgentTask: Deploy triggered', { taskId, revision: deployedRevision });
     } catch (err) {
       log.warn('AgentTask: Deploy trigger failed (non-fatal)', { taskId, error: String(err) });

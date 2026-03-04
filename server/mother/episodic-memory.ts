@@ -20,7 +20,8 @@
  * Ciclo 107 — Fase 1: Episodic memory for Milestone Zero tracking
  */
 
-import { log } from './logger';
+import { createLogger } from '../_core/logger';
+const log = createLogger('EpisodicMemory');
 
 // ============================================================
 // TYPES
@@ -59,8 +60,6 @@ const MOTHER_BASE_URL = process.env.MOTHER_BASE_URL ||
  */
 export async function storeEpisodicMemory(entry: EpisodicEntry): Promise<number | null> {
   try {
-    const { default: fetch } = await import('node-fetch');
-
     const response = await fetch(`${MOTHER_BASE_URL}/api/a2a/knowledge`, {
       method: 'POST',
       headers: {
@@ -107,8 +106,6 @@ export async function getRecentEpisodicMemories(
   limit = 10
 ): Promise<EpisodicEntry[]> {
   try {
-    const { default: fetch } = await import('node-fetch');
-
     const response = await fetch(
       `${MOTHER_BASE_URL}/api/a2a/knowledge?category=episodic_memory&limit=${limit}`,
       {

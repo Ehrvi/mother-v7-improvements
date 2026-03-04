@@ -24,7 +24,8 @@
  * Ciclo 107 — Fase 1: Safety gate for Milestone Zero (MOTHER writes first code)
  */
 
-import { log } from './logger';
+import { createLogger } from '../_core/logger';
+const log = createLogger('SafetyGate');
 
 // ============================================================
 // CONSTANTS
