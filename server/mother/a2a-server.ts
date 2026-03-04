@@ -124,6 +124,11 @@ a2aRouter.get('/.well-known/agent.json', (_req: Request, res: Response) => {
         name: 'Self-Improvement',
         description: 'MAPE-K cycle, DGM proposals, GEA evolution — MOTHER improves herself',
       },
+      {
+        id: 'agent_task',
+        name: 'Agent Task (Ciclo 107)',
+        description: 'MOTHER executes autonomous agent tasks: read codebase, write code, commit, sandbox test, deploy. Modes: read-only, write-sandbox, write-production.',
+      },
     ],
     providers: ['deepseek', 'google', 'anthropic', 'openai', 'mistral'],
     authentication: {
@@ -137,6 +142,8 @@ a2aRouter.get('/.well-known/agent.json', (_req: Request, res: Response) => {
       knowledgeRead: '/api/a2a/knowledge',
       knowledgeWrite: '/api/a2a/knowledge',
       status: '/api/a2a/status',
+      agentTask: '/api/a2a/agent-task',
+      stream: '/api/a2a/stream',
     },
   });
 });
@@ -422,5 +429,85 @@ a2aRouter.get('/api/a2a/stream', authenticateA2A, async (req: Request, res: Resp
     log.error('SSE stream error', { error: String(err) });
   } finally {
     res.end();
+  }
+});
+
+
+// ============================================================
+// AGENT TASK ENDPOINT — NC-AGENT-LOOP-001 (Ciclo 107, Fase 1)
+// ============================================================
+// Scientific basis:
+// - ReAct (Yao et al., arXiv:2210.03629, 2022): Reason-Act-Observe loop
+// - Reflexion (Shinn et al., arXiv:2303.11366, 2023): Episodic memory for learning
+// - Darwin Gödel Machine (Sakana AI, arXiv:2505.22954, 2025): Archive + empirical validation
+// - Constitutional AI (Bai et al., arXiv:2212.08073, 2022): Safety constraints
+//
+// This endpoint activates MOTHER's agent capabilities:
+// - 'read-only': MOTHER reads and analyzes codebase (safe exploration)
+// - 'write-sandbox': MOTHER writes code, tests in sandbox, commits to branch
+// - 'write-production': MOTHER writes, tests, commits, and deploys (creator only)
+//
+// Milestone Zero (Ciclo 107): MOTHER writes its first code via this endpoint.
+// ============================================================
+a2aRouter.post('/api/a2a/agent-task', authenticateA2A, async (req: Request, res: Response) => {
+  const { task, mode = 'write-sandbox', userId, threadId, maxIterations } = req.body;
+
+  if (!task || typeof task !== 'string') {
+    res.status(400).json({ error: 'task is required and must be a string' });
+    return;
+  }
+
+  if (!['read-only', 'write-sandbox', 'write-production'].includes(mode)) {
+    res.status(400).json({
+      error: 'mode must be one of: read-only, write-sandbox, write-production',
+    });
+    return;
+  }
+
+  // Safety: write-production requires creator role
+  // In dev mode (no MANUS_A2A_TOKEN), all modes are allowed
+  if (mode === 'write-production' && process.env.MANUS_A2A_TOKEN) {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.replace('Bearer ', '');
+    if (token !== process.env.MANUS_A2A_TOKEN) {
+      res.status(403).json({
+        error: 'write-production mode requires creator authentication',
+      });
+      return;
+    }
+  }
+
+  try {
+    log.info('A2A agent-task received', {
+      mode,
+      userId,
+      taskPreview: task.slice(0, 80),
+    });
+
+    const { executeAgentTask } = await import('./supervisor-activator');
+
+    const result = await executeAgentTask({
+      task,
+      mode,
+      userId: userId || 'anonymous',
+      maxIterations: maxIterations ? Math.min(Number(maxIterations), 5) : 5,
+      threadId,
+    });
+
+    log.info('A2A agent-task completed', {
+      success: result.success,
+      taskId: result.taskId,
+      mode: result.mode,
+      durationMs: result.durationMs,
+      commitHash: result.commitHash,
+    });
+
+    res.json(result);
+  } catch (err) {
+    log.error('A2A agent-task error', { error: String(err) });
+    res.status(500).json({
+      error: String(err),
+      success: false,
+    });
   }
 });

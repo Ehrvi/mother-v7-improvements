@@ -1,5 +1,6 @@
 /**
- * MOTHER v78.9 — Core Orchestrator
+ * MOTHER v79.0 — Core Orchestrator
+ * Ciclo 107: Supervisor Activator + Agent Loop + Milestone Zero
  * Ciclo 106: Guardian G-Eval + Tool Detection (Conselho 5 IAs + Roadmap SHMS Semana 1-2)
  *
  * Scientific basis:
@@ -87,7 +88,7 @@ export interface LayerTrace {
 // CONSTANTS
 // ============================================================
 
-export const ORCHESTRATOR_VERSION = 'v78.9';
+export const ORCHESTRATOR_VERSION = 'v79.0';
 export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 3,
   successThreshold: 1,
