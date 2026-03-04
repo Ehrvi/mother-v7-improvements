@@ -111,7 +111,7 @@ function broadcastSSE(data: unknown): void {
 
 export function registerSHMSRoutes(router: Router): void {
   // Auto-initialize SHMS on first route access
-  router.use('/shms', (_req, _res, next) => {
+  router.use('/api/shms', (_req, _res, next) => {
     if (!shmsRunning) initSHMS();
     next();
   });
@@ -120,7 +120,7 @@ export function registerSHMSRoutes(router: Router): void {
    * GET /api/shms/status
    * Returns system status, alert summary, and connector status.
    */
-  router.get('/shms/status', (_req: Request, res: Response) => {
+  router.get('/api/shms/status', (_req: Request, res: Response) => {
     const alertSummary = shmsAlertEngine.getSummary();
     const connectorStatus = shmsConnector.getStatus();
     const detectorSummary = shmsDetector.getSummary();
@@ -144,7 +144,7 @@ export function registerSHMSRoutes(router: Router): void {
    * GET /api/shms/sensors
    * Returns all sensor configurations and their baseline statistics.
    */
-  router.get('/shms/sensors', (_req: Request, res: Response) => {
+  router.get('/api/shms/sensors', (_req: Request, res: Response) => {
     const sensors = shmsConnector.getSensors();
     const baselines = shmsDetector.getSummary();
 
@@ -165,7 +165,7 @@ export function registerSHMSRoutes(router: Router): void {
    * GET /api/shms/alerts
    * Returns active alerts sorted by severity.
    */
-  router.get('/shms/alerts', (_req: Request, res: Response) => {
+  router.get('/api/shms/alerts', (_req: Request, res: Response) => {
     const alerts = shmsAlertEngine.getActiveAlerts();
     res.json({
       alerts,
@@ -178,7 +178,7 @@ export function registerSHMSRoutes(router: Router): void {
    * GET /api/shms/alerts/history
    * Returns alert history.
    */
-  router.get('/shms/alerts/history', (req: Request, res: Response) => {
+  router.get('/api/shms/alerts/history', (req: Request, res: Response) => {
     const limit = parseInt(req.query.limit as string || '50');
     res.json({
       history: shmsAlertEngine.getHistory(limit),
@@ -190,7 +190,7 @@ export function registerSHMSRoutes(router: Router): void {
    * POST /api/shms/alerts/:sensorId/ack
    * Acknowledge an alert.
    */
-  router.post('/shms/alerts/:sensorId/ack', (req: Request, res: Response) => {
+  router.post('/api/shms/alerts/:sensorId/ack', (req: Request, res: Response) => {
     const { sensorId } = req.params;
     const { acknowledgedBy } = req.body;
 
@@ -212,7 +212,7 @@ export function registerSHMSRoutes(router: Router): void {
    * POST /api/shms/simulate
    * Control simulation (start/stop/reset).
    */
-  router.post('/shms/simulate', (req: Request, res: Response) => {
+  router.post('/api/shms/simulate', (req: Request, res: Response) => {
     const { action } = req.body;
 
     if (action === 'start') {
@@ -244,7 +244,7 @@ export function registerSHMSRoutes(router: Router): void {
    * SSE stream of real-time sensor readings and alerts.
    * Scientific basis: W3C EventSource API (2015)
    */
-  router.get('/shms/stream', (req: Request, res: Response) => {
+  router.get('/api/shms/stream', (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -270,7 +270,7 @@ export function registerSHMSRoutes(router: Router): void {
    * POST /api/shms/analyze
    * Analyze a single reading using MOTHER AI for context-aware interpretation.
    */
-  router.post('/shms/analyze', async (req: Request, res: Response) => {
+  router.post('/api/shms/analyze', async (req: Request, res: Response) => {
     const { sensorId, sensorType, value, unit, location } = req.body;
 
     if (!sensorId || value === undefined) {
