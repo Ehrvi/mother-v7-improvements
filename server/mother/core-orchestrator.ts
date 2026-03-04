@@ -78,13 +78,23 @@ export interface LayerTrace {
 // CONSTANTS
 // ============================================================
 
-export const ORCHESTRATOR_VERSION = 'v78.4';
+export const ORCHESTRATOR_VERSION = 'v78.5';
 export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 3,
   successThreshold: 1,
   timeoutMs: 20000,
   cooldownMs: 30000,
   windowMs: 60000,
+};
+// Ciclo 105: Separate circuit config for DPO model (NC-CIRCUIT-DPO-001)
+// Fine-tuned models have higher latency than base models — needs longer timeout
+// Scientific basis: AWAKE V208 Regra 126 — circuit breaker isolation per model class
+export const DPO_CIRCUIT_CONFIG: CircuitBreakerConfig = {
+  failureThreshold: 5,
+  successThreshold: 1,
+  timeoutMs: 45000,
+  cooldownMs: 15000,
+  windowMs: 120000,
 };
 
 // ============================================================
@@ -233,9 +243,13 @@ async function layer4_neuralGeneration(
   const messages = buildMessages(req, systemPrompt);
 
   // Try primary provider with circuit breaker
+  // Ciclo 105: Use DPO_CIRCUIT_CONFIG for fine-tuned models (higher timeout, more tolerant)
+  const isDpoModel = routing.primaryModel.startsWith('ft:') || routing.primaryModel.includes(':personal:');
+  const circuitConfig = isDpoModel ? DPO_CIRCUIT_CONFIG : ORCHESTRATOR_CIRCUIT_CONFIG;
+  const circuitKey = isDpoModel ? `${routing.primaryProvider}-dpo` : routing.primaryProvider;
   try {
     const response = await withCircuitBreaker(
-      routing.primaryProvider,
+      circuitKey,
       (signal) => callProvider(
         routing.primaryProvider,
         routing.primaryModel,
@@ -245,7 +259,7 @@ async function layer4_neuralGeneration(
         req.onChunk,
         signal,
       ),
-      ORCHESTRATOR_CIRCUIT_CONFIG,
+      circuitConfig,
     );
 
     return {
