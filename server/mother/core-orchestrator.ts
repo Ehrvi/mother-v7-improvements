@@ -88,7 +88,7 @@ export interface LayerTrace {
 // CONSTANTS
 // ============================================================
 
-export const ORCHESTRATOR_VERSION = 'v79.0';
+export const ORCHESTRATOR_VERSION = 'v79.2'; // Ciclo 109: NC-SHMS-001 + NC-RLVR-001
 export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 3,
   successThreshold: 1,
@@ -865,6 +865,36 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     status: l5.passed ? 'ok' : 'error',
     detail: `score=${l5.qualityScore.toFixed(1)}, method=${l5.evaluationMethod}, issues=[${l5.issues.slice(0, 2).join(', ')}]`,
   });
+
+  // ── Layer 5.5: RLVR Reward Signal (async, non-blocking) ────────────
+  // NC-RLVR-001 (Ciclo 109): Compute RLVR reward for DPO training signal
+  // Scientific basis: F-DPO (arXiv:2601.03027) — factuality-aware DPO training
+  // RLVR reward stored in bd_central for future DPO pipeline ingestion
+  setImmediate(async () => {
+    try {
+      const { computeRLVRReward, extractScientificClaims } = await import('./rlvr-verifier');
+      const claims = extractScientificClaims(l4.response);
+      if (claims.length > 0) {
+        const rlvrReward = computeRLVRReward(claims, l4.response, req.query);
+        if (rlvrReward.composite > 0.5) {
+          const db = await import('../db').then(m => m.getDb());
+          if (db) {
+            const { knowledge: kTable } = await import('../../drizzle/schema');
+            await db.insert(kTable).values({
+              title: `rlvr:${l4.provider}:${Date.now()}`,
+              content: JSON.stringify({ reward: rlvrReward, query: req.query.slice(0, 100), claims: claims.length }),
+              source: 'rlvr-verifier',
+              category: 'rlvr_signal',
+              tags: JSON.stringify(['rlvr', 'dpo', l4.provider, l2.routing.tier]),
+            }).catch(() => {});
+          }
+        }
+      }
+    } catch {
+      // RLVR is optional — never blocks response delivery
+    }
+  });
+  layers.push({ layer: 5.5, name: 'RLVR Reward Signal (NC-RLVR-001)', durationMs: 0, status: 'ok', detail: 'async fire-and-forget' } as any);
 
   // ── Layer 6: Memory Write-Back (async) ───────────────────
   layer6_memoryWriteBack(req, l4.response, l4.provider, l4.model, l2.routing.tier, l5.qualityScore);

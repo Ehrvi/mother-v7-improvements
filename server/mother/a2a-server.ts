@@ -23,6 +23,7 @@
  * If MANUS_A2A_TOKEN is not set, auth is skipped (dev mode)
  */
 import { Router, Request, Response, NextFunction } from 'express';
+import { registerSHMSRoutes } from '../shms/shms-api'; // NC-SHMS-001: SHMS real-time monitoring
 import { getDb } from '../db';
 import { knowledge, queries } from '../../drizzle/schema';
 import { getRecentQueries, getQueryStats, getAllKnowledge } from '../db';
@@ -50,6 +51,10 @@ function authenticateA2A(req: Request, res: Response, next: NextFunction): void 
 }
 
 export const a2aRouter = Router();
+
+// NC-SHMS-001: Register SHMS routes under /api/shms/*
+// Scientific basis: GISTM 2020, ICOLD Bulletin 158, arXiv:2602.19603 (OPC UA PubSub)
+registerSHMSRoutes(a2aRouter);
 
 // ── Agent Card ────────────────────────────────────────────────────────────────
 /**
