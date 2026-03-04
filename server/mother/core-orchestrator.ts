@@ -875,8 +875,9 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
       const { computeRLVRReward, extractScientificClaims } = await import('./rlvr-verifier');
       const claims = extractScientificClaims(l4.response);
       if (claims.length > 0) {
-        const rlvrReward = computeRLVRReward(claims, l4.response, req.query);
-        if (rlvrReward.composite > 0.5) {
+        // computeRLVRReward(response, query, qualityScore, claims) — 4 args
+        const rlvrReward = computeRLVRReward(l4.response, req.query, l5.qualityScore, claims);
+        if (rlvrReward.totalReward > 0.5) {
           const db = await import('../db').then(m => m.getDb());
           if (db) {
             const { knowledge: kTable } = await import('../../drizzle/schema');
