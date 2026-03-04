@@ -314,10 +314,15 @@ async function callProvider(
   const { ENV } = await import('../_core/env');
 
   if (provider === 'openai') {
+    // Ciclo 105: Use dpoApiKey (sk-svcacct-...) for :personal: namespace fine-tuned models
+    // Scientific basis: AWAKE V207 Regra 107 — sk-proj-... keys cannot access :personal: namespace
+    // DPO v8e model ID: ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v8e:DFay6MHy
+    const isPersonalModel = model.includes(':personal:') || model.startsWith('ft:');
+    const apiKey = isPersonalModel && ENV.dpoApiKey ? ENV.dpoApiKey : ENV.openaiApiKey;
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${ENV.openaiApiKey}`,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
