@@ -29,5 +29,7 @@ export const ENV = {
   // CRITICAL: sk-proj-... keys (project-scoped) return 403 for :personal: namespace models
   // Solution: use sk-svcacct-... from project "Extra" which bypasses namespace isolation (Regra 107)
   // Fallback: if not set, uses OPENAI_API_KEY (will fail for :personal: models but won't crash)
-  dpoApiKey: process.env.OPENAI_EXTRA_SVCACCT ?? process.env.OPENAI_API_KEY ?? "",
+  // NC-ENV-DPO-001 (Ciclo 105): OPENAI_API_KEY_EXTRA_SVCACCT is the Cloud Run secret name
+  // Fallback chain: OPENAI_API_KEY_EXTRA_SVCACCT → OPENAI_EXTRA_SVCACCT → OPENAI_API_KEY
+  dpoApiKey: process.env.OPENAI_API_KEY_EXTRA_SVCACCT ?? process.env.OPENAI_EXTRA_SVCACCT ?? process.env.OPENAI_API_KEY ?? "",
 };

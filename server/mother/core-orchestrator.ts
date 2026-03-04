@@ -78,7 +78,7 @@ export interface LayerTrace {
 // CONSTANTS
 // ============================================================
 
-export const ORCHESTRATOR_VERSION = 'v78.6';
+export const ORCHESTRATOR_VERSION = 'v78.7';
 export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 3,
   successThreshold: 1,
