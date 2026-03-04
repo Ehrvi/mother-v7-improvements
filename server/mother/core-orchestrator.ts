@@ -78,7 +78,7 @@ export interface LayerTrace {
 // CONSTANTS
 // ============================================================
 
-export const ORCHESTRATOR_VERSION = 'v78.5';
+export const ORCHESTRATOR_VERSION = 'v78.6';
 export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 3,
   successThreshold: 1,
@@ -101,16 +101,34 @@ export const DPO_CIRCUIT_CONFIG: CircuitBreakerConfig = {
 // LAYER 1: INTAKE + SEMANTIC CACHE
 // ============================================================
 
+// Ciclo 105: DPO query patterns that must bypass cache (NC-DPO-CACHE-001)
+// These patterns trigger DPO override — stale cache would return gpt-4o-mini responses
+const DPO_CACHE_BYPASS_PATTERNS = [
+  /\b(quem (e|es|é) você|who are you|o que (e|é) você|quem te criou|who created you)\b/i,
+  /\b(sua identidade|your identity|me fale sobre você|tell me about yourself)\b/i,
+  /\b(sua arquitetura|your architecture|seus módulos|your modules|suas camadas|your layers)\b/i,
+  /\b(shms|slope health monitoring|monitoramento geotécnico|intelltech)\b/i,
+  /\b(dpo loss|direct preference optimization|matematicamente|spin on-policy)\b/i,
+  /\b(baseado no contexto|de acordo com o documento|based on the context)\b/i,
+  /\b(lista numerada|numbered list|fine-tuning dpo|usa dpo|uses dpo)\b/i,
+  /\b(geotecnia|piezômetro|inclinômetro|talude|slope monitoring|adensamento)\b/i,
+  /\b(bd_central|banco de conhecimento|guardian|cloud run|australia-southeast)\b/i,
+  /\b(missão do mother|missao do mother|criador do mother|wizards down under)\b/i,
+];
+
 async function layer1_intakeAndCache(
   req: OrchestratorRequest,
 ): Promise<{ fromCache: boolean; cachedResponse?: string; similarity?: number; durationMs: number }> {
   const start = Date.now();
-
+  // Ciclo 105: Bypass cache for DPO queries to ensure fresh routing decision
+  const isDpoQuery = DPO_CACHE_BYPASS_PATTERNS.some(p => p.test(req.query));
+  if (isDpoQuery) {
+    console.log(`[Orchestrator] Layer1: DPO query detected — bypassing cache`);
+    return { fromCache: false, durationMs: Date.now() - start };
+  }
   // Determine routing tier for cache eligibility
   const routing = buildRoutingDecision(req.query);
-
   const cacheResult = await lookupCache(req.query, routing.tier);
-
   return {
     fromCache: cacheResult.hit,
     cachedResponse: cacheResult.entry?.response,
