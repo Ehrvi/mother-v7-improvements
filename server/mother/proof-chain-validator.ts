@@ -154,6 +154,21 @@ export const PROOF_CHAIN: ProofRecord[] = [
     benchmarkVerdict: 'PASSED',
     autonomyLevel: 4,
   },
+  {
+    cycle: 117,
+    version: 'v80.0',
+    timestamp: '2026-03-05T10:00:00.000Z',
+    commitHash: '3500b79',
+    moduleHashes: {
+      'api-gateway.ts': '61ca17a83cc5563c28e0aa2ee5955623e92769685ec9cef5d13b25b2e126e127',
+      'audit-trail.ts': 'bab7b74f553f68fafac481a99a476b6757619c96571bc9f019202c3158ac4dd3',
+      'self-modifier.ts': '825ee46be4cddd14f83b78712015aca0565af5d702c704e816b57b6043b81cca',
+    },
+    chainHash: 'ccc7130267a2976ad97afcca5f3d7babbca8840b03e3cc96059d49206c0c1980',
+    previousChainHash: '35f4a2286745456658f4eecce5b1d71f03345112f210e7909e7c689066406aef',
+    benchmarkVerdict: 'PASSED',
+    autonomyLevel: 9,
+  },
 ];
 
 // ============================================================
