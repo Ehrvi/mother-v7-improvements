@@ -85,6 +85,18 @@ steps:
       - '--platform=managed'
       - '--project=mothers-library-mcp'
 
+  # Ciclo 113: HELM-lite auto-trigger after successful deploy
+  # Scientific basis: HELM (arXiv:2211.09110) + DARWIN (arXiv:2602.02534)
+  # Automatically runs benchmark after each deploy to generate proof
+  - name: 'gcr.io/cloud-builders/curl'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        sleep 30 && curl -s -X POST https://mother-interface-qtvghovzxa-ts.a.run.app/api/a2a/benchmark/trigger \
+          -H "Content-Type: application/json" \
+          -d "{\"source\":\"cloudbuild\",\"commit\":\"$SHORT_SHA\"}" || echo "HELM-lite trigger sent (non-blocking)"
+    timeout: 60s
 images:
   - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-interface:latest'
   - 'australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-interface:$BUILD_ID'

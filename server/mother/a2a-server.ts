@@ -776,3 +776,121 @@ a2aRouter.get('/api/a2a/proof/c112', async (_req: Request, res: Response) => {
     res.status(500).json({ error: String(err) });
   }
 });
+
+// ============================================================
+// CICLO 113 ENDPOINTS — v79.6
+// Gap 10 closure: async task pattern + proof chain validator
+// Scientific basis: RFC 7231 §6.3.3 + Merkle (1987) + DGM (arXiv:2505.22954)
+// Author: Everton Garcia (Wizards Down Under)
+// ============================================================
+
+/**
+ * POST /api/a2a/agent-task/async
+ * Fire-and-forget: returns taskId immediately (202 Accepted)
+ * Closes Gap 10: HTTP timeout on long-running agent tasks
+ */
+a2aRouter.post('/api/a2a/agent-task/async', authenticateA2A, async (req: Request, res: Response) => {
+  const { task, mode = 'write-sandbox', userId, threadId, maxIterations } = req.body;
+  if (!task || typeof task !== 'string') {
+    res.status(400).json({ error: 'task is required and must be a string' });
+    return;
+  }
+  try {
+    const { createAsyncTask } = await import('./async-task-manager');
+    const taskId = createAsyncTask({ task, mode, userId: userId || 'anonymous', threadId, maxIterations });
+    res.status(202).json({
+      taskId,
+      status: 'pending',
+      poll_url: `/api/a2a/task/${taskId}`,
+      message: 'Task accepted. Poll poll_url for status.',
+      scientific_basis: 'RFC 7231 §6.3.3 — 202 Accepted for long-running operations',
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+/**
+ * GET /api/a2a/task/:taskId
+ * Poll for async task status and result
+ */
+a2aRouter.get('/api/a2a/task/:taskId', async (req: Request, res: Response) => {
+  const { taskId } = req.params;
+  try {
+    const { getTaskStatus } = await import('./async-task-manager');
+    const task = getTaskStatus(taskId);
+    if (!task) {
+      res.status(404).json({ error: `Task ${taskId} not found` });
+      return;
+    }
+    res.json(task);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+/**
+ * GET /api/a2a/tasks
+ * List all async tasks with queue stats
+ */
+a2aRouter.get('/api/a2a/tasks', async (_req: Request, res: Response) => {
+  try {
+    const { listTasks, getQueueStats, generateQueueStateHash } = await import('./async-task-manager');
+    const tasks = listTasks(20);
+    const stats = getQueueStats();
+    const queueHash = generateQueueStateHash();
+    res.json({ tasks, stats, queue_state_hash: queueHash, timestamp: new Date().toISOString() });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+/**
+ * GET /api/a2a/proof/chain
+ * Get the full cryptographic proof chain (Ciclos 110-113+)
+ * Scientific basis: Merkle trees (Merkle 1987) + DGM (arXiv:2505.22954)
+ */
+a2aRouter.get('/api/a2a/proof/chain', async (_req: Request, res: Response) => {
+  try {
+    const { getChainSummary, validateProofChain, PROOF_CHAIN } = await import('./proof-chain-validator');
+    const summary = getChainSummary();
+    const validation = validateProofChain();
+    res.json({
+      summary,
+      validation,
+      chain: PROOF_CHAIN,
+      verification_commands: [
+        'curl -s https://mother-interface-qtvghovzxa-ts.a.run.app/api/a2a/proof/chain | python3 -m json.tool',
+        'git clone https://github.com/Ehrvi/mother-v7-improvements.git && cd mother-v7-improvements && git log --oneline | head -20',
+      ],
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+/**
+ * GET /api/a2a/proof/master-hash
+ * Compute and return the current master hash of all 115+ modules
+ * Scientific basis: Merkle tree root (Merkle 1987)
+ */
+a2aRouter.get('/api/a2a/proof/master-hash', async (_req: Request, res: Response) => {
+  try {
+    const path = await import('path');
+    const { computeMasterHash } = await import('./proof-chain-validator');
+    const modulesDir = path.join(process.cwd(), 'server', 'mother');
+    const { masterHash, moduleCount, modules } = computeMasterHash(modulesDir);
+    res.json({
+      master_hash: masterHash,
+      module_count: moduleCount,
+      version: 'v79.6',
+      cycle: 113,
+      timestamp: new Date().toISOString(),
+      modules,
+      scientific_basis: 'SHA-256 Merkle tree root over all TypeScript modules',
+      verification: 'Recompute locally: python3 -c "import hashlib,os; hashes=[hashlib.sha256(open(f\'server/mother/{f}\',\'rb\').read()).hexdigest() for f in sorted(os.listdir(\'server/mother\')) if f.endswith(\'.ts\')]; print(hashlib.sha256(\'\'.join(hashes).encode()).hexdigest())"',
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
