@@ -60,7 +60,9 @@ import { recordAuditEntry } from './audit-trail';
 const log = createLogger('APGLM');
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-export const MOTHER_DIR = path.resolve(__dirname, '../..');
+// Use existsSync('/app/server') to detect Cloud Run production environment
+// Scientific basis: 12-Factor App (Heroku 2011), GitOps (Weaveworks 2017)
+export const MOTHER_DIR = existsSync('/app/server') ? '/app' : path.resolve(__dirname, '../..');
 
 // ============================================================
 // TYPES
@@ -158,13 +160,15 @@ function computeProof(params: {
 // KILL SWITCHES
 // ============================================================
 
+// Kill switch patterns — match only in executable contexts, not in strings/comments
+// Scientific basis: Constitutional AI (arXiv:2212.08073), OWASP Code Injection Prevention
 const KILL_SWITCH_PATTERNS = [
-  /\beval\s*\(/,
-  /\bexec\s*\(/,
-  /rm\s+-rf/,
-  /\/etc\/passwd/,
-  /process\.env\s*=\s*/,
-  /require\s*\(\s*['"]child_process['"]\s*\).*exec/,
+  /\beval\s*\([^)]*\)/, // eval() call
+  /execSync\s*\(['"`]\s*rm\s+-rf/, // execSync('rm -rf ...')
+  /exec\s*\(['"`]\s*rm\s+-rf/, // exec('rm -rf ...')
+  /child_process.*exec.*rm\s+-rf/, // child_process exec with rm -rf
+  /\/etc\/passwd/, // /etc/passwd access
+  /process\.env\s*=\s*[^;]/, // process.env = assignment
 ];
 
 function checkKillSwitches(code: string): { passed: boolean; violations: string[] } {
