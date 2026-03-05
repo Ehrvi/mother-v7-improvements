@@ -1,19 +1,19 @@
 /**
  * MOTHER v78.8: A2A (Agent2Agent) Protocol Server — NC-COLLAB-001
  *
- * Establishes direct Manus↔MOTHER communication channel via A2A protocol.
+ * Establishes direct Everton↔MOTHER communication channel via A2A protocol.
  *
  * Scientific basis:
  * - A2A Protocol (Google Cloud, April 2025): open standard for AI agent interoperability
  *   arXiv:2505.02279 (Ehtesham et al., 2025) — comparison of MCP, ACP, A2A, ANP
  * - Agent Card: self-description JSON published at /.well-known/agent.json
- *   Enables Manus to auto-discover MOTHER's capabilities without manual configuration
+ *   Enables Everton to auto-discover MOTHER's capabilities without manual configuration
  * - MCP vs A2A (Auth0, 2025): "MCP extends what a single agent can do;
  *   A2A expands how agents can collaborate"
  *
  * Architecture:
  * - GET  /.well-known/agent.json   → Agent Card (A2A autodescription)
- * - GET  /api/a2a/diagnostics      → Real-time metrics for Manus
+ * - GET  /api/a2a/diagnostics      → Real-time metrics for Everton
  * - POST /api/a2a/query            → Send query to MOTHER via A2A
  * - GET  /api/a2a/knowledge        → Read bd_central entries
  * - POST /api/a2a/knowledge        → Add entry to bd_central
@@ -60,7 +60,7 @@ registerSHMSRoutes(a2aRouter);
 /**
  * GET /.well-known/agent.json
  * A2A Agent Card — self-description published at well-known URL.
- * Manus reads this at the start of each session to discover MOTHER's capabilities.
+ * Everton reads this at the start of each session to discover MOTHER's capabilities.
  * Scientific basis: A2A Protocol spec (Google, 2025) — Agent Cards enable
  * automatic capability discovery without manual configuration.
  */
@@ -170,8 +170,8 @@ a2aRouter.get('/api/a2a/status', async (_req: Request, res: Response) => {
 // ── Diagnostics ───────────────────────────────────────────────────────────────
 /**
  * GET /api/a2a/diagnostics
- * Real-time system metrics for Manus.
- * Enables Manus to diagnose MOTHER's state without manual inspection.
+ * Real-time system metrics for Everton.
+ * Enables Everton to diagnose MOTHER's state without manual inspection.
  *
  * Returns:
  * - version, timestamp
@@ -182,7 +182,7 @@ a2aRouter.get('/api/a2a/status', async (_req: Request, res: Response) => {
  */
 a2aRouter.get('/api/a2a/diagnostics', authenticateA2A, async (_req: Request, res: Response) => {
   try {
-    log.info('Diagnostics requested by Manus');
+    log.info('Diagnostics requested by Everton');
     const [recentQueriesRaw, providerHealth] = await Promise.all([
       getRecentQueries(50),
       checkAllProviders(false),
@@ -247,7 +247,7 @@ a2aRouter.get('/api/a2a/diagnostics', authenticateA2A, async (_req: Request, res
 // ── Knowledge Read ────────────────────────────────────────────────────────────
 /**
  * GET /api/a2a/knowledge?limit=100&quality_score_min=0.8&category=orchestration
- * Read bd_central entries for Manus to load MOTHER's knowledge base.
+ * Read bd_central entries for Everton to load MOTHER's knowledge base.
  */
 a2aRouter.get('/api/a2a/knowledge', authenticateA2A, async (req: Request, res: Response) => {
   try {

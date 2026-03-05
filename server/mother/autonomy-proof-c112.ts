@@ -40,7 +40,7 @@ export const PROOF_C112 = {
   previous_commit: 'fc949d0',
   previous_version: 'v79.4',
 
-  // Modules created in Ciclo 112 (autonomously by MOTHER via Manus supervision)
+  // Modules created in Ciclo 112 (autonomously by MOTHER via Everton supervision)
   modules: [
     {
       file: 'server/mother/e2b-sandbox.ts',

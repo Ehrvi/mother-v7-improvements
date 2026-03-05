@@ -136,7 +136,7 @@ export async function browseUrl(url: string, waitMs = 2000): Promise<BrowseResul
  * Scientific basis: Anna's Archive indexes 35M+ books and papers from
  * Library Genesis, Sci-Hub, Z-Library, and other sources.
  * This gives MOTHER access to the same scientific literature that
- * previously required Manus to navigate manually.
+ * previously required Everton to navigate manually.
  */
 export async function searchAnnasArchive(
   query: string,
