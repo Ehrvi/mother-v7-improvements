@@ -23,6 +23,7 @@
  * If MANUS_A2A_TOKEN is not set, auth is skipped (dev mode)
  */
 import { Router, Request, Response, NextFunction } from 'express';
+import { getLedger, computeLedgerRootHash, computeMasterHash, EVOLUTION_LEDGER } from './evolution-ledger.js';
 import { registerSHMSRoutes } from '../shms/shms-api'; // NC-SHMS-001: SHMS real-time monitoring
 import { getDb } from '../db';
 import { knowledge, queries } from '../../drizzle/schema';
@@ -890,6 +891,77 @@ a2aRouter.get('/api/a2a/proof/master-hash', async (_req: Request, res: Response)
       scientific_basis: 'SHA-256 Merkle tree root over all TypeScript modules',
       verification: 'Recompute locally: python3 -c "import hashlib,os; hashes=[hashlib.sha256(open(f\'server/mother/{f}\',\'rb\').read()).hexdigest() for f in sorted(os.listdir(\'server/mother\')) if f.endswith(\'.ts\')]; print(hashlib.sha256(\'\'.join(hashes).encode()).hexdigest())"',
     });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ============================================================
+// CICLO 114: EVOLUTION LEDGER ENDPOINTS
+// ============================================================
+
+// GET /api/a2a/ledger — full evolution ledger
+a2aRouter.get('/api/a2a/ledger', (_req: Request, res: Response) => {
+  try {
+    const ledgerData = getLedger();
+    res.json({
+      status: 'ok',
+      system: 'MOTHER — Modular Orchestrated Thinking and Hierarchical Execution Runtime',
+      developer: 'Everton Garcia (Wizards Down Under)',
+      ...ledgerData,
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// GET /api/a2a/ledger/summary — compact summary for quick display
+a2aRouter.get('/api/a2a/ledger/summary', (_req: Request, res: Response) => {
+  try {
+    const ledgerRootHash = computeLedgerRootHash();
+    const motherDir = __dirname;
+    const { hash: masterHash, moduleCount } = computeMasterHash(motherDir);
+
+    const summary = EVOLUTION_LEDGER.map(e => ({
+      cycle: e.cycle,
+      version: e.version,
+      date: e.date,
+      commit: e.commit,
+      chain_hash: e.chain_hash,
+      master_hash: e.master_hash,
+      modules_created: e.modules_created.length,
+      modules_created_names: e.modules_created,
+      insertions: e.insertions,
+      benchmark: `${e.benchmark.mccs_passed}/${e.benchmark.mccs_total} ${e.benchmark.verdict}`,
+      gaps_closed: e.gaps_closed,
+      summary: e.summary,
+    }));
+
+    res.json({
+      status: 'ok',
+      ledger_root_hash: ledgerRootHash,
+      current_master_hash: masterHash,
+      current_module_count: moduleCount,
+      total_cycles: EVOLUTION_LEDGER.length,
+      total_modules_created: EVOLUTION_LEDGER.reduce((s, e) => s + e.modules_created.length, 0),
+      total_insertions: EVOLUTION_LEDGER.reduce((s, e) => s + e.insertions, 0),
+      cycles: summary,
+      verification: 'curl -s https://mother-interface-qtvghovzxa-ts.a.run.app/api/a2a/ledger/summary | python3 -m json.tool',
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// GET /api/a2a/ledger/:cycle — single cycle entry
+a2aRouter.get('/api/a2a/ledger/:cycle', (req: Request, res: Response) => {
+  try {
+    const cycleNum = parseInt(req.params.cycle, 10);
+    const entry = EVOLUTION_LEDGER.find(e => e.cycle === cycleNum);
+    if (!entry) {
+      return res.status(404).json({ error: `Cycle ${cycleNum} not found in ledger` });
+    }
+    res.json({ status: 'ok', entry });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
