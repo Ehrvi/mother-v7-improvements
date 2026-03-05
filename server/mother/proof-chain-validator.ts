@@ -202,7 +202,7 @@ export const PROOF_CHAIN: ProofRecord[] = [
     cycle: 120,
     version: 'v80.1',
     timestamp: '2026-03-05T08:00:00.000Z',
-    commitHash: 'PENDING_C120',
+    commitHash: '4053e4b',
     moduleHashes: {
       'shms-agent/src/mqtt-listener.ts': '13a5de8716ae84ee9f2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5',
       'shms-agent/src/sensor-validator-v2.ts': 'f67fe7d25fe66a2e1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5',
@@ -216,7 +216,7 @@ export const PROOF_CHAIN: ProofRecord[] = [
     cycle: 121,
     version: 'v80.2',
     timestamp: '2026-03-05T08:30:00.000Z',
-    commitHash: 'PENDING_C121',
+    commitHash: '4053e4b',
     moduleHashes: {
       'fitness-evaluator.ts': 'cbfb5f757d84bc6d1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5',
     },
