@@ -529,3 +529,105 @@ a2aRouter.post('/api/a2a/agent-task', authenticateA2A, async (req: Request, res:
     });
   }
 });
+
+// ============================================================
+// PROOF OF AUTONOMY ENDPOINTS (v79.3)
+// Cryptographic proof that MOTHER autonomously created code
+// Scientific basis: DGM (arXiv:2505.22954)
+// ============================================================
+
+/**
+ * GET /api/a2a/autonomy
+ * Get MOTHER's current autonomy level and proof summary
+ */
+a2aRouter.get('/api/a2a/autonomy', async (_req: Request, res: Response) => {
+  try {
+    const { calculateAutonomyLevel } = await import('./proof-of-autonomy');
+    const autonomy = await calculateAutonomyLevel();
+    res.json({
+      ...autonomy,
+      agent_version: MOTHER_VERSION,
+      repo: 'https://github.com/Ehrvi/mother-v7-improvements',
+      proof_endpoint: '/api/a2a/proof/:commitHash',
+      roadmap_endpoint: '/api/a2a/roadmap-execute',
+      message: 'MOTHER is a self-improving AI agent. Each proof record is cryptographically signed.'
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+/**
+ * GET /api/a2a/proof
+ * List all proofs of MOTHER's autonomous code creation
+ */
+a2aRouter.get('/api/a2a/proof', async (req: Request, res: Response) => {
+  const limit = Math.min(Number(req.query.limit) || 20, 100);
+  const offset = Number(req.query.offset) || 0;
+  try {
+    const { getAllProofs, calculateAutonomyLevel } = await import('./proof-of-autonomy');
+    const [proofs, autonomy] = await Promise.all([
+      getAllProofs(limit, offset),
+      calculateAutonomyLevel()
+    ]);
+    res.json({
+      proofs,
+      total: proofs.length,
+      autonomy,
+      message: `MOTHER has ${autonomy.proofs_count} cryptographically verified autonomous code creations`
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+/**
+ * GET /api/a2a/proof/:commitHash
+ * Verify that MOTHER autonomously created code for a given commit
+ */
+a2aRouter.get('/api/a2a/proof/:commitHash', async (req: Request, res: Response) => {
+  const { commitHash } = req.params;
+  if (!commitHash || commitHash.length < 7) {
+    return res.status(400).json({ error: 'commitHash must be at least 7 characters' });
+  }
+  try {
+    const { getProofByCommit, calculateAutonomyLevel } = await import('./proof-of-autonomy');
+    const [proof, autonomy] = await Promise.all([
+      getProofByCommit(commitHash),
+      calculateAutonomyLevel()
+    ]);
+    if (!proof) {
+      return res.status(404).json({
+        verified: false,
+        message: 'No proof found for this commit. Was this code written by MOTHER?',
+        autonomy_level: autonomy.level,
+        proofs_count: autonomy.proofs_count
+      });
+    }
+    res.json({ ...proof, autonomy_level_summary: autonomy });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+/**
+ * POST /api/a2a/roadmap-execute
+ * MOTHER reads and executes the next phase of her own roadmap
+ * This is the key endpoint for MOTHER's self-directed evolution
+ */
+a2aRouter.post('/api/a2a/roadmap-execute', async (req: Request, res: Response) => {
+  const { phase, dryRun, userId } = req.body || {};
+  log.info('A2A roadmap-execute request', { phase, dryRun, userId });
+  try {
+    const { executeRoadmapPhase } = await import('./roadmap-executor');
+    const result = await executeRoadmapPhase({
+      phase: phase || 'next',
+      dryRun: dryRun === true,
+      userId: userId || 'mother-self'
+    });
+    res.json(result);
+  } catch (err) {
+    log.error('A2A roadmap-execute error', { error: String(err) });
+    res.status(500).json({ error: String(err), success: false });
+  }
+});
