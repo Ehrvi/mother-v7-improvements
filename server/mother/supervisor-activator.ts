@@ -40,6 +40,7 @@ import { storeEpisodicMemory, getRecentEpisodicMemories, generateReflection } fr
 import { writeCodeFile, triggerDeploy } from './self-code-writer';
 import { executeBash } from './code-sandbox';
 import { invokeSupervisor } from './supervisor';
+import { storeProofOfAutonomy } from './proof-of-autonomy';
 
 // ============================================================
 // TYPES
@@ -379,6 +380,20 @@ export async function executeAgentTask(task: AgentTask): Promise<AgentResult> {
     if (writeResult.success) {
       commitHash = writeResult.commitSha;
       log.info('AgentTask: File written and committed', { taskId, commitHash });
+      // DGM Proof of Autonomy: cryptographic attestation after every autonomous write
+      // Scientific basis: Darwin Gödel Machine (arXiv:2505.22954)
+      // "The archive stores (code, hash, fitness) triplets" — this is MOTHER's DGM archive entry
+      storeProofOfAutonomy({
+        filePath: writeIntent.filePath,
+        code: writeIntent.content,
+        commitSha: commitHash || `agent-${taskId}`,
+        taskDescription: task.task,
+        fitnessScore: sandboxResult.passed ? 0.85 : 0.5
+      }).then(proof => {
+        log.info('AgentTask: Proof of autonomy stored', { taskId, codeHash: proof.code_hash.slice(0, 20) });
+      }).catch(e => {
+        log.warn('AgentTask: Proof storage failed (non-fatal)', { taskId, error: String(e) });
+      });
     } else {
       writeError = writeResult.error || 'Unknown write error';
     }

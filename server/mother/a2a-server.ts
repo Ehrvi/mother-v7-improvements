@@ -628,3 +628,57 @@ a2aRouter.post('/api/a2a/roadmap-execute', async (req: Request, res: Response) =
     res.status(500).json({ error: String(err), success: false });
   }
 });
+
+/**
+ * POST /api/a2a/benchmark/run
+ * Trigger Benchmark C111 — 6 MCCs for Proof of Autonomy
+ * Scientific basis: HELM (arXiv:2211.09110) + DGM (arXiv:2505.22954)
+ */
+a2aRouter.post('/api/a2a/benchmark/run', async (req: Request, res: Response) => {
+  const { userId } = req.body || {};
+  log.info('A2A benchmark/run request', { userId });
+  try {
+    const { runBenchmarkC111 } = await import('./benchmark-runner');
+    const result = await runBenchmarkC111();
+    res.json(result);
+  } catch (err) {
+    log.error('A2A benchmark/run error', { error: String(err) });
+    res.status(500).json({ error: String(err), success: false });
+  }
+});
+
+/**
+ * GET /api/a2a/benchmark/summary
+ * Get latest benchmark summary from bd_central
+ */
+a2aRouter.get('/api/a2a/benchmark/summary', async (_req: Request, res: Response) => {
+  try {
+    const { getBenchmarkSummary } = await import('./benchmark-runner');
+    const summary = await getBenchmarkSummary();
+    res.json(summary);
+  } catch (err) {
+    log.error('A2A benchmark/summary error', { error: String(err) });
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+/**
+ * GET /api/a2a/decompose?phase=1
+ * Decompose a roadmap phase into atomic executable tasks
+ * Scientific basis: ReAct (arXiv:2210.03629) + CodeAct (arXiv:2402.01030)
+ */
+a2aRouter.get('/api/a2a/decompose', async (req: Request, res: Response) => {
+  const phase = req.query.phase as string || '1';
+  try {
+    const { getPhaseDecomposition, decomposeTask } = await import('./task-decomposer');
+    const plan = getPhaseDecomposition(phase);
+    if (plan) {
+      res.json(plan);
+    } else {
+      res.json(decomposeTask(`Execute roadmap phase ${phase}`, phase));
+    }
+  } catch (err) {
+    log.error('A2A decompose error', { error: String(err) });
+    res.status(500).json({ error: String(err) });
+  }
+});
