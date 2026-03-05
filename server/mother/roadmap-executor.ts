@@ -135,6 +135,7 @@ async function executeTask(task: RoadmapTask, phaseId: string): Promise<{
   proof_hash?: string;
   error?: string;
 }> {
+  const taskStartTime = Date.now();
   console.log(`[RoadmapExecutor] Executing task ${task.id}: ${task.description.slice(0, 80)}`);
   
   try {
@@ -156,7 +157,7 @@ async function executeTask(task: RoadmapTask, phaseId: string): Promise<{
         result: 'success',
         commitHash: result.commitHash,
         iterationCount: result.iterations || 1,
-        durationMs: Date.now() - startTime,
+        durationMs: Date.now() - taskStartTime,
         timestamp: new Date().toISOString(),
         tags: ['roadmap', phaseId, task.id]
       });
@@ -175,7 +176,7 @@ async function executeTask(task: RoadmapTask, phaseId: string): Promise<{
       action: `Failed roadmap task ${task.id} in phase ${phaseId}: ${error.slice(0, 200)}`,
       result: 'failure',
       iterationCount: 1,
-      durationMs: Date.now() - startTime,
+      durationMs: Date.now() - taskStartTime,
       timestamp: new Date().toISOString(),
       tags: ['roadmap', phaseId, task.id, 'failure']
     });
