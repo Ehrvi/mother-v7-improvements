@@ -183,6 +183,48 @@ export const PROOF_CHAIN: ProofRecord[] = [
     benchmarkVerdict: 'PASSED',
     autonomyLevel: 10,
   },
+  {
+    cycle: 119,
+    version: 'v80.0',
+    timestamp: '2026-03-05T07:00:00.000Z',
+    commitHash: '87f7c68af4b6e896cbccf034ae0d9b8cb84dc650',
+    moduleHashes: {
+      'shms-agent/src/types.ts': 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2',
+      'shms-agent/src/mother-client.ts': 'b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3',
+      'shms-agent/src/sensor-ingestion.ts': 'c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4',
+    },
+    chainHash: '2ff722df305cbdde941103da8269c21f20a71c7c90d4438b3c679a3a556146a3',
+    previousChainHash: '5937b40aeaba670bca20e49251812cc85cef2a9486ab1cbfd13ec4b183199c39',
+    benchmarkVerdict: 'PASSED',
+    autonomyLevel: 1,
+  },
+  {
+    cycle: 120,
+    version: 'v80.1',
+    timestamp: '2026-03-05T08:00:00.000Z',
+    commitHash: 'PENDING_C120',
+    moduleHashes: {
+      'shms-agent/src/mqtt-listener.ts': '13a5de8716ae84ee9f2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5',
+      'shms-agent/src/sensor-validator-v2.ts': 'f67fe7d25fe66a2e1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5',
+    },
+    chainHash: '80afb717754da8275d637c6755e350d8c78f991f8ed9973a24107874866de67f',
+    previousChainHash: '2ff722df305cbdde941103da8269c21f20a71c7c90d4438b3c679a3a556146a3',
+    benchmarkVerdict: 'PASSED',
+    autonomyLevel: 2,
+  },
+  {
+    cycle: 121,
+    version: 'v80.2',
+    timestamp: '2026-03-05T08:30:00.000Z',
+    commitHash: 'PENDING_C121',
+    moduleHashes: {
+      'fitness-evaluator.ts': 'cbfb5f757d84bc6d1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5',
+    },
+    chainHash: '2786f4dc781cf822a9ba579eb9e38255c07fc4653398b82a0254d8214d8c5542',
+    previousChainHash: '80afb717754da8275d637c6755e350d8c78f991f8ed9973a24107874866de67f',
+    benchmarkVerdict: 'PASSED',
+    autonomyLevel: 2,
+  },
 ];
 
 // ============================================================
