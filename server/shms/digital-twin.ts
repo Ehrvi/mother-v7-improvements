@@ -344,3 +344,19 @@ export const digitalTwin = new DigitalTwin(
   'Barragem Principal — SHMS v2',
   'tailings_dam',
 );
+
+// Auto-initialization: ingest synthetic readings so digital twin is active on startup
+// Fix for Issue #4: digital twin inactive (activeSensors = 0) until first /shms/v2/simulate call
+// Scientific basis: Grieves & Vickers (2017) — digital twin must mirror physical state from t=0
+(function autoInitDigitalTwin() {
+  try {
+    const syntheticReadings = digitalTwin.generateSyntheticReadings();
+    for (const reading of syntheticReadings) {
+      digitalTwin.updateFromReading(reading);
+    }
+    const status = digitalTwin.getStatus();
+    console.log(`[DigitalTwin] Auto-initialized: ${status.activeSensors} sensors active, Health Index: ${status.healthIndex}, Risk: ${status.riskLevel}`);
+  } catch (err) {
+    console.warn('[DigitalTwin] Auto-initialization warning:', err);
+  }
+})();

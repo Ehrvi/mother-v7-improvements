@@ -326,7 +326,7 @@ export async function querySensorReadings(query: TimeSeriesQuery): Promise<TimeS
       }
 
       const result = await (await getDbInstance()).execute(queryStr);
-      return (result[0] as Record<string, unknown>[] || []).map((row: Record<string, unknown>) => ({
+      return (result[0] as unknown as Record<string, unknown>[] || []).map((row: Record<string, unknown>) => ({
         time: new Date(row.time as string),
         sensorId: row.sensor_id as string,
         sensorType: row.sensor_type as SensorType,
@@ -358,7 +358,7 @@ export async function querySensorReadings(query: TimeSeriesQuery): Promise<TimeS
     `);
 
     // Return as TimeSeriesPoint (using avg_value as value)
-    return (result[0] as Record<string, unknown>[] || []).map((row: Record<string, unknown>) => ({
+    return (result[0] as unknown as Record<string, unknown>[] || []).map((row: Record<string, unknown>) => ({
       time: new Date(row.bucket as string),
       sensorId: row.sensor_id as string,
       sensorType: 'displacement' as SensorType,
@@ -385,7 +385,7 @@ export async function getLatestReadings(): Promise<TimeSeriesPoint[]> {
       ORDER BY sensor_id, time DESC
     `);
 
-    return (result[0] as Record<string, unknown>[] || []).map((row: Record<string, unknown>) => ({
+    return (result[0] as unknown as Record<string, unknown>[] || []).map((row: Record<string, unknown>) => ({
       time: new Date(row.time as string),
       sensorId: row.sensor_id as string,
       sensorType: row.sensor_type as SensorType,
@@ -414,7 +414,7 @@ export async function getLatestPredictions(): Promise<LSTMPrediction[]> {
       ORDER BY sensor_id, time DESC
     `);
 
-    return (result[0] as Record<string, unknown>[] || []).map((row: Record<string, unknown>) => ({
+    return (result[0] as unknown as Record<string, unknown>[] || []).map((row: Record<string, unknown>) => ({
       sensorId: row.sensor_id as string,
       sensorType: row.sensor_type as SensorType,
       timestamp: new Date(row.time as string),
@@ -451,7 +451,7 @@ export async function getTimescaleStatus(): Promise<TimescaleStatus> {
     `);
     if ((((extResult[0] as unknown as Record<string, unknown>[]) ?? []).length ?? 0) > 0) {
       timescaleAvailable = true;
-      version = (extResult[0] as Record<string, unknown>[]![0] as Record<string, unknown>).extversion as string;
+      version = ((extResult[0] as unknown as Record<string, unknown>[])[0] as Record<string, unknown>).extversion as string;
     }
   } catch { /* ignore */ }
 
@@ -467,7 +467,7 @@ export async function getTimescaleStatus(): Promise<TimescaleStatus> {
       FROM shms_sensor_readings
     `);
     if (((countResult[0] as unknown as Record<string, unknown>[]) ?? []).length) {
-      const row = countResult[0] as Record<string, unknown>[][0] as Record<string, unknown>;
+      const row = ((countResult[0] as unknown as Record<string, unknown>[]) ?? [])[0] as Record<string, unknown>;
       totalRows = Number(row.total) || 0;
       if (row.oldest) oldestRecord = new Date(row.oldest as string);
       if (row.newest) newestRecord = new Date(row.newest as string);

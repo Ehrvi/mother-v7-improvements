@@ -608,6 +608,56 @@ a2aRouter.get('/api/a2a/proof/c112', async (_req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/a2a/proof/chain — MUST be before /:commitHash to avoid route capture
+ * Get the full cryptographic proof chain (Ciclos 110-115+)
+ * Scientific basis: Merkle trees (Merkle 1987) + DGM (arXiv:2505.22954)
+ */
+a2aRouter.get('/api/a2a/proof/chain', async (_req: Request, res: Response) => {
+  try {
+    const { getChainSummary, validateProofChain, PROOF_CHAIN } = await import('./proof-chain-validator');
+    const summary = getChainSummary();
+    const validation = validateProofChain();
+    res.json({
+      summary,
+      validation,
+      chain: PROOF_CHAIN,
+      verification_commands: [
+        'curl -s https://mother-interface-qtvghovzxa-ts.a.run.app/api/a2a/proof/chain | python3 -m json.tool',
+        'git clone https://github.com/Ehrvi/mother-v7-improvements.git && cd mother-v7-improvements && git log --oneline | head -20',
+      ],
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+/**
+ * GET /api/a2a/proof/master-hash — MUST be before /:commitHash to avoid route capture
+ * Compute and return the current master hash of all modules
+ * Scientific basis: Merkle tree root (Merkle 1987)
+ */
+a2aRouter.get('/api/a2a/proof/master-hash', async (_req: Request, res: Response) => {
+  try {
+    const pathMod = await import('path');
+    const { computeMasterHash } = await import('./proof-chain-validator');
+    const modulesDir = pathMod.join(process.cwd(), 'server', 'mother');
+    const { masterHash, moduleCount, modules } = computeMasterHash(modulesDir);
+    res.json({
+      master_hash: masterHash,
+      module_count: moduleCount,
+      version: 'v79.8',
+      cycle: 115,
+      timestamp: new Date().toISOString(),
+      modules,
+      scientific_basis: 'SHA-256 Merkle tree root over all TypeScript modules (sorted)',
+      verification: 'python3 -c "import hashlib,os; hashes=[hashlib.sha256(open(f\'server/mother/{f}\',\'rb\').read()).hexdigest() for f in sorted(os.listdir(\'server/mother\')) if f.endswith(\'.ts\')]; print(hashlib.sha256(\'\'.join(hashes).encode()).hexdigest())"',
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+/**
  * GET /api/a2a/proof/:commitHash
  * Verify that MOTHER autonomously created code for a given commit
  */
@@ -846,56 +896,6 @@ a2aRouter.get('/api/a2a/tasks', async (_req: Request, res: Response) => {
   }
 });
 
-/**
- * GET /api/a2a/proof/chain
- * Get the full cryptographic proof chain (Ciclos 110-113+)
- * Scientific basis: Merkle trees (Merkle 1987) + DGM (arXiv:2505.22954)
- */
-a2aRouter.get('/api/a2a/proof/chain', async (_req: Request, res: Response) => {
-  try {
-    const { getChainSummary, validateProofChain, PROOF_CHAIN } = await import('./proof-chain-validator');
-    const summary = getChainSummary();
-    const validation = validateProofChain();
-    res.json({
-      summary,
-      validation,
-      chain: PROOF_CHAIN,
-      verification_commands: [
-        'curl -s https://mother-interface-qtvghovzxa-ts.a.run.app/api/a2a/proof/chain | python3 -m json.tool',
-        'git clone https://github.com/Ehrvi/mother-v7-improvements.git && cd mother-v7-improvements && git log --oneline | head -20',
-      ],
-    });
-  } catch (err) {
-    res.status(500).json({ error: String(err) });
-  }
-});
-
-/**
- * GET /api/a2a/proof/master-hash
- * Compute and return the current master hash of all 115+ modules
- * Scientific basis: Merkle tree root (Merkle 1987)
- */
-a2aRouter.get('/api/a2a/proof/master-hash', async (_req: Request, res: Response) => {
-  try {
-    const path = await import('path');
-    const { computeMasterHash } = await import('./proof-chain-validator');
-    const modulesDir = path.join(process.cwd(), 'server', 'mother');
-    const { masterHash, moduleCount, modules } = computeMasterHash(modulesDir);
-    res.json({
-      master_hash: masterHash,
-      module_count: moduleCount,
-      version: 'v79.6',
-      cycle: 113,
-      timestamp: new Date().toISOString(),
-      modules,
-      scientific_basis: 'SHA-256 Merkle tree root over all TypeScript modules',
-      verification: 'Recompute locally: python3 -c "import hashlib,os; hashes=[hashlib.sha256(open(f\'server/mother/{f}\',\'rb\').read()).hexdigest() for f in sorted(os.listdir(\'server/mother\')) if f.endswith(\'.ts\')]; print(hashlib.sha256(\'\'.join(hashes).encode()).hexdigest())"',
-    });
-  } catch (err) {
-    res.status(500).json({ error: String(err) });
-  }
-});
-
 // ============================================================
 // CICLO 114: EVOLUTION LEDGER ENDPOINTS
 // ============================================================
@@ -1084,6 +1084,159 @@ a2aRouter.get('/api/a2a/shms/v2/twin', (_req: Request, res: Response) => {
       sensors: digitalTwin.getSensors(),
       history: digitalTwin.getHistory(20),
       timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// ============================================================
+// CICLO 116 ENDPOINTS — v79.9
+// Gap 13 closure: MQTT → Digital Twin bridge + SHMS v2 Dashboard
+// Scientific basis: Grieves (2017), ICOLD 158, Hochreiter (1997)
+// Author: Everton Garcia (Wizards Down Under)
+// ============================================================
+
+import { getDashboardData, getAlertsSummary } from '../shms/shms-dashboard.js';
+import { mqttDigitalTwinBridge } from '../shms/mqtt-digital-twin-bridge.js';
+
+/**
+ * GET /api/a2a/shms/v2/dashboard
+ * Full SHMS v2 dashboard: digital twin + LSTM + bridge stats
+ * Scientific basis: ICOLD Bulletin 158 (2017) + Grieves (2017)
+ */
+a2aRouter.get('/api/a2a/shms/v2/dashboard', (_req: Request, res: Response) => {
+  try {
+    const dashboard = getDashboardData();
+    res.json(dashboard);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+/**
+ * GET /api/a2a/shms/v2/alerts
+ * Active structural alerts from digital twin
+ * Scientific basis: ICOLD Bulletin 158 — alert thresholds
+ */
+a2aRouter.get('/api/a2a/shms/v2/alerts', (_req: Request, res: Response) => {
+  try {
+    const alerts = getAlertsSummary();
+    res.json({
+      ...alerts,
+      timestamp: new Date().toISOString(),
+      system: 'SHMS v2 — MOTHER v79.9',
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+/**
+ * GET /api/a2a/shms/v2/sensors
+ * All sensor states from digital twin
+ */
+a2aRouter.get('/api/a2a/shms/v2/sensors', (_req: Request, res: Response) => {
+  try {
+    const sensors = digitalTwin.getSensors();
+    const status = digitalTwin.getStatus();
+    res.json({
+      total: sensors.length,
+      health_index: status.healthIndex,
+      risk_level: status.riskLevel,
+      sensors,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+/**
+ * GET /api/a2a/shms/v2/lstm/status
+ * LSTM predictor model status
+ * Scientific basis: Hochreiter & Schmidhuber (1997)
+ */
+a2aRouter.get('/api/a2a/shms/v2/lstm/status', (_req: Request, res: Response) => {
+  try {
+    const stats = lstmPredictor.getStats();
+    const predictions = lstmPredictor.getAllPredictions();
+    res.json({
+      ...stats,
+      predictions_count: predictions.length,
+      predictions,
+      min_samples_for_prediction: 20,
+      timestamp: new Date().toISOString(),
+      scientific_basis: 'Hochreiter & Schmidhuber (1997) — LSTM Long Short-Term Memory',
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+/**
+ * GET /api/a2a/shms/v2/bridge/stats
+ * MQTT-to-Digital-Twin bridge statistics
+ * Scientific basis: Grieves (2017) — digital twin data synchronization
+ */
+a2aRouter.get('/api/a2a/shms/v2/bridge/stats', (_req: Request, res: Response) => {
+  try {
+    const stats = mqttDigitalTwinBridge.getStats();
+    res.json({
+      ...stats,
+      timestamp: new Date().toISOString(),
+      gap_closed: 'Gap 13 — MQTT real data → Digital Twin (C116)',
+      scientific_basis: 'Grieves & Vickers (2017) — digital twin requires real-time data sync',
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+/**
+ * POST /api/a2a/shms/v2/bridge/ingest
+ * Ingest a sensor reading via MQTT bridge → digital twin
+ * Scientific basis: ICOLD Bulletin 158 — <1s latency requirement
+ */
+a2aRouter.post('/api/a2a/shms/v2/bridge/ingest', async (req: Request, res: Response) => {
+  try {
+    const reading = req.body;
+    if (!reading?.sensorId || !reading?.sensorType || reading?.value === undefined) {
+      return res.status(400).json({ error: 'Required: sensorId, sensorType, value' });
+    }
+    await mqttDigitalTwinBridge.processReading({
+      ...reading,
+      timestamp: new Date(reading.timestamp || Date.now()),
+      unit: reading.unit || 'unknown',
+      quality: reading.quality || 'good',
+      location: reading.location || { zone: 'api-ingest' },
+    });
+    res.json({
+      success: true,
+      bridge_stats: mqttDigitalTwinBridge.getStats(),
+      twin_status: digitalTwin.getStatus(),
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+/**
+ * POST /api/a2a/shms/v2/bridge/simulate-and-ingest
+ * Generate synthetic readings and ingest via bridge (for LSTM training)
+ * Closes Gap 13: digital twin now always has active sensors
+ */
+a2aRouter.post('/api/a2a/shms/v2/bridge/simulate-and-ingest', async (_req: Request, res: Response) => {
+  try {
+    const readings = digitalTwin.generateSyntheticReadings();
+    const result = await mqttDigitalTwinBridge.processBatch(readings);
+    res.json({
+      success: true,
+      ...result,
+      twin_status: digitalTwin.getStatus(),
+      lstm_stats: lstmPredictor.getStats(),
+      bridge_stats: mqttDigitalTwinBridge.getStats(),
+      gap_13_status: 'CLOSED — digital twin active with synthetic sensor data',
     });
   } catch (err) {
     res.status(500).json({ error: String(err) });
