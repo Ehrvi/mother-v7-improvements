@@ -682,3 +682,72 @@ a2aRouter.get('/api/a2a/decompose', async (req: Request, res: Response) => {
     res.status(500).json({ error: String(err) });
   }
 });
+
+/**
+ * GET /api/a2a/sandbox/status
+ * Check E2B sandbox availability (Gap 2 status)
+ * Scientific basis: SWE-agent ACI (arXiv:2405.15793)
+ * @version v79.5 | Ciclo 112
+ */
+a2aRouter.get('/api/a2a/sandbox/status', async (_req: Request, res: Response) => {
+  try {
+    const { getSandboxStatus } = await import('./e2b-sandbox');
+    const status = getSandboxStatus();
+    res.json({
+      ...status,
+      gap2: status.gap2Closed ? 'CLOSED' : 'PARTIAL',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    log.error('A2A sandbox/status error', { error: String(err) });
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+/**
+ * POST /api/a2a/benchmark/trigger
+ * Trigger HELM-lite benchmark (called by Cloud Build post-deploy or manually)
+ * Scientific basis: HELM (arXiv:2211.09110) + DARWIN (arXiv:2602.02534)
+ * @version v79.5 | Ciclo 112
+ */
+a2aRouter.post('/api/a2a/benchmark/trigger', async (req: Request, res: Response) => {
+  const { buildId, version, commitSha, triggeredBy } = req.body || {};
+  try {
+    const { triggerHelmLiteBenchmark } = await import('./helm-lite-trigger');
+    const result = await triggerHelmLiteBenchmark({
+      buildId,
+      version,
+      commitSha,
+      triggeredBy: triggeredBy || 'manual',
+    });
+    res.json(result);
+  } catch (err) {
+    log.error('A2A benchmark/trigger error', { error: String(err) });
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+/**
+ * GET /api/a2a/proof/c112
+ * Get Ciclo 112 cryptographic proof of autonomy
+ * Scientific basis: DGM (arXiv:2505.22954) + Merkle trees (Merkle 1987)
+ * @version v79.5 | Ciclo 112
+ */
+a2aRouter.get('/api/a2a/proof/c112', async (_req: Request, res: Response) => {
+  try {
+    const { getFullProof, verifyProof, PROOF_SUMMARY } = await import('./autonomy-proof-c112');
+    const proof = getFullProof();
+    const valid = verifyProof(proof);
+    res.json({
+      valid,
+      proof: PROOF_SUMMARY,
+      full_proof: proof,
+      verification_method: 'SHA-256 chain hash',
+      scientific_basis: 'Darwin Gödel Machine (arXiv:2505.22954)',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    log.error('A2A proof/c112 error', { error: String(err) });
+    res.status(500).json({ error: String(err) });
+  }
+});
