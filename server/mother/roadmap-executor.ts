@@ -139,26 +139,26 @@ async function executeTask(task: RoadmapTask, phaseId: string): Promise<{
   
   try {
     const result = await executeAgentTask({
-      task: task.description,
+      task: `[Phase:${phaseId}][Task:${task.id}] ${task.description}\nSuccess criteria: ${task.success_criteria}`,
       mode: 'write-sandbox',
-      userId: 'mother-self',
-      metadata: {
-        roadmap_phase: phaseId,
-        task_id: task.id,
-        success_criteria: task.success_criteria
-      }
+      userId: 'mother-self'
     });
     
-    const success = result.status === 'completed' || result.status === 'success';
+    const success = result.success;
     
     if (success) {
       // Generate proof of autonomy
       const proofHash = `roadmap-${phaseId}-${task.id}-${Date.now()}`;
       await storeEpisodicMemory({
+        taskId: `roadmap-${phaseId}-${task.id}`,
         task: task.description,
-        action: `Completed roadmap task ${task.id}`,
+        action: `Completed roadmap task ${task.id} in phase ${phaseId}`,
         result: 'success',
-        metadata: { phase: phaseId, task_id: task.id, proof_hash: proofHash }
+        commitHash: result.commitHash,
+        iterationCount: result.iterations || 1,
+        durationMs: Date.now() - startTime,
+        timestamp: new Date().toISOString(),
+        tags: ['roadmap', phaseId, task.id]
       });
       
       return { success: true, proof_hash: proofHash };
@@ -170,10 +170,14 @@ async function executeTask(task: RoadmapTask, phaseId: string): Promise<{
     console.error(`[RoadmapExecutor] Task ${task.id} failed:`, error);
     
     await storeEpisodicMemory({
+      taskId: `roadmap-${phaseId}-${task.id}-fail`,
       task: task.description,
-      action: `Failed roadmap task ${task.id}`,
+      action: `Failed roadmap task ${task.id} in phase ${phaseId}: ${error.slice(0, 200)}`,
       result: 'failure',
-      metadata: { phase: phaseId, task_id: task.id, error }
+      iterationCount: 1,
+      durationMs: Date.now() - startTime,
+      timestamp: new Date().toISOString(),
+      tags: ['roadmap', phaseId, task.id, 'failure']
     });
     
     return { success: false, error };

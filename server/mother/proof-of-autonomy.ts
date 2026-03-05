@@ -10,15 +10,16 @@
  * 2. Store in dgm_archive: (generationId, parentId, codeSnapshot, fitnessScore)
  * 3. HMAC-SHA256 attestation signed with GITHUB_TOKEN
  * 4. Public verification: GET /api/a2a/proof/:commitHash
- * 5. Fallback: bd_central if dgm_archive unavailable
+ * 5. Fallback: bd_central via HTTP API if dgm_archive unavailable
  */
 
 import crypto from 'crypto';
-import { getDb, insertKnowledge } from '../db';
 
 const AGENT_VERSION = process.env.MOTHER_VERSION || 'v79.3';
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
 const REPO_URL = 'https://github.com/Ehrvi/mother-v7-improvements';
+const MOTHER_BASE_URL = process.env.MOTHER_BASE_URL ||
+  'https://mother-interface-qtvghovzxa-ts.a.run.app';
 
 export interface ProofRecord {
   id?: number;
@@ -30,7 +31,7 @@ export interface ProofRecord {
   fitness_score: number;
   task_description: string;
   attestation: string;
-  created_at: Date;
+  created_at: string;
 }
 
 export interface AutonomyAttestation {
@@ -79,7 +80,7 @@ function createAttestation(
 
 /**
  * Store proof of autonomous code creation in dgm_archive + bd_central
- * Called by supervisor-activator.ts after every successful writeCodeFile
+ * Uses HTTP API to avoid direct DB dependency (works in both dev and prod)
  */
 export async function storeProofOfAutonomy(params: {
   filePath: string;
@@ -110,52 +111,63 @@ export async function storeProofOfAutonomy(params: {
     fitness_score: params.fitnessScore ?? 0.5,
     task_description: params.taskDescription.slice(0, 500),
     attestation,
-    created_at: new Date(timestamp)
+    created_at: timestamp
   };
   
-  // Primary: store in dgm_archive via drizzle
-  try {
-    const db = await getDb();
-    const { dgmArchive } = await import('../../drizzle/schema');
-    
-    const codeSnapshot = JSON.stringify({
-      agent_id: record.agent_id,
-      file_path: record.file_path,
-      task: record.task_description,
-      attestation: record.attestation,
-      commit_sha: record.commit_sha,
-      code_hash: record.code_hash
-    });
-    
-    await db.insert(dgmArchive).values({
-      generationId: record.code_hash.slice(0, 255),
-      parentId: record.parent_id.slice(0, 255),
-      codeSnapshot,
-      fitnessScore: record.fitness_score,
-      benchmarkResults: JSON.stringify({
+  // Primary: store in dgm_archive via drizzle (non-blocking, best-effort)
+  void (async () => {
+    try {
+      const { getDb } = await import('../db');
+      const db = await getDb();
+      if (!db) return;
+      const { dgmArchive } = await import('../../drizzle/schema');
+      
+      const codeSnapshot = JSON.stringify({
         agent_id: record.agent_id,
-        code_hash: record.code_hash,
         file_path: record.file_path,
+        task: record.task_description,
+        attestation: record.attestation,
         commit_sha: record.commit_sha,
-        attestation: record.attestation
+        code_hash: record.code_hash
+      });
+      
+      await db.insert(dgmArchive).values({
+        generationId: record.code_hash.slice(0, 255),
+        parentId: record.parent_id.slice(0, 255),
+        codeSnapshot,
+        fitnessScore: record.fitness_score,
+        benchmarkResults: JSON.stringify({
+          agent_id: record.agent_id,
+          code_hash: record.code_hash,
+          file_path: record.file_path,
+          commit_sha: record.commit_sha,
+          attestation: record.attestation
+        })
+      });
+      
+      console.log(`[ProofOfAutonomy] ✅ Stored in dgm_archive: ${codeHash.slice(0, 24)}...`);
+    } catch (err) {
+      console.warn('[ProofOfAutonomy] dgm_archive insert failed (non-fatal):', (err as Error).message);
+    }
+  })();
+  
+  // Always also store in bd_central via HTTP API
+  try {
+    const response = await fetch(`${MOTHER_BASE_URL}/api/a2a/knowledge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: `proof_of_autonomy:${params.commitSha.slice(0, 16)}:${params.filePath}`,
+        content: JSON.stringify(record),
+        category: 'proof_of_autonomy',
+        domain: 'Autonomia',
+        source: 'mother-agent',
+        tags: JSON.stringify(['proof', 'autonomy', AGENT_VERSION, params.filePath])
       })
     });
-    
-    console.log(`[ProofOfAutonomy] ✅ Stored in dgm_archive: ${codeHash.slice(0, 24)}... for ${params.filePath}`);
-  } catch (err) {
-    console.warn('[ProofOfAutonomy] dgm_archive insert failed, using bd_central fallback:', (err as Error).message);
-  }
-  
-  // Always also store in bd_central for easy retrieval
-  try {
-    await insertKnowledge({
-      key: `proof_of_autonomy_${params.commitSha.slice(0, 16)}`,
-      value: JSON.stringify(record),
-      category: 'proof_of_autonomy',
-      source: 'mother-agent',
-      tags: JSON.stringify(['proof', 'autonomy', AGENT_VERSION, params.filePath])
-    });
-    console.log(`[ProofOfAutonomy] ✅ Stored in bd_central: proof_of_autonomy_${params.commitSha.slice(0, 8)}`);
+    if (response.ok) {
+      console.log(`[ProofOfAutonomy] ✅ Stored in bd_central: proof_of_autonomy_${params.commitSha.slice(0, 8)}`);
+    }
   } catch (e2) {
     console.error('[ProofOfAutonomy] bd_central insert failed:', (e2 as Error).message);
   }
@@ -170,63 +182,67 @@ export async function storeProofOfAutonomy(params: {
 export async function getProofByCommit(commitSha: string): Promise<AutonomyAttestation | null> {
   const shortHash = commitSha.slice(0, 16);
   
+  // Try dgm_archive first via drizzle
   try {
-    // Try dgm_archive first
+    const { getDb } = await import('../db');
     const db = await getDb();
-    const { dgmArchive } = await import('../../drizzle/schema');
-    const { eq, like } = await import('drizzle-orm');
-    
-    const records = await db
-      .select()
-      .from(dgmArchive)
-      .where(like(dgmArchive.generationId, `%${shortHash}%`))
-      .limit(1);
-    
-    if (records.length > 0) {
-      const r = records[0] as any;
-      let meta: any = {};
-      try { meta = JSON.parse(r.benchmarkResults || '{}'); } catch {}
+    if (db) {
+      const { dgmArchive } = await import('../../drizzle/schema');
+      const { like } = await import('drizzle-orm');
       
-      return {
-        verified: true,
-        agent: meta.agent_id || AGENT_VERSION,
-        wrote_at: r.createdAt?.toISOString() || new Date().toISOString(),
-        code_hash: meta.code_hash || r.generationId || '',
-        file_path: meta.file_path || '',
-        github_commit: `${REPO_URL}/commit/${commitSha}`,
-        attestation: meta.attestation || '',
-        fitness: r.fitnessScore || 0,
-        autonomy_level: 4,
-        message: 'Proof verified via dgm_archive — MOTHER autonomously created this code'
-      };
+      const records = await db
+        .select()
+        .from(dgmArchive)
+        .where(like(dgmArchive.generationId, `%${shortHash}%`))
+        .limit(1);
+      
+      if (records.length > 0) {
+        const r = records[0] as any;
+        let meta: any = {};
+        try { meta = JSON.parse(r.benchmarkResults || '{}'); } catch {}
+        
+        return {
+          verified: true,
+          agent: meta.agent_id || AGENT_VERSION,
+          wrote_at: r.createdAt?.toISOString() || new Date().toISOString(),
+          code_hash: meta.code_hash || r.generationId || '',
+          file_path: meta.file_path || '',
+          github_commit: `${REPO_URL}/commit/${commitSha}`,
+          attestation: meta.attestation || '',
+          fitness: r.fitnessScore || 0,
+          autonomy_level: 4,
+          message: 'Proof verified via dgm_archive — MOTHER autonomously created this code'
+        };
+      }
     }
   } catch (err) {
     console.warn('[ProofOfAutonomy] dgm_archive query failed:', (err as Error).message);
   }
   
-  // Fallback: search bd_central
+  // Fallback: search bd_central via HTTP API
   try {
-    const db = await getDb();
-    const results = await db.execute(
-      `SELECT value FROM bd_central WHERE \`key\` LIKE ? OR \`key\` LIKE ? LIMIT 1`,
-      [`proof_of_autonomy_${shortHash}%`, `%${shortHash}%`]
-    ) as any;
-    
-    const rows = Array.isArray(results) ? results[0] : results;
-    if (rows && rows.length > 0) {
-      const record = JSON.parse(rows[0].value);
-      return {
-        verified: true,
-        agent: record.agent_id || AGENT_VERSION,
-        wrote_at: record.created_at || new Date().toISOString(),
-        code_hash: record.code_hash || '',
-        file_path: record.file_path || '',
-        github_commit: `${REPO_URL}/commit/${commitSha}`,
-        attestation: record.attestation || '',
-        fitness: record.fitness_score || 0,
-        autonomy_level: 4,
-        message: 'Proof verified via bd_central — MOTHER autonomously created this code'
-      };
+    const response = await fetch(
+      `${MOTHER_BASE_URL}/api/a2a/knowledge?search=proof_of_autonomy_${shortHash}&limit=1`
+    );
+    if (response.ok) {
+      const data = await response.json() as { results?: any[] };
+      const items = data.results || [];
+      if (items.length > 0) {
+        let record: any = {};
+        try { record = JSON.parse(items[0].content || '{}'); } catch {}
+        return {
+          verified: true,
+          agent: record.agent_id || AGENT_VERSION,
+          wrote_at: record.created_at || new Date().toISOString(),
+          code_hash: record.code_hash || '',
+          file_path: record.file_path || '',
+          github_commit: `${REPO_URL}/commit/${commitSha}`,
+          attestation: record.attestation || '',
+          fitness: record.fitness_score || 0,
+          autonomy_level: 4,
+          message: 'Proof verified via bd_central — MOTHER autonomously created this code'
+        };
+      }
     }
   } catch (err) {
     console.error('[ProofOfAutonomy] getProofByCommit error:', (err as Error).message);
@@ -240,17 +256,15 @@ export async function getProofByCommit(commitSha: string): Promise<AutonomyAttes
  */
 export async function getAllProofs(limit = 20, offset = 0): Promise<ProofRecord[]> {
   try {
-    const db = await getDb();
-    const results = await db.execute(
-      `SELECT value FROM bd_central WHERE category = 'proof_of_autonomy' ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-      [limit, offset]
-    ) as any;
-    
-    const rows = Array.isArray(results) ? results[0] : results;
-    return (rows || []).map((e: any) => {
-      try { return JSON.parse(e.value); }
+    const response = await fetch(
+      `${MOTHER_BASE_URL}/api/a2a/knowledge?category=proof_of_autonomy&limit=${limit}&offset=${offset}`
+    );
+    if (!response.ok) return [];
+    const data = await response.json() as { results?: any[] };
+    return (data.results || []).map((item: any) => {
+      try { return JSON.parse(item.content || '{}') as ProofRecord; }
       catch { return null; }
-    }).filter(Boolean);
+    }).filter(Boolean) as ProofRecord[];
   } catch (err) {
     return [];
   }

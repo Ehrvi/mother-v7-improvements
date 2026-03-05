@@ -93,10 +93,14 @@ export async function waitForDeploy(
       
       // Store success in episodic memory
       await storeEpisodicMemory({
+        taskId: `deploy-${status.id}`,
         task: taskDescription,
         action: `Deploy completed: build ${status.id}`,
         result: 'success',
-        metadata: { buildId: status.id, duration, logUrl: status.logUrl }
+        iterationCount: 1,
+        durationMs: duration * 1000,
+        timestamp: new Date().toISOString(),
+        tags: ['deploy', 'success', status.id]
       });
       
       return { success: true, buildId: status.id, duration_seconds: duration, log_url: status.logUrl };
@@ -109,10 +113,14 @@ export async function waitForDeploy(
       
       // Store failure in episodic memory for learning
       await storeEpisodicMemory({
+        taskId: `deploy-${status.id}`,
         task: taskDescription,
-        action: `Deploy failed: build ${status.id}`,
+        action: `Deploy failed: build ${status.id} (${status.status})`,
         result: 'failure',
-        metadata: { buildId: status.id, status: status.status, duration, logUrl: status.logUrl }
+        iterationCount: 1,
+        durationMs: duration * 1000,
+        timestamp: new Date().toISOString(),
+        tags: ['deploy', 'failure', status.id, status.status]
       });
       
       return { success: false, buildId: status.id, duration_seconds: duration, error, log_url: status.logUrl };

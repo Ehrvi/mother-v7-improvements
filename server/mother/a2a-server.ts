@@ -620,11 +620,8 @@ a2aRouter.post('/api/a2a/roadmap-execute', async (req: Request, res: Response) =
   log.info('A2A roadmap-execute request', { phase, dryRun, userId });
   try {
     const { executeRoadmapPhase } = await import('./roadmap-executor');
-    const result = await executeRoadmapPhase({
-      phase: phase || 'next',
-      dryRun: dryRun === true,
-      userId: userId || 'mother-self'
-    });
+    const phaseId = typeof phase === 'string' ? phase : 'next';
+    const result = await executeRoadmapPhase(phaseId);
     res.json(result);
   } catch (err) {
     log.error('A2A roadmap-execute error', { error: String(err) });
