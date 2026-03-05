@@ -388,6 +388,37 @@ export const EVOLUTION_LEDGER: LedgerEntry[] = [
       'curl -s -H "X-Api-Key: mother-demo-key-2026" https://mother-interface-qtvghovzxa-ts.a.run.app/api/v1/audit/verify | python3 -m json.tool',
     ],
   },
+  {
+    cycle: 120,
+    version: 'v80.1',
+    date: '2026-03-05',
+    title: 'MQTT IoT Integration + ICOLD 158 Sensor Validation',
+    description: 'mqtt-listener.ts (MQTT v5.0 broker + simulation mode) + sensor-validator-v2.ts (Tukey IQR outlier detection, ICOLD 158 thresholds, rate-of-change validation)',
+    modules: ['subprojects/shms-agent/src/mqtt-listener.ts', 'subprojects/shms-agent/src/sensor-validator-v2.ts'],
+    commitHash: 'PENDING_C120',
+    masterHash: '1c816faaba99f8b7277e1cd2f2a5616c642ce76a2bec453191cf8aa74e58a0ae',
+    chainHash: '80afb717754da8275d637c6755e350d8c78f991f8ed9973a24107874866de67f',
+    scientificBasis: ['MQTT v5.0 OASIS 2019', 'ICOLD Bulletin 158 (2014)', 'Tukey (1977) Exploratory Data Analysis', 'Grubbs (1969) Technometrics', 'Spencer Jr. (2025) ScienceDirect'],
+    autonomyLevel: 2,
+    gapsClosed: ['GAP-13: Real IoT sensor integration', 'GAP-14: Statistical outlier detection'],
+    nextCycle: 'C121: fitness-evaluator.ts (DGM preview)',
+  },
+  {
+    cycle: 121,
+    version: 'v80.2',
+    date: '2026-03-05',
+    title: 'DGM Fitness Evaluator — Preview C122',
+    description: 'fitness-evaluator.ts: avalia qualidade de código gerado autonomamente em 7 dimensões (correctness, safety, complexity, documentation, testability, integration, performance)',
+    modules: ['server/mother/fitness-evaluator.ts'],
+    commitHash: 'PENDING_C121',
+    masterHash: '426f6ce5c4283edf5955c360ec2a086111d41abc0dd81662cf24557a0007fa07',
+    chainHash: '2786f4dc781cf822a9ba579eb9e38255c07fc4653398b82a0254d8214d8c5542',
+    scientificBasis: ['DGM arXiv:2505.22954 (2025)', 'SWE-bench arXiv:2310.06770 (2023)', 'CodeBLEU arXiv:2009.10297 (2020)', 'McCabe (1976) IEEE Trans. Software Eng.', 'Constitutional AI arXiv:2212.08073 (2022)'],
+    autonomyLevel: 2,
+    gapsClosed: ['GAP-15: Fitness evaluation for autonomous code generation'],
+    nextCycle: 'C122: dgm-orchestrator.ts (full DGM loop)',
+  },
+
 ];
 
 /**
@@ -426,37 +457,7 @@ export function computeMasterHash(motherDir: string): { hash: string; moduleCoun
  * Get the full ledger with computed values
  */
 export function getLedger(): {
-  ledger: LedgerEntry[  {
-    cycle: 120,
-    version: 'v80.1',
-    date: '2026-03-05',
-    title: 'MQTT IoT Integration + ICOLD 158 Sensor Validation',
-    description: 'mqtt-listener.ts (MQTT v5.0 broker + simulation mode) + sensor-validator-v2.ts (Tukey IQR outlier detection, ICOLD 158 thresholds, rate-of-change validation)',
-    modules: ['subprojects/shms-agent/src/mqtt-listener.ts', 'subprojects/shms-agent/src/sensor-validator-v2.ts'],
-    commitHash: 'PENDING_C120',
-    masterHash: '1c816faaba99f8b7277e1cd2f2a5616c642ce76a2bec453191cf8aa74e58a0ae',
-    chainHash: '80afb717754da8275d637c6755e350d8c78f991f8ed9973a24107874866de67f',
-    scientificBasis: ['MQTT v5.0 OASIS 2019', 'ICOLD Bulletin 158 (2014)', 'Tukey (1977) Exploratory Data Analysis', 'Grubbs (1969) Technometrics', 'Spencer Jr. (2025) ScienceDirect'],
-    autonomyLevel: 2,
-    gapsClosed: ['GAP-13: Real IoT sensor integration', 'GAP-14: Statistical outlier detection'],
-    nextCycle: 'C121: fitness-evaluator.ts (DGM preview)',
-  },
-  {
-    cycle: 121,
-    version: 'v80.2',
-    date: '2026-03-05',
-    title: 'DGM Fitness Evaluator — Preview C122',
-    description: 'fitness-evaluator.ts: avalia qualidade de código gerado autonomamente em 7 dimensões (correctness, safety, complexity, documentation, testability, integration, performance)',
-    modules: ['server/mother/fitness-evaluator.ts'],
-    commitHash: 'PENDING_C121',
-    masterHash: '426f6ce5c4283edf5955c360ec2a086111d41abc0dd81662cf24557a0007fa07',
-    chainHash: '2786f4dc781cf822a9ba579eb9e38255c07fc4653398b82a0254d8214d8c5542',
-    scientificBasis: ['DGM arXiv:2505.22954 (2025)', 'SWE-bench arXiv:2310.06770 (2023)', 'CodeBLEU arXiv:2009.10297 (2020)', 'McCabe (1976) IEEE Trans. Software Eng.', 'Constitutional AI arXiv:2212.08073 (2022)'],
-    autonomyLevel: 2,
-    gapsClosed: ['GAP-15: Fitness evaluation for autonomous code generation'],
-    nextCycle: 'C122: dgm-orchestrator.ts (full DGM loop)',
-  },
-];
+  ledger: LedgerEntry
   ledger_root_hash: string;
   total_cycles: number;
   total_modules_created: number;
