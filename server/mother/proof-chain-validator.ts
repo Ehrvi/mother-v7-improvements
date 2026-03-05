@@ -238,6 +238,31 @@ export const PROOF_CHAIN: ProofRecord[] = [
     benchmarkVerdict: 'PASSED',
     autonomyLevel: 10,
   },
+
+  {
+    cycle: 123,
+    commitHash: 'PENDING_C123',
+    chainHash: '8ff2b85be8a597695f40c8e43657216f874aef012695de00eec112098d9a2363',
+    moduleCount: 128,
+    newModules: ['autonomous-coder.ts'],
+    description: 'Autonomous Coder: MOTHER gera TypeScript via LLM sem intervenção humana (arXiv:2511.13646)',
+  },
+  {
+    cycle: 124,
+    commitHash: 'PENDING_C124',
+    chainHash: 'ffca738d92a04b02341b69f09eab1d784de5b1f535a3f96a74853c7b305f12a8',
+    moduleCount: 130,
+    newModules: ['dgm-benchmark.ts', 'dgm-memory.ts'],
+    description: 'DGM Benchmark (SWE-bench lite) + Memory (Reflexion arXiv:2303.11366, MemGPT arXiv:2310.08560)',
+  },
+  {
+    cycle: 125,
+    commitHash: 'PENDING_C125',
+    chainHash: 'd083237cfe122e5d3b7ace71e4d9e4fc1e3b7339d7137dd28bed7611ed0004fb',
+    moduleCount: 131,
+    newModules: ['dgm-integration-test.ts'],
+    description: 'DGM Integration Tests E2E: Fase 3 Auto-Evolução validada (IEEE 829-2008, ISO/IEC 25010)',
+  },
 ];
 
 // ============================================================

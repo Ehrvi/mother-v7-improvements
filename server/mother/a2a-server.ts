@@ -1787,3 +1787,113 @@ a2aRouter.post('/dgm/autonomous-improvement', async (req, res) => {
   });
   res.json({ success: result.success, data: result, cycle: 'C122' });
 });
+
+// ============================================================
+// CICLO 123-125 — Autonomous Coder + DGM Benchmark + Memory + Integration Tests
+// Fase 3: Auto-Evolução Contínua — MOTHER v80.4
+// ============================================================
+
+// ── C123: Autonomous Coder ────────────────────────────────────────────────────
+a2aRouter.get('/coder/status', (_req, res) => {
+  const { getCoderStatus } = require('./autonomous-coder');
+  res.json({ ok: true, status: getCoderStatus() });
+});
+
+a2aRouter.post('/coder/generate', async (req, res) => {
+  try {
+    const { generateModule } = await import('./autonomous-coder');
+    const result = await generateModule(req.body);
+    res.json({ ok: result.success, result });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
+a2aRouter.post('/coder/generate-batch', async (req, res) => {
+  try {
+    const { generateModuleBatch } = await import('./autonomous-coder');
+    const { requests } = req.body;
+    if (!Array.isArray(requests)) {
+      return res.status(400).json({ ok: false, error: 'requests must be an array' });
+    }
+    const results = await generateModuleBatch(requests);
+    res.json({ ok: true, results, total: results.length, accepted: results.filter((r: { success: boolean }) => r.success).length });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
+// ── C124: DGM Benchmark ───────────────────────────────────────────────────────
+a2aRouter.get('/benchmark/history', (_req, res) => {
+  const { getBenchmarkHistory, getFitnessTrend } = require('./dgm-benchmark');
+  res.json({ ok: true, history: getBenchmarkHistory(), trend: getFitnessTrend() });
+});
+
+a2aRouter.get('/benchmark/last', (_req, res) => {
+  const { getLastBenchmarkReport } = require('./dgm-benchmark');
+  const report = getLastBenchmarkReport();
+  res.json({ ok: true, report });
+});
+
+a2aRouter.post('/benchmark/run', async (req, res) => {
+  try {
+    const { runBenchmark } = await import('./dgm-benchmark');
+    const { code, cycleId = 'C124', moduleName = 'unknown' } = req.body;
+    if (!code) return res.status(400).json({ ok: false, error: 'code required' });
+    const report = await runBenchmark(code, cycleId, moduleName);
+    res.json({ ok: true, report });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
+// ── C124: DGM Memory ─────────────────────────────────────────────────────────
+a2aRouter.get('/memory/stats', (_req, res) => {
+  const { getMemoryStats } = require('./dgm-memory');
+  res.json({ ok: true, stats: getMemoryStats() });
+});
+
+a2aRouter.get('/memory/reflexions', (req, res) => {
+  const { getReflexions } = require('./dgm-memory');
+  const { cycleId, limit } = req.query;
+  res.json({ ok: true, reflexions: getReflexions(cycleId as string | undefined, limit ? parseInt(limit as string) : 10) });
+});
+
+a2aRouter.post('/memory/store', (req, res) => {
+  const { storeMemory } = require('./dgm-memory');
+  const { tier = 'episodic', cycleId, content, tags = [], importance = 5 } = req.body;
+  if (!cycleId || !content) return res.status(400).json({ ok: false, error: 'cycleId and content required' });
+  const entry = storeMemory(tier, cycleId, content, tags, importance);
+  res.json({ ok: true, entry });
+});
+
+a2aRouter.post('/memory/reflexion', (req, res) => {
+  const { storeReflexion } = require('./dgm-memory');
+  const { cycleId, observation, evaluation, reflection, fitnessScore, improved } = req.body;
+  if (!cycleId || !observation || !reflection) {
+    return res.status(400).json({ ok: false, error: 'cycleId, observation, reflection required' });
+  }
+  const entry = storeReflexion(cycleId, observation, evaluation ?? '', reflection, fitnessScore ?? 0, improved ?? false);
+  res.json({ ok: true, entry });
+});
+
+a2aRouter.get('/memory/context', (req, res) => {
+  const { buildMemoryContext } = require('./dgm-memory');
+  const { query = 'current task', maxTokens } = req.query;
+  const context = buildMemoryContext(query as string, maxTokens ? parseInt(maxTokens as string) : 1000);
+  res.json({ ok: true, context });
+});
+
+// ── C125: DGM Integration Tests ───────────────────────────────────────────────
+a2aRouter.post('/dgm/integration-test', async (req, res) => {
+  try {
+    const { runIntegrationTests, getIntegrationTestSummary } = await import('./dgm-integration-test');
+    const { cycleId = 'C125' } = req.body;
+    const report = await runIntegrationTests(cycleId);
+    const summary = getIntegrationTestSummary(report);
+    res.json({ ok: report.overallStatus !== 'FAIL', report, summary });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
