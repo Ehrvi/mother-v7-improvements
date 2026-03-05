@@ -1,7 +1,7 @@
 {
   "name": "shms-agent",
   "version": "1.0.0",
-  "description": "SHMS IoT Sensor Agent — Sub-projeto criado autonomamente por MOTHER v80.0 (Ciclo 119). Conecta sensores geotécnicos a MOTHER como cérebro central. Scientific basis: ICOLD Bulletin 158 (2014), ISO 19650, Grieves (2017), Hochreiter (1997).",
+  "description": "SHMS IoT Sensor Agent \u2014 Autonomous sub-project created by MOTHER v80.0 (Ciclo 119)",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -13,7 +13,6 @@
   "dependencies": {
     "axios": "^1.7.0",
     "express": "^4.18.0",
-    "mqtt": "^5.3.0",
     "zod": "^3.22.0"
   },
   "devDependencies": {
@@ -23,19 +22,13 @@
     "typescript": "^5.4.0",
     "vitest": "^2.0.0"
   },
-  "engines": {
-    "node": ">=20.0.0"
-  },
-  "author": "MOTHER v80.0 — autonomous-project-manager.ts (Ciclo 119)",
-  "license": "MIT",
-  "generatedBy": "MOTHER v80.0",
-  "cycle": "C119",
+  "generatedBy": "MOTHER v80.0 \u2014 Ciclo C119",
   "motherEndpoint": "https://mother-interface-qtvghovzxa-ts.a.run.app",
   "scientificBasis": [
-    "ICOLD Bulletin 158 (2014) — Dam monitoring standards",
-    "ISO 19650 — BIM information management",
-    "Grieves (2017) — Digital Twin concept",
-    "Hochreiter & Schmidhuber (1997) — LSTM for time series",
-    "Spencer Jr. et al. (2025) — AI for SHM state of the art"
+    "ICOLD Bulletin 158 (2014) \u2014 Dam monitoring standards",
+    "ISO 19650 \u2014 BIM information management",
+    "Grieves (2017) \u2014 Digital Twin concept",
+    "Hochreiter & Schmidhuber (1997) \u2014 LSTM for time series",
+    "Spencer Jr. et al. (2025) \u2014 AI for SHM state of the art"
   ]
 }
