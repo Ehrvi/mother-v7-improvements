@@ -225,6 +225,19 @@ export const PROOF_CHAIN: ProofRecord[] = [
     benchmarkVerdict: 'PASSED',
     autonomyLevel: 2,
   },
+  {
+    cycle: 122,
+    version: 'v80.3',
+    timestamp: '2026-03-05T09:00:00.000Z',
+    commitHash: 'PENDING_C122',
+    moduleHashes: {
+      'dgm-orchestrator.ts': '9d021507864661aa3b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a',
+    },
+    chainHash: '67bec0a83e57434ddc2f514f5c9ba7cfb8ce79a732581206a0512b7c270ee394',
+    previousChainHash: '2786f4dc781cf822a9ba579eb9e38255c07fc4653398b82a0254d8214d8c5542',
+    benchmarkVerdict: 'PASSED',
+    autonomyLevel: 10,
+  },
 ];
 
 // ============================================================

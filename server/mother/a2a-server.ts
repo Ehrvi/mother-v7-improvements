@@ -1708,3 +1708,82 @@ a2aRouter.get('/fitness/history', (_req: Request, res: Response) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CICLO 122 — DGM ORCHESTRATOR ROUTES
+// Scientific basis: Darwin Gödel Machine (arXiv:2505.22954)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+import {
+  runDGMCycle,
+  runAutonomousImprovement,
+  getDGMOrchestratorStatus,
+  getDGMHistory,
+  getFitnessTrend,
+} from './dgm-orchestrator';
+
+// GET /api/a2a/dgm/status — DGM orchestrator status
+a2aRouter.get('/dgm/status', (_req, res) => {
+  const status = getDGMOrchestratorStatus();
+  res.json({
+    success: true,
+    data: status,
+    scientificBasis: 'Darwin Gödel Machine (arXiv:2505.22954)',
+    cycle: 'C122',
+  });
+});
+
+// GET /api/a2a/dgm/history — DGM cycle history
+a2aRouter.get('/dgm/history', (req, res) => {
+  const limit = parseInt(String(req.query.limit ?? '20'), 10);
+  const history = getDGMHistory(limit);
+  res.json({ success: true, data: history, count: history.length });
+});
+
+// GET /api/a2a/dgm/fitness-trend — Fitness trend analysis
+a2aRouter.get('/dgm/fitness-trend', (_req, res) => {
+  const trend = getFitnessTrend();
+  res.json({
+    success: true,
+    data: trend,
+    scientificBasis: 'Reflexion (arXiv:2303.11366) — learning from past performance',
+  });
+});
+
+// POST /api/a2a/dgm/run-cycle — Execute a DGM cycle
+a2aRouter.post('/dgm/run-cycle', async (req, res) => {
+  const { objective, targetFile, proposedContent, initiator, deployThreshold, scientificBasis } = req.body;
+  if (!objective || !targetFile || !proposedContent) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required fields: objective, targetFile, proposedContent',
+    });
+  }
+  const result = await runDGMCycle({
+    objective,
+    targetFile,
+    proposedContent,
+    initiator: initiator ?? 'human',
+    deployThreshold: deployThreshold ?? 75,
+    scientificBasis,
+  });
+  res.json({ success: result.success, data: result, cycle: 'C122' });
+});
+
+// POST /api/a2a/dgm/autonomous-improvement — MOTHER improves itself via LLM
+a2aRouter.post('/dgm/autonomous-improvement', async (req, res) => {
+  const { targetModule, currentContent, improvementGoal, llmProvider } = req.body;
+  if (!targetModule || !currentContent || !improvementGoal) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required fields: targetModule, currentContent, improvementGoal',
+    });
+  }
+  const result = await runAutonomousImprovement({
+    targetModule,
+    currentContent,
+    improvementGoal,
+    llmProvider,
+  });
+  res.json({ success: result.success, data: result, cycle: 'C122' });
+});
