@@ -465,7 +465,7 @@ export function computeMasterHash(motherDir: string): { hash: string; moduleCoun
  * Get the full ledger with computed values
  */
 export function getLedger(): {
-  ledger: LedgerEntry
+  ledger: LedgerEntry[];
   ledger_root_hash: string;
   total_cycles: number;
   total_modules_created: number;
