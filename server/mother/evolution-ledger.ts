@@ -430,8 +430,8 @@ export const EVOLUTION_LEDGER: LedgerEntry[] = [
   {
     cycle: 122,
     version: 'v80.3',
-    timestamp: '2026-03-05T09:00:00.000Z',
-    commitHash: 'PENDING_C122',
+    date: '2026-03-05T09:00:00Z',
+    commitHash: 'ab31dc6',
     description: 'DGM Orchestrator — loop completo observe→propose→validate→deploy→verify (arXiv:2505.22954)',
     newModules: ['dgm-orchestrator.ts'],
     closedGaps: ['GAP-15: DGM loop completo', 'GAP-16: auto-evolução autônoma nível 10'],

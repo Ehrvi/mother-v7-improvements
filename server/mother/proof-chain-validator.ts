@@ -229,7 +229,7 @@ export const PROOF_CHAIN: ProofRecord[] = [
     cycle: 122,
     version: 'v80.3',
     timestamp: '2026-03-05T09:00:00.000Z',
-    commitHash: 'PENDING_C122',
+    commitHash: 'ab31dc6',
     moduleHashes: {
       'dgm-orchestrator.ts': '9d021507864661aa3b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a',
     },
