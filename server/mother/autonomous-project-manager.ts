@@ -326,6 +326,27 @@ export async function createModule(spec: ProjectSpec): Promise<ProjectResult> {
 
       result.commitHash = commitHash;
       log.info(`[APGLM] Committed: ${commitHash}`);
+
+      // === STEP 6b: GIT PUSH with GITHUB_TOKEN ===
+      // Scientific basis: GitOps (Weaveworks 2017), DGM arXiv:2505.22954
+      const githubToken = process.env.GITHUB_TOKEN;
+      if (githubToken) {
+        try {
+          const remoteUrl = execSync('git remote get-url origin', { cwd: MOTHER_DIR, encoding: 'utf8' }).trim();
+          const urlObj = new URL(remoteUrl.startsWith('https') ? remoteUrl : `https://github.com/${remoteUrl.split(':')[1]}`);
+          urlObj.username = 'x-token';
+          urlObj.password = githubToken;
+          const authUrl = urlObj.toString();
+          execSync(`git remote set-url origin "${authUrl}"`, { cwd: MOTHER_DIR });
+          execSync('git push origin main', { cwd: MOTHER_DIR, timeout: 30000 });
+          execSync(`git remote set-url origin "${remoteUrl}"`, { cwd: MOTHER_DIR });
+          log.info(`[APGLM] Pushed to origin: ${commitHash.slice(0, 8)}`);
+        } catch (pushErr) {
+          log.warn(`[APGLM] Push failed (non-blocking): ${pushErr}`);
+        }
+      } else {
+        log.warn('[APGLM] GITHUB_TOKEN not set — skipping push');
+      }
     } catch (err) {
       log.warn(`[APGLM] Git commit failed (non-blocking): ${err}`);
     }
