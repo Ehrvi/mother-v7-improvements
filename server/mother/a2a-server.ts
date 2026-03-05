@@ -23,7 +23,7 @@
  * If MANUS_A2A_TOKEN is not set, auth is skipped (dev mode)
  */
 import { Router, Request, Response, NextFunction } from 'express';
-import { getLedger, computeLedgerRootHash, computeMasterHash, EVOLUTION_LEDGER } from './evolution-ledger.js';
+import { getLedger, computeLedgerRootHash, computeMasterHash, EVOLUTION_LEDGER, MOTHER_DIR } from './evolution-ledger.js';
 import { registerSHMSRoutes } from '../shms/shms-api'; // NC-SHMS-001: SHMS real-time monitoring
 import { getDb } from '../db';
 import { knowledge, queries } from '../../drizzle/schema';
@@ -919,8 +919,8 @@ a2aRouter.get('/api/a2a/ledger', (_req: Request, res: Response) => {
 a2aRouter.get('/api/a2a/ledger/summary', (_req: Request, res: Response) => {
   try {
     const ledgerRootHash = computeLedgerRootHash();
-    const motherDir = __dirname;
-    const { hash: masterHash, moduleCount } = computeMasterHash(motherDir);
+    // Use the __dirname from evolution-ledger module (already ESM-compatible)
+    const { hash: masterHash, moduleCount } = computeMasterHash(MOTHER_DIR);
 
     const summary = EVOLUTION_LEDGER.map(e => ({
       cycle: e.cycle,

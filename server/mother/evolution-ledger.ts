@@ -19,6 +19,14 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
+
+// ESM-compatible __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Export for use in other modules
+export const MOTHER_DIR = __dirname;
 
 export interface LedgerEntry {
   cycle: number;
