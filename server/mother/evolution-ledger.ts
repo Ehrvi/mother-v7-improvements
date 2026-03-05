@@ -473,6 +473,8 @@ export const EVOLUTION_LEDGER: LedgerEntry[] = [
     benchmark: { verdict: 'PASSED', fitness_score: 85, mccs_passed: 7, mccs_total: 7 },
     gaps_closed: ['GAP-17'],
     scientific_basis: ['arXiv:2511.13646', 'arXiv:2405.15793'],
+    summary: 'Autonomous Coder: MOTHER gera TypeScript completo via LLM sem intervenção humana',
+    verification_commands: ['curl -s https://mother-interface-qtvghovzxa-ts.a.run.app/api/a2a/coder/status'],
   },
   {
     cycle: 124,
@@ -490,6 +492,8 @@ export const EVOLUTION_LEDGER: LedgerEntry[] = [
     benchmark: { verdict: 'PASSED', fitness_score: 88, mccs_passed: 7, mccs_total: 7 },
     gaps_closed: ['GAP-18'],
     scientific_basis: ['arXiv:2303.11366', 'arXiv:2310.08560', 'arXiv:2310.06770'],
+    summary: 'DGM Benchmark (SWE-bench lite) + Memory episódica (Reflexion + MemGPT) — avaliação autônoma de qualidade',
+    verification_commands: ['curl -s https://mother-interface-qtvghovzxa-ts.a.run.app/api/a2a/benchmark/history', 'curl -s https://mother-interface-qtvghovzxa-ts.a.run.app/api/a2a/memory/stats'],
   },
   {
     cycle: 125,
@@ -507,6 +511,8 @@ export const EVOLUTION_LEDGER: LedgerEntry[] = [
     benchmark: { verdict: 'PASSED', fitness_score: 92, mccs_passed: 7, mccs_total: 7 },
     gaps_closed: ['GAP-19'],
     scientific_basis: ['IEEE 829-2008', 'ISO/IEC 25010:2011'],
+    summary: 'DGM Integration Tests E2E: Fase 3 Auto-Evolução Contínua COMPLETA — 7/7 testes passando',
+    verification_commands: ['curl -s -X POST https://mother-interface-qtvghovzxa-ts.a.run.app/api/a2a/dgm/integration-test -H "Content-Type: application/json" -d '{"cycleId":"C125"}''],
   },
 ];
 
