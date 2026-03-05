@@ -62,7 +62,7 @@ const routingSchema = z.object({
   next: z
     .enum(["code_agent", "memory_agent", "validation_agent", "END"])
     .describe(
-      "The next worker to invoke. Choose 'code_agent' for code manipulation/implementation tasks, 'memory_agent' for storing/recalling information, 'validation_agent' for testing/benchmarking/validation, or 'END' if the goal is already achieved."
+      "The next worker to invoke. Choose 'code_agent' for ANY task involving: reading/writing/modifying files, implementing features, running shell commands (ls/grep/find/cat/echo/git), executing git operations (add/commit/push/status/log), checking environment variables, TypeScript compilation, or any filesystem/command interaction. Choose 'memory_agent' for storing/recalling information. Choose 'validation_agent' for testing/benchmarking. Choose 'END' ONLY if the goal is explicitly already achieved with no action needed — when in doubt, choose 'code_agent'."
     ),
   reasoning: z
     .string()
@@ -80,10 +80,10 @@ async function routerNode(state: typeof SupervisorState.State) {
     {
       role: "system",
       content: `You are a routing agent for the MOTHER DGM system. Based on the user's goal, decide which worker should handle the task:
-- code_agent: For reading, writing, modifying files, implementing features, or any coding task
+- code_agent: For ANY of these: reading files, writing files, modifying code, implementing features, running shell commands (ls/grep/find/cat/echo), executing git operations (add/commit/push/status/log), checking environment variables, running TypeScript compilation (tsc), or ANY task requiring filesystem interaction or command execution
 - memory_agent: For storing information, recalling past interactions, or managing episodic memory
 - validation_agent: For running tests, benchmarks, validating code quality, or calculating fitness scores
-- END: If the goal is already achieved or doesn't require any worker
+- END: ONLY if the goal is explicitly stated as already achieved, or is purely conversational with absolutely no action required. When in doubt between code_agent and END, ALWAYS choose code_agent.
 
 Analyze the goal and choose the most appropriate worker.`,
     },

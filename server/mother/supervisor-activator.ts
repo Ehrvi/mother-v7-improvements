@@ -38,6 +38,7 @@ const log = createLogger('SupervisorActivator');
 import { checkSafetyGate, logAgentAction, MAX_AGENT_ITERATIONS } from './safety-gate';
 import { storeEpisodicMemory, getRecentEpisodicMemories, generateReflection } from './episodic-memory';
 import { writeCodeFile, triggerDeploy } from './self-code-writer';
+import { executeCodeCycle, getProjectRoot } from './code-cycle-executor';
 import { executeBash } from './code-sandbox';
 import { invokeSupervisor } from './supervisor';
 import { storeProofOfAutonomy } from './proof-of-autonomy';
@@ -363,22 +364,23 @@ export async function executeAgentTask(task: AgentTask): Promise<AgentResult> {
     };
   }
 
-  // Step 7: Write the file and commit
+    // Step 7: Write the file and commit (using canonical code-cycle-executor)
   let commitHash: string | undefined;
   let writeError: string | undefined;
-
   try {
-    log.info('AgentTask: Writing file', { taskId, filePath: writeIntent.filePath });
-
-    const writeResult = await writeCodeFile(
-      writeIntent.filePath,
+    log.info('AgentTask: Writing file via code-cycle-executor', { taskId, filePath: writeIntent.filePath });
+    const root = getProjectRoot();
+    const absolutePath = writeIntent.filePath.startsWith('/') 
+      ? writeIntent.filePath 
+      : `${root}/${writeIntent.filePath}`;
+    const cycleResult = await executeCodeCycle(
+      absolutePath,
       writeIntent.content,
-      `feat(agent): ${task.task.slice(0, 60)} [MOTHER-AGENT ${taskId}]`,
-      false  // don't auto-trigger deploy — we handle it explicitly below
+      `feat(agent): ${task.task.slice(0, 60)} [MOTHER-AGENT ${taskId}]`
     );
-
+    const writeResult = { success: cycleResult.success, commitSha: cycleResult.commitSha, error: cycleResult.error };
     if (writeResult.success) {
-      commitHash = writeResult.commitSha;
+      commitHash = writeResult.commitSha;;
       log.info('AgentTask: File written and committed', { taskId, commitHash });
       // DGM Proof of Autonomy: cryptographic attestation after every autonomous write
       // Scientific basis: Darwin Gödel Machine (arXiv:2505.22954)
