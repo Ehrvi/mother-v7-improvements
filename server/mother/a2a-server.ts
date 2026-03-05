@@ -966,3 +966,126 @@ a2aRouter.get('/api/a2a/ledger/:cycle', (req: Request, res: Response) => {
     res.status(500).json({ error: String(err) });
   }
 });
+
+// ============================================================
+// SHMS v2 Endpoints — Ciclo 115 (Fase 2: SHMS v2)
+// Scientific basis: Digital Twin (Grieves 2014, arXiv:2004.01527),
+// LSTM (Hochreiter & Schmidhuber 1997, arXiv:1507.01526),
+// TimescaleDB (Freedman et al. 2018 VLDB), ICOLD Bulletin 158 (2017)
+// ============================================================
+
+import { lstmPredictor } from '../shms/lstm-predictor.js';
+import { digitalTwin } from '../shms/digital-twin.js';
+import { initTimescaleConnector, getTimescaleStatus, storeSensorReadings, storePrediction } from '../shms/timescale-connector.js';
+import type { SensorType } from '../shms/mqtt-connector.js';
+
+// GET /api/a2a/shms/v2/status — Digital twin + LSTM + TimescaleDB status
+a2aRouter.get('/api/a2a/shms/v2/status', async (_req: Request, res: Response) => {
+  try {
+    const twinStatus = digitalTwin.getStatus();
+    const lstmStats = lstmPredictor.getStats();
+    const tsStatus = await getTimescaleStatus().catch(() => ({ available: false, totalRows: 0 }));
+    res.json({
+      version: 'SHMS v2',
+      mother_version: MOTHER_VERSION,
+      cycle: 115,
+      timestamp: new Date().toISOString(),
+      digital_twin: twinStatus,
+      lstm_predictor: lstmStats,
+      timescale_db: tsStatus,
+      capabilities: {
+        real_time_prediction: lstmStats.trainedSensors > 0,
+        digital_twin_active: twinStatus.activeSensors > 0,
+        timescale_storage: tsStatus.available,
+        anomaly_detection: true,
+        failure_prediction: true,
+      },
+      scientific_basis: {
+        lstm: 'Hochreiter & Schmidhuber (1997), Malhotra et al. (arXiv:1507.01526)',
+        digital_twin: 'Grieves (2014), Boje et al. (arXiv:2004.01527)',
+        timescale: 'Freedman et al. (2018, VLDB)',
+        thresholds: 'GISTM 2020 Section 8, ICOLD Bulletin 158',
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// POST /api/a2a/shms/v2/ingest — Ingest sensor reading and update digital twin
+a2aRouter.post('/api/a2a/shms/v2/ingest', async (req: Request, res: Response) => {
+  try {
+    const { readings } = req.body as { readings: Array<{ sensorId: string; sensorType: string; value: number; unit: string }> };
+    if (!readings || !Array.isArray(readings)) {
+      return res.status(400).json({ error: 'readings array required' });
+    }
+    const processed: string[] = [];
+    for (const r of readings) {
+      const reading = {
+        sensorId: r.sensorId,
+        sensorType: r.sensorType as SensorType,
+        value: r.value,
+        unit: r.unit,
+        timestamp: new Date(),
+        quality: 'good' as const,
+        location: { zone: 'api' },
+      };
+      lstmPredictor.ingest(reading);
+      digitalTwin.updateFromReading(reading);
+      const prediction = lstmPredictor.predict(reading.sensorId, reading.sensorType);
+      if (prediction) {
+        digitalTwin.updateFromPrediction(prediction);
+        await storePrediction(prediction).catch(() => {});
+      }
+      await storeSensorReadings([reading]).catch(() => {});
+      processed.push(r.sensorId);
+    }
+    res.json({ success: true, processed: processed.length, twin_status: digitalTwin.getStatus() });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// GET /api/a2a/shms/v2/predictions — Get all LSTM predictions
+a2aRouter.get('/api/a2a/shms/v2/predictions', (_req: Request, res: Response) => {
+  try {
+    const predictions = lstmPredictor.getAllPredictions();
+    const stats = lstmPredictor.getStats();
+    res.json({ total: predictions.length, stats, predictions, timestamp: new Date().toISOString() });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// POST /api/a2a/shms/v2/simulate — Run synthetic sensor simulation
+a2aRouter.post('/api/a2a/shms/v2/simulate', (_req: Request, res: Response) => {
+  try {
+    const readings = digitalTwin.generateSyntheticReadings();
+    for (const reading of readings) {
+      lstmPredictor.ingest(reading);
+      digitalTwin.updateFromReading(reading);
+    }
+    res.json({
+      success: true,
+      readings_generated: readings.length,
+      twin_status: digitalTwin.getStatus(),
+      lstm_stats: lstmPredictor.getStats(),
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// GET /api/a2a/shms/v2/twin — Get digital twin full state
+a2aRouter.get('/api/a2a/shms/v2/twin', (_req: Request, res: Response) => {
+  try {
+    res.json({
+      status: digitalTwin.getStatus(),
+      sensors: digitalTwin.getSensors(),
+      history: digitalTwin.getHistory(20),
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
