@@ -96,7 +96,7 @@ async function initializeSchema(): Promise<{ timescaleAvailable: boolean }> {
     const result = await (await getDbInstance()).execute(sql`
       SELECT extname FROM pg_extension WHERE extname = 'timescaledb'
     `);
-    timescaleAvailable = (result[0] as Record<string, unknown>[]?.length ?? 0) > 0;
+    timescaleAvailable = (((result[0] as Record<string, unknown>[]) ?? []).length ?? 0) > 0;
   } catch {
     timescaleAvailable = false;
   }
@@ -449,7 +449,7 @@ export async function getTimescaleStatus(): Promise<TimescaleStatus> {
     const extResult = await (await getDbInstance()).execute(sql`
       SELECT extname, extversion FROM pg_extension WHERE extname = 'timescaledb'
     `);
-    if ((extResult[0] as Record<string, unknown>[]?.length ?? 0) > 0) {
+    if ((((extResult[0] as Record<string, unknown>[]) ?? []).length ?? 0) > 0) {
       timescaleAvailable = true;
       version = (extResult[0] as Record<string, unknown>[]![0] as Record<string, unknown>).extversion as string;
     }
@@ -466,7 +466,7 @@ export async function getTimescaleStatus(): Promise<TimescaleStatus> {
              MAX(time) as newest
       FROM shms_sensor_readings
     `);
-    if (countResult[0] as Record<string, unknown>[]?.length) {
+    if (((countResult[0] as Record<string, unknown>[]) ?? []).length) {
       const row = countResult[0] as Record<string, unknown>[][0] as Record<string, unknown>;
       totalRows = Number(row.total) || 0;
       if (row.oldest) oldestRecord = new Date(row.oldest as string);
