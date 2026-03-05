@@ -241,7 +241,7 @@ export const PROOF_CHAIN: ProofRecord[] = [
 
   {
     cycle: 123,
-    commitHash: 'PENDING_C123',
+    commitHash: 'eda1bf6',
     chainHash: '8ff2b85be8a597695f40c8e43657216f874aef012695de00eec112098d9a2363',
     moduleCount: 128,
     newModules: ['autonomous-coder.ts'],
@@ -249,7 +249,7 @@ export const PROOF_CHAIN: ProofRecord[] = [
   },
   {
     cycle: 124,
-    commitHash: 'PENDING_C124',
+    commitHash: 'eda1bf6',
     chainHash: 'ffca738d92a04b02341b69f09eab1d784de5b1f535a3f96a74853c7b305f12a8',
     moduleCount: 130,
     newModules: ['dgm-benchmark.ts', 'dgm-memory.ts'],
@@ -257,7 +257,7 @@ export const PROOF_CHAIN: ProofRecord[] = [
   },
   {
     cycle: 125,
-    commitHash: 'PENDING_C125',
+    commitHash: 'eda1bf6',
     chainHash: 'd083237cfe122e5d3b7ace71e4d9e4fc1e3b7339d7137dd28bed7611ed0004fb',
     moduleCount: 131,
     newModules: ['dgm-integration-test.ts'],
