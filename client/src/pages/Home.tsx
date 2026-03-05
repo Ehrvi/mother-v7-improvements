@@ -486,6 +486,32 @@ export default function Home() {
               ))}
             </div>
           </div>
+          {/* Fase 5 group */}
+          <div className="mt-2">
+            <div className="text-[8px] text-[#55556a] uppercase tracking-wider mb-1.5">Fase 5 — Interface</div>
+            <div className="grid grid-cols-2 gap-1">
+              {[
+                { icon: '🖥️', label: '/shell', desc: 'Shell executor remoto', color: '#f97316' },
+                { icon: '📡', label: '/sse', desc: 'Streaming SSE hub', color: '#38bdf8' },
+                { icon: '🔗', label: '/ws', desc: 'WebSocket router', color: '#a78bfa' },
+                { icon: '💻', label: '/editor', desc: 'Code editor integration', color: '#34d399' },
+                { icon: '🕸️', label: '/graph', desc: 'Dependency graph engine', color: '#fb7185' },
+                { icon: '📊', label: '/projects', desc: 'Project dashboard', color: '#fbbf24' },
+              ].map((cmd) => (
+                <button key={cmd.label}
+                  onClick={() => sendMessage(cmd.label)}
+                  title={cmd.desc}
+                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[9px] font-medium text-left transition-all"
+                  style={{ background: `${cmd.color}0d`, border: `1px solid ${cmd.color}25`, color: cmd.color }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = `${cmd.color}1a`; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = `${cmd.color}0d`; }}
+                >
+                  <span>{cmd.icon}</span>
+                  <code style={{fontSize:'9px'}}>{cmd.label}</code>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* System info */}
@@ -496,6 +522,7 @@ export default function Home() {
             { icon: <Database className="w-3 h-3" />, label: 'DB', value: 'Cloud SQL ✓', cls: 'text-emerald-400' },
             { icon: <Dna className="w-3 h-3" />, label: 'GEA Loop', value: 'Ativo ✓', cls: 'text-emerald-400' },
             { icon: <Activity className="w-3 h-3" />, label: 'Fitness Track', value: 'Ativo ✓', cls: 'text-emerald-400' },
+            { icon: <Sparkles className="w-3 h-3" />, label: 'Fase 5', value: 'C145 ✓', cls: 'text-emerald-400' },
           ].map(({ icon, label, value, cls }) => (
             <div key={label} className="flex justify-between items-center py-1.5 border-b border-[rgba(255,255,255,0.04)] last:border-0 text-xs">
               <span className="flex items-center gap-1.5 text-[#8888aa]">{icon}{label}</span>
