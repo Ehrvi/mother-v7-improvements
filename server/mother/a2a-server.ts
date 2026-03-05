@@ -582,6 +582,31 @@ a2aRouter.get('/api/a2a/proof', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/a2a/proof/c112 — MUST be before /:commitHash to avoid route capture
+ * Get Ciclo 112 cryptographic proof of autonomy
+ * Scientific basis: DGM (arXiv:2505.22954) + Merkle trees (Merkle 1987)
+ * @version v79.5 | Ciclo 112
+ */
+a2aRouter.get('/api/a2a/proof/c112', async (_req: Request, res: Response) => {
+  try {
+    const { getFullProof, verifyProof, PROOF_SUMMARY } = await import('./autonomy-proof-c112');
+    const proof = getFullProof();
+    const valid = verifyProof(proof);
+    res.json({
+      valid,
+      proof: PROOF_SUMMARY,
+      full_proof: proof,
+      verification_method: 'SHA-256 chain hash',
+      scientific_basis: 'Darwin Gödel Machine (arXiv:2505.22954)',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    log.error('A2A proof/c112 error', { error: String(err) });
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+/**
  * GET /api/a2a/proof/:commitHash
  * Verify that MOTHER autonomously created code for a given commit
  */
