@@ -1457,3 +1457,60 @@ a2aRouter.get('/api/v1/gateway/stats', authenticateA2A, (_req: Request, res: Res
     res.json({ stats: getGatewayStats(), api_keys: getApiKeysSummary(), recent_calls: getCallLogs(20) });
   } catch (err) { res.status(500).json({ error: String(err) }); }
 });
+
+// ============================================================
+// CICLO 118 — AUTONOMOUS PROJECT MANAGER (APGLM)
+// Scientific basis: DGM (arXiv:2505.22954), SICA (arXiv:2504.15228)
+// Council of 6 AIs — Milestone Zero
+// ============================================================
+import { createModule, createSubProject, executeMilestoneZero, getAPGLMStatus, type ProjectSpec, type SubProjectSpec } from './autonomous-project-manager';
+
+// GET /api/a2a/apglm/status — APGLM health and readiness
+a2aRouter.get('/api/a2a/apglm/status', async (_req: Request, res: Response) => {
+  try {
+    const status = getAPGLMStatus();
+    res.json({ status: 'active', apglm: status, cycle: 'C118', timestamp: new Date().toISOString() });
+  } catch (err) { res.status(500).json({ error: String(err) }); }
+});
+
+// POST /api/a2a/apglm/milestone-zero — Execute Milestone Zero
+a2aRouter.post('/api/a2a/apglm/milestone-zero', async (_req: Request, res: Response) => {
+  try {
+    const result = await executeMilestoneZero();
+    res.json({
+      milestone: 'ZERO',
+      cycle: 'C118',
+      success: result.success,
+      commitHash: result.commitHash,
+      proofHash: result.proofHash,
+      fileHash: result.fileHash,
+      tsValidation: result.tsValidation,
+      durationMs: result.durationMs,
+      error: result.error,
+    });
+  } catch (err) { res.status(500).json({ error: String(err) }); }
+});
+
+// POST /api/a2a/apglm/create-module — MOTHER creates a TypeScript module autonomously
+a2aRouter.post('/api/a2a/apglm/create-module', async (req: Request, res: Response) => {
+  try {
+    const spec = req.body as ProjectSpec;
+    if (!spec.description || !spec.targetPath || !spec.code) {
+      return res.status(400).json({ error: 'Missing required fields: description, targetPath, code' });
+    }
+    const result = await createModule(spec);
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: String(err) }); }
+});
+
+// POST /api/a2a/apglm/create-subproject — MOTHER creates a full sub-project
+a2aRouter.post('/api/a2a/apglm/create-subproject', async (req: Request, res: Response) => {
+  try {
+    const spec = req.body as SubProjectSpec;
+    if (!spec.name || !spec.description || !spec.files) {
+      return res.status(400).json({ error: 'Missing required fields: name, description, files' });
+    }
+    const result = await createSubProject(spec);
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: String(err) }); }
+});
