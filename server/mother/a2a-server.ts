@@ -265,15 +265,25 @@ a2aRouter.get('/api/a2a/diagnostics', authenticateA2A, async (_req: Request, res
  */
 a2aRouter.get('/api/a2a/knowledge', authenticateA2A, async (req: Request, res: Response) => {
   try {
-    const limit = Math.min(Number(req.query.limit) || 100, 300);
-    const minScore = Number(req.query.quality_score_min) || 0.8;
-    const category = req.query.category as string | undefined;
+    // v81.1 PAGINATION FIX (Ciclo 163 — Conselho dos 6 Fix P0-3, ISSUE-009, AWAKE V235):
+    // ISSUE: /api/a2a/knowledge capped at 300 entries — maintenance agent cannot load full BD
+    // FIX: Add offset pagination + increase cap to 1000 + add domain filter alias
+    // Scientific basis: REST API pagination best practices (Fielding, 2000 — REST dissertation)
+    // AWAKE V235 R549: maintenance agent MUST load all BD knowledge before output
+    const limit = Math.min(Number(req.query.limit) || 100, 1000); // v81.1: cap 300 → 1000
+    const offset = Math.max(Number(req.query.offset) || 0, 0);    // v81.1: pagination offset
+    const category = (req.query.category || req.query.domain) as string | undefined; // v81.1: domain alias
+    const search = req.query.search as string | undefined;          // v81.1: text search filter
 
     const db = await getDb();
     if (!db) {
       res.status(503).json({ error: 'Database unavailable' });
       return;
     }
+
+    // v81.1: Count total entries for pagination metadata
+    const countResult = await db.select({ count: sql<number>`COUNT(*)` }).from(knowledge);
+    const totalCount = Number(countResult[0]?.count ?? 0);
 
     let queryBuilder = db.select({
       id: knowledge.id,
@@ -286,18 +296,26 @@ a2aRouter.get('/api/a2a/knowledge', authenticateA2A, async (req: Request, res: R
     })
       .from(knowledge)
       .orderBy(desc(knowledge.createdAt))
-      .limit(limit);
+      .limit(limit)
+      .offset(offset); // v81.1: pagination offset
 
     const entries = await queryBuilder;
 
-    // Filter in JS (knowledge table has no qualityScore field - filter by category only)
+    // Filter in JS (knowledge table has no qualityScore field - filter by category/search)
     const filtered = entries.filter((e: any) => {
-      const catOk = !category || e.category === category;
-      return catOk;
+      const catOk = !category || category === 'all' || e.category === category;
+      const searchOk = !search || 
+        e.title?.toLowerCase().includes(search.toLowerCase()) ||
+        e.content?.toLowerCase().includes(search.toLowerCase());
+      return catOk && searchOk;
     });
 
     res.json({
       total: filtered.length,
+      totalCount,                          // v81.1: total entries in BD
+      offset,                              // v81.1: current offset
+      limit,                               // v81.1: current limit
+      hasMore: offset + limit < totalCount, // v81.1: pagination indicator
       version: MOTHER_VERSION,
       entries: filtered,
     });

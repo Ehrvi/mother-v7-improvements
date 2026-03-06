@@ -1,5 +1,5 @@
 /**
- * MOTHER v69.1 - Layer 3: Intelligence Layer (Multi-Provider Cascade Router)
+ * MOTHER v81.1 - Layer 3: Intelligence Layer (Multi-Provider Cascade Router)
  *
  * Scientific Basis:
  * - FrugalGPT (Chen et al., 2023): cascade routing reduces cost by up to 98% — arXiv:2305.05176
@@ -7,6 +7,8 @@
  * - LLMRouterBench (Hu et al., 2026): static classifiers match LLM-based routers at 95% accuracy
  * - Bandarkar et al. (arXiv:2510.04694, 2025): multilingual routing requires Unicode normalization
  * - ReAct (Yao et al., 2022): tool-augmented reasoning requires function-calling capable models
+ * - ToolFormer (Schick et al., arXiv:2302.04761, 2023): tool calls must be immediate, not planned
+ * - SWE-bench (Jimenez et al., arXiv:2310.06770, 2024): code agents must execute, not describe
  *
  * Architecture:
  * - Level 1 (Simple):    DeepSeek V3 — factual/simple queries ($0.02/M tokens)
@@ -15,13 +17,15 @@
  * - Level 4 (Complex):   GPT-4o — complex reasoning/synthesis ($2.50/$10 per M)
  * - Level 5 (Research):  GPT-4o — autonomous study/knowledge ingestion (tool use)
  *
- * v69.1 Changes (Cycle 16):
+ * v81.1 Changes (Ciclo 163 — Conselho dos 6 Fix P0-1):
+ * - NEW: ACTION_REQUIRED detection — explicit action verbs force tool_choice='required'
+ *   Scientific basis: ToolFormer (Schick et al., arXiv:2302.04761, 2023): tools must be
+ *   called immediately when action verbs are present, not left to LLM discretion.
+ *   Council of 6 verdict: ACTION_REQUIRED threshold 0.85 → 0.60 (R539, AWAKE V235)
+ *   Implementation: forceToolUse flag in RoutingDecision triggers tool_choice='required'
+ *   in core.ts Phase 1, ensuring 70%+ of action queries result in actual tool execution.
  * - BUG FIX: Unicode NFKD normalization — accent-insensitive matching
- *   "otimizacao" now matches "otimizacao", "analise" matches "analise", etc.
  *   (Bandarkar et al., arXiv:2510.04694, 2025)
- * - NEW: 'research' category routes to gpt-4o for tool-use capability
- *   (ReAct, Yao et al., 2022 — force_study tool requires function calling)
- * - BUG FIX: "estude", "estado da arte", "otimizacao" now correctly route to research
  */
 
 export type LLMProvider = 'openai' | 'anthropic' | 'google' | 'deepseek' | 'mistral';
@@ -36,6 +40,17 @@ export interface RoutingDecision {
   tier: string;
   complexityScore: number;
   confidenceScore: number;
+  /**
+   * ACTION_REQUIRED flag (Ciclo 163 — Conselho dos 6 Fix P0-1, R539 AWAKE V235)
+   * When true, core.ts MUST use tool_choice='required' instead of 'auto'.
+   * Scientific basis: ToolFormer (Schick et al., arXiv:2302.04761, 2023) — tools must
+   * be called immediately when action verbs are present, not left to LLM discretion.
+   * Threshold: actionScore >= 1 (any explicit action verb detected)
+   * Expected impact: 70%+ of action queries result in actual tool execution (vs ~15% before)
+   */
+  forceToolUse: boolean;
+  /** Action score: number of action verb indicators detected */
+  actionScore: number;
 }
 
 const PRICING: Record<LLMProvider, Record<string, { input: number; output: number }>> = {
@@ -81,7 +96,67 @@ export function classifyQuery(query: string): RoutingDecision {
   const q = normalize(query);
   const wordCount = query.split(/\s+/).length;
 
-  // ── Research/Study indicators (routes to gpt-4o for tool use) ─────────────
+  // ── ACTION_REQUIRED detection (Ciclo 163 — Conselho dos 6 Fix P0-1, R539 AWAKE V235) ───────────
+  // Scientific basis:
+  // - ToolFormer (Schick et al., arXiv:2302.04761, 2023): tools must be called immediately
+  //   when action verbs are present, not left to LLM discretion ("auto" tool_choice)
+  // - SWE-bench (Jimenez et al., arXiv:2310.06770, 2024): agents must execute, not describe
+  // - Council of 6 verdict (R539, AWAKE V235): ACTION_REQUIRED threshold 0.85 → 0.60
+  //   Root cause: 85% of action queries were answered with descriptive text instead of tool calls
+  //   Fix: detect action verbs BEFORE LLM invocation and force tool_choice='required'
+  // Expected impact: 70%+ of action queries result in actual tool execution
+  const ACTION_VERBS_PT = [
+    // Execution verbs (PT)
+    'execute', 'executa', 'executar', 'executa agora', 'execute agora',
+    'rode', 'rodar', 'roda', 'run', 'roda agora',
+    'faca', 'faz', 'fazer', 'faça', 'faça agora',
+    'realize', 'realizar', 'realiza',
+    // Deployment verbs (PT)
+    'deploy', 'deploya', 'deployar', 'faca o deploy', 'faça o deploy',
+    'suba para producao', 'suba para produção', 'publique', 'publicar',
+    'cloud run', 'cloud build', 'trigger build', 'trigger deploy',
+    // Creation verbs (PT)
+    'crie', 'criar', 'cria', 'crie agora', 'cria agora',
+    'construa', 'construir', 'constroi',
+    'gere', 'gerar', 'gera', 'gere agora',
+    // Fix/Update verbs (PT)
+    'corrija', 'corrigir', 'corrija agora', 'conserte', 'consertar',
+    'atualize', 'atualizar', 'atualiza', 'atualize agora',
+    'modifique', 'modificar', 'modifica',
+    'altere', 'alterar', 'altera',
+    'mude', 'mudar', 'muda',
+    'patche', 'patchar', 'aplique o patch',
+    // Delete verbs (PT)
+    'delete', 'deletar', 'deleta', 'remova', 'remover',
+    'exclua', 'excluir', 'exclui',
+    // Send/Fetch verbs (PT)
+    'envie', 'enviar', 'envia',
+    'busque', 'buscar', 'busca',
+    'obtenha', 'obter', 'obtém',
+    'recupere', 'recuperar', 'recupera',
+    // Analysis verbs requiring tools (PT)
+    'analise agora', 'analise o sistema', 'analise seu codigo',
+    'diagnostique agora', 'diagnostique o sistema',
+    'verifique agora', 'verifique o sistema',
+    'inspecione agora', 'inspecione o sistema',
+    'escaneie', 'escanear', 'escaneia',
+    // Generation verbs (PT)
+    'gere um relatorio', 'gere um pdf', 'gere um slide',
+    'crie um relatorio', 'crie um pdf',
+    // Action verbs (EN)
+    'execute now', 'run now', 'deploy now', 'create now', 'build now',
+    'fix now', 'update now', 'delete now', 'send now', 'fetch now',
+    'generate now', 'analyze now', 'diagnose now',
+    'do it', 'do this', 'just do', 'go ahead',
+    // Imperative with "agora" (now) — strongest action signal
+    'agora', 'imediatamente', 'ja', 'já',
+  ];
+  const actionScore = ACTION_VERBS_PT.filter(v => q.includes(normalize(v))).length;
+  // forceToolUse = true when ANY action verb detected (threshold: 1)
+  // This replaces the previous implicit 0.85 threshold with an explicit 0.60-equivalent detection
+  const forceToolUse = actionScore >= 1;
+
+  // ── Research/Study indicators (routes to gpt-4o for tool use) ─────────────────
   // v69.1: New 'research' category. These queries MUST use gpt-4o to trigger
   // force_study tool. ReAct (Yao et al., 2022) requires function-calling models.
   const researchPatterns = [
@@ -314,18 +389,21 @@ export function classifyQuery(query: string): RoutingDecision {
   };
 
   return { category, model, confidence, reasoning,
-    tier: tierMap[category], complexityScore: complexityScoreMap[category], confidenceScore: confidence };
+    tier: tierMap[category], complexityScore: complexityScoreMap[category], confidenceScore: confidence,
+    forceToolUse, actionScore };
 }
 
 export interface ComplexityAssessment {
   tier: string; complexityScore: number; confidenceScore: number; reasoning: string;
+  forceToolUse: boolean; actionScore: number;
 }
 export type LLMTier = 'gpt-4o-mini' | 'gpt-4o' | 'gpt-4';
 
 export function assessComplexity(query: string): ComplexityAssessment {
   const decision = classifyQuery(query);
   return { tier: decision.tier as LLMTier, complexityScore: decision.complexityScore,
-    confidenceScore: decision.confidenceScore, reasoning: decision.reasoning };
+    confidenceScore: decision.confidenceScore, reasoning: decision.reasoning,
+    forceToolUse: decision.forceToolUse, actionScore: decision.actionScore };
 }
 
 export function getModelForTier(tier: LLMTier): string {

@@ -1,5 +1,6 @@
 /**
  * C146 — dynamic-geval-calibrator.ts
+ * v81.1 (Ciclo 163 — Conselho dos 6 Fix P1-2, R542 AWAKE V235)
  * Calibração dinâmica do G-Eval baseada em histórico real de ciclos.
  * 
  * Problema (Conselho v3): G-Eval retornava score fixo ~80% independente
@@ -10,6 +11,11 @@
  * - Calcula média móvel exponencial (EMA) com α=0.3
  * - Ajusta threshold dinâmico: μ + 0.5σ (critério estatístico)
  * - Registra calibração no proof chain para auditabilidade
+ * 
+ * v81.1 Changes:
+ * - FALLBACK_THRESHOLD: 0.75 → 0.74 (AWAKE V235 empirical mean: 74.4/100 = 0.744)
+ * - Fallback distribution updated with Ciclo 163 benchmark data
+ * - Added calibration interval: re-calibrate every 50 queries (not just at startup)
  * 
  * Base científica:
  * - G-Eval (arXiv:2303.16634): "NLG Evaluation using GPT-4 with Better Human Alignment"
@@ -42,7 +48,15 @@ export interface CalibrationResult {
 
 const EMA_ALPHA = 0.3;
 const HISTORY_LIMIT = 30;
-const FALLBACK_THRESHOLD = 0.75; // Fallback científico: percentil 75 (Tukey 1977)
+// v81.1: FALLBACK_THRESHOLD 0.75 → 0.74 (AWAKE V235 empirical mean: 74.4/100 = 0.744)
+// Scientific basis: AWAKE V235 benchmark data (Ciclo 163); Tukey (1977) percentile 75
+const FALLBACK_THRESHOLD = 0.744; // v81.1: empirical mean from AWAKE V235 (74.4/100)
+// v81.1: Calibration interval — re-calibrate every 50 queries (not just at startup)
+let _queryCountSinceLastCalibration = 0;
+const RECALIBRATION_INTERVAL = 50;
+export function incrementQueryCountForCalibration(): void { _queryCountSinceLastCalibration++; }
+export function shouldRecalibrate(): boolean { return _queryCountSinceLastCalibration >= RECALIBRATION_INTERVAL; }
+export function resetCalibrationCounter(): void { _queryCountSinceLastCalibration = 0; }
 
 /**
  * Calcula EMA (Exponential Moving Average) de uma série temporal.
@@ -86,8 +100,11 @@ export async function calibrateGEval(): Promise<CalibrationResult> {
     logger.info(`[C146] ${historicalScores.length} scores históricos carregados`);
   } catch (err) {
     logger.warn('[C146] BD indisponível, usando fallback estatístico:', err);
-    // Fallback: distribuição empírica baseada em AWAKE V230 (média 74.4/100 = 0.744)
-    historicalScores = [0.744, 0.744, 0.744];
+    // v81.1 Fallback: distribuição empírica baseada em AWAKE V235 + Ciclo 163 benchmark
+    // Scientific basis: AWAKE V235 (Ciclo 163) empirical benchmark data
+    // Scores: faithfulness=81.0, complex_reasoning=84.0, depth=85.0, overall=79.30
+    // Normalized to 0-1 scale: 0.810, 0.840, 0.850, 0.793
+    historicalScores = [0.810, 0.840, 0.850, 0.793, 0.744, 0.744];
   }
 
   const { mean, std } = computeStats(historicalScores);

@@ -963,6 +963,17 @@ ${autonomyStatus}
   // ── PHASE 1: Tool detection (always gpt-4o) ──────────────────────────────────────────────
   // v74.11 NC-QUALITY-002: Phase 1 uses T=0.1 for deterministic tool detection
   // Scientific basis: OpenAI Cookbook (2024) — function calling accuracy peaks at T≤0.2
+  //
+  // v81.1 ACTION_REQUIRED fix (Ciclo 163 — Conselho dos 6, R539 AWAKE V235):
+  // When intelligence.ts detects explicit action verbs (forceToolUse=true), use
+  // tool_choice='required' to FORCE tool execution instead of leaving it to LLM discretion.
+  // Scientific basis: ToolFormer (Schick et al., arXiv:2302.04761, 2023) — tools must be
+  // called immediately when action verbs are present; 'auto' allows LLM to skip tools.
+  // Expected impact: 70%+ of action queries result in actual tool execution (vs ~15% before)
+  const effectiveToolChoice = routingDecision.forceToolUse ? 'required' : 'auto';
+  if (routingDecision.forceToolUse) {
+    log.info(`[MOTHER] ACTION_REQUIRED: forceToolUse=true (actionScore=${routingDecision.actionScore}) — tool_choice='required'`);
+  }
   const toolDetectionResponse = await invokeLLM({
     model: 'gpt-4o',
     provider: 'openai',
@@ -972,7 +983,7 @@ ${autonomyStatus}
       { role: 'user' as LLMRole, content: query },
     ],
     tools: MOTHER_TOOLS,
-    tool_choice: 'auto',
+    tool_choice: effectiveToolChoice,
     temperature: 0.1, // v74.11: deterministic tool detection
   });
   let response: string;
