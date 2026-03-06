@@ -157,6 +157,29 @@ export function classifyQuery(query: string): RoutingDecision {
     'do it', 'do this', 'just do', 'go ahead',
     // Imperative with "agora" (now) — strongest action signal
     'agora', 'imediatamente', 'ja', 'já',
+    // R557 (AWAKE V237 Ciclo 165): Visual analysis verbs for analyze_image tool
+    // Scientific basis: ToolFormer (arXiv:2302.04761, 2023) — tools must be called for analysis verbs
+    // LLaVA (Liu et al., arXiv:2304.08485, 2023) — instruction-following for visual analysis
+    // PT: Image analysis
+    'analise a imagem', 'analise essa imagem', 'analise esta imagem',
+    'descreva a imagem', 'descreva essa imagem', 'descreva esta imagem',
+    'leia a imagem', 'leia essa imagem', 'leia esta imagem',
+    'o que tem na imagem', 'o que e isso', 'o que é isso',
+    'o que esta na imagem', 'o que está na imagem',
+    'identifique a imagem', 'identifique o que esta',
+    // PT: OCR
+    'extraia o texto', 'extraia texto', 'extraia as informacoes', 'extraia as informações',
+    'leia o texto', 'transcreva', 'faca ocr', 'faça ocr', 'ocr',
+    // PT: Chart analysis
+    'analise o grafico', 'analise o gráfico', 'interprete o grafico', 'interprete o gráfico',
+    'leia o grafico', 'leia o gráfico', 'o que mostra o grafico', 'o que mostra o gráfico',
+    'analise a tabela', 'interprete a tabela', 'leia a tabela',
+    // EN: Image analysis
+    'analyze the image', 'analyze this image', 'describe the image', 'describe this image',
+    'read the image', 'what is in the image', 'what is this', 'identify this',
+    'extract text', 'extract the text', 'read the text', 'transcribe',
+    'analyze the chart', 'read the chart', 'analyze the graph', 'read the graph',
+    'what does the chart show', 'what does the graph show',
   ];
   const actionScore = ACTION_VERBS_PT.filter(v => q.includes(normalize(v))).length;
   // forceToolUse = true when ANY action verb detected (threshold: 1)

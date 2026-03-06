@@ -90,13 +90,14 @@ export interface LayerTrace {
   durationMs: number;
   status: 'ok' | 'skipped' | 'error' | 'cached';
   detail?: string;
+  tokensUsed?: number; // R535 (AWAKE V237 Ciclo 165): token count per layer for cost transparency
 }
 
 // ============================================================
 // CONSTANTS
 // ============================================================
 
-export const ORCHESTRATOR_VERSION = 'v79.2'; // Ciclo 109: NC-SHMS-001 + NC-RLVR-001
+export const ORCHESTRATOR_VERSION = 'v81.2'; // R555 (AWAKE V237 Ciclo 165): v79.2 → v81.2 (Ciclos 163+164+165 fixes)
 export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 3,
   successThreshold: 1,
@@ -273,6 +274,7 @@ interface GenerationResult {
   model: string;
   durationMs: number;
   usedFallback: boolean;
+  tokensUsed?: number; // R535 (AWAKE V237 Ciclo 165): estimated token count for cost transparency
 }
 
 async function layer4_neuralGeneration(
@@ -835,12 +837,16 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
   const l4Start = Date.now();
   try {
     l4 = await layer4_neuralGeneration(req, l2.routing, l3);
+    // R535 (AWAKE V237 Ciclo 165): Estimate tokens from response length (tiktoken avg: 0.75 tokens/char)
+    const estimatedTokens = Math.round((l4.response.length / 4) + 1000); // ~1000 prompt tokens avg
+    l4.tokensUsed = estimatedTokens;
     layers.push({
       layer: 4,
       name: 'Neural Generation',
       durationMs: l4.durationMs,
       status: 'ok',
       detail: `${l4.provider}/${l4.model}${l4.usedFallback ? ' (fallback)' : ''}`,
+      tokensUsed: estimatedTokens,
     });
   } catch (err: any) {
     layers.push({

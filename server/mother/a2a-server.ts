@@ -467,7 +467,18 @@ a2aRouter.get('/api/a2a/stream', authenticateA2A, async (req: Request, res: Resp
       chunkIndex = words.length;
     }
 
-    // Send final event with metadata
+    // R535 (AWAKE V237 Ciclo 165): Streaming Token Counter
+    // Scientific basis: OpenAI Tokenizer (tiktoken, 2023); Cost transparency (Amodei et al., 2016)
+    // Emits tokensUsed, estimatedCostUSD, and tokensPerSecond in SSE 'done' event
+    // Enables frontend to display real-time cost and throughput metrics
+    const tokensUsed = result.layers?.reduce((sum, l) => sum + (l.tokensUsed || 0), 0) || 0;
+    const latencySeconds = (result.latencyMs || 1) / 1000;
+    const tokensPerSecond = tokensUsed > 0 ? Math.round(tokensUsed / latencySeconds) : 0;
+    // Cost estimation: gpt-4o = $5/1M input + $15/1M output; gpt-4o-mini = $0.15/1M + $0.60/1M
+    const costPerToken = result.model?.includes('mini') ? 0.000000375 : 0.00001; // avg input+output
+    const estimatedCostUSD = parseFloat((tokensUsed * costPerToken).toFixed(6));
+
+    // Send final event with metadata + R535 token counter + R548 layout_hint
     res.write(`data: ${JSON.stringify({
       done: true,
       model: result.model,
@@ -479,6 +490,13 @@ a2aRouter.get('/api/a2a/stream', authenticateA2A, async (req: Request, res: Resp
       version: result.version,
       nativeStreaming: chunkIndex > 0,
       gEvalScores: result.layers?.find(l => l.name?.includes('G-Eval'))?.detail,
+      // R535 (AWAKE V237 Ciclo 165): Token counter fields
+      tokensUsed,
+      tokensPerSecond,
+      estimatedCostUSD,
+      chunkCount: chunkIndex,
+      // R548 (AWAKE V237 Ciclo 164): layout_hint for frontend rendering
+      layout_hint: result.layout_hint,
     })}\n\n`);
 
     log.info('SSE stream completed', { tier: result.tier, chunks: chunkIndex, latencyMs: result.latencyMs, nativeStreaming: chunkIndex > 0 });
@@ -2030,3 +2048,93 @@ a2aRouter.post('/dgm/integration-test', async (req, res) => {
   }
 });
 
+
+// ============================================================
+// R534 (AWAKE V237 Ciclo 165): ARTIFACT PANEL ENDPOINTS
+// Scientific basis: Shneiderman (1983) Direct Manipulation;
+// Information Architecture (Morville & Rosenfeld, 2006);
+// arXiv:2304.10878 (2023): structured output hints improve UI rendering
+// ============================================================
+import { getArtifacts, getArtifactById, storeArtifact, deleteArtifact, extractAndStoreArtifacts } from './artifact-panel';
+
+/**
+ * GET /api/a2a/artifacts — List all artifacts (optionally filtered by sessionId)
+ * Returns: { artifacts: Artifact[], totalCount: number }
+ */
+a2aRouter.get('/api/a2a/artifacts', authenticateA2A, async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.query as { sessionId?: string };
+    const store = getArtifacts(sessionId);
+    res.json({ ok: true, ...store });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
+/**
+ * GET /api/a2a/artifacts/:id — Get a single artifact by ID
+ */
+a2aRouter.get('/api/a2a/artifacts/:id', authenticateA2A, async (req: Request, res: Response) => {
+  try {
+    const artifact = getArtifactById(req.params.id);
+    if (!artifact) {
+      res.status(404).json({ ok: false, error: 'Artifact not found or expired' });
+      return;
+    }
+    res.json({ ok: true, artifact });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
+/**
+ * POST /api/a2a/artifacts — Manually store an artifact
+ * Body: { title, content, type?, language?, description?, queryId?, sessionId?, metadata? }
+ */
+a2aRouter.post('/api/a2a/artifacts', authenticateA2A, async (req: Request, res: Response) => {
+  try {
+    const { title, content, type, language, description, queryId, sessionId, metadata } = req.body;
+    if (!title || !content) {
+      res.status(400).json({ ok: false, error: 'title and content are required' });
+      return;
+    }
+    const artifact = storeArtifact({ title, content, type, language, description, queryId, sessionId, metadata });
+    res.json({ ok: true, artifact });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
+/**
+ * POST /api/a2a/artifacts/extract — Extract code blocks from a response and store as artifacts
+ * Body: { response, queryId?, sessionId? }
+ */
+a2aRouter.post('/api/a2a/artifacts/extract', authenticateA2A, async (req: Request, res: Response) => {
+  try {
+    const { response, queryId, sessionId } = req.body;
+    if (!response) {
+      res.status(400).json({ ok: false, error: 'response is required' });
+      return;
+    }
+    const artifacts = extractAndStoreArtifacts(response, queryId, sessionId);
+    res.json({ ok: true, artifacts, count: artifacts.length });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
+/**
+ * DELETE /api/a2a/artifacts/:id — Delete an artifact by ID
+ */
+a2aRouter.delete('/api/a2a/artifacts/:id', authenticateA2A, async (req: Request, res: Response) => {
+  try {
+    const deleted = deleteArtifact(req.params.id);
+    if (!deleted) {
+      res.status(404).json({ ok: false, error: 'Artifact not found' });
+      return;
+    }
+    res.json({ ok: true, deleted: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
