@@ -236,11 +236,15 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
           cacheEligible: (orchResult.qualityScore ?? 80) >= 75,
         } as GuardianResult,
         responseTime: orchResult.latencyMs ?? 0,
-        tokensUsed: 0,
-        cost: 0,
+        // R572 (AWAKE V238 Ciclo 166): Map tokensUsed and layout_hint from core-orchestrator
+        // Scientific basis: Defensive Programming (McConnell 2004) — all MotherResponse fields must be populated
+        // Root cause: tokensUsed was hardcoded to 0; layout_hint was missing entirely
+        tokensUsed: orchResult.tokensUsed ?? 0,
+        cost: orchResult.estimatedCostUSD ?? 0,
         costReduction: 0,
         cacheHit: orchResult.fromCache ?? false,
         queryId: 0,
+        layout_hint: orchResult.layout_hint, // R548 (AWAKE V236 Ciclo 164)
         metadata: {
           abTest: 'core-orchestrator-v76.0',
           abTier: orchResult.tier,
@@ -250,6 +254,9 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
           abFromCache: orchResult.fromCache,
           abQualityScore: orchResult.qualityScore,
           abVersion: orchResult.version,
+          abTokensUsed: orchResult.tokensUsed,
+          abEstimatedCostUSD: orchResult.estimatedCostUSD,
+          abLayoutHint: orchResult.layout_hint,
         },
       } as unknown as MotherResponse;
     } catch (orchErr) {

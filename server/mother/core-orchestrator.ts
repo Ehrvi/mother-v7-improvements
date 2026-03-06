@@ -82,6 +82,9 @@ export interface OrchestratorResponse {
   layers: LayerTrace[];
   version: string;
   layout_hint?: 'chat' | 'code' | 'analysis' | 'document'; // R548 (AWAKE V236 Ciclo 164)
+  // R572 (AWAKE V238 Ciclo 166): token count and cost for A/B canary mapping in core.ts
+  tokensUsed?: number;       // Total tokens used across all layers
+  estimatedCostUSD?: number; // Estimated cost in USD (gpt-4o: $0.00001/token)
 }
 
 export interface LayerTrace {
@@ -957,6 +960,13 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     return 'analysis'; // TIER_4
   };
 
+  // R572 (AWAKE V238 Ciclo 166): compute total tokensUsed and estimatedCostUSD for A/B canary mapping
+  // Scientific basis: Cost transparency (Amodei et al., 2016); Defensive Programming (McConnell 2004)
+  const totalTokensUsed = layers.reduce((sum, l) => sum + (l.tokensUsed || 0), 0)
+    || (l4.tokensUsed ?? 0);
+  const costPerToken = (l4.model || '').includes('mini') ? 0.000000375 : 0.00001;
+  const estimatedCostUSD = parseFloat((totalTokensUsed * costPerToken).toFixed(6));
+
   return {
     response: l4.response,
     provider: l4.provider,
@@ -968,6 +978,8 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     layers,
     version: ORCHESTRATOR_VERSION,
     layout_hint: layoutHintFromTier(l2.routing.tier), // R548 (AWAKE V236 Ciclo 164)
+    tokensUsed: totalTokensUsed,       // R572 (AWAKE V238 Ciclo 166)
+    estimatedCostUSD,                  // R572 (AWAKE V238 Ciclo 166)
   };
 }
 
