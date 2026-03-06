@@ -556,3 +556,92 @@ export const auditLog = mysqlTable("audit_log", {
 
 export type AuditLog = typeof auditLog.$inferSelect;
 export type InsertAuditLog = typeof auditLog.$inferInsert;
+
+// ============================================================
+// C176 AUDIT FIX: NC-SCHEMA-DRIFT-001
+// Tables used in raw SQL but missing from Drizzle schema
+// Scientific basis: Database schema drift (Qiu et al., 2023, VLDB)
+// ============================================================
+
+/**
+ * GEA Agent Pool — Group-Evolving Agents (C136)
+ * Scientific basis: GEA (arXiv:2502.04728, 2025)
+ */
+export const geaAgentPool = mysqlTable("gea_agent_pool", {
+  id: int("id").autoincrement().primaryKey(),
+  agentId: varchar("agent_id", { length: 100 }).notNull(),
+  systemPrompt: text("system_prompt"),
+  performanceNoveltyScore: float("performance_novelty_score").default(0),
+  generationNumber: int("generation_number").default(0),
+  parentIds: text("parent_ids"),
+  mutationType: varchar("mutation_type", { length: 100 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type GeaAgentPool = typeof geaAgentPool.$inferSelect;
+export type InsertGeaAgentPool = typeof geaAgentPool.$inferInsert;
+
+/**
+ * GEA Shared Experience — cross-generation strategy pool
+ * Scientific basis: GEA (arXiv:2502.04728, 2025)
+ */
+export const geaSharedExperience = mysqlTable("gea_shared_experience", {
+  id: int("id").autoincrement().primaryKey(),
+  strategy: text("strategy").notNull(),
+  performanceGain: float("performance_gain").default(0),
+  usageCount: int("usage_count").default(0),
+  sourceAgentId: varchar("source_agent_id", { length: 100 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type GeaSharedExperience = typeof geaSharedExperience.$inferSelect;
+export type InsertGeaSharedExperience = typeof geaSharedExperience.$inferInsert;
+
+/**
+ * Fitness History — cross-generation fitness tracking for DGM/GEA
+ * Scientific basis: Darwin Gödel Machine (arXiv:2505.22954, Sakana AI, 2025)
+ */
+export const fitnessHistory = mysqlTable("fitness_history", {
+  id: int("id").autoincrement().primaryKey(),
+  agentId: varchar("agent_id", { length: 100 }),
+  fitnessScore: float("fitness_score").notNull(),
+  qualityScore: float("quality_score"),
+  cacheHitRate: float("cache_hit_rate"),
+  avgResponseTimeMs: int("avg_response_time_ms"),
+  generationNumber: int("generation_number").default(0),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type FitnessHistory = typeof fitnessHistory.$inferSelect;
+export type InsertFitnessHistory = typeof fitnessHistory.$inferInsert;
+
+/**
+ * DGM Task Queue — async task queue for Cloud Run Jobs
+ * Scientific basis: Cloud Run Jobs (Google Cloud, 2024)
+ */
+export const dgmTaskQueue = mysqlTable("dgm_task_queue", {
+  id: int("id").autoincrement().primaryKey(),
+  runId: varchar("run_id", { length: 255 }).notNull(),
+  taskType: varchar("task_type", { length: 100 }).notNull(),
+  status: mysqlEnum("status", ["pending", "running", "completed", "failed"]).default("pending").notNull(),
+  payload: text("payload"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+export type DgmTaskQueue = typeof dgmTaskQueue.$inferSelect;
+export type InsertDgmTaskQueue = typeof dgmTaskQueue.$inferInsert;
+
+/**
+ * Knowledge Wisdom — distilled insights from knowledge base
+ * Used by knowledge-graph.ts for higher-order reasoning
+ */
+export const knowledgeWisdom = mysqlTable("knowledge_wisdom", {
+  id: int("id").autoincrement().primaryKey(),
+  insight: text("insight").notNull(),
+  sourceIds: text("source_ids"),
+  confidenceScore: float("confidence_score").default(0.5),
+  domain: varchar("domain", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type KnowledgeWisdom = typeof knowledgeWisdom.$inferSelect;
+export type InsertKnowledgeWisdom = typeof knowledgeWisdom.$inferInsert;
