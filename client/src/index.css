@@ -12,6 +12,10 @@
 @source "../";
 @source "../../shared/";
 @source "../../server/";
+/* C173: Streamdown rich rendering — Mermaid diagrams, KaTeX (LaTeX math), Shiki syntax highlighting
+   Scientific basis: Mermaid.js (Sveidqvist 2014); KaTeX (Khan Academy 2013); Shiki (Pine Wu 2021)
+   Required by streamdown v1.4.0 to activate Tailwind utility classes for rich content */
+@source "../../node_modules/streamdown/dist/index.js";
 
 @custom-variant dark (&:is(.dark *));
 

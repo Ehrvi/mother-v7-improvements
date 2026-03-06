@@ -19,8 +19,11 @@
  */
 
 import { createHash } from 'crypto';
+import { createLogger } from '../_core/logger'; // NC-003 structured logger
+const log = createLogger('DGM-ORCHESTRATOR');
 import { fitnessEvaluator, EvaluationTarget, FitnessScore } from './fitness-evaluator';
 import { checkDuplicate } from './dgm-deduplicator'; // C148: DGM Deduplicator (ISSUE-DGM: repeated proposals 8+ times per cycle)
+import { runBenchmark } from './dgm-benchmark'; // C173: 6 MCCs auto-run after each DGM cycle (HELM arXiv:2211.09110)
 import {
   createProposal,
   applyProposal,
@@ -303,6 +306,38 @@ export async function runDGMCycle(spec: DGMCycleSpec): Promise<DGMCycleResult> {
         killSwitchActivated: `KS-4: Fitness score ${fitnessScore.overall} < 50 threshold. Proposal archived, not deployed.`,
         scientificBasis: sciBase,
       });
+    }
+
+    // C173: Run 6 HELM MCCs benchmark before deploy (Conselho dos 6 — Critério de Autonomia)
+    // Scientific basis: Liang et al. (2022) HELM arXiv:2211.09110 — holistic evaluation before deployment
+    try {
+      const benchReport = await runBenchmark(spec.proposedContent, cycleId, spec.targetFile);
+      // BenchmarkReport fields: passed (int), totalTasks (int), passRate (0-1), overallScore (0-100)
+      const passedCount = benchReport.passed ?? 0;
+      const totalTasks = benchReport.totalTasks ?? 6;
+      const passRate = benchReport.passRate ?? 0;
+      log.info(`[DGM] Benchmark: ${passedCount}/${totalTasks} tasks passed, score: ${benchReport.overallScore?.toFixed(1)}, HELM composite: ${benchReport.helmScore?.composite?.toFixed(1)}`);
+      // Gate: require at least 60% pass rate (equivalent to 4/6 MCCs) to proceed to deploy
+      if (passRate < 0.6) {
+        return finalizeCycle({
+          cycleId,
+          objective: spec.objective,
+          phase: 'validate',
+          success: false,
+          fitnessOverall: fitnessScore.overall,
+          fitnessRecommendation: fitnessScore.recommendation,
+          proposalId: proposal.id,
+          proofHash: createHash('sha256').update(`benchmark-fail:${cycleId}:${passedCount}`).digest('hex'),
+          chainHash: createHash('sha256').update(`benchmark-fail:${cycleId}:${passedCount}`).digest('hex'),
+          duration_ms: Date.now() - startTime,
+          timestamp: new Date().toISOString(),
+          reason: `C173 Benchmark gate: ${passedCount}/${totalTasks} tasks passed (${(passRate*100).toFixed(0)}% < 60% required)`,
+          scientificBasis: 'HELM arXiv:2211.09110; Conselho dos 6 Critério de Autonomia',
+        });
+      }
+    } catch (benchErr) {
+      // Non-blocking: log warning but continue if benchmark fails
+      log.warn('[DGM] Benchmark evaluation failed (non-blocking):', (benchErr as Error).message);
     }
 
     // ── PHASE 4: DEPLOY ───────────────────────────────────────────────────────

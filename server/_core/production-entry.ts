@@ -368,11 +368,25 @@ const extractStorage = multer.diskStorage({
   },
 });
 
+// C173: Multimodal support — images (GPT-4o vision) + audio (Whisper)
+// Scientific basis: GPT-4V (OpenAI 2023); Whisper arXiv:2212.04356 (Radford et al. 2022)
 const ALLOWED_EXTRACT_MIMES = [
   'text/plain',
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/msword',
+  // Images for GPT-4o vision — converted to base64 data URL
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  // Audio for Whisper transcription
+  'audio/mpeg',
+  'audio/mp3',
+  'audio/wav',
+  'audio/webm',
+  'audio/ogg',
+  'audio/mp4',
 ];
 
 const extractUpload = multer({
@@ -432,6 +446,53 @@ app.post('/api/extract-file-content', extractUpload.single('file'), async (req, 
         const buffer = fs.readFileSync(filePath);
         const result = await mammoth.extractRawText({ buffer });
         content = result.value;
+        break;
+      }
+
+      // C173: Image handling — convert to base64 data URL for GPT-4o vision
+      case 'image/jpeg':
+      case 'image/png':
+      case 'image/webp':
+      case 'image/gif': {
+        const imgBuffer = fs.readFileSync(filePath);
+        const base64 = imgBuffer.toString('base64');
+        const dataUrl = `data:${file.mimetype};base64,${base64}`;
+        // Return special image marker — frontend will send as vision content
+        content = `[IMAGE:${dataUrl}]`;
+        break;
+      }
+
+      // C173: Audio handling — use OpenAI Whisper for transcription
+      case 'audio/mpeg':
+      case 'audio/mp3':
+      case 'audio/wav':
+      case 'audio/webm':
+      case 'audio/ogg':
+      case 'audio/mp4': {
+        // Use OpenAI Whisper API for transcription
+        const openaiKey = process.env.OPENAI_API_KEY;
+        if (!openaiKey) {
+          content = `[AUDIO: ${file.originalname} — transcrição não disponível (OPENAI_API_KEY não configurada)]`;
+          break;
+        }
+        const audioBuffer = fs.readFileSync(filePath);
+        const FormDataNode = (await import('form-data')).default;
+        const formDataNode = new FormDataNode();
+        formDataNode.append('file', audioBuffer, { filename: file.originalname, contentType: file.mimetype });
+        formDataNode.append('model', 'whisper-1');
+        formDataNode.append('language', 'pt');
+        const whisperRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${openaiKey}`, ...formDataNode.getHeaders() },
+          body: formDataNode.getBuffer() as unknown as BodyInit,
+        });
+        if (!whisperRes.ok) {
+          const errText = await whisperRes.text();
+          content = `[AUDIO: ${file.originalname} — erro na transcrição: ${errText.slice(0, 200)}]`;
+        } else {
+          const whisperData = await whisperRes.json() as { text: string };
+          content = `[TRANSCRIÇÃO DE ÁUDIO: ${file.originalname}]\n\n${whisperData.text}`;
+        }
         break;
       }
 

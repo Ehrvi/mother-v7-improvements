@@ -1,8 +1,8 @@
 /**
- * FileDropZone.tsx — MOTHER v74.6
+ * FileDropZone.tsx — MOTHER v81.7 (C173 upgrade from v74.6)
  *
  * Drag-and-drop file upload with intelligent content extraction.
- * Extracted text is injected as context into the next prompt.
+ * C173: Multimodal support — images (GPT-4o vision) + audio (Whisper transcription)
  *
  * Scientific Basis:
  * - Norman (2013) "The Design of Everyday Things": affordances for drag-and-drop
@@ -11,10 +11,10 @@
  *   each file shows pending/processing/success/error state in real time.
  * - OWASP File Upload Cheat Sheet (2024): validate MIME type server-side,
  *   not just extension; limit size; sanitize extracted content.
- * - Yan (2025) arXiv:2512.12806 "Fault-Tolerant Sandboxing": file processing
- *   runs in isolated endpoint with rate limiting and auto-cleanup.
+ * - GPT-4V (OpenAI 2023): image understanding via base64 data URLs
+ * - Whisper arXiv:2212.04356 (Radford et al. 2022): multilingual audio transcription
  *
- * Supported formats: TXT, PDF, DOCX/DOC (max 10MB per file, 5 files)
+ * Supported formats: TXT, PDF, DOCX/DOC, JPG/PNG/WEBP/GIF, MP3/WAV/WEBM/OGG (max 10MB)
  */
 
 import React, { useState, useCallback, useRef } from 'react';
@@ -36,12 +36,29 @@ interface FileDropZoneProps {
   compact?: boolean; // compact mode for embedding in chat input
 }
 
+// C173: Multimodal MIME types — documents + images (vision) + audio (Whisper)
 const ALLOWED_MIMES: Record<string, string[]> = {
+  // Documents
   'text/plain': ['.txt'],
   'application/pdf': ['.pdf'],
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
   'application/msword': ['.doc'],
+  // Images for GPT-4o vision
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'image/png': ['.png'],
+  'image/webp': ['.webp'],
+  'image/gif': ['.gif'],
+  // Audio for Whisper transcription
+  'audio/mpeg': ['.mp3'],
+  'audio/mp3': ['.mp3'],
+  'audio/wav': ['.wav'],
+  'audio/webm': ['.webm'],
+  'audio/ogg': ['.ogg'],
+  'audio/mp4': ['.m4a'],
 };
+
+const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const AUDIO_MIMES = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/webm', 'audio/ogg', 'audio/mp4'];
 
 export const FileDropZone: React.FC<FileDropZoneProps> = ({
   onFilesProcessed,
@@ -60,7 +77,7 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
       return `"${file.name}" excede ${maxSizeMB}MB`;
     }
     if (!Object.keys(ALLOWED_MIMES).includes(file.type)) {
-      return `"${file.name}" — tipo não suportado (use TXT, PDF, DOCX)`;
+      return `"${file.name}" — tipo não suportado (use TXT, PDF, DOCX, JPG/PNG, MP3/WAV)`;
     }
     return null;
   };
@@ -69,7 +86,18 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
     const successful = updatedFiles.filter(f => f.status === 'success' && f.extractedText);
     if (successful.length === 0) return '';
     return successful
-      .map(f => `### 📄 Arquivo: ${f.file.name}\n\n${f.extractedText}`)
+      .map(f => {
+        const isImage = IMAGE_MIMES.includes(f.file.type);
+        const isAudio = AUDIO_MIMES.includes(f.file.type);
+        if (isImage) {
+          // Return raw image marker — core-orchestrator will handle as vision content
+          return f.extractedText || '';
+        } else if (isAudio) {
+          return `### 🎙️ Transcrição de Áudio: ${f.file.name}\n\n${f.extractedText}`;
+        } else {
+          return `### 📄 Arquivo: ${f.file.name}\n\n${f.extractedText}`;
+        }
+      })
       .join('\n\n---\n\n');
   };
 
