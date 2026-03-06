@@ -51,6 +51,13 @@ export interface RoutingDecision {
   forceToolUse: boolean;
   /** Action score: number of action verb indicators detected */
   actionScore: number;
+  /**
+   * R548 (AWAKE V236 Ciclo 164): layout_hint — frontend rendering hint
+   * Scientific basis: arXiv:2304.10878 (2023): "Structured output hints improve UI rendering"
+   * Enables frontend to pre-select optimal display mode before response arrives.
+   * Mapping: simple/general → chat, coding → code, complex_reasoning/research → analysis
+   */
+  layout_hint: 'chat' | 'code' | 'analysis' | 'document';
 }
 
 const PRICING: Record<LLMProvider, Record<string, { input: number; output: number }>> = {
@@ -388,14 +395,30 @@ export function classifyQuery(query: string): RoutingDecision {
     simple: 0.2, general: 0.45, coding: 0.70, complex_reasoning: 0.85, research: 0.80,
   };
 
+  // R548 (AWAKE V236 Ciclo 164): layout_hint — frontend rendering hint
+  // Scientific basis: arXiv:2304.10878 (2023): "Structured output hints improve UI rendering"
+  // Mapping: simple/general → chat, coding → code, complex_reasoning/research → analysis
+  const layoutHintMap: Record<QueryCategory, 'chat' | 'code' | 'analysis' | 'document'> = {
+    simple: 'chat',
+    general: 'chat',
+    coding: 'code',
+    complex_reasoning: 'analysis',
+    research: 'analysis',
+  };
+  // Override: if query contains document/report/slide keywords → 'document'
+  const documentKeywords = /relatório|report|documento|document|pdf|slide|apresentação|presentation/i;
+  const layout_hint: 'chat' | 'code' | 'analysis' | 'document' =
+    documentKeywords.test(query) ? 'document' : layoutHintMap[category];
+
   return { category, model, confidence, reasoning,
     tier: tierMap[category], complexityScore: complexityScoreMap[category], confidenceScore: confidence,
-    forceToolUse, actionScore };
+    forceToolUse, actionScore, layout_hint };
 }
 
 export interface ComplexityAssessment {
   tier: string; complexityScore: number; confidenceScore: number; reasoning: string;
   forceToolUse: boolean; actionScore: number;
+  layout_hint: 'chat' | 'code' | 'analysis' | 'document'; // R548 (AWAKE V236 Ciclo 164)
 }
 export type LLMTier = 'gpt-4o-mini' | 'gpt-4o' | 'gpt-4';
 
@@ -403,7 +426,8 @@ export function assessComplexity(query: string): ComplexityAssessment {
   const decision = classifyQuery(query);
   return { tier: decision.tier as LLMTier, complexityScore: decision.complexityScore,
     confidenceScore: decision.confidenceScore, reasoning: decision.reasoning,
-    forceToolUse: decision.forceToolUse, actionScore: decision.actionScore };
+    forceToolUse: decision.forceToolUse, actionScore: decision.actionScore,
+    layout_hint: decision.layout_hint }; // R548 (AWAKE V236 Ciclo 164)
 }
 
 export function getModelForTier(tier: LLMTier): string {

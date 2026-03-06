@@ -7,6 +7,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { a2aRouter } from "../mother/a2a-server";
+import { warmCache } from "../mother/semantic-cache"; // R547 (AWAKE V236 Ciclo 164): Cache warming
 // Vite imports moved to dynamic imports to avoid bundling in production
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -69,6 +70,10 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    // R547 (AWAKE V236 Ciclo 164): Cache warming — fire-and-forget, non-blocking
+    // Scientific basis: Proactive caching (Sadeghi et al., 2020): pre-warming reduces cold-start
+    // Delay 2s to allow DB connection to stabilize before querying
+    setTimeout(() => warmCache().catch(e => console.warn('[CacheWarming] Startup warm failed:', e)), 2000);
   });
 }
 

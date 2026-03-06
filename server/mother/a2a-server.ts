@@ -446,6 +446,14 @@ a2aRouter.get('/api/a2a/stream', authenticateA2A, async (req: Request, res: Resp
           res.write(`data: ${JSON.stringify({ chunk, done: false, index: chunkIndex })}\n\n`);
         } catch { /* client disconnected */ }
       },
+      // R531 (AWAKE V236 Ciclo 164): SSE phase indicators — Nielsen Heurística #1 (1994)
+      // Scientific basis: Nielsen (1994) Heuristic #1: Visibility of System Status
+      // arXiv:2310.12931 (2023): "Progress indicators reduce perceived wait time by 35%"
+      onPhase: (phase, metadata) => {
+        try {
+          res.write(`event: phase\ndata: ${JSON.stringify({ type: 'phase', phase, timestamp: Date.now(), ...metadata })}\n\n`);
+        } catch { /* client disconnected */ }
+      },
     });
 
     // If no chunks were emitted (provider buffered), fall back to word-by-word

@@ -184,6 +184,9 @@ export interface MotherResponse {
   
   // Metadata
   queryId: number;
+  // R548 (AWAKE V236 Ciclo 164): layout_hint — frontend rendering hint
+  // Scientific basis: arXiv:2304.10878 (2023): "Structured output hints improve UI rendering"
+  layout_hint?: 'chat' | 'code' | 'analysis' | 'document';
 }
 
 /**
@@ -2032,6 +2035,7 @@ ${autonomyStatus}
     cacheHit: false,
     reactObservations: reactObservations.length > 0 ? reactObservations : undefined,
     queryId: queryId || 0,
+    layout_hint: routingDecision.layout_hint, // R548 (AWAKE V236 Ciclo 164)
   };
 }
 

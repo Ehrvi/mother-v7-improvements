@@ -486,6 +486,31 @@ export const MOTHER_TOOLS = [
     },
   },
   // ============================================================
+  // R532 (AWAKE V236 Ciclo 164): Image analysis tool
+  // Scientific basis: GPT-4V (OpenAI, 2023); LLaVA (Liu et al., arXiv:2304.08485, 2023)
+  // Enables multimodal queries: user uploads image → MOTHER analyzes → responds
+  // ============================================================
+  {
+    type: 'function' as const,
+    function: {
+      name: 'analyze_image',
+      description: 'Analyze an image uploaded by the user. Extracts text (OCR), describes visual content, identifies objects, reads charts/graphs, or answers specific questions about the image. Use when user uploads an image or asks about image content.',
+      parameters: {
+        type: 'object',
+        properties: {
+          image_url: { type: 'string', description: 'URL or base64 data URI of the image to analyze.' },
+          question: { type: 'string', description: 'Specific question to answer about the image (optional). If omitted, provides a comprehensive description.' },
+          mode: {
+            type: 'string',
+            enum: ['describe', 'ocr', 'chart', 'identify', 'qa'],
+            description: 'Analysis mode: describe=general description, ocr=extract text, chart=analyze charts/graphs, identify=identify objects/people, qa=answer specific question',
+          },
+        },
+        required: ['image_url'],
+      },
+    },
+  },
+  // ============================================================
   // NC-SLIDES-001: Slides and PDF generation
   // ============================================================
   {
@@ -1393,6 +1418,72 @@ export async function executeTool(
       return { success: true, data: result };
     } catch (error) {
       return { success: false, error: `generate_pdf failed: ${error}` };
+    }
+  }
+
+  // ============================================================
+  // R532 (AWAKE V236 Ciclo 164): analyze_image
+  // Scientific basis: GPT-4V (OpenAI, 2023); LLaVA (Liu et al., arXiv:2304.08485, 2023)
+  // Uses GPT-4o vision capabilities to analyze images uploaded by users
+  // ============================================================
+  if (toolName === 'analyze_image') {
+    try {
+      const imageUrl = toolArgs.image_url as string;
+      if (!imageUrl) return { success: false, error: 'image_url is required' };
+      const question = (toolArgs.question as string) || 'Describe this image in detail.';
+      const mode = (toolArgs.mode as string) || 'describe';
+
+      // Mode-specific prompts for precise analysis (LLaVA instruction-following pattern)
+      const modePrompts: Record<string, string> = {
+        describe: 'Provide a comprehensive description of this image, including objects, people, text, colors, layout, and context.',
+        ocr: 'Extract ALL text visible in this image. Preserve formatting and structure. Return only the extracted text.',
+        chart: 'Analyze this chart/graph: identify the type, axes labels, data series, key values, trends, and insights.',
+        identify: 'Identify and list all objects, people, brands, logos, and notable elements in this image.',
+        qa: question,
+      };
+      const prompt = mode === 'qa' ? question : modePrompts[mode] || modePrompts.describe;
+
+      // Call GPT-4o vision via OpenAI API
+      const { ENV } = await import('../_core/env');
+      const openaiKey = ENV.openaiApiKey;
+      if (!openaiKey) return { success: false, error: 'OpenAI API key not configured' };
+
+      const visionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${openaiKey}` },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          max_tokens: 1024,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: imageUrl, detail: 'high' } },
+            ],
+          }],
+        }),
+      });
+
+      if (!visionResponse.ok) {
+        const errText = await visionResponse.text();
+        return { success: false, error: `GPT-4V API error: ${visionResponse.status} ${errText.slice(0, 200)}` };
+      }
+
+      const visionData = await visionResponse.json() as { choices: Array<{ message: { content: string } }> };
+      const analysis = visionData.choices[0]?.message?.content || 'No analysis returned';
+
+      return {
+        success: true,
+        data: {
+          analysis,
+          mode,
+          image_url: imageUrl,
+          model: 'gpt-4o-vision',
+          tokens_used: (visionData as any).usage?.total_tokens || 0,
+        },
+      };
+    } catch (error) {
+      return { success: false, error: `analyze_image failed: ${error}` };
     }
   }
 

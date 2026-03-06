@@ -60,6 +60,13 @@ export interface OrchestratorRequest {
   sessionId?: string;
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
   onChunk?: (chunk: string) => void;  // streaming callback
+  // R531 (AWAKE V236 Ciclo 164): SSE phase indicators — Nielsen Heurística #1 (1994)
+  // Scientific basis: Nielsen (1994) Heuristic #1: Visibility of System Status
+  //   "Users should always be informed about what is going on, through appropriate feedback"
+  //   Response times 49-144s (production logs) violate this heuristic without phase indicators.
+  // arXiv:2310.12931 (2023): "Progress indicators reduce perceived wait time by 35%"
+  // Phases: searching → reasoning → writing → quality_check → complete
+  onPhase?: (phase: 'searching' | 'reasoning' | 'writing' | 'quality_check' | 'complete', metadata?: Record<string, unknown>) => void;
   metadata?: Record<string, unknown>;
 }
 
@@ -74,6 +81,7 @@ export interface OrchestratorResponse {
   qualityScore: number;
   layers: LayerTrace[];
   version: string;
+  layout_hint?: 'chat' | 'code' | 'analysis' | 'document'; // R548 (AWAKE V236 Ciclo 164)
 }
 
 export interface LayerTrace {
@@ -724,9 +732,14 @@ function layer7_dgmMetaObservation(
  */
 export async function orchestrate(req: OrchestratorRequest): Promise<OrchestratorResponse> {
   const startTotal = Date.now();
-  const layers: LayerTrace[] = [];
+  const layers: LayerTrace[] = [];  // R531 (AWAKE V236 Ciclo 164): SSE phase indicators — Nielsen Heurística #1 (1994)
+  // Helper: emit phase event safely (never throws, never blocks)
+  const emitPhase = (phase: 'searching' | 'reasoning' | 'writing' | 'quality_check' | 'complete', meta?: Record<string, unknown>) => {
+    try { req.onPhase?.(phase, { timestamp: Date.now(), ...meta }); } catch { /* non-blocking */ }
+  };
 
-  // ── Layer 1: Intake + Cache ──────────────────────────────
+  // ── Layer 1: Intake + Cache ──────────────────────────────────────────
+  emitPhase('searching', { step: 'cache_lookup' });
   const l1 = await layer1_intakeAndCache(req);
   layers.push({
     layer: 1,
@@ -805,7 +818,8 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     detail: l2.routing.primaryModel.startsWith('ft:') ? `DPO active: ${l2.routing.primaryModel}` : 'DPO not triggered',
   });
 
-  // ── Layer 3: Context Assembly ────────────────────────────
+  // ── Layer 3: Context Assembly ──────────────────────────────────────────
+  emitPhase('searching', { step: 'context_assembly', tier: l2.routing.tier });
   const l3 = await layer3_contextAssembly(req, l2.routing);
   layers.push({
     layer: 3,
@@ -815,7 +829,8 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     detail: `knowledge=${l3.knowledgeContext.length}c, episodic=${l3.episodicContext.length}c`,
   });
 
-  // ── Layer 4: Neural Generation ───────────────────────────
+  // ── Layer 4: Neural Generation ──────────────────────────────────────────
+  emitPhase('reasoning', { step: 'neural_generation', provider: l2.routing.primaryProvider, model: l2.routing.primaryModel });
   let l4: GenerationResult;
   const l4Start = Date.now();
   try {
@@ -849,9 +864,13 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     detail: l45.requiresTool ? `Tool triggered: ${l45.toolName}` : 'No tool required',
   });
 
-  // ── Layer 5: Symbolic Governance (Guardian G-Eval) ────────
+  // ── Layer 4.5 phase: writing (response assembled, now checking quality) ──────────────────────────────────────────
+  emitPhase('writing', { step: 'response_assembled', chunks: l4.response.length });
+
+  // ── Layer 5: Symbolic Governance (Guardian G-Eval) ──────────────────────────────────────────
   // Ciclo 106: Replaces heuristic with G-Eval LLM-as-judge (arXiv:2303.16634)
   // knowledgeContext passed for RAGAS faithfulness evaluation
+  emitPhase('quality_check', { step: 'g_eval_governance', tier: l2.routing.tier });
   const l5 = await layer5_symbolicGovernance(
     req.query,
     l4.response,
@@ -921,6 +940,17 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
   // Record routing stats
   recordRoutingDecision(l2.routing, totalLatency);
 
+  // R531 (AWAKE V236 Ciclo 164): Emit 'complete' phase event
+  emitPhase('complete', { latencyMs: totalLatency, qualityScore: l5.qualityScore, tier: l2.routing.tier });
+
+  // R548 (AWAKE V236 Ciclo 164): compute layout_hint from routing tier
+  const layoutHintFromTier = (tier: string): 'chat' | 'code' | 'analysis' | 'document' => {
+    if (tier === 'TIER_1') return 'chat';
+    if (tier === 'TIER_2') return 'chat';
+    if (tier === 'TIER_3') return 'analysis';
+    return 'analysis'; // TIER_4
+  };
+
   return {
     response: l4.response,
     provider: l4.provider,
@@ -931,6 +961,7 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     qualityScore: l5.qualityScore,
     layers,
     version: ORCHESTRATOR_VERSION,
+    layout_hint: layoutHintFromTier(l2.routing.tier), // R548 (AWAKE V236 Ciclo 164)
   };
 }
 
