@@ -112,7 +112,7 @@ export interface LayerTrace {
 // CONSTANTS
 // ============================================================
 
-export const ORCHESTRATOR_VERSION = 'v81.3'; // F1-3+F1-2+F1-1 (Ciclo 169): Connection pooling + Anthropic streaming + ReAct timeout
+export const ORCHESTRATOR_VERSION = 'v81.8'; // C175+C176: ToolCallVisualizer SSE, warmCache production fix, dry-run endpoint bug fix, version sync
 export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 3,
   successThreshold: 1,

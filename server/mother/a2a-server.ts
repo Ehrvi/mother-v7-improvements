@@ -2027,21 +2027,24 @@ a2aRouter.post('/autonomous-update/dry-run', async (req, res) => {
   try {
     const { proposalId } = req.body;
     if (!proposalId) return res.status(400).json({ ok: false, error: 'proposalId required' });
-    // Fetch proposal from DB
-    const db = await import('../db').then(m => m.getDb());
+    // Fetch proposal from DB using raw SQL (same as autonomous-update-job.ts)
+    // Table: self_proposals (not update_proposals — different table)
+    const { getDb } = await import('../db');
+    const db = await getDb();
     if (!db) return res.status(503).json({ ok: false, error: 'DB unavailable' });
-    const { dgm_proposals } = await import('../../drizzle/schema');
-    const { eq } = await import('drizzle-orm');
-    const proposals = await db.select().from(dgm_proposals).where(eq(dgm_proposals.id, Number(proposalId))).limit(1);
-    if (!proposals.length) return res.status(404).json({ ok: false, error: `Proposal ${proposalId} not found` });
-    const proposal = proposals[0];
+    const [rows] = await (db as any).$client.query(
+      `SELECT id, title, status, proposed_changes FROM self_proposals WHERE id = ? LIMIT 1`,
+      [Number(proposalId)]
+    );
+    if (!rows || rows.length === 0) return res.status(404).json({ ok: false, error: `Proposal ${proposalId} not found in self_proposals` });
+    const proposal = rows[0];
     // Parse proposed changes
     let changes: Array<{ file: string; action: string; findText?: string; replaceWith?: string; content?: string }> = [];
     try {
-      const parsed = JSON.parse(proposal.proposedChanges || '[]');
+      const parsed = JSON.parse(proposal.proposed_changes || '[]');
       changes = Array.isArray(parsed) ? parsed : [];
     } catch {
-      return res.status(400).json({ ok: false, error: 'Invalid proposedChanges JSON in proposal' });
+      return res.status(400).json({ ok: false, error: 'Invalid proposed_changes JSON in proposal' });
     }
     // Dry-run: validate each change without applying
     const validationResults = changes.map((change, idx) => {
