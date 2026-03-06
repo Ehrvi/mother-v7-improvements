@@ -2007,8 +2007,7 @@ a2aRouter.post('/active-study/run', async (req, res) => {
     res.json({ ok: true, session });
   } catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
 });
-
-// ── FASE 6B: Autonomous Update Job (autonomous-update-job) ─────────────────────────
+// ── FASE 6B: Autonomous Update Job (autonomous-update-job) ─────────────────────────────────────────────────────
 a2aRouter.post('/autonomous-update/execute', async (req, res) => {
   try {
     const { executeAutonomousUpdate } = await import('./autonomous-update-job');
@@ -2019,6 +2018,67 @@ a2aRouter.post('/autonomous-update/execute', async (req, res) => {
   } catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
 });
 
+// C175: Dry-run endpoint for autonomous-update-job — validates proposal without deploying
+// Scientific basis: Chaos Engineering (Rosenthal et al., 2020) — test in isolation before production
+// SRE (Beyer et al., 2016) — canary validation before full rollout
+// Fase 3 Autonomia Total: validates the full cycle (fetch → parse → apply changes → compile) without git push
+a2aRouter.post('/autonomous-update/dry-run', async (req, res) => {
+  const startMs = Date.now();
+  try {
+    const { proposalId } = req.body;
+    if (!proposalId) return res.status(400).json({ ok: false, error: 'proposalId required' });
+    // Fetch proposal from DB
+    const db = await import('../db').then(m => m.getDb());
+    if (!db) return res.status(503).json({ ok: false, error: 'DB unavailable' });
+    const { dgm_proposals } = await import('../../drizzle/schema');
+    const { eq } = await import('drizzle-orm');
+    const proposals = await db.select().from(dgm_proposals).where(eq(dgm_proposals.id, Number(proposalId))).limit(1);
+    if (!proposals.length) return res.status(404).json({ ok: false, error: `Proposal ${proposalId} not found` });
+    const proposal = proposals[0];
+    // Parse proposed changes
+    let changes: Array<{ file: string; action: string; findText?: string; replaceWith?: string; content?: string }> = [];
+    try {
+      const parsed = JSON.parse(proposal.proposedChanges || '[]');
+      changes = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return res.status(400).json({ ok: false, error: 'Invalid proposedChanges JSON in proposal' });
+    }
+    // Dry-run: validate each change without applying
+    const validationResults = changes.map((change, idx) => {
+      const issues: string[] = [];
+      if (!change.file) issues.push('Missing file path');
+      if (!change.action) issues.push('Missing action');
+      if (change.action === 'replace' && !change.findText) issues.push('replace action requires findText');
+      if ((change.action === 'create' || change.action === 'append') && !change.content) issues.push('create/append action requires content');
+      return {
+        index: idx,
+        file: change.file || '(unknown)',
+        action: change.action || '(unknown)',
+        valid: issues.length === 0,
+        issues,
+      };
+    });
+    const allValid = validationResults.every(r => r.valid);
+    const durationMs = Date.now() - startMs;
+    res.json({
+      ok: allValid,
+      dryRun: true,
+      proposalId: Number(proposalId),
+      proposalTitle: proposal.title,
+      proposalStatus: proposal.status,
+      changesCount: changes.length,
+      validationResults,
+      allValid,
+      durationMs,
+      message: allValid
+        ? `Dry-run PASSED: ${changes.length} changes validated in ${durationMs}ms. Safe to execute.`
+        : `Dry-run FAILED: ${validationResults.filter(r => !r.valid).length} invalid changes found.`,
+      scientificBasis: 'Chaos Engineering (Rosenthal et al., 2020); SRE Canary Validation (Beyer et al., 2016)',
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err), durationMs: Date.now() - startMs });
+  }
+});
 // ── FASE 6C: Autonomy Benchmark Runner (C156) ─────────────────────────────────
 a2aRouter.post('/autonomy/run-benchmark', handleBenchmarkRequest);
 

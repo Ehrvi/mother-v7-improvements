@@ -7,6 +7,10 @@ import { FileDropZone } from '@/components/FileDropZone';
 import PhaseIndicator, { type Phase, type ActivePhase } from '@/components/PhaseIndicator';
 import ArtifactsPanel from '@/components/ArtifactsPanel';
 import ProjectPanel from '@/components/ProjectPanel';
+// C175 (Ciclo 175): ToolCallVisualizer — Conselho Fase 2 P1 item finally integrated
+// Scientific basis: ReAct (Yao et al., arXiv:2210.03629, ICLR 2023) — tool calls must be visible
+// Nielsen (1994) Heuristic #1: Visibility of System Status
+import ToolCallVisualizer, { type ToolCall } from '@/components/ToolCallVisualizer';
 
 interface Message {
   id: string;
@@ -128,6 +132,9 @@ export default function Home() {
   // C172: Side panel state — ArtifactsPanel and ProjectPanel
   const [showArtifacts, setShowArtifacts] = useState(false);
   const [showProject, setShowProject] = useState(false);
+  // C175: ToolCallVisualizer state — accumulates tool_call SSE events during streaming
+  // Scientific basis: ReAct (Yao et al., arXiv:2210.03629) — tool calls must be visible
+  const [activeToolCalls, setActiveToolCalls] = useState<ToolCall[]>([]);
 
   // v68.8: Provider health check — polls every 5 minutes
   const providerHealthQuery = trpc.mother.providerHealth.useQuery(
@@ -200,6 +207,19 @@ export default function Home() {
                 // C172: Handle SSE phase events from core-orchestrator.ts
                 // Phases: searching → reasoning → writing → quality_check → complete
                 setCurrentPhase(parsed.phase as ActivePhase);
+              } else if (lastEvent === 'tool_call' && parsed.name) {
+                // C175: Handle tool_call SSE events from Layer 4.5 (ReAct tool detection)
+                // Scientific basis: ReAct (Yao et al., arXiv:2210.03629) — tool calls must be visible
+                const tc: ToolCall = {
+                  id: parsed.id || `tc-${Date.now()}`,
+                  name: parsed.name,
+                  input: parsed.input || {},
+                  output: parsed.output,
+                  status: parsed.status || 'success',
+                  durationMs: parsed.durationMs,
+                  timestamp: parsed.timestamp || Date.now(),
+                };
+                setActiveToolCalls(prev => [...prev.filter(t => t.id !== tc.id), tc]);
               } else if (lastEvent === 'token' && parsed.text) {
                 accumulatedText += parsed.text;
                 setMessages((prev) => prev.map(m => m.id === msgId ? { ...m, content: accumulatedText } : m));
@@ -259,6 +279,8 @@ export default function Home() {
       setPhaseLatencyMs(Date.now() - phaseStartTimeRef.current);
       // Reset to idle after 2s
       setTimeout(() => setCurrentPhase(null), 2000);
+      // C175: Clear tool calls after 5s (enough time for user to see them)
+      setTimeout(() => setActiveToolCalls([]), 5000);
       streamingMsgIdRef.current = null;
       abortControllerRef.current = null;
     }
@@ -715,6 +737,13 @@ export default function Home() {
           <div ref={messagesEndRef} />
         </div>
 
+        {/* C175: ToolCallVisualizer — shows tool calls detected by Layer 4.5 (ReAct) */}
+        {/* Scientific basis: ReAct (Yao et al., arXiv:2210.03629) — tool calls must be visible */}
+        {activeToolCalls.length > 0 && (
+          <div className="px-6 py-2 border-t border-[rgba(124,58,237,0.1)]">
+            <ToolCallVisualizer toolCalls={activeToolCalls} isExecuting={isStreaming} />
+          </div>
+        )}
         {/* C172: PhaseIndicator — shows current processing phase from SSE events */}
         {/* Scientific basis: Nielsen (1994) Heuristic #1 — visibility of system status */}
         {currentPhase !== null && (

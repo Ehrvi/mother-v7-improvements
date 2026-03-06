@@ -155,6 +155,9 @@ export interface MotherRequest {
   conversationHistory?: ConversationMessage[]; // v63.0: Multi-turn conversation support
   // v69.5: Token streaming callback for SSE endpoint
   onChunk?: (chunk: string) => void;
+  // C175: Phase and tool call SSE callbacks — passed through to coreOrchestrate
+  onPhase?: (phase: string, metadata?: Record<string, unknown>) => void;
+  onToolCall?: (toolName: string, toolArgs: Record<string, unknown>, status: 'running' | 'success' | 'error', output?: string, durationMs?: number) => void;
 }
 
 export interface MotherResponse {
@@ -212,6 +215,9 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
         userId: request.userId != null ? String(request.userId) : undefined,
         conversationHistory: request.conversationHistory ?? [],
         metadata: { useCache: request.useCache ?? true, userEmail: request.userEmail },
+        // C175: Pass SSE callbacks through to core-orchestrator
+        onPhase: request.onPhase as any,
+        onToolCall: request.onToolCall,
       });
       // Map OrchestratorResponse → MotherResponse (Ciclo 70 A/B)
       // Ciclo 75 BUG-FIX: include quality + all MotherResponse fields to prevent downstream crashes

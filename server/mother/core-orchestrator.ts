@@ -75,6 +75,10 @@ export interface OrchestratorRequest {
   // arXiv:2310.12931 (2023): "Progress indicators reduce perceived wait time by 35%"
   // Phases: searching → reasoning → writing → quality_check → complete
   onPhase?: (phase: 'searching' | 'reasoning' | 'writing' | 'quality_check' | 'complete', metadata?: Record<string, unknown>) => void;
+  // C175: Tool call SSE callback — emits tool detection events to client (ToolCallVisualizer)
+  // Scientific basis: ReAct (Yao et al., arXiv:2210.03629, ICLR 2023) — tool calls must be visible
+  // Nielsen (1994) Heuristic #1: Visibility of System Status — tool execution must be shown
+  onToolCall?: (toolName: string, toolArgs: Record<string, unknown>, status: 'running' | 'success' | 'error', output?: string, durationMs?: number) => void;
   metadata?: Record<string, unknown>;
 }
 
@@ -1025,6 +1029,13 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     ),
   ]);
   console.log(`[Orchestrator] QW-1 Parallel L4.5+L5: ${Date.now() - l45l5ParallelStart}ms (was sequential)`);
+  // C175: Emit tool_call SSE event when Layer 4.5 detects a tool
+  // Scientific basis: ReAct (Yao et al., arXiv:2210.03629) — tool calls must be visible to users
+  if (l45.requiresTool && l45.toolName && req.onToolCall) {
+    try {
+      req.onToolCall(l45.toolName, l45.toolArgs ?? {}, 'success', undefined, l45.durationMs);
+    } catch { /* non-blocking — never fail request for UI event */ }
+  }
   layers.push({
     layer: 4,  // logged as layer 4 sub-step
     name: 'Tool Detection (4.5)',
