@@ -23,6 +23,7 @@ import { createLogger } from '../_core/logger'; // NC-003 structured logger
 const log = createLogger('DGM-ORCHESTRATOR');
 import { fitnessEvaluator, EvaluationTarget, FitnessScore } from './fitness-evaluator';
 import { checkDuplicate } from './dgm-deduplicator'; // C148: DGM Deduplicator (ISSUE-DGM: repeated proposals 8+ times per cycle)
+import { getDb } from '../db'; // C176: DB-backed deduplication for cross-restart persistence
 import { runBenchmark } from './dgm-benchmark'; // C173: 6 MCCs auto-run after each DGM cycle (HELM arXiv:2211.09110)
 import {
   createProposal,
@@ -191,6 +192,30 @@ export async function runDGMCycle(spec: DGMCycleSpec): Promise<DGMCycleResult> {
         phase: 'propose',
         killSwitch: `C148-DEDUP: Duplicate proposal detected (similarity ${((dedupResult.similarity ?? 1) * 100).toFixed(1)}% with ${dedupResult.originalCycleId ?? 'unknown'}) — skipping`,
       }));
+    }
+    // C176: DB-backed deduplication — prevents retry loop across Cloud Run cold starts
+    // Scientific basis: Reflexion (arXiv:2303.11366) — "verbal reinforcement via reflection on past failures"
+    // A proposal that has failed 3+ times should not be retried without human review
+    try {
+      const db = getDb();
+      const [existingFailed] = await db.execute<{id: number; rejection_count: number; title: string}[]>(
+        `SELECT id, rejection_count, title FROM self_proposals 
+         WHERE status = 'failed' AND rejection_count >= 3 
+         AND title LIKE ? 
+         ORDER BY updated_at DESC LIMIT 1`,
+        [`%${spec.objective.slice(0, 50).replace(/[%_]/g, '\\$&')}%`]
+      );
+      if (existingFailed && existingFailed.length > 0) {
+        const failed = existingFailed[0];
+        log.warn(`[C176-DEDUP] DB-backed dedup: proposal "${failed.title}" failed ${failed.rejection_count}x — skipping until human review`);
+        return finalizeCycle(buildAbortResult({
+          cycleId, objective: spec.objective, sciBase, startTime,
+          phase: 'propose',
+          killSwitch: `C176-DB-DEDUP: Proposal failed ${failed.rejection_count}x in DB (id=${failed.id}) — requires human review before retry`,
+        }));
+      }
+    } catch (dbErr) {
+      log.warn(`[C176-DEDUP] DB check failed (non-blocking): ${String(dbErr)}`);
     }
 
     // KS-1: Check for dangerous code patterns
