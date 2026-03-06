@@ -49,6 +49,7 @@ import {
 } from './circuit-breaker';
 import { validateQuality, type GuardianResult } from './guardian';
 import { MOTHER_TOOLS, executeTool, type ToolExecutionContext } from './tool-engine';
+import { startSpan, endSpan, recordRequest as obsRecordRequest } from './observability'; // F2-2 (Ciclo 170): OpenTelemetry per-layer tracing (CNCF 2023)
 
 // ============================================================
 // TYPES
@@ -838,14 +839,19 @@ function layer7_dgmMetaObservation(
 export async function orchestrate(req: OrchestratorRequest): Promise<OrchestratorResponse> {
   const startTotal = Date.now();
   const layers: LayerTrace[] = [];  // R531 (AWAKE V236 Ciclo 164): SSE phase indicators — Nielsen Heurística #1 (1994)
+  // F2-2 (Ciclo 170): OpenTelemetry root trace span for full request
+  // Scientific basis: CNCF OpenTelemetry (2023) — distributed tracing standard
+  // Enables per-layer latency analysis to identify bottlenecks (Amdahl 1967)
+  const rootSpan = startSpan('orchestrate', undefined, { query: req.query.slice(0, 100), userId: req.userId ?? 'anon' });  // F2-2
   // Helper: emit phase event safely (never throws, never blocks)
   const emitPhase = (phase: 'searching' | 'reasoning' | 'writing' | 'quality_check' | 'complete', meta?: Record<string, unknown>) => {
     try { req.onPhase?.(phase, { timestamp: Date.now(), ...meta }); } catch { /* non-blocking */ }
   };
-
   // ── Layer 1: Intake + Cache ──────────────────────────────────────────
   emitPhase('searching', { step: 'cache_lookup' });
+  const l1Span = startSpan('layer1_cache', rootSpan.spanId, { tier: 'cache' }); // F2-2
   const l1 = await layer1_intakeAndCache(req);
+  endSpan(l1Span.spanId, 'OK'); // F2-2
   layers.push({
     layer: 1,
     name: 'Intake + Semantic Cache',
@@ -870,7 +876,9 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
   }
 
   // ── Layer 2: Adaptive Routing ────────────────────────────
+  const l2Span = startSpan('layer2_routing', rootSpan.spanId, { tier: 'routing' }); // F2-2
   const l2 = layer2_adaptiveRouting(req);
+  endSpan(l2Span.spanId, 'OK'); // F2-2
   layers.push({
     layer: 2,
     name: 'Adaptive Routing',
@@ -925,7 +933,9 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
 
   // ── Layer 3: Context Assembly ──────────────────────────────────────────
   emitPhase('searching', { step: 'context_assembly', tier: l2.routing.tier });
+  const l3Span = startSpan('layer3_context', rootSpan.spanId, { tier: l2.routing.tier }); // F2-2
   const l3 = await layer3_contextAssembly(req, l2.routing);
+  endSpan(l3Span.spanId, 'OK'); // F2-2
   layers.push({
     layer: 3,
     name: 'Context Assembly',
@@ -938,11 +948,13 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
   emitPhase('reasoning', { step: 'neural_generation', provider: l2.routing.primaryProvider, model: l2.routing.primaryModel });
   let l4: GenerationResult;
   const l4Start = Date.now();
+  const l4Span = startSpan('layer4_generation', rootSpan.spanId, { provider: l2.routing.primaryProvider, model: l2.routing.primaryModel }); // F2-2
   try {
     l4 = await layer4_neuralGeneration(req, l2.routing, l3);
     // R535 (AWAKE V237 Ciclo 165): Estimate tokens from response length (tiktoken avg: 0.75 tokens/char)
     const estimatedTokens = Math.round((l4.response.length / 4) + 1000); // ~1000 prompt tokens avg
     l4.tokensUsed = estimatedTokens;
+    endSpan(l4Span.spanId, 'OK'); // F2-2
     layers.push({
       layer: 4,
       name: 'Neural Generation',
@@ -952,6 +964,7 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
       tokensUsed: estimatedTokens,
     });
   } catch (err: any) {
+    endSpan(l4Span.spanId, 'ERROR', String(err)); // F2-2
     layers.push({
       layer: 4,
       name: 'Neural Generation',
@@ -1050,6 +1063,26 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
 
   // Record routing stats
   recordRoutingDecision(l2.routing, totalLatency);
+
+  // F2-2 (Ciclo 170): Close root span and record full request metrics
+  endSpan(rootSpan.spanId, 'OK');
+  setImmediate(() => {
+    try {
+      obsRecordRequest({
+        requestId: `orch_${startTotal}`,
+        tier: l2.routing.tier,
+        provider: l4.provider,
+        model: l4.model,
+        latencyMs: totalLatency,
+        success: true,
+        fromCache: false,
+        qualityScore: l5.qualityScore,
+        queryLength: req.query.length,
+        responseLength: l4.response.length,
+        timestamp: new Date(),
+      });
+    } catch { /* non-blocking */ }
+  });
 
   // R531 (AWAKE V236 Ciclo 164): Emit 'complete' phase event
   emitPhase('complete', { latencyMs: totalLatency, qualityScore: l5.qualityScore, tier: l2.routing.tier });
