@@ -270,22 +270,29 @@ export function pruneExpiredEntries(): number {
 }
 
 /**
- * R547 (AWAKE V236 Ciclo 164): Cache warming — pre-warm top-50 queries on startup
+ * QW-2 (Ciclo 168): Cache warming — pre-warm from REAL user queries (not BD titles)
+ * R547 (AWAKE V236 Ciclo 164): Original strategy used knowledge.title as proxy queries
+ * QW-2 FIX: Use actual user queries from `queries` table (high quality, cache-eligible)
  *
  * Scientific basis:
  * - Proactive caching (Sadeghi et al., 2020): pre-warming reduces cold-start hit rate 0% → 15-20%
  * - GPTCache (Zeng et al., 2023): pre-warming with frequent queries improves P95 latency
  * - Locality of reference (Denning, 1968): frequently accessed data should be pre-loaded
+ * - Temporal locality (Denning, 1968): recent queries are most likely to recur
  *
- * Strategy: Load top-50 most recent high-quality responses from bd_central by category,
- * generate embeddings, and store in memoryCache with TIER_1 TTL (24h).
- * This ensures the cache is useful from the first user query after server restart.
+ * Strategy (QW-2 improved):
+ * 1. Load top-100 recent high-quality responses from `queries` table (real user queries)
+ *    Filter: qualityScore >= 75, cacheHit = 0 (not already cached), tier IN (TIER_1, TIER_2)
+ * 2. Generate embeddings for real query text (not BD titles)
+ * 3. Store in memoryCache with adaptive TTL (24h TIER_1, 4h TIER_2)
+ * Expected improvement: 12% → 35-50% cache hit rate (real queries match real queries)
  *
  * Called once at server startup (non-blocking, fire-and-forget).
  */
 export async function warmCache(): Promise<void> {
   const startTime = Date.now();
   let warmed = 0;
+  let warmedFromQueries = 0;
   try {
     // Dynamically import DB to avoid circular deps at module load time
     const { getDb } = await import('../db');
@@ -295,67 +302,123 @@ export async function warmCache(): Promise<void> {
       return;
     }
 
-    // Load top-50 recent high-quality responses from bd_central
-    // Priority categories: orchestration, quality, UDC:004.5, UDC:004.8
-    const { knowledge: kTable } = await import('../../drizzle/schema');
-    const { desc, gte } = await import('drizzle-orm');
+    const { desc, gte, and, or, eq, sql } = await import('drizzle-orm');
 
+    // QW-2 PRIMARY: Load top-100 real user queries with high quality scores
+    // These are the ACTUAL queries users ask — much better match than BD titles
+    const { queries: qTable } = await import('../../drizzle/schema');
+    const recentUserQueries = await db
+      .select()
+      .from(qTable)
+      .where(
+        and(
+          gte(qTable.createdAt, new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)), // last 30 days
+          sql`CAST(${qTable.qualityScore} AS DECIMAL) >= 75`, // high quality only
+          eq(qTable.cacheHit, 0), // not already served from cache
+          or(
+            eq(qTable.queryCategory, 'simple'),
+            eq(qTable.queryCategory, 'general'),
+          ),
+        )
+      )
+      .orderBy(desc(qTable.createdAt))
+      .limit(100)
+      .catch(() => []);
+
+    if (recentUserQueries && recentUserQueries.length > 0) {
+      const TTL_24H = 24 * 60 * 60 * 1000;
+      const TTL_4H = 4 * 60 * 60 * 1000;
+
+      for (const q of recentUserQueries) {
+        try {
+          if (!q.query || !q.response || q.query.length < 5) continue;
+          const embedding = await getQueryEmbedding(q.query);
+          if (!embedding) continue;
+
+          const tier = q.queryCategory === 'simple' ? 'TIER_1' : 'TIER_2';
+          const ttlMs = tier === 'TIER_1' ? TTL_24H : TTL_4H;
+          const cacheEntry: CacheEntry = {
+            id: `warm-q${q.id}-${Date.now()}`,
+            queryHash: q.query.slice(0, 64),
+            queryEmbedding: embedding,
+            query: q.query,
+            response: q.response.slice(0, 10000),
+            provider: q.provider || 'openai',
+            model: q.modelName || 'gpt-4o-mini',
+            tier,
+            qualityScore: parseFloat(q.qualityScore || '80'),
+            createdAt: new Date(),
+            expiresAt: new Date(Date.now() + ttlMs),
+            hitCount: 0,
+          };
+
+          if (memoryCache.size >= MAX_MEMORY_ENTRIES) {
+            const firstKey = memoryCache.keys().next().value;
+            if (firstKey) memoryCache.delete(firstKey);
+            cacheStats.evictions++;
+          }
+          memoryCache.set(cacheEntry.id, cacheEntry);
+          warmedFromQueries++;
+          warmed++;
+        } catch {
+          // Non-blocking
+        }
+      }
+      console.log(`[CacheWarming] QW-2: ${warmedFromQueries}/${recentUserQueries.length} real user queries pre-warmed`);
+    }
+
+    // QW-2 FALLBACK: Also warm from BD knowledge titles (original R547 strategy)
+    // This ensures cache has entries even when queries table is empty (cold start)
+    const { knowledge: kTable } = await import('../../drizzle/schema');
     const recentEntries = await db
       .select()
       .from(kTable)
-      .where(gte(kTable.createdAt, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))) // last 7 days
+      .where(gte(kTable.createdAt, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)))
       .orderBy(desc(kTable.createdAt))
       .limit(50)
       .catch(() => []);
 
-    if (!recentEntries || recentEntries.length === 0) {
-      console.log('[CacheWarming] No recent entries found — skipping cache warm');
-      return;
-    }
+    if (recentEntries && recentEntries.length > 0) {
+      const TTL_24H = 24 * 60 * 60 * 1000;
+      const expiresAt = new Date(Date.now() + TTL_24H);
 
-    // Generate embeddings and store in cache for each entry
-    const TTL_24H = 24 * 60 * 60 * 1000; // 24 hours for TIER_1
-    const expiresAt = new Date(Date.now() + TTL_24H);
+      for (const entry of recentEntries) {
+        try {
+          if (!entry.title || !entry.content) continue;
+          const queryText = entry.title;
+          const embedding = await getQueryEmbedding(queryText);
+          if (!embedding) continue;
 
-    for (const entry of recentEntries) {
-      try {
-        if (!entry.title || !entry.content) continue;
-        // Use title as the representative query for this knowledge entry
-        const queryText = entry.title;
-        const embedding = await getQueryEmbedding(queryText);
-        if (!embedding) continue;
+          const cacheEntry: CacheEntry = {
+            id: `warm-k${entry.id}-${Date.now()}`,
+            queryHash: queryText.slice(0, 64),
+            queryEmbedding: embedding,
+            query: queryText,
+            response: entry.content.slice(0, 2000),
+            provider: 'cache-warm',
+            model: 'warm-startup',
+            tier: 'TIER_1',
+            qualityScore: 80,
+            createdAt: new Date(),
+            expiresAt,
+            hitCount: 0,
+          };
 
-        const cacheEntry: CacheEntry = {
-          id: `warm-${entry.id}-${Date.now()}`,
-          queryHash: queryText.slice(0, 64),
-          queryEmbedding: embedding,
-          query: queryText,
-          response: entry.content.slice(0, 2000), // truncate for cache
-          provider: 'cache-warm',
-          model: 'warm-startup',
-          tier: 'TIER_1',
-          qualityScore: 80, // assume good quality for BD entries
-          createdAt: new Date(),
-          expiresAt,
-          hitCount: 0,
-        };
-
-        // LRU eviction if at capacity
-        if (memoryCache.size >= MAX_MEMORY_ENTRIES) {
-          const firstKey = memoryCache.keys().next().value;
-          if (firstKey) memoryCache.delete(firstKey);
-          cacheStats.evictions++;
+          if (memoryCache.size >= MAX_MEMORY_ENTRIES) {
+            const firstKey = memoryCache.keys().next().value;
+            if (firstKey) memoryCache.delete(firstKey);
+            cacheStats.evictions++;
+          }
+          memoryCache.set(cacheEntry.id, cacheEntry);
+          warmed++;
+        } catch {
+          // Non-blocking
         }
-
-        memoryCache.set(cacheEntry.id, cacheEntry);
-        warmed++;
-      } catch {
-        // Non-blocking: skip individual entry failures
       }
     }
 
     const elapsed = Date.now() - startTime;
-    console.log(`[CacheWarming] ${warmed}/${recentEntries.length} entries pre-warmed in ${elapsed}ms (R547 AWAKE V236)`);
+    console.log(`[CacheWarming] QW-2 Total: ${warmed} entries pre-warmed in ${elapsed}ms (${warmedFromQueries} real queries + ${warmed - warmedFromQueries} BD titles)`);
   } catch (err) {
     // Cache warming is optional — never blocks server startup
     console.warn('[CacheWarming] Failed (non-blocking):', (err as Error).message);
