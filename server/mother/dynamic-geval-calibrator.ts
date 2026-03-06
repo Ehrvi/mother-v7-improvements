@@ -18,8 +18,8 @@
  * - Critério μ+0.5σ: Cohen (1988) "Statistical Power Analysis for Behavioral Sciences"
  */
 
-import { createLogger } from './_core/logger.js';
-import { queryKnowledge, insertKnowledge } from './knowledge.js';
+import { createLogger } from '../_core/logger';
+import { queryKnowledge, addKnowledge } from './knowledge';
 
 const logger = createLogger('dynamic-geval-calibrator');
 
@@ -79,11 +79,7 @@ export async function calibrateGEval(): Promise<CalibrationResult> {
   // Busca histórico de scores do bd_central
   let historicalScores: number[] = [];
   try {
-    const entries = await queryKnowledge({
-      category: 'quality_score',
-      limit: HISTORY_LIMIT,
-      orderBy: 'created_at DESC',
-    });
+    const entries = await queryKnowledge('geval_calibration');
     historicalScores = entries
       .map((e: any) => parseFloat(e.metadata?.geval_score ?? e.content?.split('score:')[1]))
       .filter((s: number) => !isNaN(s) && s >= 0 && s <= 1);
@@ -119,17 +115,7 @@ export async function calibrateGEval(): Promise<CalibrationResult> {
 
   // Registra calibração no bd_central
   try {
-    await insertKnowledge({
-      category: 'geval_calibration',
-      title: `G-Eval Calibration C146 — ${result.calibratedAt}`,
-      content: JSON.stringify(result),
-      metadata: {
-        cycle: 'C146',
-        threshold: result.dynamicThreshold,
-        hash: result.calibrationHash,
-        scientific_basis: 'G-Eval arXiv:2303.16634 + EMA Gardner 1985 + Cohen 1988',
-      },
-    });
+    await addKnowledge(result.calibratedAt ? `G-Eval Calibration C146 — ${result.calibratedAt}` : "G-Eval Calibration C146", JSON.stringify(result), "geval_calibration");
   } catch (err) {
     logger.warn('[C146] Falha ao registrar calibração no BD:', err);
   }

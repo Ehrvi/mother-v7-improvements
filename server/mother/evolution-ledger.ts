@@ -20,6 +20,11 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { ZeroInterventionValidator } from './zero-intervention-validator'; // C149: Zero-Intervention Validator (Nakamoto 2008 — autonomy certificate)
+
+// C149: Singleton validator instance
+const _zeroInterventionValidator = new ZeroInterventionValidator();
+export function getZeroInterventionValidator(): ZeroInterventionValidator { return _zeroInterventionValidator; }
 
 // ESM-compatible __dirname
 const __filename = fileURLToPath(import.meta.url);

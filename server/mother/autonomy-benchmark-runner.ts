@@ -11,7 +11,7 @@
  * in bd_central, and triggers Fase 6C advancement if score >= 75.
  */
 
-import { createLogger } from './core.js';
+import { createLogger } from '../_core/logger';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -127,7 +127,7 @@ export class AutonomyBenchmarkRunner {
       const { execSync } = await import('child_process');
       const output = execSync('npx tsc --noEmit 2>&1 | grep "error TS" | wc -l', {
         cwd: process.env.MOTHER_DIR || process.cwd(),
-        shell: true,
+        shell: '/bin/sh' as string,
         timeout: 30000,
       }).toString().trim();
       const errors = parseInt(output) || 0;
@@ -270,7 +270,7 @@ export class AutonomyBenchmarkRunner {
       const { execSync } = await import('child_process');
       const output = execSync('git log --oneline | grep -c "feat(phase6)"', {
         cwd: process.env.MOTHER_DIR || process.cwd(),
-        shell: true,
+        shell: '/bin/sh' as string,
         timeout: 10000,
       }).toString().trim();
       const count = parseInt(output) || 0;

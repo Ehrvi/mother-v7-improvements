@@ -16,7 +16,7 @@
  * - Roadmap for Phase 7 (expansion — only after autonomy confirmed)
  */
 
-import { createLogger } from './core.js';
+import { createLogger } from '../_core/logger';
 import * as crypto from 'crypto';
 
 const logger = createLogger('phase6c-autonomy-report');

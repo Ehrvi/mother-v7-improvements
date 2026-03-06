@@ -16,8 +16,8 @@
  */
 
 import * as crypto from 'crypto';
-import { createLogger } from './_core/logger.js';
-import { insertKnowledge } from './knowledge.js';
+import { createLogger } from '../_core/logger';
+import { addKnowledge } from './knowledge';
 
 const logger = createLogger('council-knowledge-injector');
 
@@ -159,22 +159,7 @@ export async function injectCouncilKnowledge(): Promise<{
     hashes.push(hash);
 
     try {
-      await insertKnowledge({
-        category: entry.category,
-        title: entry.title,
-        content: entry.content,
-        metadata: {
-          priority: entry.priority,
-          scientific_basis: entry.scientificBasis,
-          source: entry.source,
-          hash,
-          council_version: 'v3',
-          council_rounds: 3,
-          council_members: 5,
-          injected_at: new Date().toISOString(),
-          cycle: 'C150',
-        },
-      });
+      await addKnowledge(entry.title, entry.content, entry.category);
       injected++;
       logger.info(`[C150] ✅ Injetado: "${entry.title.slice(0, 50)}..."`);
     } catch (err) {

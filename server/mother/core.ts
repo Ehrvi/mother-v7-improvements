@@ -80,7 +80,8 @@ import { injectAutoKnowledge, shouldInjectAutoKnowledge, formatAKIContextForProm
 import { applyDepthPRM, shouldApplyDepthPRM } from './depth-prm-activator'; // Ciclo 61: DepthPRM (arXiv:2305.20050 + arXiv:2312.08935)
 import { applySemanticFaithfulnessCalibration } from './semantic-faithfulness-scorer'; // Ciclo 62: SemanticFaithfulness (arXiv:1908.10084, EMNLP 2019)
 import { verifyMathematicalContent } from './symbolic-math-verifier'; // Ciclo 62: SymbolicMath (SymPy + arXiv:2305.20050)
-import { computeEnsembleScore, evaluateStoppingCriterion } from './quality-ensemble-scorer'; // Ciclo 62: EnsembleScorer + StoppingCriterion
+import { computeEnsembleScore, evaluateStoppingCriterion, getDynamicGEvalThreshold } from './quality-ensemble-scorer'; // Ciclo 62: EnsembleScorer + StoppingCriterion
+import { semanticChunker } from './semantic-chunker'; // C154: SemanticChunker (ISSUE-001: loop on prompts >46k tokens — arXiv:2312.06648)
 import { evaluateFaithfulness as bertEvaluateFaithfulness } from './bertscore-nli-faithfulness'; // Ciclo 63: BERTScoreNLI (arXiv:1904.09675, ICLR 2020)
 import { evaluateInstructionFollowing as ifEvalV2 } from './ifeval-verifier-v2'; // Ciclo 63: IFEvalV2 (arXiv:2311.07911, Google 2023)
 import { calibrateFaithfulness, shouldApplyFDPO } from './fdpo-faithfulness-calibrator'; // Ciclo 64: F-DPO (arXiv:2601.03027, 2026)
@@ -257,7 +258,20 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   // ==================== LAYER 2: ORCHESTRATION ====================
   // Request routing and preprocessing
   
-  const { query, userId, userEmail, useCache = true, conversationHistory = [], onChunk } = request;
+  // C154: SemanticChunker — ISSUE-001 fix (loop on prompts >46k tokens)
+  // Scientific basis: Semantic chunking (arXiv:2312.06648) — split long prompts into coherent chunks
+  // to prevent context window overflow and infinite retry loops
+  const rawQuery = request.query;
+  const chunkingResult = semanticChunker.chunkText(rawQuery, 'processQuery');
+  const { query, userId, userEmail, useCache = true, conversationHistory = [], onChunk } = {
+    ...request,
+    query: chunkingResult.totalChunks > 1
+      ? chunkingResult.chunks.map((c: { content: string }) => c.content).join('\n\n[CHUNK BOUNDARY]\n\n')
+      : rawQuery,
+  };
+  if (chunkingResult.totalChunks > 1) {
+    log.info(`[C154] SemanticChunker: prompt split into ${chunkingResult.totalChunks} chunks (${rawQuery.length} chars) — ISSUE-001 prevention`);
+  }
   
   // Generate query hash for caching (exact-match fallback)
   // v74.2: Version-based cache invalidation — include MOTHER_VERSION in hash
@@ -1177,7 +1191,7 @@ ${autonomyStatus}
   // v74.11 NC-QUALITY-004: Raised threshold from 70 to 80
   // Scientific basis: G-Eval (Liu et al., 2023): scores 70-79 correspond to 'mediocre' responses
   // Commey et al. (2026): quality >= 80 correlates with user satisfaction
-  const GUARDIAN_REGEN_THRESHOLD = 80; // v74.11: was 70 (too low, mediocre responses passed)
+  const GUARDIAN_REGEN_THRESHOLD = getDynamicGEvalThreshold(); // C146: Dynamic G-Eval threshold (replaces hardcoded 80 — ISSUE-002 fix)
   if (quality.qualityScore < GUARDIAN_REGEN_THRESHOLD) {
     log.warn(`[MOTHER] Quality check failed (score ${quality.qualityScore} < ${GUARDIAN_REGEN_THRESHOLD}):`, quality.issues);
     const issuesSummary = quality.issues.join('; ');

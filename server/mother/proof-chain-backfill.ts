@@ -18,7 +18,7 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { createLogger } from './_core/logger.js';
+import { createLogger } from '../_core/logger';
 
 const logger = createLogger('proof-chain-backfill');
 

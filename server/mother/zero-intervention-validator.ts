@@ -14,7 +14,7 @@
  * for the required 30-day period.
  */
 
-import { createLogger } from './core.js';
+import { createLogger } from '../_core/logger';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -76,8 +76,7 @@ export class ZeroInterventionValidator {
     };
 
     const logFile = path.join(this.LOG_DIR, `events-${new Date().toISOString().slice(0, 10)}.jsonl`);
-    fs.appendFileSync(logFile, JSON.stringify(fullEvent) + '
-');
+    fs.appendFileSync(logFile, JSON.stringify(fullEvent) + '\n');
 
     if (event.isHumanIntervention) {
       logger.warn(`Human intervention detected: ${event.type} — ${event.description}`);
@@ -149,8 +148,7 @@ export class ZeroInterventionValidator {
       
       for (const file of files) {
         const content = fs.readFileSync(path.join(this.LOG_DIR, file), 'utf-8');
-        const lines = content.split('
-').filter(l => l.trim());
+        const lines = content.split('\n').filter(l => l.trim());
         
         for (const line of lines) {
           try {

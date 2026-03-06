@@ -18,6 +18,13 @@
 import { searchKnowledge, getAllKnowledge } from '../db';
 import type { Knowledge } from '../../drizzle/schema';
 import { getEmbedding, cosineSimilarity } from './embeddings';
+import { AutonomousKnowledgeCurator } from './autonomous-knowledge-curator'; // C150: Autonomous Knowledge Curator (Dong 2014 — auto-dedup + quality scoring)
+
+// C150: Singleton curator — runs background curation of bd_central
+const _knowledgeCurator = new AutonomousKnowledgeCurator();
+export function getKnowledgeCurator(): AutonomousKnowledgeCurator { return _knowledgeCurator; }
+// Trigger background curation every 30 minutes
+setInterval(() => { _knowledgeCurator.curate().catch(() => {}); }, 30 * 60 * 1000);
 
 export interface KnowledgeSource {
   name: string;

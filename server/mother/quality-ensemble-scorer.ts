@@ -34,8 +34,14 @@
  */
 
 import { createLogger } from '../_core/logger.js';
+import { calibrateGEval, getCurrentGEvalThreshold } from './dynamic-geval-calibrator'; // C146: Dynamic G-Eval Calibrator (ISSUE-002: G-Eval fixed at 80%)
 
 const logger = createLogger('quality-ensemble-scorer');
+
+// C146: Initialize dynamic G-Eval threshold (replaces hardcoded 80%)
+let _dynamicGEvalThreshold = 80; // default until calibration runs
+calibrateGEval().then(r => { _dynamicGEvalThreshold = r.dynamicThreshold; logger.info(`[C146] G-Eval threshold calibrated: ${r.dynamicThreshold}`); }).catch(() => {});
+export function getDynamicGEvalThreshold(): number { return _dynamicGEvalThreshold; }
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 

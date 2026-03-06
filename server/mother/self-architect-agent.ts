@@ -13,7 +13,7 @@
  * for architectural improvements.
  */
 
-import { createLogger } from './core.js';
+import { createLogger } from '../_core/logger';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -120,8 +120,7 @@ export class SelfArchitectAgent {
    */
   private analyzeModule(modulePath: string): ComplexityReport {
     const content = fs.readFileSync(modulePath, 'utf-8');
-    const lines = content.split('
-');
+    const lines = content.split('\n');
     const moduleName = path.basename(modulePath);
 
     // Count decision points (simplified McCabe metric)

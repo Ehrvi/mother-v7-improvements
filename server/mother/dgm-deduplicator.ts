@@ -19,7 +19,7 @@
  */
 
 import * as crypto from 'crypto';
-import { createLogger } from './_core/logger.js';
+import { createLogger } from '../_core/logger';
 
 const logger = createLogger('dgm-deduplicator');
 

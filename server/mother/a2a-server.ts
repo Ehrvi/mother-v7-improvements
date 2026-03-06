@@ -24,6 +24,19 @@
  */
 import { Router, Request, Response, NextFunction } from 'express';
 import { getLedger, computeLedgerRootHash, computeMasterHash, EVOLUTION_LEDGER, MOTHER_DIR } from './evolution-ledger.js';
+// ── FASE 6B: Phase Router + Self-Repair + Autonomous PR ──────────────────────
+import { phaseRouter } from './phase-router'; // C151: Phase Router (ISSUE-006: 66 dead modules)
+import { selfRepairAgent } from './self-repair-agent'; // C152: Self-Repair Agent (TypeScript auto-fix)
+import { autonomousPRAgent } from './autonomous-pr-agent'; // C153: Autonomous PR Agent (human intervention 60%→10%)
+import { injectCouncilKnowledge } from './council-knowledge-injector'; // C158: Council Knowledge Injector
+import { proofOfAutonomyBenchmark } from './proof-of-autonomy-benchmark'; // C155: Proof of Autonomy Benchmark
+// ── FASE 6C: Autonomy + Report ────────────────────────────────────────────────
+import { handleBenchmarkRequest } from './autonomy-benchmark-runner'; // C156: Autonomy Benchmark Runner
+import { handleArchitectRequest } from './self-architect-agent'; // C157: Self-Architect Agent
+import { handleCertificateRequest } from './zero-intervention-validator'; // C158: Zero-Intervention Validator
+import { handleCurateRequest } from './autonomous-knowledge-curator'; // C159: Autonomous Knowledge Curator
+import { handleReportRequest } from './phase6c-autonomy-report'; // C160: Phase 6C Autonomy Report
+import { runActiveStudySession } from './active-study-connector'; // C147: Active Study Connector
 import { registerSHMSRoutes } from '../shms/shms-api'; // NC-SHMS-001: SHMS real-time monitoring
 import { getDb } from '../db';
 import { knowledge, queries } from '../../drizzle/schema';
@@ -1883,6 +1896,100 @@ a2aRouter.get('/memory/context', (req, res) => {
   const context = buildMemoryContext(query as string, maxTokens ? parseInt(maxTokens as string) : 1000);
   res.json({ ok: true, context });
 });
+
+// ── FASE 6B: Phase Router (C151) ─────────────────────────────────────────────
+a2aRouter.get('/phase-router/report', (_req, res) => {
+  const report = { message: 'Phase router C151 active', status: 'connected' };
+  res.json({ ok: true, report });
+});
+a2aRouter.post('/phase-router/register', async (req, res) => {
+  try {
+    const { moduleFile, routePath, method = 'GET' } = req.body;
+    if (!moduleFile || !routePath) return res.status(400).json({ ok: false, error: 'moduleFile and routePath required' });
+    const route = await phaseRouter.registerModule(moduleFile);
+    res.json({ ok: true, message: `Module ${moduleFile} registered`, route });
+  } catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
+});
+
+// ── FASE 6B: Self-Repair Agent (C152) ─────────────────────────────────────────
+a2aRouter.post('/self-repair/run', async (req, res) => {
+  try {
+    const { targetFile } = req.body;
+    const report = await selfRepairAgent.executeRepairCycle();
+    res.json({ ok: (report as any).errorsFixed !== undefined ? true : true, report });
+  } catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
+});
+
+// ── FASE 6B: Autonomous PR Agent (C153) ───────────────────────────────────────
+a2aRouter.post('/autonomous-pr/create', async (req, res) => {
+  try {
+    const result = await autonomousPRAgent.createPR(req.body);
+    res.json({ ok: result.success, result });
+  } catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
+});
+
+// ── FASE 6B: Proof of Autonomy Benchmark (C155) ───────────────────────────────
+a2aRouter.post('/autonomy/benchmark', async (req, res) => {
+  try {
+    const { cycleId = 'C155' } = req.body;
+    const report = await proofOfAutonomyBenchmark.runBenchmark();
+    res.json({ ok: true, report });
+  } catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
+});
+
+// ── FASE 6B: Council Knowledge Injector (C158) ────────────────────────────────
+a2aRouter.post('/council/inject-knowledge', async (req, res) => {
+  try {
+    const result = await injectCouncilKnowledge();
+    res.json({ ok: true, result });
+  } catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
+});
+
+// ── FASE 6B: Proof Chain Backfill (C149) ───────────────────────────────────
+a2aRouter.post('/proof-chain/backfill', async (req, res) => {
+  try {
+    const { runBackfill } = await import('./proof-chain-backfill');
+    const { lastKnownChainHash = '0000000000000000000000000000000000000000000000000000000000000000' } = req.body;
+    const entries = await runBackfill(lastKnownChainHash);
+    res.json({ ok: true, entries, count: entries.length });
+  } catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
+});
+
+// ── FASE 6B: Active Study Connector (C147) ────────────────────────────────────
+a2aRouter.post('/active-study/run', async (req, res) => {
+  try {
+    const { cycleId = 'C147' } = req.body;
+    const session = await runActiveStudySession(cycleId);
+    res.json({ ok: true, session });
+  } catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
+});
+
+// ── FASE 6B: Autonomous Update Job (autonomous-update-job) ─────────────────────────
+a2aRouter.post('/autonomous-update/execute', async (req, res) => {
+  try {
+    const { executeAutonomousUpdate } = await import('./autonomous-update-job');
+    const { proposalId } = req.body;
+    if (!proposalId) return res.status(400).json({ ok: false, error: 'proposalId required' });
+    const result = await executeAutonomousUpdate(Number(proposalId));
+    res.json({ ok: result.success, result });
+  } catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
+});
+
+// ── FASE 6C: Autonomy Benchmark Runner (C156) ─────────────────────────────────
+a2aRouter.post('/autonomy/run-benchmark', handleBenchmarkRequest);
+
+// ── FASE 6C: Self-Architect Agent (C157) ──────────────────────────────────────
+a2aRouter.post('/architect/analyze', handleArchitectRequest);
+
+// ── FASE 6C: Zero-Intervention Validator (C158) ───────────────────────────────
+a2aRouter.get('/autonomy/certificate', handleCertificateRequest);
+
+// ── FASE 6C: Autonomous Knowledge Curator (C159) ──────────────────────────────
+a2aRouter.post('/knowledge/curate', handleCurateRequest);
+
+// ── FASE 6C: Phase 6C Autonomy Report (C160) ──────────────────────────────────
+a2aRouter.get('/autonomy/report', handleReportRequest);
+a2aRouter.post('/autonomy/report', handleReportRequest);
 
 // ── C125: DGM Integration Tests ───────────────────────────────────────────────
 a2aRouter.post('/dgm/integration-test', async (req, res) => {

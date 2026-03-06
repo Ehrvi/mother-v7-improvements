@@ -20,6 +20,7 @@
 
 import { createHash } from 'crypto';
 import { fitnessEvaluator, EvaluationTarget, FitnessScore } from './fitness-evaluator';
+import { checkDuplicate } from './dgm-deduplicator'; // C148: DGM Deduplicator (ISSUE-DGM: repeated proposals 8+ times per cycle)
 import {
   createProposal,
   applyProposal,
@@ -178,6 +179,16 @@ export async function runDGMCycle(spec: DGMCycleSpec): Promise<DGMCycleResult> {
 
     // ── PHASE 2: PROPOSE ──────────────────────────────────────────────────────
     currentPhase = 'propose';
+
+    // C148: Deduplication check — prevent repeated proposals (ISSUE-DGM: 8+ repeats per cycle)
+    const dedupResult = checkDuplicate(spec.proposedContent, cycleId);
+    if (dedupResult.isDuplicate) {
+      return finalizeCycle(buildAbortResult({
+        cycleId, objective: spec.objective, sciBase, startTime,
+        phase: 'propose',
+        killSwitch: `C148-DEDUP: Duplicate proposal detected (similarity ${((dedupResult.similarity ?? 1) * 100).toFixed(1)}% with ${dedupResult.originalCycleId ?? 'unknown'}) — skipping`,
+      }));
+    }
 
     // KS-1: Check for dangerous code patterns
     if (KILL_SWITCHES.KS1_DANGEROUS_CODE(spec.proposedContent)) {

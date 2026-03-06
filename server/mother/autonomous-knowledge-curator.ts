@@ -17,7 +17,7 @@
  * 4. Generating curation reports with SHA-256 proofs
  */
 
-import { createLogger } from './core.js';
+import { createLogger } from '../_core/logger';
 import * as crypto from 'crypto';
 
 const logger = createLogger('autonomous-knowledge-curator');

@@ -16,8 +16,8 @@
  * - Continual Learning (Parisi et al. 2019, Neural Networks): "Catastrophic forgetting prevention"
  */
 
-import { createLogger } from './_core/logger.js';
-import { queryKnowledge, insertKnowledge } from './knowledge.js';
+import { createLogger } from '../_core/logger';
+import { queryKnowledge, addKnowledge } from './knowledge';
 
 const logger = createLogger('active-study-connector');
 
@@ -68,7 +68,7 @@ export async function runActiveStudySession(cycleId: string): Promise<StudySessi
   try {
     // Busca entradas recentes por categoria (Active Learning: amostragem estratificada)
     for (const category of STUDY_CATEGORIES) {
-      const entries = await queryKnowledge({ category, limit: 10, orderBy: 'created_at DESC' });
+      const entries = await queryKnowledge(category);
       if (entries.length > 0) {
         session.categoriesCovered.push(category);
         session.entriesStudied += entries.length;
@@ -93,17 +93,11 @@ export async function runActiveStudySession(cycleId: string): Promise<StudySessi
 
   // Registra sessão no bd_central (Continual Learning — Parisi 2019)
   try {
-    await insertKnowledge({
-      category: 'study_session',
-      title: `Active Study Session — ${cycleId} — ${new Date().toISOString()}`,
-      content: JSON.stringify(session),
-      metadata: {
-        cycle: cycleId,
-        entries_studied: session.entriesStudied,
-        hash: session.sessionHash,
-        scientific_basis: 'Active Learning Settles 2009 + Continual Learning Parisi 2019',
-      },
-    });
+    await addKnowledge(
+      `Active Study Session — ${cycleId} — ${new Date().toISOString()}`,
+      JSON.stringify(session),
+      'study_session'
+    );
   } catch (err) {
     logger.warn('[C147] Falha ao registrar sessão:', err);
   }
@@ -123,8 +117,7 @@ function extractInsight(category: string, entries: any[]): string {
       return `quality_score: média ${avg.toFixed(3)} (n=${scores.length})`;
     }
     case 'error_pattern': {
-      const patterns = entries.map(e => e.content?.split('
-')[0] ?? '').filter(Boolean);
+      const patterns = entries.map(e => e.content?.split('\n')[0] ?? '').filter(Boolean);
       return `error_patterns: ${patterns.slice(0, 3).join('; ')}`;
     }
     case 'dgm_proposal': {
