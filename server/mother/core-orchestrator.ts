@@ -50,6 +50,13 @@ import {
 import { validateQuality, type GuardianResult } from './guardian';
 import { MOTHER_TOOLS, executeTool, type ToolExecutionContext } from './tool-engine';
 import { startSpan, endSpan, recordRequest as obsRecordRequest } from './observability'; // F2-2 (Ciclo 170): OpenTelemetry per-layer tracing (CNCF 2023)
+// C172 (Ciclo 172): Backend Fixes — Conselho Fase 2 P0
+// Fix 1: active-study reconnect — shouldTriggerActiveStudy was only in core.ts, not core-orchestrator.ts
+// Scientific basis: Proactive Agents (arXiv:2410.12361) — agents anticipate knowledge needs
+import { shouldTriggerActiveStudy, triggerActiveStudy } from './active-study';
+// Fix 2: G-Eval dynamic calibration reconnect — calibration counter was never incremented in orchestrator
+// Scientific basis: G-Eval (arXiv:2303.16634); EMA calibration (Gardner 1985, JASA)
+import { incrementQueryCountForCalibration, shouldRecalibrate, resetCalibrationCounter, calibrateGEval } from './dynamic-geval-calibrator';
 
 // ============================================================
 // TYPES
@@ -1063,6 +1070,38 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     }
   });
   layers.push({ layer: 5.5, name: 'RLVR Reward Signal (NC-RLVR-001)', durationMs: 0, status: 'ok', detail: 'async fire-and-forget' } as any);
+
+  // ── C172 Fix 1: active-study reconnect (async, non-blocking) ─────────────
+  // Scientific basis: Proactive Agents (arXiv:2410.12361) — agents should anticipate knowledge needs
+  // active-study was only called in core.ts (legacy path), not in core-orchestrator.ts (100% traffic)
+  setImmediate(async () => {
+    try {
+      const activeStudyCheck = shouldTriggerActiveStudy(
+        req.query,
+        l3.knowledgeContext.length > 0 ? Math.ceil(l3.knowledgeContext.length / 500) : 0,
+        l2.routing.tier,
+        0,
+      );
+      if (activeStudyCheck.should) {
+        console.log(`[C172] Active study triggered: ${activeStudyCheck.reason} (priority=${activeStudyCheck.priority})`);
+        triggerActiveStudy(req.query, activeStudyCheck.priority).catch(() => {});
+      }
+    } catch { /* non-blocking */ }
+  });
+
+  // ── C172 Fix 2: G-Eval dynamic calibration counter increment ─────────────
+  // Scientific basis: G-Eval (arXiv:2303.16634); EMA calibration (Gardner 1985, JASA)
+  // calibrateGEval() runs at startup but counter was never incremented → no re-calibration every 50 queries
+  setImmediate(async () => {
+    try {
+      incrementQueryCountForCalibration();
+      if (shouldRecalibrate()) {
+        resetCalibrationCounter();
+        const calibResult = await calibrateGEval();
+        console.log(`[C172] G-Eval re-calibrated: threshold=${calibResult.dynamicThreshold.toFixed(3)}, samples=${calibResult.sampleCount}`);
+      }
+    } catch { /* non-blocking */ }
+  });
 
   // ── Layer 6: Memory Write-Back (async) ───────────────────
   layer6_memoryWriteBack(req, l4.response, l4.provider, l4.model, l2.routing.tier, l5.qualityScore);

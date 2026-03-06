@@ -3,6 +3,10 @@ import { Send, Sparkles, Brain, Shield, Zap, TrendingDown, Dna, Activity, Databa
 import RightPanel from '@/components/RightPanel';
 import { trpc } from '@/lib/trpc';
 import { FileDropZone } from '@/components/FileDropZone';
+// C172 (Ciclo 172): Conselho Fase 2 Interface SOTA — 3 new panels
+import PhaseIndicator, { type Phase, type ActivePhase } from '@/components/PhaseIndicator';
+import ArtifactsPanel from '@/components/ArtifactsPanel';
+import ProjectPanel from '@/components/ProjectPanel';
 
 interface Message {
   id: string;
@@ -116,6 +120,14 @@ export default function Home() {
   // v74.6: Drag-and-drop file context — extracted text injected into next prompt
   const [fileContext, setFileContext] = useState<string>('');
   const [showDropZone, setShowDropZone] = useState(false);
+  // C172: Phase indicator state — tracks SSE phase events from core-orchestrator.ts
+  // Scientific basis: Nielsen (1994) Heuristic #1 — visibility of system status
+  const [currentPhase, setCurrentPhase] = useState<Phase | null>(null);
+  const phaseStartTimeRef = useRef<number>(0);
+  const [phaseLatencyMs, setPhaseLatencyMs] = useState<number>(0);
+  // C172: Side panel state — ArtifactsPanel and ProjectPanel
+  const [showArtifacts, setShowArtifacts] = useState(false);
+  const [showProject, setShowProject] = useState(false);
 
   // v68.8: Provider health check — polls every 5 minutes
   const providerHealthQuery = trpc.mother.providerHealth.useQuery(
@@ -144,6 +156,9 @@ export default function Home() {
     streamingMsgIdRef.current = msgId;
     setIsStreaming(true);
     setStreamingContent('');
+    // C172: Start phase tracking
+    setCurrentPhase('searching' as ActivePhase);
+    phaseStartTimeRef.current = Date.now();
     // Add placeholder streaming message
     setMessages((prev) => [...prev, {
       id: msgId,
@@ -181,7 +196,11 @@ export default function Home() {
           if (line.startsWith('data: ')) {
             try {
               const parsed = JSON.parse(line.slice(6));
-              if (lastEvent === 'token' && parsed.text) {
+              if (lastEvent === 'phase' && parsed.phase) {
+                // C172: Handle SSE phase events from core-orchestrator.ts
+                // Phases: searching → reasoning → writing → quality_check → complete
+                setCurrentPhase(parsed.phase as ActivePhase);
+              } else if (lastEvent === 'token' && parsed.text) {
                 accumulatedText += parsed.text;
                 setMessages((prev) => prev.map(m => m.id === msgId ? { ...m, content: accumulatedText } : m));
               } else if (lastEvent === 'response' && parsed.response) {
@@ -235,6 +254,11 @@ export default function Home() {
           : m
       ));
       setIsStreaming(false);
+      // C172: Set phase to complete and record latency
+      setCurrentPhase('complete' as ActivePhase);
+      setPhaseLatencyMs(Date.now() - phaseStartTimeRef.current);
+      // Reset to idle after 2s
+      setTimeout(() => setCurrentPhase(null), 2000);
       streamingMsgIdRef.current = null;
       abortControllerRef.current = null;
     }
@@ -691,6 +715,17 @@ export default function Home() {
           <div ref={messagesEndRef} />
         </div>
 
+        {/* C172: PhaseIndicator — shows current processing phase from SSE events */}
+        {/* Scientific basis: Nielsen (1994) Heuristic #1 — visibility of system status */}
+        {currentPhase !== null && (
+          <div className="px-6 py-2 border-t border-[rgba(124,58,237,0.1)]">
+            <PhaseIndicator
+              phase={currentPhase as ActivePhase}
+              latencyMs={phaseLatencyMs}
+            />
+          </div>
+        )}
+
         {/* Input area */}
         <div className="px-6 pb-5 pt-3 border-t border-[rgba(255,255,255,0.05)] bg-[rgba(15,15,26,0.8)]">
           {/* v74.6: Drag-and-drop drop zone (expanded mode) */}
@@ -746,6 +781,50 @@ export default function Home() {
         </div>
       </div>
       <RightPanel />
+
+      {/* C172: ArtifactsPanel — slide-in overlay from right */}
+      {showArtifacts && (
+        <div className="fixed inset-y-0 right-0 z-50 flex">
+          <div className="flex-1" onClick={() => setShowArtifacts(false)} />
+          <ArtifactsPanel isOpen={showArtifacts} onClose={() => setShowArtifacts(false)} />
+        </div>
+      )}
+
+      {/* C172: ProjectPanel — slide-in overlay from right */}
+      {showProject && (
+        <div className="fixed inset-y-0 right-0 z-50 flex">
+          <div className="flex-1" onClick={() => setShowProject(false)} />
+          <ProjectPanel isOpen={showProject} onClose={() => setShowProject(false)} />
+        </div>
+      )}
+
+      {/* C172: Floating panel toggle buttons */}
+      <div className="fixed bottom-20 right-4 flex flex-col gap-2 z-40">
+        <button
+          onClick={() => { setShowArtifacts(v => !v); setShowProject(false); }}
+          title="Painel de Artefatos"
+          style={{
+            width: 40, height: 40,
+            background: showArtifacts ? 'rgba(124,58,237,0.8)' : 'rgba(124,58,237,0.15)',
+            border: '1px solid rgba(124,58,237,0.4)',
+            borderRadius: 10, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 16, transition: 'all 0.2s',
+          }}
+        >📎</button>
+        <button
+          onClick={() => { setShowProject(v => !v); setShowArtifacts(false); }}
+          title="Painel de Projeto"
+          style={{
+            width: 40, height: 40,
+            background: showProject ? 'rgba(124,58,237,0.8)' : 'rgba(124,58,237,0.15)',
+            border: '1px solid rgba(124,58,237,0.4)',
+            borderRadius: 10, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 16, transition: 'all 0.2s',
+          }}
+        >📁</button>
+      </div>
     </div>
   );
 }
