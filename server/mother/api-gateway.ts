@@ -424,7 +424,12 @@ export function generateCallAttestation(callLog: ApiCallLog): string {
     agent: 'MOTHER-v80.0',
   });
   
-  const secret = process.env.GITHUB_TOKEN || 'mother-gateway-secret-2026';
+  // NC-SEC-001 FIX (C185): Secret must come from environment — no hardcoded fallback
+  // Scientific basis: OWASP API Security Top 10 (2023) API8: Security Misconfiguration
+  const secret = process.env.MOTHER_ATTESTATION_SECRET || process.env.GITHUB_TOKEN;
+  if (!secret) {
+    throw new Error('[NC-SEC-001] MOTHER_ATTESTATION_SECRET env var not set — refusing to generate attestation with hardcoded secret');
+  }
   const signature = createHmac('sha256', secret)
     .update(payload)
     .digest('hex');
