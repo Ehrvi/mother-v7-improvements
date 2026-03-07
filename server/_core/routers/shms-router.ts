@@ -54,6 +54,23 @@ shmsRouter.post('/analyze', authenticateA2A, async (req: Request, res: Response)
 });
 
 /**
+ * GET /shms/dashboard — Dashboard básico SHMS (1 estrutura monitorada)
+ * C191 Phase 6 S3-4 — Conselho C188 Seção 9.3
+ * Base científica: Sun et al. (2025); ICOLD Bulletin 158 (2014); GISTM 2020
+ */
+shmsRouter.get('/dashboard', async (req: Request, res: Response) => {
+  try {
+    const { getDashboardData } = await import('../../mother/dashboard-shms.js');
+    const structureId = (req.query.structureId as string) ?? 'STRUCTURE_001';
+    const data = await getDashboardData(structureId);
+    res.json(data);
+  } catch (err) {
+    log.error('[SHMSRouter] Dashboard error:', err);
+    res.status(500).json({ error: 'Dashboard unavailable' });
+  }
+});
+
+/**
  * GET /shms/status — SHMS v2 status
  */
 shmsRouter.get('/status', authenticateA2A, (_req: Request, res: Response) => {
