@@ -114,7 +114,7 @@ export class SHMSMqttService {
           resolve();
         });
 
-        this.client.on('error', (err) => {
+        this.client.on('error', (err: Error) => {
           clearTimeout(connectTimeout);
           this.errorCount++;
           log.warn(`[SHMS-MQTT] Connection error: ${err.message} — switching to simulation mode`);
@@ -122,7 +122,7 @@ export class SHMSMqttService {
           resolve();
         });
 
-        this.client.on('message', (topic, payload) => {
+        this.client.on('message', (topic: string, payload: Buffer) => {
           this.handleMessage(topic, payload);
         });
 
@@ -150,7 +150,7 @@ export class SHMSMqttService {
   private subscribeToSensors(): void {
     if (!this.client) return;
     const topic = `shms/${this.siteId}/+/+`;
-    this.client.subscribe(topic, { qos: 1 }, (err) => {
+    this.client.subscribe(topic, { qos: 1 }, (err: Error | null) => {
       if (err) {
         log.error(`[SHMS-MQTT] Subscribe error: ${err.message}`);
       } else {

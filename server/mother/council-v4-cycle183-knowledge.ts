@@ -5,7 +5,7 @@
  * Run: npx tsx server/mother/council-v4-cycle183-knowledge.ts
  */
 
-import { addKnowledge } from './knowledge-base.js';
+import { addKnowledge } from './knowledge.js';
 
 async function injectCycle183Knowledge(): Promise<void> {
   console.log('🧠 Injetando conhecimento do Ciclo 183 no BD de MOTHER...\n');
