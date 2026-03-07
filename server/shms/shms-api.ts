@@ -2,6 +2,11 @@
  * SHMS API Routes — server/shms/shms-api.ts
  * MOTHER v79.2 | Ciclo 109 | Fase 3: SHMS Agent
  *
+ * [C189 — NC-ARCH-001] DEPRECATED: This is SHMS v1.
+ * Use server/mother/shms-analyze-endpoint.ts for new features.
+ * This module will be removed in C195.
+ * Scientific basis: Conselho C188 Seção 5.3 — NC-ARCH-001 SHMS Dual Implementation.
+ *
  * Exposes SHMS functionality via REST API endpoints.
  * Integrates with MOTHER's a2a-server.ts as a sub-system.
  *
@@ -21,10 +26,14 @@
  * - GISTM 2020: Alert level framework
  */
 
+// [C189 — NC-ARCH-001] SHMS v1 DEPRECATED. Will be removed in C195. Use server/mother/shms-analyze-endpoint.ts.
+console.warn('[SHMS v1] DEPRECATED: Use server/mother/shms-analyze-endpoint for new SHMS features. This module will be removed in C195.');
+
 import type { Router, Request, Response } from 'express';
 import { createSHMSConnector, type SensorReading } from './mqtt-connector';
 import { SHMSAnomalyDetector } from './anomaly-detector';
 import { SHMSAlertEngine } from './alert-engine';
+import { validateSensorReading } from './sensor-validator'; // C189 — NC-SHMS-001: GISTM+ICOLD validation
 
 // ============================================================
 // SHMS System State (singleton)
