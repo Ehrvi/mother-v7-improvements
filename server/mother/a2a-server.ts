@@ -87,6 +87,7 @@ import {
   getDGMHistory,
   getFitnessTrend,
 } from './dgm-orchestrator';
+import { getArtifacts, getArtifactById, storeArtifact, deleteArtifact, extractAndStoreArtifacts } from './artifact-panel';
 
 const log = createLogger('A2A');
 
@@ -2125,7 +2126,6 @@ a2aRouter.post('/dgm/integration-test', async (req, res) => {
 // Information Architecture (Morville & Rosenfeld, 2006);
 // arXiv:2304.10878 (2023): structured output hints improve UI rendering
 // ============================================================
-import { getArtifacts, getArtifactById, storeArtifact, deleteArtifact, extractAndStoreArtifacts } from './artifact-panel';
 
 /**
  * GET /api/a2a/artifacts — List all artifacts (optionally filtered by sessionId)
