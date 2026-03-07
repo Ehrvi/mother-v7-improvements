@@ -11,6 +11,13 @@ name: MOTHER Autonomous Deploy Pipeline
 # NC-CICD-001 (Ciclo 49): Added 'main' branch to triggers
 # Scientific basis: GitFlow (Driessen, 2010) — both main and master should trigger production deploy
 # Root cause: previous deploys to 'main' were silently ignored, requiring manual workflow_dispatch
+#
+# AUTH: Workload Identity Federation (WIF) — C184
+# Replaces static GCP_SA_KEY with keyless OIDC token exchange.
+# Scientific basis: Google Cloud WIF (2021), OIDC RFC 8705 (2020)
+# Pool: projects/233196174701/locations/global/workloadIdentityPools/github-actions-pool
+# Provider: .../providers/github-provider
+# Condition: assertion.repository_owner == 'Ehrvi' (scoped to this org only)
 # ============================================================
 
 on:
@@ -32,6 +39,9 @@ env:
   REGION: australia-southeast1
   SERVICE: mother-interface
   REGISTRY: australia-southeast1-docker.pkg.dev/mothers-library-mcp/mother-repo/mother-interface
+  # WIF identifiers (C184 — replaces GCP_SA_KEY secret)
+  WIF_PROVIDER: projects/233196174701/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider
+  WIF_SERVICE_ACCOUNT: mother-cloudrun-sa@mothers-library-mcp.iam.gserviceaccount.com
 
 jobs:
   # ============================================================
@@ -92,6 +102,9 @@ jobs:
 
   # ============================================================
   # JOB 3: Build and Deploy to Cloud Run (master only)
+  # Authentication: Workload Identity Federation (WIF) — C184
+  # No long-lived credentials stored in GitHub Secrets.
+  # OIDC token issued by GitHub → exchanged for short-lived GCP token.
   # ============================================================
   deploy:
     name: Build and Deploy to Production
@@ -99,14 +112,22 @@ jobs:
     needs: typecheck
     if: (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main') && github.event_name == 'push'  # NC-CICD-001: Deploy from both master and main
 
+    # Required for WIF: id-token permission allows the runner to request an OIDC token
+    permissions:
+      contents: read
+      id-token: write  # CRITICAL: required for Workload Identity Federation
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
+      - name: Authenticate to Google Cloud (WIF — keyless)
+        id: auth
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.WIF_SERVICE_ACCOUNT }}
+          # No credentials_json needed — OIDC token exchange is fully automatic
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
