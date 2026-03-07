@@ -71,6 +71,46 @@ shmsRouter.get('/dashboard', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /shms/dashboard/all — Dashboard de TODAS as 3 estruturas monitoradas
+ * C192 Phase 7 S1-2 — Conselho C188 Seção 9.4 — KPI: 3 estruturas
+ * Base científica: Sun et al. (2025); ICOLD Bulletin 158 (2014)
+ */
+shmsRouter.get('/dashboard/all', async (_req: Request, res: Response) => {
+  try {
+    const { getAllDashboardData } = await import('../../mother/dashboard-shms.js');
+    const data = await getAllDashboardData();
+    res.json(data);
+  } catch (err) {
+    log.error('[SHMSRouter] Dashboard/all error:', err);
+    res.status(500).json({ error: 'Multi-structure dashboard unavailable' });
+  }
+});
+
+/**
+ * GET /shms/dashboard/:structureId — Dashboard de estrutura específica
+ * C192 Phase 7 S1-2 — Conselho C188 Seção 9.4
+ * Base científica: Sun et al. (2025); ICOLD Bulletin 158 (2014)
+ */
+shmsRouter.get('/dashboard/:structureId', async (req: Request, res: Response) => {
+  try {
+    const { getDashboardData, MONITORED_STRUCTURES } = await import('../../mother/dashboard-shms.js');
+    const { structureId } = req.params;
+    if (!MONITORED_STRUCTURES[structureId]) {
+      res.status(404).json({
+        error: `Structure '${structureId}' not found`,
+        validStructures: Object.keys(MONITORED_STRUCTURES),
+      });
+      return;
+    }
+    const data = await getDashboardData(structureId);
+    res.json(data);
+  } catch (err) {
+    log.error('[SHMSRouter] Dashboard/:id error:', err);
+    res.status(500).json({ error: 'Dashboard unavailable' });
+  }
+});
+
+/**
  * GET /shms/status — SHMS v2 status
  */
 shmsRouter.get('/status', authenticateA2A, (_req: Request, res: Response) => {

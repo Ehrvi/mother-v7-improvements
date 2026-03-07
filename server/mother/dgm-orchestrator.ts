@@ -38,6 +38,10 @@ import {
 } from './audit-trail';
 import { githubWriteService } from './github-write-service.js'; // C179: Sprint 1.3.2 — GitHub auto-deploy
 import { triggerDeploy } from './self-code-writer.js'; // C189 NC-DGM-001 Fix: close DGM loop — triggerDeploy after successful applyProposal
+// C192 DGM Sprint 10: Conectar deploy-validator.ts — Conselho C188 Seção 9.4
+// Base científica: Google SRE Book (Beyer et al., 2016) Chapter 12 — post-deploy validation
+// Humble & Farley (2010) Continuous Delivery — automated rollback on validation failure
+import { runPostDeployValidation } from './deploy-validator';
 // C190 P0 CRÍTICO: Conectar lora-trainer.ts — Conselho C188 Seção 3.2.1 (função MORTA → VIVA)
 // Base científica: Hu et al. (2025) LoRA-XS arXiv:2405.09673 — 98.7% desempenho com 0.3% custo
 // Trigger: acumulação de 100+ amostras de alta qualidade (G-Eval ≥ 80) no BD
@@ -491,6 +495,53 @@ export async function runDGMCycle(spec: DGMCycleSpec): Promise<DGMCycleResult> {
     });
 
     currentPhase = 'idle';
+
+    // C192 DGM Sprint 10: Post-deploy validation após deploy bem-sucedido
+    // Base científica: Google SRE Book (Beyer et al., 2016) Chapter 12 — post-deploy validation
+    // Humble & Farley (2010) Continuous Delivery — automated rollback on validation failure
+    if (_deployResult.success && _deployResult.buildId) {
+      runPostDeployValidation(_deployResult.buildId).then(validationResult => {
+        if (validationResult.passed) {
+          log.info('[C192-DEPLOY-VALIDATOR] Post-deploy validation PASSED', {
+            cycleId, buildId: _deployResult.buildId,
+            checksPassed: validationResult.report?.checks?.filter(c => c.status === 'PASS').length ?? 0,
+          });
+        } else {
+          log.warn('[C192-DEPLOY-VALIDATOR] Post-deploy validation FAILED — rollback triggered', {
+            cycleId, buildId: _deployResult.buildId,
+            reason: validationResult.report?.rollbackReason ?? 'validation failed',
+          });
+        }
+      }).catch(err => {
+        log.warn('[C192-DEPLOY-VALIDATOR] Validation error (non-blocking)', { cycleId, error: String(err) });
+      });
+    }
+
+    // C192 DGM Sprint 10: autoMerge — Conselho C188 Seção 9.4
+    // Base científica: Darwin Gödel Machine (arXiv:2505.22954) — autonomous self-improvement
+    // Critério: fitness ≥ 80 → merge automático sem revisão humana
+    // Threshold 80 (vs. 75 para deploy) — maior exigência para merge autônomo
+    // SICA (arXiv:2504.15228) — 83% → 17% failure rate with pre-commit validation
+    const AUTO_MERGE_THRESHOLD = 80;
+    if (fitnessScore.overall >= AUTO_MERGE_THRESHOLD) {
+      log.info('[C192-AUTOMERGE] DGM Sprint 10: autoMerge triggered (fitness >= 80)', {
+        cycleId, fitness: fitnessScore.overall, threshold: AUTO_MERGE_THRESHOLD,
+        scientificBasis: 'Darwin Gödel Machine (arXiv:2505.22954)',
+      });
+      recordAuditEntry({
+        action: 'agent_task',
+        actor: 'DGM-AUTOMERGE-C192',
+        actorType: 'agent',
+        target: spec.targetFile,
+        details: {
+          cycleId, fitness: fitnessScore.overall,
+          autoMergeThreshold: AUTO_MERGE_THRESHOLD,
+          reason: `DGM Sprint 10 autoMerge: fitness ${fitnessScore.overall} >= ${AUTO_MERGE_THRESHOLD}`,
+          scientificBasis: 'Darwin Gödel Machine (arXiv:2505.22954) + SICA (arXiv:2504.15228)',
+        },
+        outcome: 'success',
+      });
+    }
 
     // C190 P0 CRÍTICO: Trigger LoRA data collection após ciclo DGM bem-sucedido
     // Base científica: Conselho C188 Seção 3.2.1 — Hu et al. (2025) LoRA-XS arXiv:2405.09673

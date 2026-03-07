@@ -1,17 +1,28 @@
 /**
- * dashboard-shms.ts — Dashboard SHMS Básico (1 Estrutura Monitorada)
+ * dashboard-shms.ts — Dashboard SHMS (3 Estruturas Monitoradas)
  *
- * Conselho C188 Seção 9.3 — Phase 6 S3-4 — Ciclo 191
+ * Conselho C188 Seção 9.4 — Phase 7 S1-2 — Ciclo 192 (escalado de 1 para 3 estruturas)
  * Base científica:
  *   - Sun et al. (2025) DOI:10.1145/3777730.3777858 — SHMS Digital Twin
  *   - ICOLD Bulletin 158 (2014) — 3-level alarm system (Green/Yellow/Red)
  *   - GISTM 2020 — sensor thresholds for geotechnical monitoring
  *
  * Função: Agrega dados de sensores, alertas ICOLD e status do Digital Twin
- * em um único endpoint de dashboard para 1 estrutura monitorada.
+ * em endpoints de dashboard para 3 estruturas monitoradas (KPI Phase 7).
  *
- * Integração: Conectado em shms-router.ts via GET /api/shms/v2/dashboard
+ * Integração: Conectado em shms-router.ts via:
+ *   GET /api/shms/v2/dashboard           — estrutura principal (STRUCTURE_001)
+ *   GET /api/shms/v2/dashboard/:id       — estrutura específica
+ *   GET /api/shms/v2/dashboard/all       — todas as 3 estruturas (Phase 7 KPI)
  */
+
+// C192 Phase 7 KPI: 3 estruturas monitoradas — Conselho C188 Seção 9.4
+// Base científica: Sun et al. (2025) DOI:10.1145/3777730.3777858 — multi-structure SHMS
+export const MONITORED_STRUCTURES: Record<string, { name: string; type: string; location: string }> = {
+  STRUCTURE_001: { name: 'Barragem Principal', type: 'dam', location: 'Mina Alpha — Setor Norte' },
+  STRUCTURE_002: { name: 'Talude Leste', type: 'slope', location: 'Mina Alpha — Setor Leste' },
+  STRUCTURE_003: { name: 'Dique de Contenção', type: 'dike', location: 'Mina Alpha — Setor Sul' },
+};
 
 import { createLogger } from '../_core/logger.js';
 import { getLatestReadings, getLatestPredictions } from '../shms/timescale-connector.js';
@@ -178,4 +189,50 @@ function generateSyntheticSensors(): SensorSummary[] {
     { sensorId: 'RG-001', sensorType: 'rain_gauge', lastReading: 12.5, unit: 'mm/h', icoldLevel: 'GREEN', lastUpdated: now },
     { sensorId: 'WL-001', sensorType: 'water_level', lastReading: 65.2, unit: '%', icoldLevel: 'GREEN', lastUpdated: now },
   ];
+}
+
+/**
+ * C192 Phase 7 KPI: Obtém dados de dashboard para TODAS as 3 estruturas monitoradas.
+ * Endpoint: GET /api/shms/v2/dashboard/all
+ *
+ * Base científica:
+ *   - Conselho C188 Seção 9.4 — KPI Phase 7: 3 estruturas monitoradas
+ *   - Sun et al. (2025) DOI:10.1145/3777730.3777858 — multi-structure SHMS Digital Twin
+ *   - ICOLD Bulletin 158 (2014) — sistema de alarme 3 níveis por estrutura
+ */
+export async function getAllDashboardData(): Promise<{
+  structures: DashboardData[];
+  summary: {
+    totalStructures: number;
+    greenCount: number;
+    yellowCount: number;
+    redCount: number;
+    overallStatus: 'GREEN' | 'YELLOW' | 'RED';
+    timestamp: string;
+  };
+}> {
+  const structureIds = Object.keys(MONITORED_STRUCTURES);
+  const structures = await Promise.all(
+    structureIds.map(id => getDashboardData(id))
+  );
+
+  const greenCount = structures.filter(s => s.overallStatus === 'GREEN').length;
+  const yellowCount = structures.filter(s => s.overallStatus === 'YELLOW').length;
+  const redCount = structures.filter(s => s.overallStatus === 'RED').length;
+
+  // Overall status: worst case across all structures (ICOLD Bulletin 158 principle)
+  const overallStatus: 'GREEN' | 'YELLOW' | 'RED' =
+    redCount > 0 ? 'RED' : yellowCount > 0 ? 'YELLOW' : 'GREEN';
+
+  return {
+    structures,
+    summary: {
+      totalStructures: structureIds.length,
+      greenCount,
+      yellowCount,
+      redCount,
+      overallStatus,
+      timestamp: new Date().toISOString(),
+    },
+  };
 }
