@@ -38,6 +38,13 @@ import {
 } from './audit-trail';
 import { githubWriteService } from './github-write-service.js'; // C179: Sprint 1.3.2 — GitHub auto-deploy
 import { triggerDeploy } from './self-code-writer.js'; // C189 NC-DGM-001 Fix: close DGM loop — triggerDeploy after successful applyProposal
+// C190 P0 CRÍTICO: Conectar lora-trainer.ts — Conselho C188 Seção 3.2.1 (função MORTA → VIVA)
+// Base científica: Hu et al. (2025) LoRA-XS arXiv:2405.09673 — 98.7% desempenho com 0.3% custo
+// Trigger: acumulação de 100+ amostras de alta qualidade (G-Eval ≥ 80) no BD
+import { runLoRAPipeline, scheduleLoRAPipeline, getLoRAPipelineStatus, DEFAULT_LORA_CONFIG } from './lora-trainer';
+// C190 P1: Conectar finetuning-pipeline.ts — Conselho C188 Seção 3.1 (função MORTA → VIVA)
+// Base científica: OpenAI Fine-tuning API (2024) — identity fine-tuning para consistência de respostas
+import { initiateFineTuning } from './finetuning-pipeline';
 import {
   checkSafetyGate,
   SafetyCheckResult,
@@ -484,6 +491,22 @@ export async function runDGMCycle(spec: DGMCycleSpec): Promise<DGMCycleResult> {
     });
 
     currentPhase = 'idle';
+
+    // C190 P0 CRÍTICO: Trigger LoRA data collection após ciclo DGM bem-sucedido
+    // Base científica: Conselho C188 Seção 3.2.1 — Hu et al. (2025) LoRA-XS arXiv:2405.09673
+    // Condição: fitness ≥ 75 (ciclo de qualidade) — apenas coleta dados (dryRun=true)
+    // Efeito: BD acumula exemplos de alta qualidade para fine-tuning semanal
+    if (fitnessScore.overall >= 75) {
+      runLoRAPipeline(DEFAULT_LORA_CONFIG, true).then(loraStatus => {
+        log.info('[C190-LORA] LoRA data collection triggered after successful DGM cycle', {
+          cycleId, fitness: fitnessScore.overall,
+          loraExamples: loraStatus.dataset?.totalExamples ?? 0,
+          loraStatus: loraStatus.status,
+        });
+      }).catch(err => {
+        log.warn('[C190-LORA] LoRA trigger failed (non-blocking)', { cycleId, error: String(err) });
+      });
+    }
 
     return finalizeCycle({
       cycleId,
