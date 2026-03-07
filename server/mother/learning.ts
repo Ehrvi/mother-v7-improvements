@@ -169,8 +169,11 @@ export async function learnFromResponse(candidate: LearningCandidate): Promise<L
 
   // C189 NC-LEARN-001: Filter by importance score (Park et al. 2023 — Generative Agents)
   // Only store insights with importance >= 0.4 to prevent knowledge base pollution
-  const importantInsights = insights.filter(insight => {
-    const score = computeImportanceScore(insight);
+  // computeImportanceScore(createdAt, lastAccessed, retrievalCount, linkCount)
+  // For new insights: createdAt=now, lastAccessed=null, retrievalCount=1, linkCount=0
+  const now = new Date();
+  const importantInsights = insights.filter(_insight => {
+    const score = computeImportanceScore(now, null, 1, 0);
     return score >= 0.4;
   });
 
@@ -289,7 +292,7 @@ export async function learnFromEvolutionRun(
 
   const existingKnowledge = await getAllKnowledge();
 
-  for (const insight of importantInsights) {
+  for (const insight of insights) {
     const { isDuplicate: isDup, maxSimilarity } = await isDuplicate(insight, existingKnowledge);
 
     if (isDup) {

@@ -334,12 +334,13 @@ export async function queryKnowledge(query: string): Promise<KnowledgeResult[]> 
     queryExternalKnowledge(query),
     // C189 NC-LEARN-001: HippoRAG2 hierarchical knowledge graph retrieval
     // Scientific basis: Gutierrez et al. (2025) arXiv:2405.14831v2
-    hippoRAG2Retrieve(query, 5).then(results => results.map(r => ({
-      content: r.content,
+    // HippoRAGResult returns { passages: string[], confidence: number, ... }
+    hippoRAG2Retrieve(query, 5).then(result => result.passages.map((passage: string) => ({
+      content: passage,
       source: { name: 'HippoRAG2-KG', type: 'vector' as const, priority: 2 },
-      confidence: r.score,
-      relevance: r.score,
-    }))).catch(() => [] as KnowledgeResult[]),
+      confidence: result.confidence,
+      relevance: result.confidence,
+    } as KnowledgeResult))).catch(() => [] as KnowledgeResult[]),
   ]);
   
   // Combine and sort by priority and relevance
