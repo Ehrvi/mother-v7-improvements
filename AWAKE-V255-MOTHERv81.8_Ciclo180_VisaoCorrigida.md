@@ -1,4 +1,4 @@
-# AWAKE V254 — MOTHER v81.8 | Ciclo 179 | 2026-03-07
+# AWAKE V255 — MOTHER v81.8 | Ciclo 180 | 2026-03-07
 # Protocolo de Continuidade e Estado do Sistema
 
 ## IDENTIDADE
@@ -7,6 +7,9 @@
 - Proprietário: Everton Garcia — Wizards Down Under (elgarcia.eng@gmail.com)
 - Repositório: https://github.com/Ehrvi/mother-v7-improvements
 - Produção: Cloud Run (Google Cloud) — deploy automático via GitHub Actions
+- AWAKE: V255 | MASTER PROMPT: V50.0
+
+---
 
 ## VISÃO FINAL DE MOTHER
 
@@ -23,7 +26,11 @@ O ciclo cognitivo completo é:
 PERCEPÇÃO → MEMÓRIA → RACIOCÍNIO → AÇÃO → APRENDIZADO → EVOLUÇÃO
 ```
 
-## PROTOCOLO DE INICIALIZAÇÃO V254 (MANDATÓRIO — 6 PASSOS)
+> **CORREÇÃO CRÍTICA (C180):** A visão de MOTHER foi erroneamente registrada nos AWAKE V254 e MASTER PROMPT V49.0/V48.0 como "Objetivo A: ser o melhor assistente de IA em língua portuguesa do Brasil". Esta definição está ERRADA e foi corrigida em C180. A visão correta é SHMS Geotécnico + Autonomia Total, conforme declarado pelo proprietário.
+
+---
+
+## PROTOCOLO DE INICIALIZAÇÃO V255 (MANDATÓRIO — 6 PASSOS)
 Antes de qualquer output ou ação de desenvolvimento:
 
 ```bash
@@ -46,7 +53,9 @@ git log --oneline -5
 pnpm check
 ```
 
-## ESTADO ATUAL DO SISTEMA (Ciclo 179)
+---
+
+## ESTADO ATUAL DO SISTEMA (Ciclo 180)
 
 ### Não-Conformidades
 
@@ -56,12 +65,13 @@ pnpm check
 | NC-SCHEMA-DRIFT-002 | ALTA | 17 colunas ausentes selfProposals Drizzle | **CORRIGIDA C178** |
 | NC-LANG-001 | MÉDIA | DPO responde em inglês | **CORRIGIDA C178** |
 | NC-ROUTING-001 | ALTA | adaptive-router só inglês | **CORRIGIDA C178** |
+| NC-VISION-001 | ALTA | Visão errada em AWAKE V254 + MASTER PROMPT V48/V49 | **CORRIGIDA C180** |
 | NC-LATENCY-001 | ALTA | P50=75s (meta <10s) | PARCIAL — routing PT fix C178 |
 | NC-GITHUB-TOKEN | ALTA | GITHUB_TOKEN não configurado no Cloud Run | **ABERTA** |
 | NC-SHMS-MQTT | MÉDIA | SHMS Digital Twin sem MQTT real | ABERTA |
 | NC-CACHE-HIT | MÉDIA | Hit rate ~12% (meta >35%) | MONITORANDO |
 
-### Sprints Concluídos (Ciclos 178-179)
+### Sprints Concluídos (Ciclos 178-180)
 
 | Sprint | Status | Entregável |
 |--------|--------|-----------|
@@ -69,8 +79,9 @@ pnpm check
 | S2: 4 NCs corrigidas | **CONCLUÍDO** | await, schema 17 colunas, idioma PT, routing PT |
 | S5: 180 módulos arquivados | **CONCLUÍDO** | 64.662 linhas = 52% do servidor → archive/ |
 | S6: SHMS Digital Twin | **PARCIAL** | shms-digital-twin.ts criado, rotas REST registradas, falta MQTT + tabelas DB |
+| Correção de Visão | **CONCLUÍDO** | AWAKE V254, V253, MASTER PROMPT V48/V49 corrigidos |
 
-### Arquivos Novos em Produção (C178-C179)
+### Arquivos Novos em Produção (C178-C180)
 
 | Arquivo | Linhas | Função |
 |---------|--------|--------|
@@ -79,6 +90,7 @@ pnpm check
 | `server/mother/shms-digital-twin.ts` | 173 | Digital Twin + LSTM-AD + AlertDispatcher |
 | `server/mother/council-v4-sprint-knowledge.ts` | ~80 | 8 entradas de conhecimento dos sprints |
 | `server/mother/council-v4-knowledge-injector.ts` | ~120 | 17 entradas Conselho V4 |
+| `server/mother/council-v4-cycle179-knowledge.ts` | 94 | 8 entradas C179 |
 | `scripts/quality-gate.js` | ~80 | Quality gate: TypeScript + testes + cobertura |
 | `scripts/smoke-test.js` | ~60 | Smoke tests: health + stream + DGM |
 | `scripts/health-check.js` | ~50 | Health check com 3 retries + rollback signal |
@@ -95,7 +107,9 @@ pnpm check
 | Módulos arquivados | 180 | — |
 | DGM falhas repetidas | 8 (C176) → 0 esperado | 0 |
 
-## REGRAS INCREMENTAIS DE DESENVOLVIMENTO (R1-R12)
+---
+
+## REGRAS INCREMENTAIS DE DESENVOLVIMENTO (R1-R13)
 
 **R1:** Nunca modificar arquivos sem ler primeiro (file tool read antes de edit).
 **R2:** `pnpm check` DEVE passar com 0 erros antes de qualquer commit.
@@ -103,15 +117,21 @@ pnpm check
 **R4:** Código morto DEVE ir para `archive/` com README, nunca deletar.
 **R5:** Toda modificação autônoma DGM DEVE criar PR no GitHub (não merge direto).
 **R6:** BD de conhecimento DEVE ser atualizado a cada ciclo com aprendizados.
-**R7:** AWAKE DEVE ser incrementado a cada ciclo (V253 → V254 → V255...).
+**R7:** AWAKE DEVE ser incrementado a cada ciclo (V254 → V255 → V256...).
 **R8:** MASTER PROMPT DEVE ser atualizado quando protocolo de inicialização mudar.
 **R9:** Latência P50 DEVE ser medida antes e depois de cada mudança de routing.
 **R10:** SHMS Digital Twin DEVE ter pelo menos 1 sensor simulado ativo em produção.
 **R11:** `GITHUB_TOKEN` DEVE ser configurado no Cloud Run antes do Sprint 8.3.
 **R12:** `autoMerge=false` SEMPRE até 3 ciclos DGM bem-sucedidos com revisão humana.
+**R13 (NOVO — C180):** A visão de MOTHER é SEMPRE "Objetivo A: SHMS Geotécnico + Objetivo B: Autonomia Total". Qualquer referência a "melhor assistente de IA em PT-BR" ou "superar o Manus" é INCORRETA e deve ser corrigida imediatamente.
+
+---
 
 ## EMBASAMENTO CIENTÍFICO
 - Darwin Gödel Machine — Zhang et al. (arXiv:2408.08435, 2024)
+- SHMS com Deep Learning — Sun et al. (2025), DOI:10.1145/3777730.3777858
+- LSTM para SHM — Carrara et al. (arXiv:2211.10351, 2022)
+- GeoMCP — IA em geotecnia (arXiv:2603.01022, 2026)
 - RouteLLM — Ong et al. (arXiv:2406.18665, 2024)
 - LSTM Anomaly Detection — Hundman et al. (arXiv:1802.04431, 2018)
 - Continual Learning — Kirkpatrick et al. (arXiv:1612.00796, 2017)
@@ -120,10 +140,13 @@ pnpm check
 - ISO/IEC 25010:2011 — Software Quality Model
 - ISO 19115-1:2014 — Geographic Information Metadata
 
-## PRÓXIMAS AÇÕES (Ciclo 180)
+---
+
+## PRÓXIMAS AÇÕES (Ciclo 181)
 1. **URGENTE:** Configurar `GITHUB_TOKEN` no Cloud Run (BK-001) — desbloqueia Sprint 8.3
 2. Criar migration SQL para colunas novas de `selfProposals`
 3. Testar `/api/shms/twin-state` em produção
 4. Medir P50 após routing PT fix (target: <30s para queries simples)
-5. Sprint 7: G-Eval calibração com 50 exemplos anotados
+5. Sprint 7: G-Eval calibração com 50 exemplos anotados geotécnicos
 6. Sprint 8.4: Testar primeiro ciclo DGM autônomo real após GITHUB_TOKEN configurado
+7. Sprint 6 completo: MQTT real + tabelas TimescaleDB + sensor_readings + shms_alerts

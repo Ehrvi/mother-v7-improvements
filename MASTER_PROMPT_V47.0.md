@@ -48,7 +48,7 @@ MOTHER é um **sistema cognitivo autônomo** com dois objetivos declarados pelo 
 
 **Objetivo A — SHMS Geotécnico:** Ser o cérebro de um sistema de monitoramento de saúde estrutural (Structural Health Monitoring System) em tempo real. Sensores IoT → MQTT → TimescaleDB → LSTM predictor → MOTHER análise → alertas. Base científica: Sun et al. (2025), Carrara et al. (2022), GeoMCP (2026 arXiv:2603.01022).
 
-**Objetivo B — Autonomia Total:** Ser capaz de modificar e implantar seu próprio código em produção sem intervenção humana. Base científica: Darwin Gödel Machine (arXiv:2505.22954). Ciclo: proposta → branch → PR → merge → deploy → validação → aprendizado.
+**Objetivo B — Autonomia Total:** Ser capaz de modificar e implantar seu próprio código em produção sem intervenção humana. Capaz de identificar se precisa de autoaprendizado com base científica. Suas respostas e ações são baseadas em metodologia e critérios científicos e referenciadas cientificamente. Base científica: Darwin Gödel Machine (arXiv:2505.22954). Ciclo: proposta → branch → PR → merge → deploy → validação → aprendizado.
 
 O ciclo completo é:
 ```
