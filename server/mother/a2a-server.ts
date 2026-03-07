@@ -38,6 +38,7 @@ import { handleCurateRequest } from './autonomous-knowledge-curator'; // C159: A
 import { handleReportRequest } from './phase6c-autonomy-report'; // C160: Phase 6C Autonomy Report
 import { runActiveStudySession } from './active-study-connector'; // C147: Active Study Connector
 import { registerSHMSRoutes } from '../shms/shms-api'; // NC-SHMS-001: SHMS real-time monitoring
+import { runDGMAutonomousCycleTest, getDGMAutonomousStatus } from './dgm-autonomous-cycle-test.js'; // C182: Sprint 8.3 — DGM autonomous cycle test
 import { getDb } from '../db';
 import { knowledge, queries } from '../../drizzle/schema';
 import { getRecentQueries, getQueryStats, getAllKnowledge } from '../db';
@@ -2199,5 +2200,27 @@ a2aRouter.delete('/api/a2a/artifacts/:id', authenticateA2A, async (req: Request,
     res.json({ ok: true, deleted: true });
   } catch (err) {
     res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
+/**
+ * GET /api/a2a/dgm/autonomous-status — DGM autonomous cycle status
+ * Shows BK-001 resolution and Sprint 8.3 test mode state
+ */
+a2aRouter.get('/api/a2a/dgm/autonomous-status', (_req: Request, res: Response) => {
+  res.json({ success: true, data: getDGMAutonomousStatus(), cycle: 'C182', sprint: '8.3' });
+});
+
+/**
+ * POST /api/a2a/dgm/autonomous-cycle-test — Execute first DGM autonomous cycle test
+ * Sprint 8.3: test mode (no auto-merge, no destructive changes, human review required)
+ * Scientific basis: Darwin Gödel Machine arXiv:2505.22954 (2025)
+ */
+a2aRouter.post('/api/a2a/dgm/autonomous-cycle-test', async (_req: Request, res: Response) => {
+  try {
+    const result = await runDGMAutonomousCycleTest();
+    res.json({ success: result.success, data: result, cycle: 'C182', sprint: '8.3' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: String(err) });
   }
 });

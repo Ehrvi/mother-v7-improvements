@@ -33,6 +33,7 @@ import { runSelfAudit } from '../mother/self-audit-engine.js';
 import { runHourlyAggregation } from '../mother/metrics-aggregation-job.js'; // v69.12: Fix P0 — system_metrics aggregation
 import { warmCache } from '../mother/semantic-cache.js'; // C175: Cache warming on startup — fixes 12% hit rate (warmCache was only in index.ts, not production-entry.ts)
 import { getTwinState, getAlerts, getSensorHistory, startSimulator, stopSimulator } from '../mother/shms-digital-twin.js'; // C179: SHMS Digital Twin REST routes
+import { handleSHMSAnalyze, handleSHMSCalibration } from '../mother/shms-analyze-endpoint.js'; // C182: Sprint 7 — SHMS analyze + G-Eval geotechnical
 import { injectSprintKnowledge } from '../mother/council-v4-sprint-knowledge.js'; // C179: Knowledge injection on startup
 import { sdk } from './sdk.js';
 import { createLogger } from './logger'; // v74.0: NC-003 structured logger
@@ -569,6 +570,10 @@ app.post('/api/shms/simulator/stop', (_req, res) => {
   try { stopSimulator(); res.json({ status: 'stopped' }); }
   catch (e) { res.status(500).json({ error: String(e) }); }
 });
+// C182: Sprint 7 — SHMS analyze endpoint with G-Eval geotechnical calibration (50 annotated examples)
+// Scientific basis: Sun et al. (2025), G-Eval arXiv:2303.16634, ICOLD Bulletin 158, GeoMCP arXiv:2603.01022
+app.post('/api/shms/analyze', handleSHMSAnalyze);
+app.get('/api/shms/calibration', handleSHMSCalibration);
 
 // tRPC routes
 app.use(
