@@ -352,3 +352,124 @@ export async function getTimescalePoolStatus(): Promise<{
     waitingCount: pool.waitingCount,
   };
 }
+
+// ============================================================
+// C194-1: Alert Storage (ICOLD Bulletin 158 — 3-level alarm)
+// ============================================================
+
+/**
+ * Store an ICOLD alert in shms_ts_alerts hypertable.
+ * Base científica: ICOLD Bulletin 158 (2014) — 3-level alarm system.
+ */
+export async function storeAlertTS(alert: {
+  sensorId: string;
+  structureId: string;
+  alertLevel: 'GREEN' | 'YELLOW' | 'RED';
+  message: string;
+  value: number;
+  threshold: number;
+  acknowledged: boolean;
+}): Promise<{ success: boolean; error?: string }> {
+  if (!_initialized) return { success: false, error: 'TimescaleDB not initialized' };
+  const pool = getTimescalePool();
+  if (!pool) return { success: false, error: 'Pool unavailable' };
+  let client: PoolClient | null = null;
+  try {
+    client = await pool.connect();
+    await client.query(
+      `INSERT INTO shms_ts_alerts
+        (time, sensor_id, sensor_type, alert_level, value, threshold, message, acknowledged)
+       VALUES (NOW(), $1, 'unknown', $2, $3, $4, $5, $6)`,
+      [
+        alert.sensorId,
+        alert.alertLevel,
+        alert.value,
+        alert.threshold,
+        alert.message.slice(0, 500),
+        alert.acknowledged,
+      ]
+    );
+    return { success: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[TIMESCALE] storeAlertTS error:', msg);
+    return { success: false, error: msg };
+  } finally {
+    client?.release();
+  }
+}
+
+// ============================================================
+// C194-2: Historical Query (ICOLD Bulletin 158 — historical analysis)
+// ============================================================
+
+/**
+ * Query sensor readings history for a given zone/structure over the last N hours.
+ * Base científica: ICOLD Bulletin 158 (2014) — historical data analysis.
+ */
+export async function queryReadingsHistory(params: {
+  structureId: string;
+  hours?: number;
+  sensorType?: string;
+  limit?: number;
+}): Promise<{
+  readings: Array<{
+    time: string;
+    sensorId: string;
+    sensorType: string;
+    value: number;
+    unit: string;
+    zone: string;
+    isAnomaly: boolean;
+    severity: string;
+    quality: string;
+  }>;
+  total: number;
+  error?: string;
+}> {
+  if (!_initialized) return { readings: [], total: 0, error: 'TimescaleDB not initialized' };
+  const pool = getTimescalePool();
+  if (!pool) return { readings: [], total: 0, error: 'Pool unavailable' };
+  let client: PoolClient | null = null;
+  try {
+    client = await pool.connect();
+    const hours = params.hours ?? 24;
+    const limit = Math.min(params.limit ?? 1000, 5000);
+    const queryParams: (string | number)[] = [params.structureId, hours];
+    let sensorTypeClause = '';
+    if (params.sensorType) {
+      sensorTypeClause = `AND sensor_type = $3`;
+      queryParams.push(params.sensorType);
+    }
+
+    const result = await client.query(
+      `SELECT
+         time AT TIME ZONE 'UTC' AS time,
+         sensor_id AS "sensorId",
+         sensor_type AS "sensorType",
+         value,
+         unit,
+         zone,
+         is_anomaly AS "isAnomaly",
+         severity,
+         quality
+       FROM shms_ts_sensor_readings
+       WHERE zone = $1
+         AND time > NOW() - ($2 || ' hours')::INTERVAL
+         ${sensorTypeClause}
+       ORDER BY time DESC
+       LIMIT ${limit}`,
+      queryParams
+    );
+    return {
+      readings: result.rows,
+      total: result.rowCount ?? 0,
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[TIMESCALE] queryReadingsHistory error:', msg);
+    return { readings: [], total: 0, error: msg };
+  } finally {
+    client?.release();
+  }
+}

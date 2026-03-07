@@ -809,4 +809,51 @@ app.listen(PORT, '0.0.0.0', async () => {
       mqttDigitalTwinBridge.startSimulationFallback();
     }
   }, 4000);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // C194-1: MQTT → sensor-validator → TimescaleDB ingestion bridge
+  // Base científica: ISO/IEC 20922:2016 (MQTT) + Freedman et al. (2018) TimescaleDB
+  // ─────────────────────────────────────────────────────────────────────────
+  setTimeout(async () => {
+    try {
+      const { initMQTTTimescaleBridge } = await import('../shms/mqtt-timescale-bridge.js');
+      await initMQTTTimescaleBridge();
+      log.info('[MOTHER C194] MQTT→TimescaleDB bridge ATIVO — sensor-validator + hypertable ingestion');
+    } catch (err) {
+      log.warn('[MOTHER C194] MQTT-TimescaleDB bridge init falhou (non-critical):', (err as Error).message?.slice(0, 100));
+    }
+  }, 6000);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // C194-3: DGM Sprint 12 — Ciclo autônomo cron DIÁRIO
+  // Base científica: Darwin Gödel Machine arXiv:2505.22954 — autonomous self-improvement
+  //   Google SRE Book (Beyer et al., 2016) — scheduled maintenance windows
+  // Executa às 03:00 UTC diariamente (fora do horário de pico de produção)
+  // ─────────────────────────────────────────────────────────────────────────
+  const DGM_DAILY_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h
+  const DGM_FIRST_RUN_DELAY_MS = 10 * 60 * 1000; // 10min after startup
+
+  setTimeout(() => {
+    log.info('[MOTHER C194] DGM Sprint 12 — ciclo autônomo diário agendado (primeiro ciclo em 10min)');
+    const runDGMDailyCycle = async () => {
+      try {
+        const { runDGMCycle } = await import('../mother/dgm-orchestrator.js');
+        log.info('[MOTHER C194] DGM Sprint 12 — iniciando ciclo autônomo diário...');
+        const result = await runDGMCycle({
+          objective: 'Daily autonomous self-improvement cycle — DGM Sprint 12',
+          targetFile: 'server/mother/core.ts',
+          proposedContent: '// DGM Sprint 12 autonomous cycle — no structural change, fitness measurement only',
+          initiator: 'autonomous',
+          deployThreshold: 80,
+          scientificBasis: 'Darwin Gödel Machine arXiv:2505.22954 — autonomous self-improvement via fitness measurement',
+        });
+        log.info(`[MOTHER C194] DGM Sprint 12 — ciclo concluído: fitness=${result.fitnessOverall ?? 'N/A'} | phase=${result.phase}`);
+      } catch (err) {
+        log.warn('[MOTHER C194] DGM Sprint 12 ciclo falhou (non-critical):', (err as Error).message?.slice(0, 100));
+      }
+    };
+    // First run after 10min, then every 24h
+    setTimeout(runDGMDailyCycle, DGM_FIRST_RUN_DELAY_MS);
+    setInterval(runDGMDailyCycle, DGM_DAILY_INTERVAL_MS);
+  }, 5000);
 });

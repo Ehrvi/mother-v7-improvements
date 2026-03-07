@@ -111,6 +111,59 @@ shmsRouter.get('/dashboard/:structureId', async (req: Request, res: Response) =>
 });
 
 /**
+ * GET /shms/history/:structureId — Historical sensor readings from TimescaleDB
+ * C194-2: Returns time-series data for a structure over the last N hours.
+ * Base científica: ICOLD Bulletin 158 (2014) — historical data analysis;
+ *   Freedman et al. (2018) TimescaleDB — time-bucketed queries.
+ * Query params: hours (default: 24), sensorType (optional), limit (default: 1000)
+ */
+shmsRouter.get('/history/:structureId', async (req: Request, res: Response) => {
+  try {
+    const { queryReadingsHistory } = await import('../../shms/timescale-pg-client.js');
+    const { structureId } = req.params;
+    const hours = parseInt((req.query.hours as string) ?? '24', 10);
+    const sensorType = req.query.sensorType as string | undefined;
+    const limit = parseInt((req.query.limit as string) ?? '1000', 10);
+
+    if (isNaN(hours) || hours < 1 || hours > 720) {
+      res.status(400).json({ error: 'hours must be between 1 and 720' });
+      return;
+    }
+
+    const result = await queryReadingsHistory({ structureId, hours, sensorType, limit });
+    res.json({
+      structureId,
+      hours,
+      sensorType: sensorType ?? 'all',
+      ...result,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    log.error('[SHMSRouter] History error:', err);
+    res.status(500).json({ error: 'History query unavailable' });
+  }
+});
+
+/**
+ * GET /shms/bridge/stats — MQTT→TimescaleDB bridge statistics
+ * C194-1: Returns real-time ingestion pipeline stats.
+ */
+shmsRouter.get('/bridge/stats', async (_req: Request, res: Response) => {
+  try {
+    const { getMQTTTimescaleBridge } = await import('../../shms/mqtt-timescale-bridge.js');
+    const bridge = getMQTTTimescaleBridge();
+    if (!bridge) {
+      res.json({ status: 'not-initialized', message: 'MQTT-TimescaleDB bridge not started' });
+      return;
+    }
+    res.json({ status: 'active', stats: bridge.getStats() });
+  } catch (err) {
+    log.error('[SHMSRouter] Bridge stats error:', err);
+    res.status(500).json({ error: 'Bridge stats unavailable' });
+  }
+});
+
+/**
  * GET /shms/status — SHMS v2 status
  */
 shmsRouter.get('/status', authenticateA2A, (_req: Request, res: Response) => {
