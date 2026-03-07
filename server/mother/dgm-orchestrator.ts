@@ -543,6 +543,33 @@ export async function runDGMCycle(spec: DGMCycleSpec): Promise<DGMCycleResult> {
       });
     }
 
+    // C193 DGM Sprint 11: Benchmark automático pós-autoMerge — Conselho C188 Seção 9.4
+    // Base científica: HELM (Liang et al., arXiv:2211.09110) — 6 MCCs benchmark após cada merge autônomo
+    // Critério: executar benchmark completo quando autoMerge é ativado (fitness ≥ 80)
+    // Efeito: validação científica de que o merge não degradou capacidades existentes
+    if (fitnessScore.overall >= 80) {
+      // runBenchmark(code, cycleId, moduleName) — usa conteúdo do ciclo atual como código a avaliar
+      runBenchmark(spec.proposedContent, cycleId, spec.targetFile).then((benchReport) => {
+        log.info('[C193-SPRINT11] DGM Sprint 11: benchmark pós-autoMerge concluído', {
+          cycleId, fitness: fitnessScore.overall,
+          benchmarkPassed: `${benchReport.passed}/${benchReport.totalTasks}`,
+          passRate: benchReport.passRate,
+          overallScore: benchReport.overallScore,
+          regressionDetected: benchReport.regressionDetected,
+          scientificBasis: 'HELM (Liang et al., arXiv:2211.09110)',
+        });
+        if (benchReport.regressionDetected) {
+          log.warn('[C193-SPRINT11] REGRESSÃO DETECTADA pós-autoMerge — revisar merge manualmente', {
+            cycleId,
+            failed: benchReport.failed,
+            passRate: benchReport.passRate,
+          });
+        }
+      }).catch((err: Error) => {
+        log.warn('[C193-SPRINT11] Benchmark pós-autoMerge falhou (non-blocking)', { cycleId, error: String(err) });
+      });
+    }
+
     // C190 P0 CRÍTICO: Trigger LoRA data collection após ciclo DGM bem-sucedido
     // Base científica: Conselho C188 Seção 3.2.1 — Hu et al. (2025) LoRA-XS arXiv:2405.09673
     // Condição: fitness ≥ 75 (ciclo de qualidade) — apenas coleta dados (dryRun=true)

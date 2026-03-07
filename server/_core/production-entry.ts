@@ -55,6 +55,12 @@ import { scheduleLoRAPipeline } from '../mother/lora-trainer.js';
 // Sun et al. (2025) DOI:10.1145/3777730.3777858 — SHMS Digital Twin em tempo real
 import { initTimescaleConnector } from '../shms/timescale-connector.js';
 import { mqttDigitalTwinBridge } from '../shms/mqtt-digital-twin-bridge.js';
+// C193: TimescaleDB Cloud (Tiger Cloud) — conexão PostgreSQL dedicada via TIMESCALE_DB_URL
+// Base científica: Freedman et al. (2018) VLDB — hypertables para séries temporais IoT
+import { initTimescaleSchema, getTimescalePoolStatus } from '../shms/timescale-pg-client.js';
+// C193: MQTT real (HiveMQ Cloud) — mqtt-connector.ts agora usa pacote 'mqtt' real
+// Base científica: ISO/IEC 20922:2016 MQTT v5.0 + Sun et al. (2025) DOI:10.1145/3777730.3777858
+import { SHMSMqttConnector } from '../shms/mqtt-connector.js';
 import { sdk } from './sdk.js';
 import { createLogger } from './logger'; // v74.0: NC-003 structured logger
 const log = createLogger('PROD_ENTRY');
@@ -751,38 +757,56 @@ app.listen(PORT, '0.0.0.0', async () => {
   scheduleLoRAPipeline();
   log.info('[MOTHER C190] LoRA pipeline semanal ativado — coleta de dados do BD a cada 7 dias');
 
-  // C191 Phase 6 S3-4: Inicializar TimescaleDB connector — Conselho C188 Seção 9.3
-  // FALSE POSITIVE C191: initTimescaleConnector() existia mas NUNCA era chamada no startup
-  // Efeito: hypertables de séries temporais agora são criadas/verificadas na inicialização
-  // Base científica: Freedman et al. (2018) TimescaleDB VLDB — time-series hypertables
+  // C193 DESBLOQUEADO: TimescaleDB Cloud (Tiger Cloud) — conexão PostgreSQL dedicada
+  // TIMESCALE_DB_URL=postgres://tsdbadmin:***@np88jyj5mj.e8uars6xuw.tsdb.cloud.timescale.com:31052/tsdb?sslmode=require
+  // TCP connectivity confirmed: 2026-03-08 — 3 hypertables: shms_ts_sensor_readings, shms_ts_predictions, shms_ts_alerts
+  // Base científica: Freedman et al. (2018) VLDB — 1-day chunks, 7-day compression (10x storage reduction)
   setTimeout(async () => {
     try {
-      await initTimescaleConnector();
-      log.info('[MOTHER C191] TimescaleDB connector inicializado — hypertables prontas para séries temporais');
+      // C193: initTimescaleSchema() usa TIMESCALE_DB_URL (PostgreSQL/Tiger Cloud)
+      // Separado de DATABASE_URL (MySQL/Cloud SQL) — conexão dedicada para séries temporais
+      const result = await initTimescaleSchema();
+      if (result.success) {
+        const status = await getTimescalePoolStatus();
+        log.info(`[MOTHER C193] TimescaleDB Cloud ATIVO — ${result.message} | host: ${status.host}`);
+      } else {
+        log.warn(`[MOTHER C193] TimescaleDB init: ${result.message}`);
+        // Fallback: usar timescale-connector.ts (Cloud SQL) para compatibilidade
+        await initTimescaleConnector();
+        log.info('[MOTHER C193] Fallback: Cloud SQL TimescaleDB connector inicializado');
+      }
     } catch (err) {
-      log.warn('[MOTHER C191] TimescaleDB init falhou (non-critical — TIMESCALE_DB_URL não configurado):', (err as Error).message?.slice(0, 100));
+      log.warn('[MOTHER C193] TimescaleDB init falhou (non-critical):', (err as Error).message?.slice(0, 100));
     }
   }, 3000);
 
-  // C191 Phase 6 S3-4: Conectar MQTT Digital Twin Bridge — Conselho C188 Seção 9.3
-  // FALSE POSITIVE C191: mqttDigitalTwinBridge existia mas connect() NUNCA era chamado no startup
-  // Efeito: bridge MQTT → Digital Twin agora inicia automaticamente se MQTT_BROKER_URL configurado
+  // C193 DESBLOQUEADO: MQTT real (HiveMQ Cloud) — SHMSMqttConnector com pacote 'mqtt' real
+  // MQTT_BROKER_URL=mqtts://Mother:***@5d8c986a8de24d1d9d92cbd55fcd75d7.s1.eu.hivemq.cloud:8883
+  // TLS connectivity confirmed: 2026-03-08 — ISO/IEC 20922:2016 MQTT v5.0
   // Base científica: Sun et al. (2025) DOI:10.1145/3777730.3777858 — SHMS Digital Twin em tempo real
-  // ISO/IEC 20922:2016 MQTT protocol; GISTM 2020 sensor thresholds
   setTimeout(async () => {
     const mqttUrl = process.env.MQTT_BROKER_URL;
     if (mqttUrl) {
       try {
-        // MQTTDigitalTwinBridge usa startSimulationFallback() como método de inicialização
-        // O broker real será conectado via mqtt-connector.ts quando MQTT_BROKER_URL estiver configurado
-        // Base científica: Sun et al. (2025) — SHMS Digital Twin pipeline
+        // C193: Usar SHMSMqttConnector com broker real (HiveMQ Cloud)
+        // connect() agora usa pacote 'mqtt' real — fallback automático para simulation se timeout
+        const mqttConnector = new SHMSMqttConnector(mqttUrl);
+        await mqttConnector.connect();
+        const status = mqttConnector.getStatus();
+        if (status.mode === 'mqtt') {
+          log.info(`[MOTHER C193] MQTT HiveMQ Cloud ATIVO — broker: ${status.brokerUrl} | sensores: ${status.activeSensors}`);
+        } else {
+          log.info('[MOTHER C193] MQTT em SIMULATION mode — broker configurado mas fallback ativo');
+        }
+        // Também iniciar Digital Twin Bridge (simulation fallback para compatibilidade)
         mqttDigitalTwinBridge.startSimulationFallback();
-        log.info('[MOTHER C191] MQTT Digital Twin Bridge ativado (simulation fallback) — MQTT_BROKER_URL detectado, broker real será conectado via mqtt-connector.ts');
       } catch (err) {
-        log.warn('[MOTHER C191] MQTT bridge falhou (non-critical — verificar MQTT_BROKER_URL):', (err as Error).message?.slice(0, 100));
+        log.warn('[MOTHER C193] MQTT init falhou (non-critical):', (err as Error).message?.slice(0, 100));
+        mqttDigitalTwinBridge.startSimulationFallback();
       }
     } else {
-      log.info('[MOTHER C191] MQTT bridge em standby — MQTT_BROKER_URL não configurado (Phase 6 S3-4 pendente: provisionar HiveMQ Cloud)');
+      log.info('[MOTHER C193] MQTT_BROKER_URL não configurado — Digital Twin em simulation mode');
+      mqttDigitalTwinBridge.startSimulationFallback();
     }
   }, 4000);
 });

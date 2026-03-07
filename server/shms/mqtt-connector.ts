@@ -22,6 +22,7 @@
  */
 
 import { EventEmitter } from 'events';
+import mqtt, { MqttClient } from 'mqtt';
 
 // ============================================================
 // Types
@@ -87,6 +88,7 @@ export class SHMSMqttConnector extends EventEmitter {
   private sensors: Map<string, SensorConfig>;
   private simulationIntervals: Map<string, NodeJS.Timeout>;
   private readonly brokerUrl: string;
+  private mqttClient: MqttClient | null = null;
 
   constructor(brokerUrl?: string) {
     super();
@@ -113,21 +115,107 @@ export class SHMSMqttConnector extends EventEmitter {
 
   /**
    * Connect to MQTT broker or start simulation mode.
-   * Falls back to simulation if broker is unavailable (development/testing).
+   * C193: Uses real HiveMQ Cloud broker when MQTT_BROKER_URL is set.
+   * Scientific basis: ISO/IEC 20922:2016 MQTT v5.0 + Sun et al. (2025) DOI:10.1145/3777730.3777858
    */
   async connect(): Promise<void> {
-    // Try to connect to real MQTT broker if available
-    // In production, this would use the 'mqtt' npm package
-    // For now, use simulation mode (deterministic for testing)
-    console.log(`[SHMS-MQTT] Attempting connection to ${this.brokerUrl}...`);
+    const isRealBroker = this.brokerUrl && !this.brokerUrl.includes('localhost');
+    if (isRealBroker) {
+      console.log(`[SHMS-MQTT] C193: Connecting to HiveMQ Cloud: ${this.brokerUrl.replace(/:[^:@]*@/, ':***@')}`);
+      await this._connectRealBroker();
+    } else {
+      console.log('[SHMS-MQTT] No real broker configured — SIMULATION mode');
+      this._startSimulationMode();
+    }
+  }
 
-    // Simulation mode: generate realistic sensor data
+  /**
+   * Connect to real MQTT broker (HiveMQ Cloud).
+   * C193: MQTT_BROKER_URL=mqtts://Mother:***@5d8c986a8de24d1d9d92cbd55fcd75d7.s1.eu.hivemq.cloud:8883
+   */
+  private async _connectRealBroker(): Promise<void> {
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        console.warn('[SHMS-MQTT] Connection timeout — falling back to SIMULATION');
+        this._startSimulationMode();
+        resolve();
+      }, 10000);
+
+      this.mqttClient = mqtt.connect(this.brokerUrl, {
+        rejectUnauthorized: false,
+        keepalive: 60,
+        reconnectPeriod: 5000,
+        connectTimeout: 8000,
+        clientId: `mother-shms-${Date.now()}`,
+      });
+
+      this.mqttClient.on('connect', () => {
+        clearTimeout(timeout);
+        this.status.mode = 'mqtt';
+        this.status.connected = true;
+        this.status.connectedAt = new Date();
+        this.status.brokerUrl = this.brokerUrl.replace(/:[^:@]*@/, ':***@');
+        this.status.activeSensors = this.sensors.size;
+
+        // Subscribe to sensor topics
+        const topics = Array.from(this.sensors.values()).map((s) => s.topic);
+        if (topics.length > 0) {
+          this.mqttClient!.subscribe(topics, { qos: 1 });
+        }
+        this.mqttClient!.subscribe('mother/shms/#', { qos: 1 });
+
+        console.log(`[SHMS-MQTT] CONNECTED to HiveMQ Cloud (${this.sensors.size} sensors)`);
+        this.emit('connected', { mode: 'mqtt', broker: this.status.brokerUrl, sensors: this.sensors.size });
+        resolve();
+      });
+
+      this.mqttClient.on('message', (topic, payload) => {
+        try {
+          const data = JSON.parse(payload.toString()) as Record<string, unknown>;
+          const parts = topic.split('/');
+          const sensorId = (data.sensorId as string) ?? parts[parts.length - 1] ?? 'unknown';
+          const sensorType = (data.sensorType as string) ?? parts[2] ?? 'custom';
+          const reading: SensorReading = {
+            sensorId,
+            sensorType: sensorType as SensorType,
+            timestamp: data.timestamp ? new Date(data.timestamp as string) : new Date(),
+            value: Number(data.value ?? 0),
+            unit: (data.unit as string) ?? '',
+            location: { zone: (data.zone as string) ?? 'unknown' },
+            quality: (data.quality as 'good' | 'uncertain' | 'bad') ?? 'good',
+            rawPayload: data,
+          };
+          this.status.messagesReceived++;
+          this.status.lastMessageAt = new Date();
+          this.emit('reading', reading);
+        } catch { /* non-JSON message */ }
+      });
+
+      this.mqttClient.on('error', (err) => {
+        clearTimeout(timeout);
+        this.status.errors.push(err.message);
+        console.error('[SHMS-MQTT] Error:', err.message);
+        if (!this.status.connected) {
+          console.warn('[SHMS-MQTT] Falling back to SIMULATION mode');
+          this._startSimulationMode();
+          resolve();
+        }
+      });
+
+      this.mqttClient.on('offline', () => {
+        this.status.connected = false;
+        console.warn('[SHMS-MQTT] Broker offline');
+      });
+    });
+  }
+
+  /** Start simulation mode (fallback when no real broker). */
+  private _startSimulationMode(): void {
     this.status.mode = 'simulation';
     this.status.connected = true;
     this.status.connectedAt = new Date();
     this.status.activeSensors = this.sensors.size;
-
-    console.log(`[SHMS-MQTT] Running in SIMULATION mode (${this.sensors.size} sensors)`);
+    console.log(`[SHMS-MQTT] SIMULATION mode (${this.sensors.size} sensors)`);
     this.emit('connected', { mode: 'simulation', sensors: this.sensors.size });
   }
 

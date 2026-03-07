@@ -1,27 +1,32 @@
 /**
- * dashboard-shms.ts — Dashboard SHMS (3 Estruturas Monitoradas)
+ * dashboard-shms.ts — Dashboard SHMS (5 Estruturas Monitoradas)
  *
- * Conselho C188 Seção 9.4 — Phase 7 S1-2 — Ciclo 192 (escalado de 1 para 3 estruturas)
+ * Conselho C188 Seção 9.4 — Phase 7 S3-4 — Ciclo 193 (escalado de 3 para 5 estruturas)
  * Base científica:
  *   - Sun et al. (2025) DOI:10.1145/3777730.3777858 — SHMS Digital Twin
  *   - ICOLD Bulletin 158 (2014) — 3-level alarm system (Green/Yellow/Red)
- *   - GISTM 2020 — sensor thresholds for geotechnical monitoring
+ *   - GISTM 2020 Seção 7 — instrumentação mínima para estruturas de rejeitos
  *
  * Função: Agrega dados de sensores, alertas ICOLD e status do Digital Twin
- * em endpoints de dashboard para 3 estruturas monitoradas (KPI Phase 7).
+ * em endpoints de dashboard para 5 estruturas monitoradas (KPI Phase 7 S3-4).
  *
  * Integração: Conectado em shms-router.ts via:
  *   GET /api/shms/v2/dashboard           — estrutura principal (STRUCTURE_001)
  *   GET /api/shms/v2/dashboard/:id       — estrutura específica
- *   GET /api/shms/v2/dashboard/all       — todas as 3 estruturas (Phase 7 KPI)
+ *   GET /api/shms/v2/dashboard/all       — todas as 5 estruturas (Phase 7 KPI)
  */
 
-// C192 Phase 7 KPI: 3 estruturas monitoradas — Conselho C188 Seção 9.4
-// Base científica: Sun et al. (2025) DOI:10.1145/3777730.3777858 — multi-structure SHMS
+// C193-4 Phase 7 S3-4 KPI: 5 estruturas monitoradas — Conselho C188 Seção 9.4
+// Escalado de 3 (C192) para 5 (C193) — Base científica: Sun et al. (2025) DOI:10.1145/3777730.3777858
+// GISTM 2020 Seção 7 — instrumentação mínima para estruturas de rejeitos
 export const MONITORED_STRUCTURES: Record<string, { name: string; type: string; location: string }> = {
   STRUCTURE_001: { name: 'Barragem Principal', type: 'dam', location: 'Mina Alpha — Setor Norte' },
   STRUCTURE_002: { name: 'Talude Leste', type: 'slope', location: 'Mina Alpha — Setor Leste' },
   STRUCTURE_003: { name: 'Dique de Contenção', type: 'dike', location: 'Mina Alpha — Setor Sul' },
+  // C193-4: Escalado de 3 para 5 estruturas — Conselho C188 Seção 9.4 Phase 7 S3-4 KPI
+  // GISTM 2020 Seção 7 — aterros de rejeitos requerem monitoramento contínuo (Classe A/B)
+  STRUCTURE_004: { name: 'Aterro de Rejeitos Norte', type: 'tailings', location: 'Mina Alpha — Setor Noroeste' },
+  STRUCTURE_005: { name: 'Barragem Auxiliar', type: 'dam', location: 'Mina Beta — Setor Central' },
 };
 
 import { createLogger } from '../_core/logger.js';
