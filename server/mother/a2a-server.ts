@@ -40,6 +40,7 @@ import { runActiveStudySession } from './active-study-connector'; // C147: Activ
 import { registerSHMSRoutes } from '../shms/shms-api'; // NC-SHMS-001: SHMS real-time monitoring
 import { runDGMAutonomousCycleTest, getDGMAutonomousStatus } from './dgm-autonomous-cycle-test.js'; // C182: Sprint 8.3 — DGM autonomous cycle test
 import { executeDGMCycle2 } from './dgm-cycle2-sprint84.js'; // C183: Sprint 8.4 — DGM autonomous cycle 2 (real GitHub API)
+import { executeDGMCycle3 } from './dgm-cycle3-sprint85.js'; // C184: Sprint 8.5 — DGM autonomous cycle 3 (REAL PR creation)
 import { getDb } from '../db';
 import { knowledge, queries } from '../../drizzle/schema';
 import { getRecentQueries, getQueryStats, getAllKnowledge } from '../db';
@@ -2234,6 +2235,29 @@ a2aRouter.post('/api/a2a/dgm/cycle2', async (_req: Request, res: Response) => {
   try {
     const result = await executeDGMCycle2();
     res.json({ success: result.success, data: result, cycle: 'C183', sprint: '8.4' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+/**
+ * POST /api/a2a/dgm/cycle3 — Execute DGM autonomous cycle 3 (Sprint 8.5)
+ * C184: REAL branch + commit + PR creation (no auto-merge, human review required)
+ * 3rd and final test cycle before enabling autoMerge in C185 (Sprint 9)
+ * Scientific basis: Darwin Gödel Machine arXiv:2505.22954 (2025)
+ */
+a2aRouter.post('/api/a2a/dgm/cycle3', async (_req: Request, res: Response) => {
+  try {
+    const result = await executeDGMCycle3();
+    res.json({
+      success: result.success,
+      data: result,
+      cycle: 'C184',
+      sprint: '8.5',
+      message: result.success
+        ? `DGM Cycle 3 complete. PR #${result.prNumber} created at ${result.prUrl}. After human review, autoMerge can be enabled in C185.`
+        : `DGM Cycle 3 failed at phase: ${result.phase}`,
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: String(err) });
   }
