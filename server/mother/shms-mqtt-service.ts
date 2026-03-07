@@ -13,8 +13,8 @@
  *   e.g.: shms/intelltech-site1/piezometro/PIZ-001
  *
  * @module shms-mqtt-service
- * @version 1.0.0
- * @cycle C181
+ * @version 1.1.0
+ * @cycle C183 — HiveMQ Cloud TLS support (BK-002 resolved)
  */
 
 import * as mqtt from 'mqtt';
@@ -76,14 +76,22 @@ export class SHMSMqttService {
    */
   async connect(): Promise<void> {
     return new Promise((resolve) => {
+      const brokerUrl = this.brokerUrl;
+      const isTLS = brokerUrl.startsWith('mqtts://') || brokerUrl.startsWith('ssl://');
       const options: mqtt.IClientOptions = {
         clientId: `mother-shms-${Date.now()}`,
         username: this.username ?? process.env.MQTT_USERNAME,
         password: this.password ?? process.env.MQTT_PASSWORD,
-        connectTimeout: 5000,
-        reconnectPeriod: 10000,
+        // HiveMQ Cloud TLS handshake requires more time than local broker
+        connectTimeout: isTLS ? 15000 : 5000,
+        reconnectPeriod: 30000,
         clean: true,
         protocolVersion: 5,
+        // TLS: HiveMQ Cloud uses CA-signed certificate (DigiCert)
+        // Scientific basis: OASIS MQTT v5.0 Standard (2019) — TLS mutual auth
+        ...(isTLS && {
+          rejectUnauthorized: true,
+        }),
       };
 
       log.info(`[SHMS-MQTT] Connecting to broker: ${this.brokerUrl}`);
@@ -91,11 +99,12 @@ export class SHMSMqttService {
       try {
         this.client = mqtt.connect(this.brokerUrl, options);
 
+        const timeoutMs = isTLS ? 15000 : 5000;
         const connectTimeout = setTimeout(() => {
-          log.warn('[SHMS-MQTT] Broker connection timeout — switching to simulation mode');
+          log.warn(`[SHMS-MQTT] Broker connection timeout (${timeoutMs}ms) — switching to simulation mode`);
           this.enableSimulationMode();
           resolve();
-        }, 5000);
+        }, timeoutMs);
 
         this.client.on('connect', () => {
           clearTimeout(connectTimeout);

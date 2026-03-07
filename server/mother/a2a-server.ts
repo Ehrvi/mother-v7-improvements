@@ -39,6 +39,7 @@ import { handleReportRequest } from './phase6c-autonomy-report'; // C160: Phase 
 import { runActiveStudySession } from './active-study-connector'; // C147: Active Study Connector
 import { registerSHMSRoutes } from '../shms/shms-api'; // NC-SHMS-001: SHMS real-time monitoring
 import { runDGMAutonomousCycleTest, getDGMAutonomousStatus } from './dgm-autonomous-cycle-test.js'; // C182: Sprint 8.3 — DGM autonomous cycle test
+import { executeDGMCycle2 } from './dgm-cycle2-sprint84.js'; // C183: Sprint 8.4 — DGM autonomous cycle 2 (real GitHub API)
 import { getDb } from '../db';
 import { knowledge, queries } from '../../drizzle/schema';
 import { getRecentQueries, getQueryStats, getAllKnowledge } from '../db';
@@ -2220,6 +2221,19 @@ a2aRouter.post('/api/a2a/dgm/autonomous-cycle-test', async (_req: Request, res: 
   try {
     const result = await runDGMAutonomousCycleTest();
     res.json({ success: result.success, data: result, cycle: 'C182', sprint: '8.3' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+/**
+ * POST /api/a2a/dgm/cycle2 — Execute DGM autonomous cycle 2 (Sprint 8.4)
+ * C183: Real GitHub API calls, bd_central persistence, test mode (no auto-merge)
+ * Scientific basis: Darwin Gödel Machine arXiv:2505.22954 (2025)
+ */
+a2aRouter.post('/api/a2a/dgm/cycle2', async (_req: Request, res: Response) => {
+  try {
+    const result = await executeDGMCycle2();
+    res.json({ success: result.success, data: result, cycle: 'C183', sprint: '8.4' });
   } catch (err) {
     res.status(500).json({ success: false, error: String(err) });
   }

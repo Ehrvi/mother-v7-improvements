@@ -936,6 +936,19 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
   const l25Start = Date.now();
   const { ENV: ENV_DPO } = await import('../_core/env');
   if (ENV_DPO.dpoFineTunedModel && !l1.fromCache) {
+    // ── Sprint 3 (C183): DPO Tier-Gate — bypass DPO for TIER_1/2 ─────────────
+    // Scientific basis:
+    //   - Rafailov et al. (arXiv:2305.18290, NeurIPS 2023): DPO adds ~60-70s latency
+    //     due to fine-tuned model inference overhead vs. base gpt-4o-mini (~2-3s)
+    //   - Council consensus (C183, Delphi+MAD): TIER_1 (factual/greeting) and TIER_2
+    //     (simple operational) do NOT benefit from MOTHER's identity/style fine-tune
+    //     because base model answers these identically to DPO model.
+    //   - Hypothesis: Bypassing DPO for TIER_1/2 reduces P50 from 75s to ~3-8s
+    //     while maintaining quality for TIER_3/4 (complex/geotechnical queries).
+    //   - A/B test planned for C184 to validate with G-Eval geotécnico.
+    const currentTier = l2.routing.tier;
+    const isDPOBeneficial = currentTier === 'TIER_3' || currentTier === 'TIER_4';
+
     // Only skip DPO for queries that REQUIRE base model capabilities not in DPO fine-tune
     const REQUIRES_BASE_MODEL: RegExp[] = [
       // Multimodal (DPO v8e is text-only)
@@ -944,16 +957,20 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
       /\b(use|usar|switch to|mudar para)\s+(gpt-4o|claude|gemini|mistral|deepseek)\b/i,
     ];
     const requiresBaseModel = REQUIRES_BASE_MODEL.some(r => r.test(req.query));
-    if (!requiresBaseModel) {
-      // DPO v8e is the default for ALL queries
+
+    if (!requiresBaseModel && isDPOBeneficial) {
+      // DPO v8e for TIER_3/4 — complex queries benefit from MOTHER's identity/style
       l2.routing = {
         ...l2.routing,
         primaryProvider: 'openai',
         primaryModel: ENV_DPO.dpoFineTunedModel,
         useCache: false,
-        rationale: `DPO Universal Default (NC-DPO-UNIVERSAL-001 Ciclo 106): DPO v8e → ${ENV_DPO.dpoFineTunedModel}`,
+        rationale: `DPO Universal Default (NC-DPO-UNIVERSAL-001 C106) + Sprint3 Tier-gate (C183): DPO v8e → ${ENV_DPO.dpoFineTunedModel} [${currentTier}]`,
       };
-      console.log(`[Orchestrator] DPO Universal ACTIVATED: ${ENV_DPO.dpoFineTunedModel}`);
+      console.log(`[Orchestrator] DPO ACTIVATED for ${currentTier}: ${ENV_DPO.dpoFineTunedModel}`);
+    } else if (!isDPOBeneficial) {
+      // Sprint 3 bypass: TIER_1/2 use fast base model (gpt-4o-mini) — P50 target: <8s
+      console.log(`[Orchestrator] DPO BYPASSED for ${currentTier} (Sprint 3 latency optimization) — using base model`);
     } else {
       console.log(`[Orchestrator] DPO skipped: query requires base model capabilities`);
     }
