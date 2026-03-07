@@ -17,7 +17,7 @@
 > **Dependências:** GITHUB_TOKEN, GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT
 
 ### 3.1 — GitHub Read Service
-- [ ] Criar `server/mother/github-read-service.ts` com Octokit REST
+- [x] Criar `server/mother/github-read-service.ts` com Octokit REST — CONCLUÍDO C178
   - [ ] Método `readFile(path, branch)` — GET /repos/{owner}/{repo}/contents/{path}
   - [ ] Método `listDirectory(path)` — lista arquivos de um diretório
   - [ ] Método `getCommitHistory(path, limit)` — GET /repos/{owner}/{repo}/commits
@@ -25,12 +25,12 @@
   - [ ] Método `compareBranches(base, head)` — GET /repos/{owner}/{repo}/compare
   - [ ] Método `searchCode(query)` — GET /search/code
   - [ ] Testes unitários para GitHubReadService
-- [ ] Adicionar `@octokit/rest` e `@octokit/graphql` ao package.json
+- [x] Adicionar `@octokit/rest` e `@octokit/graphql` ao package.json — CONCLUÍDO C178
 - [ ] Adicionar `GITHUB_TOKEN` ao Secret Manager (GCP) e env.ts
 - [ ] Verificar que GITHUB_TOKEN tem permissões: contents:read, issues:read, pull_requests:read
 
 ### 3.2 — GitHub Write Service
-- [ ] Criar `server/mother/github-write-service.ts` com Octokit REST
+- [x] Criar `server/mother/github-write-service.ts` com Octokit REST — CONCLUÍDO C178
   - [ ] Método `createProposalBranch(proposalId)` — cria branch `dgm/proposal-{id}-{ts}`
   - [ ] Método `commitFile(branch, path, content, message)` — PUT /repos/{owner}/{repo}/contents/{path}
   - [ ] Método `createPR(branch, title, body)` — POST /repos/{owner}/{repo}/pulls

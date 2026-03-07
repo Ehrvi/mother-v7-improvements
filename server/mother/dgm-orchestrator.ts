@@ -24,6 +24,7 @@ const log = createLogger('DGM-ORCHESTRATOR');
 import { fitnessEvaluator, EvaluationTarget, FitnessScore } from './fitness-evaluator';
 import { checkDuplicate } from './dgm-deduplicator'; // C148: DGM Deduplicator (ISSUE-DGM: repeated proposals 8+ times per cycle)
 import { getDb } from '../db'; // C176: DB-backed deduplication for cross-restart persistence
+import { sql } from 'drizzle-orm';
 import { runBenchmark } from './dgm-benchmark'; // C173: 6 MCCs auto-run after each DGM cycle (HELM arXiv:2211.09110)
 import {
   createProposal,
@@ -35,6 +36,7 @@ import {
   recordAuditEntry,
   verifyChainIntegrity,
 } from './audit-trail';
+import { githubWriteService } from './github-write-service.js'; // C179: Sprint 1.3.2 — GitHub auto-deploy
 import {
   checkSafetyGate,
   SafetyCheckResult,
@@ -197,16 +199,18 @@ export async function runDGMCycle(spec: DGMCycleSpec): Promise<DGMCycleResult> {
     // Scientific basis: Reflexion (arXiv:2303.11366) — "verbal reinforcement via reflection on past failures"
     // A proposal that has failed 3+ times should not be retried without human review
     try {
-      const db = getDb();
-      const [existingFailed] = await db.execute<{id: number; rejection_count: number; title: string}[]>(
-        `SELECT id, rejection_count, title FROM self_proposals 
-         WHERE status = 'failed' AND rejection_count >= 3 
-         AND title LIKE ? 
-         ORDER BY updated_at DESC LIMIT 1`,
-        [`%${spec.objective.slice(0, 50).replace(/[%_]/g, '\\$&')}%`]
-      );
+      const db = await getDb();
+      if (!db) throw new Error('DB not available');
+      const titlePattern = `%${spec.objective.slice(0, 50).replace(/[%_]/g, '\\$&')}%`;
+      const rows = await db.execute<{id: number; rejection_count: number; title: string}>(sql`
+        SELECT id, rejection_count, title FROM self_proposals 
+        WHERE status = 'failed' AND rejection_count >= 3 
+        AND title LIKE ${titlePattern}
+        ORDER BY updated_at DESC LIMIT 1
+      `);
+      const existingFailed = Array.isArray(rows) ? rows : (rows as any).rows ?? [];
       if (existingFailed && existingFailed.length > 0) {
-        const failed = existingFailed[0];
+        const failed = existingFailed[0] as {id: number; rejection_count: number; title: string};
         log.warn(`[C176-DEDUP] DB-backed dedup: proposal "${failed.title}" failed ${failed.rejection_count}x — skipping until human review`);
         return finalizeCycle(buildAbortResult({
           cycleId, objective: spec.objective, sciBase, startTime,

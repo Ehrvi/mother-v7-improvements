@@ -16,7 +16,7 @@
 
 import crypto from 'crypto';
 import { addKnowledge } from './knowledge.js';
-import { logger } from '../logger.js';
+import { logger } from '../_core/logger.js';
 
 const COUNCIL_V4_KNOWLEDGE = [
   // ===== VEREDICTO DO CONSELHO =====
@@ -202,8 +202,8 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          workload_identity_provider: \${secrets.GCP_WORKLOAD_IDENTITY_PROVIDER}
+          service_account: \${secrets.GCP_SERVICE_ACCOUNT}
       - name: TypeScript validation
         run: npm ci && npx tsc --noEmit && npm test
       - name: Quality gate
@@ -217,7 +217,7 @@ jobs:
           flags: '--tag=staging'
         id: deploy-staging
       - name: Smoke tests
-        run: node scripts/smoke-test.js ${{ steps.deploy-staging.outputs.url }}
+        run: node scripts/smoke-test.js \${steps_deploy_staging_url}
       - name: Deploy to Production
         uses: google-github-actions/deploy-cloudrun@v2
         with:
@@ -227,7 +227,7 @@ jobs:
           flags: '--traffic=100'
         id: deploy-prod
       - name: Health check + Rollback
-        run: node scripts/health-check.js ${{ steps.deploy-prod.outputs.url }}`,
+        run: node scripts/health-check.js \${steps_deploy_prod_url}`,
     priority: 'critical',
     scientificBasis: 'Google Cloud (2024) — Deploy to Cloud Run with GitHub Actions. USENIX (2025) — AI Pipeline Reliability.',
     source: 'Conselho V4 — Gemini 2.5 Pro + Claude Opus 4.5, consenso técnico',

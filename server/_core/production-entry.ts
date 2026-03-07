@@ -32,6 +32,8 @@ import { processQuery as _processQuery } from '../mother/core.js';
 import { runSelfAudit } from '../mother/self-audit-engine.js';
 import { runHourlyAggregation } from '../mother/metrics-aggregation-job.js'; // v69.12: Fix P0 — system_metrics aggregation
 import { warmCache } from '../mother/semantic-cache.js'; // C175: Cache warming on startup — fixes 12% hit rate (warmCache was only in index.ts, not production-entry.ts)
+import { getTwinState, getAlerts, getSensorHistory, startSimulator, stopSimulator } from '../mother/shms-digital-twin.js'; // C179: SHMS Digital Twin REST routes
+import { injectSprintKnowledge } from '../mother/council-v4-sprint-knowledge.js'; // C179: Knowledge injection on startup
 import { sdk } from './sdk.js';
 import { createLogger } from './logger'; // v74.0: NC-003 structured logger
 const log = createLogger('PROD_ENTRY');
@@ -543,6 +545,31 @@ app.post('/api/extract-file-content', extractUpload.single('file'), async (req, 
   }
 });
 
+// C179: SHMS Digital Twin REST API
+// Scientific basis: Hundman et al. (arXiv:1802.04431) LSTM anomaly detection; ISO 19115 geospatial data
+app.get('/api/shms/twin-state', (_req, res) => {
+  try { res.json(getTwinState()); }
+  catch (e) { res.status(500).json({ error: String(e) }); }
+});
+app.get('/api/shms/alerts', (_req, res) => {
+  try { res.json(getAlerts()); }
+  catch (e) { res.status(500).json({ error: String(e) }); }
+});
+app.get('/api/shms/sensor-history/:sensorId', (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit as string || '100', 10);
+    res.json(getSensorHistory(req.params.sensorId, limit));
+  } catch (e) { res.status(500).json({ error: String(e) }); }
+});
+app.post('/api/shms/simulator/start', (_req, res) => {
+  try { startSimulator(); res.json({ status: 'started' }); }
+  catch (e) { res.status(500).json({ error: String(e) }); }
+});
+app.post('/api/shms/simulator/stop', (_req, res) => {
+  try { stopSimulator(); res.json({ status: 'stopped' }); }
+  catch (e) { res.status(500).json({ error: String(e) }); }
+});
+
 // tRPC routes
 app.use(
   '/api/trpc',
@@ -614,4 +641,10 @@ app.listen(PORT, '0.0.0.0', async () => {
     warmCache().then(() => log.info('[MOTHER] Cache warm complete')).catch(err => log.warn('[MOTHER] Cache warm failed (non-critical):', err));
   }, 2000);
   log.info('[MOTHER] Cache warming scheduled (2s after startup)');
+  // C179: Inject Conselho V4 sprint knowledge into bd_central on startup
+  // Scientific basis: Continual Learning (Kirkpatrick et al., 2017 arXiv:1612.00796)
+  setTimeout(() => {
+    injectSprintKnowledge().catch(err => log.warn('[MOTHER] Knowledge injection failed (non-critical):', err));
+  }, 5000);
+  log.info('[MOTHER] Conselho V4 knowledge injection scheduled (5s after startup)');
 });
