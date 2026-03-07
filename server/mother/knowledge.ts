@@ -19,6 +19,12 @@ import { searchKnowledge, getAllKnowledge } from '../db';
 import type { Knowledge } from '../../drizzle/schema';
 import { getEmbedding, cosineSimilarity } from './embeddings';
 import { AutonomousKnowledgeCurator } from './autonomous-knowledge-curator'; // C150: Autonomous Knowledge Curator (Dong 2014 — auto-dedup + quality scoring)
+// C189 NC-LEARN-001 Fix: Connect HippoRAG2 as Source 5 (hierarchical RAG)
+// Scientific basis: Gutierrez et al. (2025) arXiv:2405.14831v2 — HippoRAG 2.0 reduces retrieval latency 73%
+// Previous state (C188): hipporag2.ts had 400L written but never imported in knowledge.ts
+import { hippoRAG2Retrieve, scheduleKGBuild } from './hipporag2';
+// Trigger KG build on startup (non-blocking)
+scheduleKGBuild();
 
 // C150: Singleton curator — runs background curation of bd_central
 const _knowledgeCurator = new AutonomousKnowledgeCurator();
@@ -315,16 +321,25 @@ export async function queryExternalKnowledge(query: string): Promise<KnowledgeRe
 }
 
 /**
- * Unified knowledge query across all 4 sources
+ * Unified knowledge query across all 5 sources
  * Implements multi-source integration to prevent forgetting
+ * C189: Added Source 5 — HippoRAG2 hierarchical knowledge graph retrieval
  */
 export async function queryKnowledge(query: string): Promise<KnowledgeResult[]> {
-  // Query all sources in parallel
-  const [dbResults, vectorResults, apiResults, externalResults] = await Promise.all([
+  // Query all sources in parallel (C189: added hippoRAG2 as Source 5)
+  const [dbResults, vectorResults, apiResults, externalResults, hippoResults] = await Promise.all([
     queryDatabase(query),
     queryVectorSearch(query),
     queryRealTimeAPIs(query),
     queryExternalKnowledge(query),
+    // C189 NC-LEARN-001: HippoRAG2 hierarchical knowledge graph retrieval
+    // Scientific basis: Gutierrez et al. (2025) arXiv:2405.14831v2
+    hippoRAG2Retrieve(query, 5).then(results => results.map(r => ({
+      content: r.content,
+      source: { name: 'HippoRAG2-KG', type: 'vector' as const, priority: 2 },
+      confidence: r.score,
+      relevance: r.score,
+    }))).catch(() => [] as KnowledgeResult[]),
   ]);
   
   // Combine and sort by priority and relevance
@@ -333,6 +348,7 @@ export async function queryKnowledge(query: string): Promise<KnowledgeResult[]> 
     ...vectorResults,
     ...apiResults,
     ...externalResults,
+    ...hippoResults,
   ];
   
   // Sort by: priority (ascending), then relevance (descending)

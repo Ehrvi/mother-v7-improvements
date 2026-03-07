@@ -37,6 +37,7 @@ import {
   verifyChainIntegrity,
 } from './audit-trail';
 import { githubWriteService } from './github-write-service.js'; // C179: Sprint 1.3.2 — GitHub auto-deploy
+import { triggerDeploy } from './self-code-writer.js'; // C189 NC-DGM-001 Fix: close DGM loop — triggerDeploy after successful applyProposal
 import {
   checkSafetyGate,
   SafetyCheckResult,
@@ -419,6 +420,28 @@ export async function runDGMCycle(spec: DGMCycleSpec): Promise<DGMCycleResult> {
         proposalId: proposal.id,
         killSwitch: `KS-2: Deployment failed — ${modResult.reason}`,
       }));
+    }
+
+    // C189 NC-DGM-001 Fix: Trigger Cloud Run deploy after successful proposal application
+    // Scientific basis: Darwin Gödel Machine (arXiv:2505.22954) — closed-loop self-modification
+    // requires formal verification AND actual deployment to complete the cycle.
+    // Previous state (C188): loop was OPEN — applyProposal wrote files locally but never deployed.
+    // This fix closes the loop: propose → validate → apply → DEPLOY → verify.
+    let _deployResult: { success: boolean; buildId?: string; error?: string } = { success: false };
+    try {
+      _deployResult = await triggerDeploy(
+        `DGM-C${cycleId.slice(-8)}: ${spec.objective.slice(0, 80)} [fitness:${fitnessScore.overall}]`
+      );
+      log.info('[NC-DGM-001] DGM deploy triggered', {
+        cycleId, buildId: _deployResult.buildId, success: _deployResult.success
+      });
+    } catch (deployErr: any) {
+      // Non-fatal: deploy failure is logged but does not abort the cycle.
+      // The proposal is already applied locally — manual deploy can recover.
+      log.warn('[NC-DGM-001] DGM deploy trigger failed (non-fatal — proposal applied locally)', {
+        cycleId, error: deployErr.message
+      });
+      _deployResult = { success: false, error: deployErr.message };
     }
 
     // ── PHASE 5: VERIFY ───────────────────────────────────────────────────────

@@ -18,6 +18,11 @@
 
 import { getEmbedding, cosineSimilarity } from './embeddings';
 import { insertKnowledge, getAllKnowledge } from '../db';
+// C189 NC-LEARN-001 Fix: Connect memory_agent.ts for importance-scored episodic memory consolidation
+// Scientific basis: Park et al. (2023) arXiv:2304.03442 — Generative Agents: importance scoring
+// improves knowledge retention by filtering low-value memories before storage
+// Previous state (C188): memory_agent.ts had 400L written but never imported in learning.ts
+import { computeImportanceScore } from './memory_agent';
 
 // v56.0: Lowered from 95 to 75 — Req #3: Gradual knowledge acquisition
 // Scientific basis: Parisi et al. (2019) — lower threshold enables incremental learning
@@ -162,12 +167,26 @@ export async function learnFromResponse(candidate: LearningCandidate): Promise<L
     };
   }
 
-  console.log(`[Learning] Extracted ${insights.length} insights`);
+  // C189 NC-LEARN-001: Filter by importance score (Park et al. 2023 — Generative Agents)
+  // Only store insights with importance >= 0.4 to prevent knowledge base pollution
+  const importantInsights = insights.filter(insight => {
+    const score = computeImportanceScore(insight);
+    return score >= 0.4;
+  });
+
+  if (importantInsights.length === 0) {
+    return {
+      learned: false,
+      reason: 'No insights passed importance threshold (>=0.4)'
+    };
+  }
+
+  console.log(`[Learning] Extracted ${insights.length} insights, ${importantInsights.length} passed importance filter`);
 
   // Step 3: Check for duplicates and add new knowledge
   const existingKnowledge = await getAllKnowledge();
 
-  for (const insight of insights) {
+  for (const insight of importantInsights) {
     const { isDuplicate: isDup, maxSimilarity } = await isDuplicate(insight, existingKnowledge);
 
     if (isDup) {
@@ -270,7 +289,7 @@ export async function learnFromEvolutionRun(
 
   const existingKnowledge = await getAllKnowledge();
 
-  for (const insight of insights) {
+  for (const insight of importantInsights) {
     const { isDuplicate: isDup, maxSimilarity } = await isDuplicate(insight, existingKnowledge);
 
     if (isDup) {
