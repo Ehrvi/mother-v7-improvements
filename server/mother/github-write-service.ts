@@ -1,8 +1,9 @@
 /**
- * GitHubWriteService — Sprint 1.3.2 (Ciclo 178)
+ * GitHubWriteService — Sprint 1.3.2 (Ciclo 178, atualizado C181)
  * Provides MOTHER with write access to its own GitHub repository.
  * Enables autonomous self-modification: branch → commit → PR → merge.
  * Scientific basis: Darwin (1859) — variation + selection; DGM (Zhang et al., 2024 arXiv:2408.08435)
+ * Rate limit: 5000 req/hora para PAT autenticado (GitHub REST API docs)
  */
 import { createLogger } from '../_core/logger.js';
 
@@ -26,6 +27,32 @@ export interface PullRequestResult {
   branch: string;
 }
 
+export interface IssueResult {
+  number: number;
+  url: string;
+  title: string;
+}
+
+// Simple in-memory rate limiter: max 50 req/min (conservative vs 5000/hora)
+class RateLimiter {
+  private requests: number[] = [];
+  private maxPerMinute = 50;
+
+  async throttle(): Promise<void> {
+    const now = Date.now();
+    this.requests = this.requests.filter(t => now - t < 60000);
+    if (this.requests.length >= this.maxPerMinute) {
+      const oldest = this.requests[0];
+      const waitMs = 60000 - (now - oldest) + 100;
+      log.warn(`[RateLimit] Throttling ${waitMs}ms (${this.requests.length} req/min)`);
+      await new Promise(r => setTimeout(r, waitMs));
+    }
+    this.requests.push(Date.now());
+  }
+}
+
+const rateLimiter = new RateLimiter();
+
 export class GitHubWriteService {
   private owner: string;
   private repo: string;
@@ -40,6 +67,7 @@ export class GitHubWriteService {
   }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
+    await rateLimiter.throttle();
     const url = `${this.baseUrl}${path}`;
     const res = await fetch(url, {
       method,
@@ -58,11 +86,13 @@ export class GitHubWriteService {
     return res.json() as Promise<T>;
   }
 
+  /** Get the SHA of the HEAD of main branch */
   async getMainSha(): Promise<string> {
     const data = await this.request<any>('GET', `/repos/${this.owner}/${this.repo}/git/ref/heads/main`);
     return data.object.sha;
   }
 
+  /** Create a new branch from main (or specified SHA) */
   async createBranch(branchName: string, fromSha?: string): Promise<CreateBranchResult> {
     const sha = fromSha || await this.getMainSha();
     await this.request('POST', `/repos/${this.owner}/${this.repo}/git/refs`, {
@@ -73,6 +103,7 @@ export class GitHubWriteService {
     return { branchName, sha };
   }
 
+  /** Commit a file to a branch (create or update) */
   async commitFile(
     filePath: string,
     content: string,
@@ -97,6 +128,7 @@ export class GitHubWriteService {
     };
   }
 
+  /** Create a Pull Request */
   async createPullRequest(
     title: string,
     body: string,
@@ -113,6 +145,30 @@ export class GitHubWriteService {
     return { number: data.number, url: data.html_url, title, branch };
   }
 
+  /** Add a comment to a PR or Issue */
+  async addPRComment(prNumber: number, comment: string): Promise<void> {
+    await this.request('POST', `/repos/${this.owner}/${this.repo}/issues/${prNumber}/comments`, {
+      body: comment,
+    });
+    log.info(`[GitHubWrite] Added comment to PR #${prNumber}`);
+  }
+
+  /** Create a GitHub Issue (for DGM NC tracking) */
+  async createIssue(
+    title: string,
+    body: string,
+    labels: string[] = []
+  ): Promise<IssueResult> {
+    const data = await this.request<any>('POST', `/repos/${this.owner}/${this.repo}/issues`, {
+      title,
+      body,
+      labels,
+    });
+    log.info(`[GitHubWrite] Created Issue #${data.number}: ${title}`);
+    return { number: data.number, url: data.html_url, title };
+  }
+
+  /** Merge a Pull Request */
   async mergePullRequest(prNumber: number, mergeMethod: 'merge' | 'squash' | 'rebase' = 'squash'): Promise<void> {
     await this.request('PUT', `/repos/${this.owner}/${this.repo}/pulls/${prNumber}/merge`, {
       merge_method: mergeMethod,
@@ -120,19 +176,23 @@ export class GitHubWriteService {
     log.info(`[GitHubWrite] Merged PR #${prNumber} via ${mergeMethod}`);
   }
 
+  /** Delete a branch */
   async deleteBranch(branchName: string): Promise<void> {
     await this.request('DELETE', `/repos/${this.owner}/${this.repo}/git/refs/heads/${branchName}`);
     log.info(`[GitHubWrite] Deleted branch: ${branchName}`);
   }
 
   /**
-   * Full autonomous self-modification cycle:
-   * 1. Create branch
-   * 2. Commit file changes
-   * 3. Create PR
-   * 4. (CI runs quality gate + smoke tests)
-   * 5. Merge PR
-   * 6. Delete branch
+   * Full autonomous self-modification cycle (DGM Sprint 1.3.3):
+   * 1. Create branch dgm/proposal-{id}-{ts}
+   * 2. Commit all file changes
+   * 3. Create PR with full context
+   * 4. Add DGM analysis comment
+   * 5. (CI runs quality gate + smoke tests automatically)
+   * 6. Optionally merge after CI passes
+   *
+   * IMPORTANT: autoMerge=false by default (R12 — requires 3 successful cycles first)
+   * Scientific basis: Tang et al. (2025) DOI:10.1038/s41467-025-63913-1 — AI autonomy risks
    */
   async autonomousSelfModification(params: {
     branchName: string;
@@ -140,8 +200,10 @@ export class GitHubWriteService {
     prTitle: string;
     prBody: string;
     autoMerge?: boolean;
+    proposalId?: string;
+    analysisContext?: string;
   }): Promise<{ pr: PullRequestResult; commits: CommitResult[] }> {
-    const { branchName, files, prTitle, prBody, autoMerge = false } = params;
+    const { branchName, files, prTitle, prBody, autoMerge = false, proposalId, analysisContext } = params;
 
     // 1. Create branch
     await this.createBranch(branchName);
@@ -162,9 +224,22 @@ export class GitHubWriteService {
     // 3. Create PR
     const pr = await this.createPullRequest(prTitle, prBody, branchName);
 
-    // 4. Auto-merge if requested (after CI passes)
+    // 4. Add DGM analysis comment
+    const comment = [
+      `## 🤖 DGM Autonomous Proposal`,
+      `**Proposal ID:** ${proposalId || 'N/A'}`,
+      `**Files Modified:** ${files.map(f => f.path).join(', ')}`,
+      `**Commits:** ${commits.length}`,
+      analysisContext ? `\n**Analysis:**\n${analysisContext}` : '',
+      `\n**Auto-merge:** ${autoMerge ? 'YES (R12 override)' : 'NO — awaiting human review'}`,
+      `\n*Generated by MOTHER v81.8 DGM Self-Improvement Loop*`,
+    ].filter(Boolean).join('\n');
+    await this.addPRComment(pr.number, comment);
+
+    // 5. Auto-merge if requested (only after 3 validated cycles — R12)
     if (autoMerge) {
-      await new Promise(r => setTimeout(r, 10000)); // Wait 10s for CI to start
+      log.warn(`[GitHubWrite] autoMerge=true — waiting 30s for CI to start before merge`);
+      await new Promise(r => setTimeout(r, 30000));
       await this.mergePullRequest(pr.number, 'squash');
       await this.deleteBranch(branchName);
     }

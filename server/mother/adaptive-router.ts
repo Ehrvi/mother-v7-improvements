@@ -57,20 +57,23 @@ export interface RoutingDecision {
  * Scientific basis: Feature engineering for LLM routing (RouteLLM, 2024)
  */
 export function computeComplexitySignals(query: string): ComplexitySignals {
-  const q = query.toLowerCase();
+  // Sprint 3 (C181): Normalize Unicode (NFKD) to handle accented Portuguese characters
+  // Scientific basis: Unicode normalization (Unicode Standard 15.0, 2022)
+  const q = query.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
   const words = q.split(/\s+/).length;
 
   return {
     queryLength: query.length,
-    hasCodeRequest: /\b(code|implement|build|function|class|typescript|python|javascript|sql|api|endpoint)\b/.test(q),
-    hasMathRequest: /\b(equation|calculate|prove|integral|derivative|matrix|statistics|probability|formula)\b/.test(q),
-    hasResearchRequest: /\b(research|arxiv|paper|study|literature|survey|sota|state.of.the.art|scientific)\b/.test(q),
-    hasMultiStep: /\b(step.by.step|plan|roadmap|phases|stages|workflow|pipeline|architecture|design)\b/.test(q),
-    hasCreativeRequest: /\b(write|create|generate|compose|draft|story|essay|blog|report)\b/.test(q),
-    hasSystemDesign: /\b(architecture|system|infrastructure|database|schema|microservice|distributed|scalable)\b/.test(q),
-    hasIntelltechContext: /\b(intelltech|shms|geotechnical|mining|sensor|instrumentation|slope|dam|embankment|piezometer|inclinometer)\b/.test(q),
-    hasMOTHERContext: /\b(mother|core\.ts|module|deploy|gcloud|ciclo|awake|bd_central|darwin|dgm)\b/.test(q),
-    estimatedTokens: Math.ceil(words * 1.3),  // rough token estimate
+    // EN + PT-BR keywords — Sprint 3 (C181): added Portuguese for correct tier routing
+    hasCodeRequest: /\b(code|implement|build|function|class|typescript|python|javascript|sql|api|endpoint|implementar|construir|funcao|classe|desenvolver|programar|criar|codificar|rotina|script)\b/.test(q),
+    hasMathRequest: /\b(equation|calculate|prove|integral|derivative|matrix|statistics|probability|formula|equacao|calcular|provar|derivada|matriz|estatistica|probabilidade|calculo)\b/.test(q),
+    hasResearchRequest: /\b(research|arxiv|paper|study|literature|survey|sota|scientific|pesquisa|artigo|estudo|literatura|revisao|cientifico|embasamento|referencia|fonte)\b/.test(q),
+    hasMultiStep: /\b(step-by-step|plan|roadmap|phases|stages|workflow|pipeline|architecture|design|passo-a-passo|plano|fases|etapas|fluxo|planejamento|cronograma|sprint)\b/.test(q),
+    hasCreativeRequest: /\b(write|create|generate|compose|draft|story|essay|blog|report|escrever|gerar|redigir|rascunho|historia|ensaio|relatorio|documento)\b/.test(q),
+    hasSystemDesign: /\b(architecture|system|infrastructure|database|schema|microservice|distributed|scalable|arquitetura|sistema|infraestrutura|esquema|microsservico|distribuido|escalavel|modulo)\b/.test(q),
+    hasIntelltechContext: /\b(intelltech|shms|geotechnical|mining|sensor|instrumentation|slope|dam|embankment|piezometer|inclinometer|geotecnico|mineracao|instrumentacao|talude|barragem|piezometro|inclinometro|monitoramento)\b/.test(q),
+    hasMOTHERContext: /\b(mother|core|module|deploy|gcloud|ciclo|awake|bd_central|darwin|dgm|modulo|implantar|despertar|auto-modificacao|producao)\b/.test(q),
+    estimatedTokens: Math.ceil(words * 1.3),
   };
 }
 

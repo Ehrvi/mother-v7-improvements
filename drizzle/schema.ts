@@ -529,7 +529,22 @@ export const selfProposals = mysqlTable("self_proposals", {
   hypothesis: text("hypothesis"),
   metricTrigger: varchar("metric_trigger", { length: 255 }),
   metricValue: varchar("metric_value", { length: 50 }),
-  status: mysqlEnum("status", ["pending", "approved", "rejected", "implemented"]).default("pending").notNull(),
+  // Sprint 2 (C181): NC-SCHEMA-DRIFT-002 — 12 missing columns added to match raw SQL usage
+  // Scientific basis: schema drift detection (Lehman 1980 — software evolution laws)
+  metricTarget: float("metric_target"),
+  proposedChanges: text("proposed_changes"),         // JSON: { files, changes[] }
+  fitnessFunction: text("fitness_function"),
+  versionTag: varchar("version_tag", { length: 50 }),
+  scientificBasis: text("scientific_basis"),
+  rejectionCount: int("rejection_count").default(0),
+  efFactor: float("ef_factor").default(2.5),          // SuperMemo EF factor (Wozniak 1987)
+  parentProposalId: int("parent_proposal_id"),
+  improvementNotes: text("improvement_notes"),
+  approvedAt: timestamp("approved_at"),
+  approvedBy: varchar("approved_by", { length: 100 }),
+  nextReproposalAt: timestamp("next_reproposal_at"),
+  rejectionReason: text("rejection_reason"),
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "implemented", "failed", "in_progress"]).default("pending").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
