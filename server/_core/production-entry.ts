@@ -35,6 +35,8 @@ import { warmCache } from '../mother/semantic-cache.js'; // C175: Cache warming 
 import { getTwinState, getAlerts, getSensorHistory, startSimulator, stopSimulator } from '../mother/shms-digital-twin.js'; // C179: SHMS Digital Twin REST routes
 import { handleSHMSAnalyze, handleSHMSCalibration } from '../mother/shms-analyze-endpoint.js'; // C182: Sprint 7 — SHMS analyze + G-Eval geotechnical
 import { injectSprintKnowledge } from '../mother/council-v4-sprint-knowledge.js'; // C179: Knowledge injection on startup
+import { recordLatency, getLatencyReport } from '../mother/latency-telemetry.js'; // C188: Phase 4.1 — P50 real measurement (Dean & Barroso 2013)
+import { shmsHealthCheck } from '../mother/shms-auth-middleware.js'; // C188: Phase 4.4 — SHMS auth + billing middleware
 import { sdk } from './sdk.js';
 import { createLogger } from './logger'; // v74.0: NC-003 structured logger
 const log = createLogger('PROD_ENTRY');
@@ -162,6 +164,46 @@ async function runMigrations() {
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+/**
+ * C188: Phase 4.1 — Latency Telemetry Middleware
+ *
+ * Captures wall-clock latency for every HTTP request and records it via
+ * recordLatency() from latency-telemetry.ts. Routing tier is inferred from
+ * the response status code and path prefix:
+ *   - CACHE_HIT: X-Cache-Hit header present
+ *   - TIER_1: /api/trpc/* (fast tRPC calls)
+ *   - TIER_2: /api/mother/* (MOTHER core queries)
+ *   - TIER_3: /api/shms/* (SHMS analysis endpoints)
+ *   - TIER_4: /api/dgm/* (DGM evolution — slow async)
+ *   - ERROR: 4xx/5xx responses
+ *
+ * Scientific basis: Dean & Barroso (2013) "The Tail at Scale" (CACM 56(2))
+ * Target: P50 < 10,000ms (Phase 4 SLA — synthetic data, no real sensors)
+ */
+app.use((req, res, next) => {
+  const startMs = Date.now();
+  res.on('finish', () => {
+    const durationMs = Date.now() - startMs;
+    const cacheHit = res.getHeader('X-Cache-Hit') === '1';
+    let tier: 'TIER_1' | 'TIER_2' | 'TIER_3' | 'TIER_4' | 'CACHE_HIT' | 'ERROR' = 'TIER_2';
+    if (res.statusCode >= 400) {
+      tier = 'ERROR';
+    } else if (cacheHit) {
+      tier = 'CACHE_HIT';
+    } else if (req.path.startsWith('/api/trpc')) {
+      tier = 'TIER_1';
+    } else if (req.path.startsWith('/api/shms')) {
+      tier = 'TIER_3';
+    } else if (req.path.startsWith('/api/dgm')) {
+      tier = 'TIER_4';
+    } else if (req.path.startsWith('/api/mother') || req.path.startsWith('/api/query')) {
+      tier = 'TIER_2';
+    }
+    recordLatency(tier, durationMs, { cacheHit });
+  });
+  next();
+});
 
 // OAuth routes
 registerOAuthRoutes(app);
@@ -574,6 +616,30 @@ app.post('/api/shms/simulator/stop', (_req, res) => {
 // Scientific basis: Sun et al. (2025), G-Eval arXiv:2303.16634, ICOLD Bulletin 158, GeoMCP arXiv:2603.01022
 app.post('/api/shms/analyze', handleSHMSAnalyze);
 app.get('/api/shms/calibration', handleSHMSCalibration);
+
+/**
+ * C188: Phase 4.4 — SHMS Health Check (no auth required)
+ * Used by Cloud Run health checks and uptime monitors.
+ */
+app.get('/api/shms/health', shmsHealthCheck);
+
+/**
+ * C188: Phase 4.1 — Latency Telemetry Report Endpoint
+ *
+ * GET /api/latency/report?windowMs=3600000
+ * Returns P50/P75/P95/P99 per tier + Apdex score.
+ * Scientific basis: Dean & Barroso (2013) "The Tail at Scale" (CACM 56(2))
+ */
+app.get('/api/latency/report', (req, res) => {
+  const windowMs = req.query.windowMs ? parseInt(String(req.query.windowMs), 10) : undefined;
+  const report = getLatencyReport(windowMs);
+  res.json({
+    ok: true,
+    report,
+    phase: 'C188-Phase4.1',
+    sla: { p50_target_ms: 10000, description: 'Phase 4 SLA — synthetic data, no real sensors' },
+  });
+});
 
 // tRPC routes
 app.use(

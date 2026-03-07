@@ -1,0 +1,831 @@
+openapi: "3.1.0"
+info:
+  title: MOTHER SHMS API
+  version: "1.0.0"
+  description: |
+    **Structural Health Monitoring System (SHMS) API** — MOTHER v81.8 — Ciclo 188.
+
+    This API exposes the SHMS Digital Twin, sensor analysis, latency telemetry,
+    and DGM autonomous evolution endpoints. All SHMS analysis is performed on
+    **synthetic data calibrated with published scientific parameters** (no real
+    physical sensors are connected in Phase 4).
+
+    ## Scientific Basis
+    - Figueiredo et al. (2009) OSTI:961604 — LANL SHM dataset, 17 damage states
+    - ICOLD Bulletin 158 (2014) — Concrete dam monitoring, 3-level alarm system
+    - Sun et al. (2025) DOI:10.1145/3777730.3777858 — DL for SHM analysis pipeline
+    - G-Eval (arXiv:2303.16634) — NLG evaluation with geotechnical calibration
+    - Dean & Barroso (2013) CACM 56(2) — Tail-at-scale latency measurement
+    - FrugalGPT (Chen et al., 2023, arXiv:2305.05176) — Tier-based routing
+
+    ## Latency SLA (Phase 4 — Synthetic Data)
+    | Tier | Endpoint | P50 Target |
+    |------|----------|------------|
+    | TIER_1 | /api/trpc/* | ≤ 800 ms |
+    | TIER_2 | /api/mother/* | ≤ 1,500 ms |
+    | TIER_3 | /api/shms/* | ≤ 3,000 ms |
+    | TIER_4 | /api/dgm/* | ≤ 8,000 ms |
+    | CACHE_HIT | Any (cached) | ≤ 50 ms |
+
+  contact:
+    name: MOTHER Engineering Team
+    email: support@intelltech.com.au
+  license:
+    name: Proprietary — IntellTech Pty Ltd
+    url: https://intelltech.com.au
+
+servers:
+  - url: https://mother-interface-00660-2mp.a.run.app
+    description: Production (Cloud Run — australia-southeast1)
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: SHMS Digital Twin
+    description: Real-time structural health monitoring via digital twin simulation
+  - name: SHMS Analysis
+    description: AI-powered sensor data analysis with G-Eval geotechnical calibration
+  - name: SHMS Simulator
+    description: Synthetic data simulator (Phase 4 — no real sensors)
+  - name: Latency Telemetry
+    description: P50/P75/P95/P99 latency measurement per routing tier (Dean & Barroso 2013)
+  - name: DGM Evolution
+    description: Autonomous DGM (Dynamic Growth Module) evolution via Cloud Tasks
+  - name: MOTHER Core
+    description: MOTHER core query endpoint with streaming SSE
+
+paths:
+  # ─── SHMS Digital Twin ───────────────────────────────────────────────────────
+
+  /api/shms/twin-state:
+    get:
+      tags: [SHMS Digital Twin]
+      summary: Get current digital twin state
+      description: |
+        Returns the current state of the SHMS Digital Twin, including all sensor
+        readings, anomaly scores, and system health indicators.
+
+        **Scientific basis:** Sun et al. (2025) DOI:10.1145/3777730.3777858
+      operationId: getSHMSTwinState
+      responses:
+        "200":
+          description: Digital twin state retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TwinStateResponse"
+              example:
+                ok: true
+                state:
+                  sensors:
+                    - id: "acc-01"
+                      type: "accelerometer"
+                      value: 0.0023
+                      unit: "g"
+                      timestamp: "2026-03-07T05:00:00.000Z"
+                      anomalyScore: 0.12
+                      status: "normal"
+                  overallHealth: 0.94
+                  damageState: 0
+                  lastUpdated: "2026-03-07T05:00:00.000Z"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/shms/alerts:
+    get:
+      tags: [SHMS Digital Twin]
+      summary: Get active sensor alerts
+      description: |
+        Returns all active alerts from the SHMS sensor network.
+        Alert levels follow ICOLD Bulletin 158 3-level alarm system:
+        - **info**: Normal variation
+        - **warning**: Anomaly detected, monitoring required
+        - **critical**: Significant anomaly, intervention recommended
+        - **emergency**: Structural risk, immediate action required
+      operationId: getSHMSAlerts
+      responses:
+        "200":
+          description: Active alerts retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertsResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/shms/sensor-history/{sensorId}:
+    get:
+      tags: [SHMS Digital Twin]
+      summary: Get sensor reading history
+      description: |
+        Returns the historical readings for a specific sensor.
+        Data is synthetic, calibrated with LANL SHM parameters from
+        Figueiredo et al. (2009) OSTI:961604.
+      operationId: getSHMSSensorHistory
+      parameters:
+        - name: sensorId
+          in: path
+          required: true
+          description: Unique sensor identifier (e.g., "acc-01", "disp-02")
+          schema:
+            type: string
+            example: "acc-01"
+      responses:
+        "200":
+          description: Sensor history retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SensorHistoryResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ─── SHMS Simulator ──────────────────────────────────────────────────────────
+
+  /api/shms/simulator/start:
+    post:
+      tags: [SHMS Simulator]
+      summary: Start synthetic data simulator
+      description: |
+        Starts the SHMS synthetic data simulator. Generates sensor readings
+        calibrated with LANL SHM (Figueiredo 2009) and ICOLD Bulletin 158
+        parameters. **Phase 4: No real sensors — synthetic data only.**
+      operationId: startSHMSSimulator
+      responses:
+        "200":
+          description: Simulator started successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulatorStatusResponse"
+              example:
+                ok: true
+                status: "running"
+                message: "SHMS simulator started — synthetic data mode (Phase 4)"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/shms/simulator/stop:
+    post:
+      tags: [SHMS Simulator]
+      summary: Stop synthetic data simulator
+      operationId: stopSHMSSimulator
+      responses:
+        "200":
+          description: Simulator stopped successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulatorStatusResponse"
+              example:
+                ok: true
+                status: "stopped"
+                message: "SHMS simulator stopped"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ─── SHMS Analysis ───────────────────────────────────────────────────────────
+
+  /api/shms/analyze:
+    post:
+      tags: [SHMS Analysis]
+      summary: Analyze SHMS sensor data with AI
+      description: |
+        Performs AI-powered analysis of SHMS sensor data. Integrates:
+        1. Digital Twin current state
+        2. G-Eval geotechnical calibration (50 annotated examples)
+        3. Alert dispatch via ICOLD 3-level alarm system
+        4. RouteLLM intelligent routing (arXiv:2406.18665)
+
+        **Scientific basis:**
+        - Sun et al. (2025) DOI:10.1145/3777730.3777858
+        - G-Eval (arXiv:2303.16634) — threshold ≥ 87.8/100
+        - ICOLD Bulletin 158 (2014)
+        - GeoMCP (arXiv:2603.01022, 2026)
+      operationId: analyzeSHMSData
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SHMSAnalyzeRequest"
+            examples:
+              basic:
+                summary: Basic sensor query
+                value:
+                  query: "What is the current structural health status?"
+                  includeAlerts: true
+              with_sensor:
+                summary: Query with specific sensor
+                value:
+                  sensorId: "acc-01"
+                  query: "Analyze accelerometer readings for anomalies"
+                  clientId: "client-001"
+                  includeAlerts: true
+                  category: "vibration_analysis"
+      responses:
+        "200":
+          description: Analysis completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SHMSAnalyzeResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/shms/calibration:
+    get:
+      tags: [SHMS Analysis]
+      summary: Get G-Eval geotechnical calibration data
+      description: |
+        Returns the G-Eval geotechnical calibration configuration including
+        50 annotated examples and dimension weights.
+
+        **Scientific basis:** G-Eval (arXiv:2303.16634), ICOLD Bulletin 158
+      operationId: getSHMSCalibration
+      responses:
+        "200":
+          description: Calibration data retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalibrationResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ─── Latency Telemetry ───────────────────────────────────────────────────────
+
+  /api/latency/report:
+    get:
+      tags: [Latency Telemetry]
+      summary: Get latency telemetry report
+      description: |
+        Returns P50/P75/P95/P99 latency statistics per routing tier plus
+        Apdex score. Uses a sliding window of recent requests.
+
+        **Scientific basis:** Dean & Barroso (2013) "The Tail at Scale" (CACM 56(2))
+        **Apdex formula:** (Satisfied + 0.5 × Tolerating) / Total
+        where Satisfied = latency ≤ T, Tolerating = T < latency ≤ 4T
+
+        **Phase 4 SLA:** P50 < 10,000 ms (synthetic data, no real sensors)
+      operationId: getLatencyReport
+      parameters:
+        - name: windowMs
+          in: query
+          required: false
+          description: "Time window in milliseconds (default: all records, max 10000)"
+          schema:
+            type: integer
+            minimum: 1000
+            maximum: 86400000
+            example: 3600000
+      responses:
+        "200":
+          description: Latency report generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LatencyReportResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ─── DGM Evolution ───────────────────────────────────────────────────────────
+
+  /api/dgm/execute:
+    post:
+      tags: [DGM Evolution]
+      summary: Execute DGM evolution task (Cloud Tasks only)
+      description: |
+        Executes a DGM (Dynamic Growth Module) autonomous evolution task.
+        This endpoint is called by Google Cloud Tasks and should not be
+        invoked directly in production.
+
+        **Security:** Validates X-CloudTasks-QueueName header.
+        **Sprint:** DGM Sprint 9 — autoMerge=true (first autonomous merge enabled)
+      operationId: executeDGMTask
+      security:
+        - CloudTasksHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DGMExecuteRequest"
+      responses:
+        "200":
+          description: DGM task accepted for execution
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DGMExecuteResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ─── MOTHER Core ─────────────────────────────────────────────────────────────
+
+  /api/mother/stream:
+    post:
+      tags: [MOTHER Core]
+      summary: Stream MOTHER AI response (SSE)
+      description: |
+        Sends a query to MOTHER core and streams the response via
+        Server-Sent Events (SSE). Supports all MOTHER capabilities
+        including SHMS analysis, DGM evolution, and knowledge retrieval.
+      operationId: streamMOTHERQuery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MOTHERStreamRequest"
+      responses:
+        "200":
+          description: SSE stream opened successfully
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: Server-Sent Events stream of MOTHER response tokens
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+# ─── Components ──────────────────────────────────────────────────────────────
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: SHMS API key for client authentication (Phase 4.4)
+    CloudTasksHeader:
+      type: apiKey
+      in: header
+      name: X-CloudTasks-QueueName
+      description: Google Cloud Tasks queue name header for DGM execute endpoint
+
+  schemas:
+    # ── SHMS Digital Twin ─────────────────────────────────────────────────────
+
+    SensorReading:
+      type: object
+      required: [id, type, value, unit, timestamp, anomalyScore, status]
+      properties:
+        id:
+          type: string
+          description: Unique sensor identifier
+          example: "acc-01"
+        type:
+          type: string
+          enum: [accelerometer, displacement, strain, temperature, piezometer, inclinometer]
+          description: Sensor type (ICOLD Bulletin 158 classification)
+        value:
+          type: number
+          description: Current sensor reading
+          example: 0.0023
+        unit:
+          type: string
+          description: Measurement unit
+          example: "g"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-03-07T05:00:00.000Z"
+        anomalyScore:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: |
+            Anomaly score computed by LSTM model (RMSE LANL=0.0434, ICOLD=0.0416).
+            0 = normal, 1 = maximum anomaly.
+          example: 0.12
+        status:
+          type: string
+          enum: [normal, warning, critical, emergency]
+
+    TwinState:
+      type: object
+      required: [sensors, overallHealth, damageState, lastUpdated]
+      properties:
+        sensors:
+          type: array
+          items:
+            $ref: "#/components/schemas/SensorReading"
+        overallHealth:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Overall structural health index (1 = perfect, 0 = failure)
+          example: 0.94
+        damageState:
+          type: integer
+          minimum: 0
+          maximum: 17
+          description: |
+            LANL SHM damage state (Figueiredo 2009, OSTI:961604).
+            0 = undamaged, 1-17 = increasing damage severity.
+          example: 0
+        lastUpdated:
+          type: string
+          format: date-time
+
+    TwinStateResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        state:
+          $ref: "#/components/schemas/TwinState"
+
+    SensorAlert:
+      type: object
+      required: [id, sensorId, severity, message, timestamp]
+      properties:
+        id:
+          type: string
+        sensorId:
+          type: string
+        severity:
+          type: string
+          enum: [info, warning, critical, emergency]
+          description: ICOLD Bulletin 158 alarm level
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        acknowledgedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    AlertsResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        alerts:
+          type: array
+          items:
+            $ref: "#/components/schemas/SensorAlert"
+        count:
+          type: integer
+
+    SensorHistoryResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        sensorId:
+          type: string
+        readings:
+          type: array
+          items:
+            $ref: "#/components/schemas/SensorReading"
+
+    SimulatorStatusResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        status:
+          type: string
+          enum: [running, stopped]
+        message:
+          type: string
+
+    # ── SHMS Analysis ─────────────────────────────────────────────────────────
+
+    SHMSAnalyzeRequest:
+      type: object
+      required: [query]
+      properties:
+        sensorId:
+          type: string
+          description: Optional sensor ID to focus analysis on
+          example: "acc-01"
+        query:
+          type: string
+          description: Natural language query about structural health
+          example: "What is the current structural health status?"
+          minLength: 3
+          maxLength: 2000
+        clientId:
+          type: string
+          description: Client identifier for billing and audit trail
+          example: "client-001"
+        includeAlerts:
+          type: boolean
+          default: false
+          description: Whether to include active alerts in response
+        category:
+          type: string
+          enum:
+            - vibration_analysis
+            - displacement_monitoring
+            - crack_detection
+            - settlement_monitoring
+            - seepage_analysis
+            - general_shm
+          description: G-Eval geotechnical category for calibration
+
+    SHMSAnalyzeResponse:
+      type: object
+      required: [analysis, alertLevel, gevalScore, passesThreshold, timestamp]
+      properties:
+        analysis:
+          type: string
+          description: AI-generated structural health analysis
+        alertLevel:
+          type: string
+          enum: [info, warning, critical, emergency]
+          description: Highest alert level from ICOLD 3-level alarm system
+        gevalScore:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: |
+            G-Eval quality score (arXiv:2303.16634).
+            Threshold: ≥ 87.8/100 (calibrated in Ciclo 187).
+          example: 87.8
+        passesThreshold:
+          type: boolean
+          description: Whether gevalScore ≥ 87.8 (Phase 4 quality gate)
+        gevalThreshold:
+          type: number
+          example: 87.8
+        twinState:
+          $ref: "#/components/schemas/TwinState"
+        activeAlerts:
+          type: array
+          items:
+            $ref: "#/components/schemas/SensorAlert"
+        sensorContext:
+          type: object
+          properties:
+            sensorId:
+              type: string
+              nullable: true
+            lastReading:
+              nullable: true
+              type: object
+              properties:
+                value:
+                  type: number
+                unit:
+                  type: string
+                timestamp:
+                  type: string
+            anomalyScore:
+              type: number
+              nullable: true
+        processingTimeMs:
+          type: integer
+          description: Total processing time in milliseconds
+          example: 1250
+        scientificBasis:
+          type: array
+          items:
+            type: string
+          description: List of scientific references used in this analysis
+        timestamp:
+          type: string
+          format: date-time
+
+    CalibrationResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        calibration:
+          type: object
+          properties:
+            annotatedExamples:
+              type: integer
+              description: Number of annotated examples used for calibration
+              example: 50
+            dimensions:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  weight:
+                    type: number
+            threshold:
+              type: number
+              example: 87.8
+            scientificBasis:
+              type: string
+
+    # ── Latency Telemetry ─────────────────────────────────────────────────────
+
+    PercentileStats:
+      type: object
+      required: [p50, p75, p95, p99, mean, min, max, count]
+      properties:
+        p50:
+          type: number
+          description: 50th percentile latency (ms)
+          example: 342
+        p75:
+          type: number
+          description: 75th percentile latency (ms)
+          example: 890
+        p95:
+          type: number
+          description: 95th percentile latency (ms)
+          example: 2100
+        p99:
+          type: number
+          description: 99th percentile latency (ms)
+          example: 4800
+        mean:
+          type: number
+          description: Mean latency (ms)
+          example: 520
+        min:
+          type: number
+          description: Minimum latency (ms)
+          example: 45
+        max:
+          type: number
+          description: Maximum latency (ms)
+          example: 9800
+        count:
+          type: integer
+          description: Total number of requests measured
+          example: 1247
+
+    TierLatencyReport:
+      type: object
+      properties:
+        tier:
+          type: string
+          enum: [TIER_1, TIER_2, TIER_3, TIER_4, CACHE_HIT, ERROR]
+        stats:
+          $ref: "#/components/schemas/PercentileStats"
+        target_p50_ms:
+          type: number
+          description: FrugalGPT P50 target for this tier
+        target_p95_ms:
+          type: number
+          description: FrugalGPT P95 target for this tier
+        p50_ok:
+          type: boolean
+          description: Whether P50 meets the tier target
+        p95_ok:
+          type: boolean
+          description: Whether P95 meets the tier target
+        apdex:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: |
+            Apdex score (Apdex Alliance, 2007).
+            Formula: (Satisfied + 0.5 × Tolerating) / Total
+        apdex_t_ms:
+          type: number
+          description: Apdex threshold T in milliseconds
+
+    LatencyReportResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        report:
+          type: object
+          properties:
+            generatedAt:
+              type: string
+              format: date-time
+            totalRequests:
+              type: integer
+            cacheHitRate:
+              type: number
+              minimum: 0
+              maximum: 1
+            overall:
+              $ref: "#/components/schemas/PercentileStats"
+            byTier:
+              type: object
+              additionalProperties:
+                $ref: "#/components/schemas/TierLatencyReport"
+            recommendation:
+              type: string
+            scientificBasis:
+              type: string
+        phase:
+          type: string
+          example: "C188-Phase4.1"
+        sla:
+          type: object
+          properties:
+            p50_target_ms:
+              type: integer
+              example: 10000
+            description:
+              type: string
+
+    # ── DGM Evolution ─────────────────────────────────────────────────────────
+
+    DGMExecuteRequest:
+      type: object
+      required: [run_id, goal]
+      properties:
+        run_id:
+          type: string
+          description: Unique run identifier for this DGM evolution task
+          example: "dgm-run-20260307-001"
+        goal:
+          type: string
+          description: Evolution goal for this DGM sprint
+          example: "Improve SHMS anomaly detection accuracy"
+
+    DGMExecuteResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        run_id:
+          type: string
+        status:
+          type: string
+          enum: [accepted, running, completed, failed]
+        message:
+          type: string
+
+    # ── MOTHER Core ───────────────────────────────────────────────────────────
+
+    MOTHERStreamRequest:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+          description: Natural language query to MOTHER
+          example: "Analyze the current structural health of the dam"
+          minLength: 1
+          maxLength: 10000
+        sessionId:
+          type: string
+          description: Session identifier for conversation continuity
+        context:
+          type: object
+          description: Additional context for the query
+
+    # ── Error Responses ───────────────────────────────────────────────────────
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+        code:
+          type: string
+          description: Machine-readable error code
+        details:
+          type: object
+          description: Additional error details
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "Missing required field: query"
+            code: "VALIDATION_ERROR"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "Sensor not found: acc-99"
+            code: "NOT_FOUND"
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "Internal server error"
+            code: "INTERNAL_ERROR"
