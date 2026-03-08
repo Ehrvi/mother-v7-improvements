@@ -82,7 +82,7 @@ export interface CurriculumPipelineResult {
 function generateSyntheticReading(
   type: SHMSTrainingExample['sensorData']['type'],
   targetLevel: 'NORMAL' | 'L1' | 'L2' | 'L3'
-): { value: number; unit: string; icoldLevel: 'NORMAL' | 'L1' | 'L2' | 'L3' } {
+): { type: SHMSTrainingExample['sensorData']['type']; value: number; unit: string; icoldLevel: 'NORMAL' | 'L1' | 'L2' | 'L3' } {
   // Thresholds ICOLD Bulletin 158 §4.3
   const thresholds: Record<string, { l1: number; l2: number; l3: number; unit: string; normalMax: number }> = {
     piezometer:   { l1: 1.0, l2: 2.0, l3: 3.0, unit: 'bar',     normalMax: 0.8 },
@@ -110,7 +110,7 @@ function generateSyntheticReading(
       break;
   }
 
-  return { value: parseFloat(value.toFixed(4)), unit: t.unit, icoldLevel: targetLevel };
+  return { type, value: parseFloat(value.toFixed(4)), unit: t.unit, icoldLevel: targetLevel };
 }
 
 /**
@@ -367,4 +367,3 @@ export async function runCurriculumLearningPipeline(): Promise<CurriculumPipelin
   return result;
 }
 
-export { SHMSTrainingExample, CurriculumPipelineResult, CurriculumPhase };

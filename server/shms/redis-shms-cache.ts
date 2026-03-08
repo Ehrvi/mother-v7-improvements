@@ -164,9 +164,16 @@ export class RedisSHMSCache {
    */
   async connect(): Promise<void> {
     try {
-      // Dynamic import — ioredis is optional dependency
-      const { default: Redis } = await import('ioredis');
-      this.client = new Redis(this.config.redisUrl, {
+      // Dynamic import — ioredis is optional dependency (not required in pré-produção R38)
+      // Falls back to in-memory cache automatically if ioredis is not installed
+      let RedisClass: (new (url: string, opts: Record<string, unknown>) => { connect(): Promise<void>; ping(): Promise<string>; get(k: string): Promise<string|null>; setex(k: string, ttl: number, v: string): Promise<void>; keys(p: string): Promise<string[]>; del(...k: string[]): Promise<number>; quit(): Promise<void> }) | null = null;
+      try {
+        const mod = await import('ioredis');
+        RedisClass = (mod.default ?? mod) as typeof RedisClass;
+      } catch {
+        throw new Error('ioredis not installed — using in-memory fallback (R38)');
+      }
+      this.client = new RedisClass(this.config.redisUrl, {
         connectTimeout: 5000,
         maxRetriesPerRequest: 2,
         lazyConnect: true,
@@ -400,4 +407,4 @@ export async function initRedisSHMSCache(): Promise<void> {
   log.info(`[REDIS-SHMS] Cache initialized — backend: ${stats.backend}`);
 }
 
-export { SHMSCacheConfig, CacheEntry };
+// SHMSCacheConfig and CacheEntry already exported via 'export interface' declarations above

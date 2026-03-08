@@ -172,8 +172,10 @@ export class MQTTBridge extends EventEmitter {
         return;
       }
       
-      console.log(`[MQTT] Subscribed to ${granted.length} topics`);
-      granted.forEach(g => console.log(`  - ${g.topic} (QoS ${g.qos})`));
+      if (granted && granted.length > 0) {
+        console.log(`[MQTT] Subscribed to ${granted.length} topics`);
+        granted.forEach(g => console.log(`  - ${g.topic} (QoS ${g.qos})`));
+      }
     });
   }
   
