@@ -102,7 +102,11 @@
     "wouter": "^3.3.5",
     "xml2js": "^0.6.2",
     "zod": "^4.1.12",
-    "@octokit/rest": "^21.1.1"
+    "@octokit/rest": "^21.1.1",
+    "cors": "^2.8.5",
+    "express-rate-limit": "^7.5.0",
+    "fast-check": "^3.23.2",
+    "supertest": "^7.1.0"
   },
   "devDependencies": {
     "@builder.io/vite-plugin-jsx-loc": "^0.1.1",
@@ -133,7 +137,9 @@
     "typescript": "5.9.3",
     "vite": "^7.1.7",
     "vite-plugin-manus-runtime": "^0.0.57",
-    "vitest": "^2.1.4"
+    "vitest": "^2.1.4",
+    "@types/cors": "^2.8.17",
+    "@types/supertest": "^6.0.3"
   },
   "packageManager": "pnpm@10.4.1+sha512.c753b6c3ad7afa13af388fa6d808035a008e30ea9993f58c6663e2bc5ff21679aa834db094987129aa4d488b86df57f7b634981b2f827cdcacc698cc0cfb88af",
   "pnpm": {
