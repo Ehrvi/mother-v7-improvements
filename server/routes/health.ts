@@ -63,6 +63,7 @@ router.get("/", async (_req: Request, res: Response) => {
   try {
     const { getDb } = await import("../db.js");
     const db = await getDb();
+    if (!db) throw new Error("DB not initialized");
     const dbStart = Date.now();
     await db.execute("SELECT 1");
     dbLatencyMs = Date.now() - dbStart;

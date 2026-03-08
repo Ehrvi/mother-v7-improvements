@@ -139,6 +139,7 @@ router.get("/dgm", async (_req: Request, res: Response) => {
     // Try to get DGM stats from DB
     const { getDb } = await import("../db.js");
     const db = await getDb();
+    if (!db) throw new Error("DB not initialized");
 
     const [proposalStats] = await db.execute(`
       SELECT 
