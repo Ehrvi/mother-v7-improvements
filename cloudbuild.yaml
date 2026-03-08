@@ -1,5 +1,5 @@
 steps:
-  # v68.3: Sprint 3 — Run TypeScript type check (fast, no DB needed)
+  # v68.4: Sprint 4 C203-R001 — Run TypeScript type check (fast, no DB needed)
   # Scientific basis: Dijkstra (1988) — static verification before dynamic deployment
   # Uses pnpm (project package manager) to install dependencies
   - name: 'node:22'
