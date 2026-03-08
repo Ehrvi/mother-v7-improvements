@@ -86,6 +86,16 @@ export class GitHubWriteService {
     return res.json() as Promise<T>;
   }
 
+  /** Get the SHA of an existing file on a branch (returns null if not found) */
+  async getFileSha(filePath: string, branch = 'main'): Promise<string | null> {
+    try {
+      const data = await this.request<any>('GET', `/repos/${this.owner}/${this.repo}/contents/${encodeURIComponent(filePath)}?ref=${branch}`);
+      return (data as any).sha || null;
+    } catch {
+      return null; // file does not exist yet — safe to create
+    }
+  }
+
   /** Get the SHA of the HEAD of main branch */
   async getMainSha(): Promise<string> {
     const data = await this.request<any>('GET', `/repos/${this.owner}/${this.repo}/git/ref/heads/main`);
@@ -103,7 +113,7 @@ export class GitHubWriteService {
     return { branchName, sha };
   }
 
-  /** Commit a file to a branch (create or update) */
+  /** Commit a file to a branch (create or update). Auto-fetches sha if file already exists. */
   async commitFile(
     filePath: string,
     content: string,
@@ -112,12 +122,17 @@ export class GitHubWriteService {
     existingSha?: string
   ): Promise<CommitResult> {
     const encodedContent = Buffer.from(content).toString('base64');
+    // Auto-resolve sha: required by GitHub API when updating an existing file (422 if missing)
+    // Check branch first, then main — covers both update-on-branch and first-commit scenarios
+    const resolvedSha = existingSha
+      || await this.getFileSha(filePath, branch)
+      || await this.getFileSha(filePath, 'main');
     const body: any = {
       message,
       content: encodedContent,
       branch,
     };
-    if (existingSha) body.sha = existingSha;
+    if (resolvedSha) body.sha = resolvedSha;
 
     const data = await this.request<any>('PUT', `/repos/${this.owner}/${this.repo}/contents/${filePath}`, body);
     log.info(`[GitHubWrite] Committed: ${filePath} on ${branch}`);
