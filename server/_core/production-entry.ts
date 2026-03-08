@@ -45,6 +45,7 @@ import { handleSHMSAnalyze, handleSHMSCalibration } from '../mother/shms-analyze
 import { injectSprintKnowledge } from '../mother/council-v4-sprint-knowledge.js'; // C179: Knowledge injection on startup
 import { recordLatency, getLatencyReport } from '../mother/latency-telemetry.js'; // C188: Phase 4.1 — P50 real measurement (Dean & Barroso 2013)
 import { shmsHealthCheck } from '../mother/shms-auth-middleware.js'; // C188: Phase 4.4 — SHMS auth + billing middleware
+import { shmsAlertsRouter } from '../shms/shms-alerts-endpoint.js'; // C196-0 ORPHAN FIX: Sprint 3 — GET /api/shms/v2/alerts/:structureId (ICOLD Bulletin 158 §4.3)
 // C190 P0 CRÍTICO: Conectar lora-trainer.ts — Conselho C188 Seção 3.2.1 (função MORTA → VIVA)
 // Base científica: Hu et al. (2025) LoRA-XS arXiv:2405.09673 — 98.7% desempenho com 0.3% custo
 import { scheduleLoRAPipeline } from '../mother/lora-trainer.js';
@@ -241,7 +242,9 @@ app.use('/auth', authRouter); // NC-ARCH-002: /auth/* (JWT, login, logout)
 app.use('/api/shms/v2', shmsRouter); // NC-ARCH-002: /api/shms/v2/* (SHMS v2 analyze — SHMS v1 DEPRECATED C189)
 app.use('/api/dgm', dgmRouter); // NC-ARCH-002: /api/dgm/* (DGM status, cycle trigger)
 app.use('/api/metrics', metricsRouter); // NC-ARCH-002: /api/metrics/* (latency P50/P95/P99, cache stats)
+app.use('/api/shms', shmsAlertsRouter); // C196-0 ORPHAN FIX: /api/shms/v2/alerts/:structureId — ICOLD L1/L2/L3 (Sprint 3 — ICOLD Bulletin 158 §4.3)
 log.info('[NC-ARCH-002 C190] 4 routers modulares montados: auth, shms-v2, dgm, metrics — God Object decomposição COMPLETA');
+log.info('[C196-0 ORPHAN FIX] shmsAlertsRouter montado: /api/shms/v2/alerts/:structureId — ICOLD Bulletin 158 §4.3 (Sprint 3)');
 
 /**
  * v45.0: Cloud Tasks DGM Execute Endpoint

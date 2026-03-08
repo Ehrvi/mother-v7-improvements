@@ -26,6 +26,7 @@ import { checkDuplicate } from './dgm-deduplicator'; // C148: DGM Deduplicator (
 import { getDb } from '../db'; // C176: DB-backed deduplication for cross-restart persistence
 import { sql } from 'drizzle-orm';
 import { runBenchmark } from './dgm-benchmark'; // C173: 6 MCCs auto-run after each DGM cycle (HELM arXiv:2211.09110)
+import { runDGMSprint13Benchmark } from '../dgm/dgm-sprint13-benchmark'; // C196-0 ORPHAN FIX: Sprint 13 benchmark (HELM arXiv:2211.09110 + DGM arXiv:2505.22954)
 import {
   createProposal,
   applyProposal,
