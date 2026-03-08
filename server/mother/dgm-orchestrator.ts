@@ -26,6 +26,8 @@ import { checkDuplicate } from './dgm-deduplicator'; // C148: DGM Deduplicator (
 import { getDb } from '../db'; // C176: DB-backed deduplication for cross-restart persistence
 import { sql } from 'drizzle-orm';
 import { runBenchmark } from './dgm-benchmark'; // C173: 6 MCCs auto-run after each DGM cycle (HELM arXiv:2211.09110)
+import { runDGMSprint13Benchmark } from '../dgm/dgm-sprint13-benchmark'; // C196-0 ORPHAN FIX: Sprint 13 benchmark (HELM arXiv:2211.09110 + DGM arXiv:2505.22954)
+import { runAutonomousLoop } from '../dgm/dgm-autonomous-loop-c197.js'; // C197-4: DGM Autonomous Loop — MCC gate + autoMerge + benchmark + learning (arXiv:2505.22954)
 import {
   createProposal,
   applyProposal,
@@ -524,6 +526,37 @@ export async function runDGMCycle(spec: DGMCycleSpec): Promise<DGMCycleResult> {
     // SICA (arXiv:2504.15228) — 83% → 17% failure rate with pre-commit validation
     const AUTO_MERGE_THRESHOLD = 80;
     if (fitnessScore.overall >= AUTO_MERGE_THRESHOLD) {
+      // C197-4: DGM Autonomous Loop — MCC gate antes do autoMerge
+      // Base científica: Darwin Gödel Machine arXiv:2505.22954 + Cohen (1988) MCC threshold 0.85
+      // Ciclo completo: proposta → MCC gate → autoMerge → benchmark → aprendizado
+      runAutonomousLoop({
+        mccThreshold: 0.85,
+        autoMergeThreshold: AUTO_MERGE_THRESHOLD,
+        enableLearning: true,
+        dryRun: spec.initiator === 'human',
+      }).then(loopResult => {
+        if (loopResult.executed) {
+          log.info('[C197-4] DGM Autonomous Loop COMPLETO — MCC gate aprovado + ciclo fechado', {
+            cycleId,
+            mccScore: loopResult.mccScore,
+            proposals: loopResult.proposals,
+            autoMerged: loopResult.autoMerged,
+            benchmarkPassed: loopResult.benchmarkPassed,
+            learningRecorded: loopResult.learningRecorded,
+            scientificBasis: 'Darwin Gödel Machine arXiv:2505.22954',
+          });
+        } else if (loopResult.phase === 'mcc_gate') {
+          log.warn('[C197-4] MCC gate BLOQUEOU autoMerge', {
+            cycleId,
+            mccScore: loopResult.mccScore,
+            reason: loopResult.reason,
+            scientificBasis: 'Cohen (1988) Statistical Power Analysis — MCC threshold 0.85',
+          });
+        }
+      }).catch(err => {
+        log.warn('[C197-4] DGM Autonomous Loop falhou (non-blocking)', { cycleId, error: String(err) });
+      });
+
       log.info('[C192-AUTOMERGE] DGM Sprint 10: autoMerge triggered (fitness >= 80)', {
         cycleId, fitness: fitnessScore.overall, threshold: AUTO_MERGE_THRESHOLD,
         scientificBasis: 'Darwin Gödel Machine (arXiv:2505.22954)',

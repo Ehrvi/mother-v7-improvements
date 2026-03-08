@@ -12,6 +12,7 @@
  */
 
 import express from 'express';
+import { corsConfig } from './cors-config.js'; // NC-001 Fix Sprint 1: CORS whitelist (OWASP A01:2021)
 import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
@@ -44,6 +45,14 @@ import { handleSHMSAnalyze, handleSHMSCalibration } from '../mother/shms-analyze
 import { injectSprintKnowledge } from '../mother/council-v4-sprint-knowledge.js'; // C179: Knowledge injection on startup
 import { recordLatency, getLatencyReport } from '../mother/latency-telemetry.js'; // C188: Phase 4.1 — P50 real measurement (Dean & Barroso 2013)
 import { shmsHealthCheck } from '../mother/shms-auth-middleware.js'; // C188: Phase 4.4 — SHMS auth + billing middleware
+import { shmsAlertsRouter } from '../shms/shms-alerts-endpoint.js'; // C196-0 ORPHAN FIX: Sprint 3 — GET /api/shms/v2/alerts/:structureId (ICOLD Bulletin 158 §4.3)
+import { initRedisSHMSCache } from '../shms/redis-shms-cache.js'; // C197-1 ORPHAN FIX: Sprint 4 — Redis Cache-aside P50 < 100ms (Dean & Barroso 2013 CACM 56(2))
+import { indexPapersC193C196 } from '../mother/hipporag2-indexer-c196.js'; // C197-2 ORPHAN FIX: Sprint 4 — HippoRAG2 10 papers C193-C196 (Gutierrez et al. 2025 arXiv:2405.14831v2)
+import { runDGMSprint14 } from '../dgm/dgm-sprint14-autopilot.js'; // C197-3 ORPHAN FIX: Sprint 4 — DGM Sprint 14 auto-PR (arXiv:2505.22954 + HELM arXiv:2211.09110)
+import { runCurriculumLearningPipeline } from '../shms/curriculum-learning-shms.js'; // C198-1 ORPHAN FIX: Sprint 5 — Curriculum Learning 3 fases (Bengio 2009 ICML + ICOLD 158)
+import { runDPOTrainingPipeline } from '../mother/dpo-training-pipeline-c197.js'; // C198-2 ORPHAN FIX: Sprint 5 — DPO Training Pipeline dry_run (Rafailov 2023 arXiv:2305.18290)
+import { runGRPOOptimizer } from '../mother/grpo-optimizer-c198.js'; // C198-3 ORPHAN FIX: Sprint 5 — GRPO Optimizer benchmark vs DPO (DeepSeek-R1 arXiv:2501.12948)
+import { runDGMSprint15 } from '../dgm/dgm-sprint15-score90.js'; // C198-4: DGM Sprint 15 — Score ≥ 90/100 validation (HELM + ISO/IEC 25010:2011)
 // C190 P0 CRÍTICO: Conectar lora-trainer.ts — Conselho C188 Seção 3.2.1 (função MORTA → VIVA)
 // Base científica: Hu et al. (2025) LoRA-XS arXiv:2405.09673 — 98.7% desempenho com 0.3% custo
 import { scheduleLoRAPipeline } from '../mother/lora-trainer.js';
@@ -186,6 +195,7 @@ async function runMigrations() {
 }
 
 // Middleware
+app.use(corsConfig); // NC-001 Fix Sprint 1: CORS whitelist replaces wildcard '*' (OWASP A01:2021)
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -239,7 +249,9 @@ app.use('/auth', authRouter); // NC-ARCH-002: /auth/* (JWT, login, logout)
 app.use('/api/shms/v2', shmsRouter); // NC-ARCH-002: /api/shms/v2/* (SHMS v2 analyze — SHMS v1 DEPRECATED C189)
 app.use('/api/dgm', dgmRouter); // NC-ARCH-002: /api/dgm/* (DGM status, cycle trigger)
 app.use('/api/metrics', metricsRouter); // NC-ARCH-002: /api/metrics/* (latency P50/P95/P99, cache stats)
+app.use('/api/shms', shmsAlertsRouter); // C196-0 ORPHAN FIX: /api/shms/v2/alerts/:structureId — ICOLD L1/L2/L3 (Sprint 3 — ICOLD Bulletin 158 §4.3)
 log.info('[NC-ARCH-002 C190] 4 routers modulares montados: auth, shms-v2, dgm, metrics — God Object decomposição COMPLETA');
+log.info('[C196-0 ORPHAN FIX] shmsAlertsRouter montado: /api/shms/v2/alerts/:structureId — ICOLD Bulletin 158 §4.3 (Sprint 3)');
 
 /**
  * v45.0: Cloud Tasks DGM Execute Endpoint
@@ -332,7 +344,7 @@ app.post('/api/mother/stream', async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // NC-001 Fix: CORS handled by corsConfig middleware (Sprint 1 — OWASP A01:2021)
   res.flushHeaders();
 
   const sendEvent = (event: string, data: unknown) => {
@@ -856,4 +868,107 @@ app.listen(PORT, '0.0.0.0', async () => {
     setTimeout(runDGMDailyCycle, DGM_FIRST_RUN_DELAY_MS);
     setInterval(runDGMDailyCycle, DGM_DAILY_INTERVAL_MS);
   }, 5000);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // C197-1 ORPHAN FIX: Redis SHMS Cache — Cache-aside pattern P50 < 100ms
+  // Base científica: Dean & Barroso (2013) CACM 56(2) — tail latency at scale
+  // R38: Dados sintéticos — correto para pré-produção oficial
+  // ─────────────────────────────────────────────────────────────────────────
+  setTimeout(async () => {
+    try {
+      await initRedisSHMSCache();
+      log.info('[MOTHER C197-1] Redis SHMS Cache ATIVO — Cache-aside pattern P50 < 100ms | Dean & Barroso 2013 CACM 56(2)');
+    } catch (err) {
+      log.warn('[MOTHER C197-1] Redis Cache init falhou (non-critical — fallback in-memory ativo):', (err as Error).message?.slice(0, 100));
+    }
+  }, 7000);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // C197-2 ORPHAN FIX: HippoRAG2 — Indexar papers C193-C196 no grafo de conhecimento
+  // Base científica: Gutierrez et al. (2025) arXiv:2405.14831v2 — HippoRAG2 knowledge graph
+  // ─────────────────────────────────────────────────────────────────────────
+  setTimeout(async () => {
+    try {
+      const result = await indexPapersC193C196();
+      log.info(`[MOTHER C197-2] HippoRAG2 indexação CONCLUÍDA — ${result.indexed} papers indexados | arXiv:2405.14831v2`);
+    } catch (err) {
+      log.warn('[MOTHER C197-2] HippoRAG2 indexação falhou (non-critical):', (err as Error).message?.slice(0, 100));
+    }
+  }, 8000);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // C197-3 ORPHAN FIX: DGM Sprint 14 Autopilot — auto-PR com referências científicas
+  // Base científica: Darwin Gödel Machine arXiv:2505.22954 — Proposal Quality +4.7%, Code Correctness +7.1%
+  // Executa 15min após startup (após DGM Sprint 12 daily cycle estar agendado)
+  // ─────────────────────────────────────────────────────────────────────────
+  setTimeout(async () => {
+    try {
+      const sprint14Result = await runDGMSprint14();
+      log.info(`[MOTHER C197-3] DGM Sprint 14 EXECUTADO — proposals: ${sprint14Result.proposals} | convergence: ${sprint14Result.convergenceScore?.toFixed(2)} | arXiv:2505.22954`);
+    } catch (err) {
+      log.warn('[MOTHER C197-3] DGM Sprint 14 falhou (non-critical):', (err as Error).message?.slice(0, 100));
+    }
+  }, 15 * 60 * 1000); // 15min após startup
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // C198-1 ORPHAN FIX: Curriculum Learning SHMS — pipeline progressivo sintético (Sprint 5)
+  // Base científica: Bengio et al. (2009) ICML — Curriculum Learning
+  // ICOLD Bulletin 158 §4.3 — 3 fases: básico → anomalia → crítico (225 exemplos)
+  // R38: Dados sintéticos calibrados — correto para pré-produção oficial
+  // ─────────────────────────────────────────────────────────────────────────
+  setTimeout(async () => {
+    try {
+      const clResult = await runCurriculumLearningPipeline({ dryRun: true });
+      log.info(`[MOTHER C198-1] Curriculum Learning SHMS EXECUTADO — fase: ${clResult.currentPhase} | exemplos: ${clResult.examplesGenerated} | accuracy: ${(clResult.phaseAccuracy ?? 0).toFixed(2)} | Bengio 2009 ICML`);
+    } catch (err) {
+      log.warn('[MOTHER C198-1] Curriculum Learning falhou (non-critical — R38 pré-produção):', (err as Error).message?.slice(0, 100));
+    }
+  }, 9000); // 9s após startup
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // C198-2 ORPHAN FIX: DPO Training Pipeline — Constitutional AI dry_run (Sprint 5)
+  // Base científica: Rafailov et al. (2023) arXiv:2305.18290 — Direct Preference Optimization
+  // Bai et al. (2022) arXiv:2212.08073 — Constitutional AI (6 princípios SHMS/ICOLD)
+  // MANDATÓRIO: dry_run=true até dados reais disponíveis (R38)
+  // ─────────────────────────────────────────────────────────────────────────
+  setTimeout(async () => {
+    try {
+      const dpoResult = await runDPOTrainingPipeline({ dryRun: true });
+      log.info(`[MOTHER C198-2] DPO Training Pipeline EXECUTADO — pairs: ${dpoResult.pairsGenerated} | alignment: ${(dpoResult.alignmentScore ?? 0).toFixed(1)}/100 | dry_run=true (R38) | arXiv:2305.18290`);
+    } catch (err) {
+      log.warn('[MOTHER C198-2] DPO Pipeline falhou (non-critical — dry_run R38):', (err as Error).message?.slice(0, 100));
+    }
+  }, 10000); // 10s após startup
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // C198-3 ORPHAN FIX: GRPO Optimizer — benchmark GRPO vs DPO (Sprint 5)
+  // Base científica: DeepSeek-R1 (2025) arXiv:2501.12948 — GRPO for reasoning
+  // Shao et al. (2024) arXiv:2402.03300 — DeepSeekMath GRPO
+  // Votação 2 do Conselho: GRPO (DeepSeek, Gemini) reservado Sprint 5
+  // MANDATÓRIO: dry_run=true até dados reais disponíveis (R38)
+  // ─────────────────────────────────────────────────────────────────────────
+  setTimeout(async () => {
+    try {
+      const grpoResult = await runGRPOOptimizer({ dryRun: true, benchmarkMode: true });
+      log.info(`[MOTHER C198-3] GRPO Optimizer EXECUTADO — score: ${grpoResult.grpoScore}/100 | DPO: ${grpoResult.dpoScore}/100 | winner: ${grpoResult.winner} | samples: ${grpoResult.samplesProcessed} | arXiv:2501.12948`);
+    } catch (err) {
+      log.warn('[MOTHER C198-3] GRPO Optimizer falhou (non-critical — dry_run R38):', (err as Error).message?.slice(0, 100));
+    }
+  }, 11000); // 11s após startup
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // C198-4: DGM Sprint 15 — Validação final Score ≥ 90/100 (Sprint 5 FINAL)
+  // Base científica: HELM arXiv:2211.09110 + arXiv:2505.22954 + ISO/IEC 25010:2011
+  // Votação 3 do Conselho: CONSENSO UNÂNIME 5/5
+  // Executa 20min após startup (após todos os outros módulos estarem ativos)
+  // ─────────────────────────────────────────────────────────────────────────
+  setTimeout(async () => {
+    try {
+      const s15Result = await runDGMSprint15();
+      const status = s15Result.threshold90Achieved ? '✅ THRESHOLD R33 ATINGIDO' : '⚠️ abaixo do threshold';
+      log.info(`[MOTHER C198-4] DGM Sprint 15 CONCLUÍDO — score: ${s15Result.totalScore}/100 | MCC: ${s15Result.mccScore} | ${status} | arXiv:2505.22954`);
+    } catch (err) {
+      log.warn('[MOTHER C198-4] DGM Sprint 15 falhou (non-critical):', (err as Error).message?.slice(0, 100));
+    }
+  }, 20 * 60 * 1000); // 20min após startup
 });

@@ -257,7 +257,7 @@ export function registerSHMSRoutes(router: Router): void {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    // NC-001 Fix: CORS handled by corsConfig middleware (Sprint 1 — OWASP A01:2021)
 
     // Send initial connection event
     res.write(`event: connected\ndata: ${JSON.stringify({
