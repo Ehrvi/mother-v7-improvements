@@ -4,9 +4,11 @@ steps:
   # Uses pnpm (project package manager) to install dependencies
   - name: 'node:22'
     entrypoint: 'sh'
+    env:
+      - 'COREPACK_ENABLE_STRICT=0'
     args:
       - '-c'
-      - 'corepack enable && corepack prepare pnpm@10.15.1 --activate && pnpm install --frozen-lockfile --quiet && npx tsc --noEmit'
+      - 'npm install -g pnpm@10.15.1 --quiet && pnpm install --frozen-lockfile --quiet && npx tsc --noEmit'
     timeout: 300s
 
   # Build the Docker image
