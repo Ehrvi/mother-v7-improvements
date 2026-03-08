@@ -8,6 +8,10 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { a2aRouter } from "../mother/a2a-server";
 import { warmCache } from "../mother/semantic-cache"; // R547 (AWAKE V236 Ciclo 164): Cache warming
+// Sprint 1 C200: New routes (health, monitor, long-form)
+import healthRouter from "../routes/health.js";
+import monitorRouter from "../routes/monitor-routes.js";
+import longFormRouter from "../routes/long-form-routes.js";
 // Vite imports moved to dynamic imports to avoid bundling in production
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -44,6 +48,11 @@ async function startServer() {
   // Query: POST /api/a2a/query
   // Status: GET /api/a2a/status
   app.use(a2aRouter);
+  // Sprint 1 C200: Health, Monitor, Long-form routes
+  app.use("/api/health", healthRouter);
+  app.use("/api/version", (_req, res) => res.redirect("/api/health/version"));
+  app.use("/api/monitor", monitorRouter);
+  app.use("/api/long-form", longFormRouter);
   // tRPC API
   app.use(
     "/api/trpc",

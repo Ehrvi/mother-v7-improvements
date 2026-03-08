@@ -5,3 +5,8 @@ dist/
 *.log
 .DS_Store
 logs/
+
+# Sprint 1 C200: NC-ARCH-004 — exclude backup files
+*.bak
+*.backup
+*.orig

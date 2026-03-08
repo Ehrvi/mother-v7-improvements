@@ -4,6 +4,7 @@ import { Bot, Settings, Trash2, GitBranch } from 'lucide-react';
 import { useMother } from '@/contexts/MotherContext';
 import { toast } from 'sonner';
 import { Link, useLocation } from 'react-router-dom';
+import { VersionBadge } from '@/components/VersionBadge';
 
 export default function Header() {
   const { clearMessages } = useMother();
@@ -31,7 +32,10 @@ export default function Header() {
             </div>
           </Link>
           <div>
-            <h1 className="text-xl font-bold text-foreground">MOTHER v57.0</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-foreground">MOTHER</h1>
+              <VersionBadge compact />
+            </div>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-xs border-green-500/50 text-green-400">
                 ● Operational
