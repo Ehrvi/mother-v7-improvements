@@ -15,7 +15,7 @@
  * 4. Export to Markdown, LaTeX, or plain text
  */
 
-import OpenAI from "openai";
+import { ChatOpenAI } from "@langchain/openai";
 
 export interface LongFormRequest {
   /** Document title */
@@ -91,12 +91,14 @@ const MAX_CONTEXT_SECTIONS = 3; // How many previous sections to include as cont
  * as context for each new section, preventing topic drift in long documents.
  */
 export class LongFormGenerator {
-  private openai: OpenAI;
+  private llm: ChatOpenAI;
   private readonly model = "gpt-4o";
 
   constructor() {
-    this.openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+    this.llm = new ChatOpenAI({
+      modelName: this.model,
+      openAIApiKey: process.env.OPENAI_API_KEY,
+      temperature: 0.7,
     });
   }
 
@@ -244,14 +246,12 @@ Exemplo: ["Introdução", "Fundamentação Teórica", "Metodologia", ...]
 
 O outline deve cobrir o tema de forma completa e progressiva, do básico ao avançado.`;
 
-    const response = await this.openai.chat.completions.create({
-      model: this.model,
-      messages: [{ role: "user", content: prompt }],
+    const response = await this.llm.invoke([{ role: "user", content: prompt }], {
       temperature: 0.3,
-      max_tokens: 1000,
-    });
+      maxTokens: 1000,
+    } as any);
 
-    const content = response.choices[0]?.message?.content ?? "[]";
+    const content = (response as any).content ?? "[]";
 
     try {
       // Extract JSON array from response
@@ -323,14 +323,12 @@ INSTRUÇÕES:
 
 Escreva APENAS o conteúdo da seção, sem prefácio ou meta-comentários.`;
 
-    const response = await this.openai.chat.completions.create({
-      model: this.model,
-      messages: [{ role: "user", content: prompt }],
+    const response = await this.llm.invoke([{ role: "user", content: prompt }], {
       temperature: 0.7,
-      max_tokens: Math.ceil(params.targetWords * 1.5), // Allow 50% buffer
-    });
+      maxTokens: Math.ceil(params.targetWords * 1.5), // Allow 50% buffer
+    } as any);
 
-    return response.choices[0]?.message?.content ?? "";
+    return (response as any).content ?? "";
   }
 
   /**

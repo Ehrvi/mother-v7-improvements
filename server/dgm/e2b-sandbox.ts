@@ -74,7 +74,7 @@ export class E2BSandboxWrapper {
 
     try {
       // Dynamic import to avoid hard dependency on e2b package
-      await import("e2b");
+      await import("@e2b/code-interpreter");
       this.e2bAvailable = true;
     } catch {
       this.e2bAvailable = false;
@@ -95,8 +95,8 @@ export class E2BSandboxWrapper {
     const startTime = Date.now();
 
     try {
-      // Dynamic import for optional e2b dependency
-      const { Sandbox } = await import("e2b");
+      // Dynamic import for optional e2b dependency — uses @e2b/code-interpreter (installed)
+      const { Sandbox } = await import("@e2b/code-interpreter") as any;
 
       const sandbox = await Sandbox.create(this.config.templateId, {
         apiKey: this.config.apiKey,

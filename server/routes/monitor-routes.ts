@@ -137,7 +137,8 @@ router.get("/stream", (req: Request, res: Response) => {
 router.get("/dgm", async (_req: Request, res: Response) => {
   try {
     // Try to get DGM stats from DB
-    const { db } = await import("../db.js");
+    const { getDb } = await import("../db.js");
+    const db = await getDb();
 
     const [proposalStats] = await db.execute(`
       SELECT 

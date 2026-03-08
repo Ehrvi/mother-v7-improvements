@@ -61,7 +61,8 @@ router.get("/", async (_req: Request, res: Response) => {
 
   // Try to check DB connectivity
   try {
-    const { db } = await import("../db.js");
+    const { getDb } = await import("../db.js");
+    const db = await getDb();
     const dbStart = Date.now();
     await db.execute("SELECT 1");
     dbLatencyMs = Date.now() - dbStart;
