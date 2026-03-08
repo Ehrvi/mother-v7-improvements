@@ -271,3 +271,57 @@ export async function runAutonomousLoop(
  * ```
  */
 export { AutonomousLoopResult, AutonomousLoopConfig };
+
+// ─────────────────────────────────────────────────────────────────────────
+// C202 Sprint 3: DGM Loop Activator Integration
+// Conecta o pipeline completo: proposta -> sandbox -> fitness -> proof -> commit -> deploy
+// Base: arXiv:2505.22954 Darwin Gödel Machine + Semantic Versioning 2.0.0
+// ─────────────────────────────────────────────────────────────────────────
+
+import { runDGMLoopCycle, getDGMLoopActivator, LoopActivatorResult } from './dgm-loop-activator';
+import { getDGMVersionManager, formatRunId, formatVersion } from './dgm-version-manager';
+
+/**
+ * Executa o DGM Loop Completo com versionamento por run e ciclo (C202+)
+ * Substitui runAutonomousLoop para ciclos C202+
+ *
+ * @param cycle - Ciclo atual (ex: 'C202')
+ * @param dryRun - Se true, nao faz commit/push real
+ */
+export async function runDGMLoopC202(
+  cycle: string = process.env.MOTHER_CYCLE || 'C202',
+  dryRun: boolean = process.env.DGM_DRY_RUN === 'true',
+): Promise<LoopActivatorResult> {
+  log.info(`[DGM-C202] Iniciando DGM Loop Completo — cycle=${cycle} dryRun=${dryRun}`);
+
+  const result = await runDGMLoopCycle(cycle);
+
+  if (result.success) {
+    log.info(`[DGM-C202] Loop COMPLETO — version=${result.version} fitness=${result.fitnessScore?.toFixed(3)}`);
+    const vm = getDGMVersionManager(cycle);
+    const stats = vm.getStats();
+    log.info(`[DGM-C202] Stats — totalRuns=${stats.totalRuns} successRate=${(stats.successRate * 100).toFixed(1)}%`);
+  } else {
+    log.warn(`[DGM-C202] Loop REJEITADO na fase=${result.phase}: ${result.reason}`);
+  }
+
+  return result;
+}
+
+/**
+ * Retorna as estatisticas do ciclo DGM atual
+ */
+export function getDGMCycleStats(cycle?: string) {
+  const vm = getDGMVersionManager(cycle);
+  return vm.getStats();
+}
+
+/**
+ * Gera o changelog do ciclo DGM atual
+ */
+export function getDGMChangelog(cycle?: string): string {
+  const vm = getDGMVersionManager(cycle);
+  return vm.generateChangelog();
+}
+
+export { LoopActivatorResult, formatRunId, formatVersion };
