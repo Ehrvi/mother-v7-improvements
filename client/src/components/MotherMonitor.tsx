@@ -27,7 +27,7 @@ interface MonitorMetrics {
 }
 
 const DEFAULT_METRICS: MonitorMetrics = {
-  version: 'v83.0',
+  version: 'v87.0',
   cycle: 'C202',
   runId: 'C202-R001',
   dgmStatus: 'idle',

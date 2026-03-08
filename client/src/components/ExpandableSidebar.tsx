@@ -47,7 +47,7 @@ export const ExpandableSidebar: React.FC<ExpandableSidebarProps> = ({
   onRunSelect,
   onSectionSelect,
   currentSection = 'chat',
-  motherVersion = 'v83.0',
+  motherVersion = 'v87.0',
   cycle = 'C202',
 }) => {
   const [expanded, setExpanded] = useState(true);

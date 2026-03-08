@@ -36,17 +36,20 @@ interface DGMPanelProps {
   onTriggerRun?: () => Promise<void>;
   onViewRun?: (runId: string) => void;
   isRunning?: boolean;
+  /** C205-1: compact mode for RightPanel Monitor tab */
+  compact?: boolean;
 }
 
 type TabId = 'runs' | 'changelog' | 'config';
 
 export const DGMPanel: React.FC<DGMPanelProps> = ({
   runs = [],
-  currentCycle = 'C202',
-  currentVersion = 'v83.0',
+  currentCycle = 'C205',
+  currentVersion = 'v87.0',
   onTriggerRun,
   onViewRun,
   isRunning = false,
+  compact = false,
 }) => {
   const [activeTab, setActiveTab] = useState<TabId>('runs');
   const [selectedRun, setSelectedRun] = useState<DGMRun | null>(null);
