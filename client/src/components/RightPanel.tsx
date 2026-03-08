@@ -509,8 +509,13 @@ function ProposalsSection() {
               )}
             </div>
             <div className="text-[10px] font-medium text-[#e8e8f0] leading-tight">{p.title}</div>
-            <div className="text-[8px] text-[#55556a] mt-0.5">
-              Trigger: <span className="text-[#a78bfa]">{p.metricTrigger}</span>
+            <div className="text-[8px] text-[#55556a] mt-0.5 flex items-center gap-2 flex-wrap">
+              <span>Trigger: <span className="text-[#a78bfa]">{p.metricTrigger}</span></span>
+              {p.createdAt && (
+                <span className="text-[7px] text-[#44445a]">
+                  {new Date(p.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} #{p.id}
+                </span>
+              )}
             </div>
           </div>
           {isOpen ? <ChevronDown className="w-3 h-3 text-[#55556a] flex-shrink-0 mt-0.5" /> : <ChevronRight className="w-3 h-3 text-[#55556a] flex-shrink-0 mt-0.5" />}
