@@ -6,7 +6,7 @@ steps:
     entrypoint: 'sh'
     args:
       - '-c'
-      - 'npm install -g pnpm@10.4.1 --quiet && pnpm install --frozen-lockfile --quiet && npx tsc --noEmit'
+      - 'corepack enable && corepack prepare pnpm@10.15.1 --activate && pnpm install --frozen-lockfile --quiet && npx tsc --noEmit'
     timeout: 300s
 
   # Build the Docker image
