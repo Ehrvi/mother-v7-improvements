@@ -56,6 +56,7 @@ import { runDGMSprint15 } from '../dgm/dgm-sprint15-score90.js'; // C198-4: DGM 
 import { listDemoTenants, getDemoTenantStatus } from '../mother/multi-tenant-demo.js'; // C199 COMERCIAL: Multi-tenant SHMS (ISO/IEC 27001:2022 A.8.3 + NIST SP 800-53 AC-4) — APROVADO Everton Garcia C199
 import { listDemoPlans, getDemoMRRProjection } from '../mother/stripe-billing-demo.js'; // C199 COMERCIAL: Stripe billing demo (PCI DSS v4.0 + ISO/IEC 27001:2022 A.5.14) — APROVADO Everton Garcia C199
 import { getSLAReport } from '../mother/sla-monitor-demo.js'; // C199 COMERCIAL: SLA Monitor 99.9% (Google SRE Book 2016 + ISO/IEC 20000-1:2018) — APROVADO Everton Garcia C199
+import { scheduleDGMLoopC203, getDGMLoopC203Status } from '../dgm/dgm-loop-startup-c203.js'; // C203 Sprint 4: DGM Loop Activator conectado ao startup (arXiv:2505.22954 — função MORTA → VIVA R32)
 // C190 P0 CRÍTICO: Conectar lora-trainer.ts — Conselho C188 Seção 3.2.1 (função MORTA → VIVA)
 // Base científica: Hu et al. (2025) LoRA-XS arXiv:2405.09673 — 98.7% desempenho com 0.3% custo
 import { scheduleLoRAPipeline } from '../mother/lora-trainer.js';
@@ -1016,4 +1017,22 @@ app.listen(PORT, '0.0.0.0', async () => {
       log.warn('[MOTHER C199-3] SLA Monitor falhou (non-critical):', (err as Error).message?.slice(0, 100));
     }
   }, 14000); // 14s após startup
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // C203 Sprint 4: DGM Loop Activator — Conectar pipeline completo 6 fases ao startup
+  // Resolve gap identificado no Sprint 3: Loop Activator implementado mas NÃO conectado
+  // Base científica: Darwin Gödel Machine (Zhang et al. 2025, arXiv:2505.22954)
+  // SICA (arXiv:2504.15228) — self-improving coding agents with pre-commit validation
+  // Padrão R32: função MORTA → VIVA (dgm-loop-activator.ts existia mas nunca era chamado)
+  // Primeiro ciclo: 25min após startup | Recorrente: a cada 24h
+  // ─────────────────────────────────────────────────────────────────────────
+  setTimeout(() => {
+    try {
+      scheduleDGMLoopC203();
+      const status = getDGMLoopC203Status();
+      log.info(`[MOTHER C203] DGM Loop Activator AGENDADO — cycle=${status.cycle} | dryRun=${status.dryRun} | firstRun=25min | interval=24h | arXiv:2505.22954`);
+    } catch (err) {
+      log.warn('[MOTHER C203] DGM Loop Activator agendamento falhou (non-critical):', (err as Error).message?.slice(0, 100));
+    }
+  }, 16000); // 16s após startup (após todos os módulos C199 estarem ativos)
 });
