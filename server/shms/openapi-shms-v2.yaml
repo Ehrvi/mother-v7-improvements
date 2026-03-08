@@ -1,0 +1,720 @@
+openapi: "3.0.3"
+info:
+  title: MOTHER SHMS API v2
+  description: |
+    ## Structural Health Monitoring System (SHMS) API v2
+
+    API REST para monitoramento geotécnico em tempo real.
+
+    ### Referências Científicas
+    - **ICOLD Bulletin 158 (2014)**: Real-time monitoring requirements — classificação L1/L2/L3
+    - **GISTM 2020 §8.2**: Tailings dam monitoring standards — thresholds de sensores
+    - **Roy Fielding (2000)**: REST — Architectural Styles and the Design of Network-based Software
+    - **ISO/IEC 25010:2011**: Systems and software quality requirements
+
+    ### Classificação de Alertas ICOLD
+    | Nível | Cor | Descrição | Ação Requerida |
+    |-------|-----|-----------|----------------|
+    | L1 | AMARELO | Atenção — threshold 1 atingido | Monitoramento intensificado |
+    | L2 | LARANJA | Alerta — threshold 2 atingido | Notificar engenheiro responsável |
+    | L3 | VERMELHO | Emergência — threshold 3 atingido | Acionar protocolo de emergência |
+
+    ### Status PRÉ-PRODUÇÃO (R38)
+    Esta API opera com **dados sintéticos calibrados** (GISTM 2020 + ICOLD 158 thresholds).
+    Ausência de dados reais de sensores é o estado correto para pré-produção.
+    O header `X-Data-Source: synthetic-r38` indica este status.
+
+  version: "2.0.0"
+  contact:
+    name: IntellTech — MOTHER v82.4
+    email: mother@intelltech.com.br
+  license:
+    name: Proprietary
+    url: https://intelltech.com.br
+
+servers:
+  - url: https://mother-interface-qtvghovzxa-ts.a.run.app/api/shms
+    description: Produção (Cloud Run — australia-southeast1)
+  - url: https://mother-staging-qtvghovzxa-ts.a.run.app/api/shms
+    description: Staging
+  - url: http://localhost:3000/api/shms
+    description: Desenvolvimento local
+
+tags:
+  - name: sensors
+    description: Dados de sensores geotécnicos
+  - name: alerts
+    description: Alertas ICOLD L1/L2/L3
+  - name: dashboard
+    description: Dashboard consolidado por estrutura
+  - name: history
+    description: Histórico de leituras (TimescaleDB)
+  - name: health
+    description: Health check do sistema SHMS
+
+paths:
+  /health:
+    get:
+      tags: [health]
+      summary: Health check do SHMS
+      description: Verifica status do MQTT broker, TimescaleDB e pipeline de dados
+      operationId: getSHMSHealth
+      responses:
+        "200":
+          description: Sistema operacional
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SHMSHealthResponse"
+              example:
+                status: healthy
+                version: v82.4
+                mqtt:
+                  connected: true
+                  broker: "hivemq-cloud"
+                  sensorsTracked: 15
+                timescaledb:
+                  connected: true
+                  hypertables: ["shms_ts_sensor_readings", "shms_ts_alerts"]
+                  latencyMs: 12
+                dataSource: synthetic
+                icoldReference: "ICOLD Bulletin 158 §4.3"
+                timestamp: "2026-03-08T10:00:00Z"
+        "503":
+          description: Sistema degradado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v2/sensors:
+    get:
+      tags: [sensors]
+      summary: Listar sensores ativos
+      description: |
+        Retorna lista de sensores geotécnicos ativos com última leitura.
+        Referência: ICOLD Bulletin 158 §4.3 — Sensor inventory management
+      operationId: listSensors
+      parameters:
+        - name: structureId
+          in: query
+          description: Filtrar por estrutura (ex. STRUCTURE_001)
+          schema:
+            type: string
+            pattern: "^[A-Z0-9_-]+$"
+        - name: type
+          in: query
+          description: Tipo de sensor
+          schema:
+            $ref: "#/components/schemas/SensorType"
+        - name: status
+          in: query
+          description: Status do sensor
+          schema:
+            type: string
+            enum: [active, inactive, maintenance]
+      responses:
+        "200":
+          description: Lista de sensores
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sensors:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Sensor"
+                  total:
+                    type: integer
+                  dataSource:
+                    type: string
+                    enum: [synthetic, real]
+              example:
+                sensors:
+                  - id: "PIZ-001"
+                    type: piezometer
+                    structureId: "STRUCTURE_001"
+                    zone: upstream
+                    depth: 15
+                    status: active
+                    lastReading:
+                      value: 0.45
+                      unit: bar
+                      timestamp: "2026-03-08T10:00:00Z"
+                      icoldLevel: NORMAL
+                total: 1
+                dataSource: synthetic
+
+  /v2/sensors/{sensorId}/readings:
+    get:
+      tags: [sensors, history]
+      summary: Leituras de um sensor
+      description: |
+        Retorna leituras recentes de um sensor específico.
+        Dados armazenados no TimescaleDB (hypertable shms_ts_sensor_readings).
+        Referência: Sun et al. (2025) — IoT-based structural health monitoring
+      operationId: getSensorReadings
+      parameters:
+        - name: sensorId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: hours
+          in: query
+          description: Janela temporal em horas (padrão 24, máx 8760)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 8760
+            default: 24
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+      responses:
+        "200":
+          description: Leituras do sensor
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sensorId:
+                    type: string
+                  readings:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SensorReading"
+                  total:
+                    type: integer
+        "404":
+          description: Sensor não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v2/alerts/{structureId}:
+    get:
+      tags: [alerts]
+      summary: Alertas históricos de uma estrutura
+      description: |
+        Lista alertas ICOLD históricos de uma estrutura geotécnica.
+        Dados armazenados no TimescaleDB (hypertable shms_ts_alerts).
+
+        ### Filtros de Nível
+        - `L1`: Atenção (threshold 1 atingido)
+        - `L2`: Alerta (threshold 2 atingido)
+        - `L3`: Emergência (threshold 3 atingido)
+        - `YELLOW`: L1 + L2 combinados
+        - `RED`: Apenas L3 (emergências)
+
+        Referência: ICOLD Bulletin 158 §4.3 — Historical alert analysis
+      operationId: getStructureAlerts
+      parameters:
+        - name: structureId
+          in: path
+          required: true
+          description: ID da estrutura (ex. STRUCTURE_001)
+          schema:
+            type: string
+            pattern: "^[A-Z0-9_-]+$"
+          example: STRUCTURE_001
+        - name: level
+          in: query
+          description: Filtrar por nível ICOLD
+          schema:
+            type: string
+            enum: [L1, L2, L3, YELLOW, RED]
+        - name: hours
+          in: query
+          description: Janela temporal em horas (padrão 24, máx 8760)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 8760
+            default: 24
+          example: 24
+        - name: acknowledged
+          in: query
+          description: Filtrar por status de reconhecimento
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          description: Máximo de resultados (padrão 50, máx 200)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          description: Offset para paginação
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Lista de alertas
+          headers:
+            X-Data-Source:
+              description: Fonte dos dados (synthetic-r38 em pré-produção)
+              schema:
+                type: string
+            X-ICOLD-Reference:
+              description: Referência ICOLD aplicada
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertsResponse"
+              example:
+                structureId: STRUCTURE_001
+                alerts:
+                  - id: alert-001
+                    structureId: STRUCTURE_001
+                    sensorId: PIZ-002
+                    sensorType: piezometer
+                    level: L1
+                    value: 1.35
+                    threshold: 1.0
+                    unit: bar
+                    message: "PIZ-002: piezometer = 1.35bar (L1 — ATENÇÃO)"
+                    timestamp: "2026-03-08T08:00:00Z"
+                    acknowledged: false
+                    zone: downstream
+                total: 1
+                filtered: 1
+                queryParams:
+                  hours: 24
+                  limit: 50
+                  offset: 0
+                generatedAt: "2026-03-08T10:00:00Z"
+                dataSource: synthetic
+                icoldReference: "ICOLD Bulletin 158 §4.3 — Real-time monitoring requirements"
+        "400":
+          description: Parâmetros inválidos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalidStructureId:
+                  value:
+                    error: INVALID_STRUCTURE_ID
+                    message: "structureId must contain only uppercase letters, numbers, underscores and hyphens"
+                    code: SHMS-001
+                invalidLevel:
+                  value:
+                    error: INVALID_LEVEL
+                    message: "level must be one of: L1, L2, L3, YELLOW, RED"
+                    code: SHMS-002
+
+  /v2/alerts/{structureId}/{alertId}/acknowledge:
+    post:
+      tags: [alerts]
+      summary: Reconhecer um alerta
+      description: |
+        Marca um alerta como reconhecido pelo engenheiro responsável.
+        Referência: ICOLD Bulletin 158 §4.3 — Alert acknowledgment workflow
+      operationId: acknowledgeAlert
+      parameters:
+        - name: structureId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [acknowledgedBy]
+              properties:
+                acknowledgedBy:
+                  type: string
+                  description: Email ou nome do responsável pelo reconhecimento
+                  example: engineer@intelltech.com.br
+      responses:
+        "200":
+          description: Alerta reconhecido com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  alertId:
+                    type: string
+                  acknowledgedBy:
+                    type: string
+                  acknowledgedAt:
+                    type: string
+                    format: date-time
+                  message:
+                    type: string
+        "400":
+          description: Campo obrigatório ausente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Alerta não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Alerta já reconhecido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v2/history/{structureId}:
+    get:
+      tags: [history]
+      summary: Histórico de leituras de uma estrutura
+      description: |
+        Retorna histórico de leituras de todos os sensores de uma estrutura.
+        Dados armazenados no TimescaleDB com compressão automática.
+        Referência: ICOLD Bulletin 158 §4.3 — Historical data analysis
+      operationId: getStructureHistory
+      parameters:
+        - name: structureId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: hours
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 8760
+            default: 24
+      responses:
+        "200":
+          description: Histórico de leituras
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  structureId:
+                    type: string
+                  readings:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SensorReading"
+                  total:
+                    type: integer
+                  hours:
+                    type: integer
+
+  /v2/dashboard:
+    get:
+      tags: [dashboard]
+      summary: Dashboard consolidado SHMS
+      description: |
+        Dashboard com status de todas as estruturas monitoradas.
+        Inclui contagem de alertas por nível ICOLD e status dos sensores.
+        Referência: ICOLD Bulletin 158 — Dam safety monitoring overview
+      operationId: getSHMSDashboard
+      responses:
+        "200":
+          description: Dashboard consolidado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardResponse"
+
+components:
+  schemas:
+    SensorType:
+      type: string
+      enum: [piezometer, inclinometer, settlement, seismic, water_level]
+      description: |
+        Tipos de sensores geotécnicos (ICOLD Bulletin 158 §4.3):
+        - piezometer: Piezômetro (pressão de poros) — threshold: 1.0/2.0/3.0 bar
+        - inclinometer: Inclinômetro (deformação) — threshold: 0.5/1.0/2.0°
+        - settlement: Recalque — threshold: 10/25/50 mm
+        - seismic: Sismógrafo — threshold: 0.05/0.1/0.2g
+        - water_level: Nível d'água — threshold: 0.3/0.6/0.9 m
+
+    ICOLDLevel:
+      type: string
+      enum: [NORMAL, L1, L2, L3]
+      description: |
+        Nível de alerta ICOLD (Bulletin 158 §4.3):
+        - NORMAL: Abaixo de todos os thresholds
+        - L1: Atenção (threshold 1 atingido)
+        - L2: Alerta (threshold 2 atingido)
+        - L3: Emergência (threshold 3 atingido)
+
+    SensorReading:
+      type: object
+      required: [sensorId, type, value, unit, timestamp, quality, location]
+      properties:
+        sensorId:
+          type: string
+          example: PIZ-001
+        type:
+          $ref: "#/components/schemas/SensorType"
+        value:
+          type: number
+          format: float
+          example: 0.45
+        unit:
+          type: string
+          example: bar
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-03-08T10:00:00Z"
+        quality:
+          type: string
+          enum: [good, uncertain, bad]
+          description: |
+            Qualidade da leitura (GISTM 2020 §8.2):
+            - good: Leitura confiável
+            - uncertain: Verificar calibração
+            - bad: Leitura rejeitada
+        location:
+          type: object
+          required: [structure, zone]
+          properties:
+            structure:
+              type: string
+              example: STRUCTURE_001
+            zone:
+              type: string
+              example: upstream
+            depth:
+              type: number
+              format: float
+              example: 15.0
+        icoldLevel:
+          $ref: "#/components/schemas/ICOLDLevel"
+
+    Sensor:
+      type: object
+      required: [id, type, structureId, zone, status]
+      properties:
+        id:
+          type: string
+          example: PIZ-001
+        type:
+          $ref: "#/components/schemas/SensorType"
+        structureId:
+          type: string
+          example: STRUCTURE_001
+        zone:
+          type: string
+          example: upstream
+        depth:
+          type: number
+          format: float
+        status:
+          type: string
+          enum: [active, inactive, maintenance]
+        lastReading:
+          $ref: "#/components/schemas/SensorReading"
+
+    SHMSAlert:
+      type: object
+      required: [id, structureId, sensorId, sensorType, level, value, threshold, unit, message, timestamp, acknowledged, zone]
+      properties:
+        id:
+          type: string
+          example: alert-001
+        structureId:
+          type: string
+          example: STRUCTURE_001
+        sensorId:
+          type: string
+          example: PIZ-002
+        sensorType:
+          $ref: "#/components/schemas/SensorType"
+        level:
+          type: string
+          enum: [L1, L2, L3]
+        value:
+          type: number
+          format: float
+          example: 1.35
+        threshold:
+          type: number
+          format: float
+          example: 1.0
+        unit:
+          type: string
+          example: bar
+        message:
+          type: string
+          example: "PIZ-002: piezometer = 1.35bar (L1 — ATENÇÃO)"
+        timestamp:
+          type: string
+          format: date-time
+        acknowledged:
+          type: boolean
+          default: false
+        acknowledgedBy:
+          type: string
+          example: engineer@intelltech.com.br
+        acknowledgedAt:
+          type: string
+          format: date-time
+        zone:
+          type: string
+          example: downstream
+
+    AlertsResponse:
+      type: object
+      required: [structureId, alerts, total, filtered, queryParams, generatedAt, dataSource, icoldReference]
+      properties:
+        structureId:
+          type: string
+        alerts:
+          type: array
+          items:
+            $ref: "#/components/schemas/SHMSAlert"
+        total:
+          type: integer
+          description: Total de alertas encontrados (antes da paginação)
+        filtered:
+          type: integer
+          description: Número de alertas retornados (após paginação)
+        queryParams:
+          type: object
+          properties:
+            level:
+              type: string
+            hours:
+              type: integer
+            acknowledged:
+              type: boolean
+            limit:
+              type: integer
+            offset:
+              type: integer
+        generatedAt:
+          type: string
+          format: date-time
+        dataSource:
+          type: string
+          enum: [synthetic, real]
+          description: "R38: sempre 'synthetic' em pré-produção"
+        icoldReference:
+          type: string
+          example: "ICOLD Bulletin 158 §4.3 — Real-time monitoring requirements"
+
+    SHMSHealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        version:
+          type: string
+          example: v82.4
+        mqtt:
+          type: object
+          properties:
+            connected:
+              type: boolean
+            broker:
+              type: string
+            sensorsTracked:
+              type: integer
+        timescaledb:
+          type: object
+          properties:
+            connected:
+              type: boolean
+            hypertables:
+              type: array
+              items:
+                type: string
+            latencyMs:
+              type: integer
+        dataSource:
+          type: string
+          enum: [synthetic, real]
+        icoldReference:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    DashboardResponse:
+      type: object
+      properties:
+        structures:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              alertCount:
+                type: object
+                properties:
+                  L1:
+                    type: integer
+                  L2:
+                    type: integer
+                  L3:
+                    type: integer
+              sensorCount:
+                type: integer
+              lastUpdate:
+                type: string
+                format: date-time
+        generatedAt:
+          type: string
+          format: date-time
+        dataSource:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required: [error, message, code]
+      properties:
+        error:
+          type: string
+          example: INVALID_STRUCTURE_ID
+        message:
+          type: string
+          example: "structureId must contain only uppercase letters, numbers, underscores and hyphens"
+        code:
+          type: string
+          example: SHMS-001
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtido via /api/auth/login
+
+security:
+  - BearerAuth: []
