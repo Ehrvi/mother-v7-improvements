@@ -843,37 +843,14 @@ app.listen(PORT, '0.0.0.0', async () => {
   }, 6000);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // C194-3: DGM Sprint 12 — Ciclo autônomo cron DIÁRIO
-  // Base científica: Darwin Gödel Machine arXiv:2505.22954 — autonomous self-improvement
-  //   Google SRE Book (Beyer et al., 2016) — scheduled maintenance windows
-  // Executa às 03:00 UTC diariamente (fora do horário de pico de produção)
-  // ─────────────────────────────────────────────────────────────────────────
-  const DGM_DAILY_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h
-  const DGM_FIRST_RUN_DELAY_MS = 10 * 60 * 1000; // 10min after startup
-
-  setTimeout(() => {
-    log.info('[MOTHER C194] DGM Sprint 12 — ciclo autônomo diário agendado (primeiro ciclo em 10min)');
-    const runDGMDailyCycle = async () => {
-      try {
-        const { runDGMCycle } = await import('../mother/dgm-orchestrator.js');
-        log.info('[MOTHER C194] DGM Sprint 12 — iniciando ciclo autônomo diário...');
-        const result = await runDGMCycle({
-          objective: 'Daily autonomous self-improvement cycle — DGM Sprint 12',
-          targetFile: 'server/mother/core.ts',
-          proposedContent: '// DGM Sprint 12 autonomous cycle — no structural change, fitness measurement only',
-          initiator: 'autonomous',
-          deployThreshold: 80,
-          scientificBasis: 'Darwin Gödel Machine arXiv:2505.22954 — autonomous self-improvement via fitness measurement',
-        });
-        log.info(`[MOTHER C194] DGM Sprint 12 — ciclo concluído: fitness=${result.fitnessOverall ?? 'N/A'} | phase=${result.phase}`);
-      } catch (err) {
-        log.warn('[MOTHER C194] DGM Sprint 12 ciclo falhou (non-critical):', (err as Error).message?.slice(0, 100));
-      }
-    };
-    // First run after 10min, then every 24h
-    setTimeout(runDGMDailyCycle, DGM_FIRST_RUN_DELAY_MS);
-    setInterval(runDGMDailyCycle, DGM_DAILY_INTERVAL_MS);
-  }, 5000);
+  // C205-2: NC-DGM-004 FIX — Removed legacy runDGMDailyCycle (C194 Sprint 12)
+  // REPLACED BY: scheduleDGMLoopC203() at line ~1033 (C203 Sprint 4 DGM Loop Activator)
+  // Scientific basis: DRY principle (Hunt & Thomas 1999) — single source of truth for DGM scheduling
+  // The C203 DGM Loop Activator (dgm-loop-startup-c203.ts) supersedes this legacy cycle.
+  // It uses: proposal deduplication (C204), fitness gate MCC≥0.85, cryptographic proof, GitHub PR.
+  // Legacy C194 cycle used: dgm-orchestrator.ts (deprecated, no dedup, no proof chain).
+  // MOTHER v87.0 | C205 | 2026-03-09
+  log.info('[MOTHER C205] NC-DGM-004 FIX: legacy DGM daily cycle (C194) removed — C203 Loop Activator is the single DGM scheduler');
 
   // ─────────────────────────────────────────────────────────────────────────
   // C197-1 ORPHAN FIX: Redis SHMS Cache — Cache-aside pattern P50 < 100ms

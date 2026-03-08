@@ -18,7 +18,15 @@
  *   - Dark theme with luminance contrast >= 4.5:1 (WCAG AA)
  *   - Progressive disclosure: overview -> domain -> subdomain
  */
+/**
+ * C205-1: NC-UX-001/002/003 FIX — Integrate orphan C202 components into RightPanel
+ * Scientific basis: Nielsen (1994) Heuristic #1 — Visibility of system status
+ * Shinn et al. (2023, arXiv:2303.11366) — Reflexion: agent must see its own state
+ * MOTHER v87.0 | Sprint 6 | 2026-03-09
+ */
 import React, { useState, useMemo } from 'react';
+import { MotherMonitor } from './MotherMonitor';
+import { DGMPanel } from './DGMPanel';
 import { trpc } from '@/lib/trpc';
 import {
   Brain, Dna, ChevronDown, ChevronRight, ChevronLeft,
@@ -658,14 +666,14 @@ function ProposalsSection() {
 
 // --- Main RightPanel ---------------------------------------------------------
 export default function RightPanel() {
-  const [activeTab, setActiveTab] = useState<'knowledge' | 'proposals'>('proposals');
+  const [activeTab, setActiveTab] = useState<'knowledge' | 'proposals' | 'monitor'>('proposals');
   return (
     <aside
       className="w-[260px] flex-shrink-0 flex flex-col border-l border-[rgba(124,58,237,0.15)] overflow-hidden"
       style={{ background: 'rgba(8,8,18,0.97)' }}
     >
       <div className="flex border-b border-[rgba(255,255,255,0.05)] flex-shrink-0">
-        {(['proposals', 'knowledge'] as const).map((tab) => (
+        {(['proposals', 'knowledge', 'monitor'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -675,12 +683,22 @@ export default function RightPanel() {
                 : 'text-[#55556a] hover:text-[#8888aa]'
             }`}
           >
-            {tab === 'proposals' ? '🧬 DGM' : '🧠 Conhecimento'}
+            {tab === 'proposals' ? '🧬 DGM' : tab === 'knowledge' ? '🧠 Conhecimento' : '📡 Monitor'}
           </button>
         ))}
       </div>
       <div className="flex-1 overflow-y-auto p-3">
-        {activeTab === 'proposals' ? <ProposalsSection /> : <KnowledgeSection />}
+        {activeTab === 'proposals' ? (
+          <ProposalsSection />
+        ) : activeTab === 'knowledge' ? (
+          <KnowledgeSection />
+        ) : (
+          /* C205-1: NC-UX-001/002/003 FIX — Monitor tab shows DGM real-time state */
+          <div className="flex flex-col gap-3">
+            <DGMPanel compact={true} />
+            <MotherMonitor compact={true} />
+          </div>
+        )}
       </div>
     </aside>
   );

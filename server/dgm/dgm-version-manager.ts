@@ -9,7 +9,7 @@
  *
  * Formato de versao:
  *   runId:   C202-R001 (ciclo + run sequencial com zero-padding)
- *   version: v83.0-C202-R001 (versao MOTHER + ciclo + run)
+ *   version: v87.0-C202-R001 (versao MOTHER + ciclo + run)
  *   tag:     dgm/C202-R001-<sha8> (git tag)
  *
  * STATUS: PRODUCAO C202-R001
@@ -27,7 +27,7 @@ const log = createLogger('DGM-VERSION-MANAGER');
 
 export interface RunVersion {
   runId: string;       // ex: C202-R001
-  version: string;     // ex: v83.0-C202-R001
+  version: string;     // ex: v87.0-C202-R001
   tag: string;         // ex: dgm/C202-R001
   cycle: string;       // ex: C202
   runNumber: number;   // ex: 1
@@ -61,7 +61,7 @@ export class DGMVersionManager {
 
   constructor(cycle: string, motherVersion?: string) {
     this.cycle = cycle;
-    this.motherVersion = motherVersion || process.env.MOTHER_VERSION || 'v83.0';
+    this.motherVersion = motherVersion || process.env.MOTHER_VERSION || 'v87.0';
     this.stateFile = path.join(process.cwd(), `.dgm-version-state-${cycle}.json`);
     this.loadState();
   }
@@ -242,7 +242,7 @@ export function formatRunId(cycle: string, runNumber: number): string {
 
 /**
  * Formata uma versao completa
- * ex: formatVersion('v83.0', 'C202', 1) => 'v83.0-C202-R001'
+ * ex: formatVersion('v87.0', 'C202', 1) => 'v87.0-C202-R001'
  */
 export function formatVersion(motherVersion: string, cycle: string, runNumber: number): string {
   return `${motherVersion}-${formatRunId(cycle, runNumber)}`;

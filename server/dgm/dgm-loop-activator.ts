@@ -214,7 +214,7 @@ export class DGMLoopActivator {
         code: proposal.codeDiff || proposal.summary,
         fitnessScore: fitnessResult.overall,
         fitnessDetails: fitnessResult as unknown as Record<string, unknown>,
-        motherVersion: `MOTHER-v83.0-${this.config.cycle}`,
+        motherVersion: `MOTHER-v87.0-${this.config.cycle}`,
         cycleNumber: parseInt(this.config.cycle.replace('C', ''), 10) || 202,
       });
       proofHash = proofResult.chainHash;
