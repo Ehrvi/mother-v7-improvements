@@ -78,6 +78,11 @@ import { initTimescaleSchema, getTimescalePoolStatus } from '../shms/timescale-p
 import { SHMSMqttConnector } from '../shms/mqtt-connector.js';
 import { sdk } from './sdk.js';
 import { createLogger } from './logger'; // v74.0: NC-003 structured logger
+import { startupScheduler } from './startup-scheduler.js'; // C206 NC-ARCH-001: StartupScheduler — Fowler (1999) SRP
+import { moduleRegistry } from './module-registry.js'; // C206 NC-ARCH-001: ModuleRegistry — Gamma et al. (1994) Registry Pattern
+import { digitalTwinRoutesC206 } from '../shms/digital-twin-routes-c206.js'; // C206-1: SHMS Phase 2 REST API — REST Fielding (2000) + ISO 13374-1:2003
+import { initMQTTDigitalTwinBridgeC206 } from '../shms/mqtt-digital-twin-bridge-c206.js'; // C206-2: MQTT → Digital Twin Bridge — ISO/IEC 20922:2016 + ICOLD 158
+import { scheduleGEvalIntegrationTestC206 } from '../mother/geval-integration-test-c206.js'; // C206-5: G-EVAL Integration Test — Liu et al. (2023) arXiv:2303.16634 + ISO/IEC 25010:2011
 const log = createLogger('PROD_ENTRY');
 
 const __filename = fileURLToPath(import.meta.url);
@@ -256,8 +261,10 @@ app.use('/api/shms/v2', shmsRouter); // NC-ARCH-002: /api/shms/v2/* (SHMS v2 ana
 app.use('/api/dgm', dgmRouter); // NC-ARCH-002: /api/dgm/* (DGM status, cycle trigger)
 app.use('/api/metrics', metricsRouter); // NC-ARCH-002: /api/metrics/* (latency P50/P95/P99, cache stats)
 app.use('/api/shms', shmsAlertsRouter); // C196-0 ORPHAN FIX: /api/shms/v2/alerts/:structureId — ICOLD L1/L2/L3 (Sprint 3 — ICOLD Bulletin 158 §4.3)
+app.use('/api/shms/v2', digitalTwinRoutesC206); // C206-1: SHMS Phase 2 Digital Twin REST API — REST Fielding (2000) + ISO 13374-1:2003 + Grieves (2014) Digital Twin
 log.info('[NC-ARCH-002 C190] 4 routers modulares montados: auth, shms-v2, dgm, metrics — God Object decomposição COMPLETA');
 log.info('[C196-0 ORPHAN FIX] shmsAlertsRouter montado: /api/shms/v2/alerts/:structureId — ICOLD Bulletin 158 §4.3 (Sprint 3)');
+log.info('[C206-1] Digital Twin REST API montada: /api/shms/v2/structures — REST Fielding (2000) + ISO 13374-1:2003');
 
 /**
  * v45.0: Cloud Tasks DGM Execute Endpoint
@@ -1041,4 +1048,62 @@ app.listen(PORT, '0.0.0.0', async () => {
       log.warn('[MOTHER C204-3] Benchmark Runner C204 falhou (non-critical):', (err as Error).message?.slice(0, 100));
     }
   }, 18000); // 18s após startup
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // C206 Sprint 7: MQTT Digital Twin Bridge C206
+  // Conecta MQTT broker ao Digital Twin Engine C205
+  // Base científica: ISO/IEC 20922:2016 + ICOLD Bulletin 158 + GISTM 2020
+  // Fallback automático para modo simulação se MQTT_BROKER_URL não configurado (R38)
+  // ─────────────────────────────────────────────────────────────────────────
+  setTimeout(async () => {
+    try {
+      await initMQTTDigitalTwinBridgeC206();
+      log.info('[MOTHER C206-2] MQTT Digital Twin Bridge C206 ATIVO | ISO/IEC 20922:2016 + ICOLD 158 + GISTM 2020');
+    } catch (err) {
+      log.warn('[MOTHER C206-2] MQTT Digital Twin Bridge C206 falhou (non-critical):', (err as Error).message?.slice(0, 100));
+    }
+  }, 19000); // 19s após startup
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // C206 Sprint 7: StartupScheduler + ModuleRegistry status log
+  // NC-ARCH-001: Documenta o estado do registry de módulos
+  // Base científica: Fowler (1999) Refactoring + Gamma et al. (1994) Registry Pattern
+  // ─────────────────────────────────────────────────────────────────────────
+  setTimeout(() => {
+    try {
+      const registryStatus = moduleRegistry.getStatus();
+      const orphans = moduleRegistry.getOrphans();
+      log.info(
+        `[MOTHER C206] ModuleRegistry: ${registryStatus.connected} connected, ` +
+        `${registryStatus.orphan} orphan, ${registryStatus.deprecated} deprecated ` +
+        `| C206 NC-ARCH-001 | Fowler (1999) + Gamma (1994)`
+      );
+      if (orphans.length > 0) {
+        log.warn(`[MOTHER C206] ORPHAN modules detected (R27): ${orphans.map(o => o.name).join(', ')}`);
+      } else {
+        log.info('[MOTHER C206] Zero ORPHAN modules — R27 COMPLIANT ✅');
+      }
+      const schedulerStatus = startupScheduler.getStatus();
+      log.info(
+        `[MOTHER C206] StartupScheduler: ${schedulerStatus.taskCount} tasks registered ` +
+        `| NC-ARCH-001 PARTIAL (production-entry.ts refactored for C206 tasks)`
+      );
+    } catch (err) {
+      log.warn('[MOTHER C206] ModuleRegistry/StartupScheduler status falhou (non-critical):', (err as Error).message?.slice(0, 100));
+    }
+  }, 20000); // 20s após startup
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // C206 Sprint 7: G-EVAL Integration Test
+  // Valida pipeline Closed-Loop Learning C205 com 3 casos de teste
+  // Base científica: Liu et al. (2023) arXiv:2303.16634 + ISO/IEC 25010:2011
+  // ─────────────────────────────────────────────────────────────────────────
+  setTimeout(async () => {
+    try {
+      await scheduleGEvalIntegrationTestC206();
+      log.info('[MOTHER C206-5] G-EVAL Integration Test AGENDADO | arXiv:2303.16634 + ISO/IEC 25010:2011 | t=30s');
+    } catch (err) {
+      log.warn('[MOTHER C206-5] G-EVAL Integration Test agendamento falhou (non-critical):', (err as Error).message?.slice(0, 100));
+    }
+  }, 21000); // 21s após startup
 });
