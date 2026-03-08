@@ -12,6 +12,8 @@ import { warmCache } from "../mother/semantic-cache"; // R547 (AWAKE V236 Ciclo 
 import healthRouter from "../routes/health.js";
 import monitorRouter from "../routes/monitor-routes.js";
 import longFormRouter from "../routes/long-form-routes.js";
+// Sprint 2 C201: HippoRAG2 indexing + Reflexion engine
+import { scheduleC201Indexing } from "../mother/hipporag2-indexer-c201.js";
 // Vite imports moved to dynamic imports to avoid bundling in production
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -83,6 +85,9 @@ async function startServer() {
     // Scientific basis: Proactive caching (Sadeghi et al., 2020): pre-warming reduces cold-start
     // Delay 2s to allow DB connection to stabilize before querying
     setTimeout(() => warmCache().catch(e => console.warn('[CacheWarming] Startup warm failed:', e)), 2000);
+    // C201-4b: HippoRAG2 indexing — index C200-C201 papers (non-blocking, 30s delay)
+    // Scientific basis: HippoRAG2 (arXiv:2502.14802) — non-parametric continual learning
+    scheduleC201Indexing();
   });
 }
 

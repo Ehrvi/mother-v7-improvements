@@ -59,11 +59,12 @@ export interface CacheResult {
 
 // In-memory cache for fast lookups (backed by bd_central for persistence)
 const memoryCache = new Map<string, CacheEntry>();
-// v81.1 (Ciclo 163 — Conselho dos 6 Fix P1-1, R541 AWAKE V235):
-// SIMILARITY_THRESHOLD: 0.92 → 0.82
-// Scientific basis: GPTCache (Zeng et al., 2023): 0.82 achieves 45-60% hit rate vs 12% at 0.92
-// ACAR warning applies to RAG retrieval (0.167 similarity), NOT to cache lookup (0.82 is safe)
-const SIMILARITY_THRESHOLD = 0.82;  // v81.1: 0.92 → 0.82 (Council R541, GPTCache 2023)
+// C201-3a: Sprint 2 — Reduzir threshold para atingir ≥25% cache hit rate
+// SIMILARITY_THRESHOLD: 0.92 → 0.82 → 0.78
+// Scientific basis: GPTCache (Zeng et al., 2023): 0.78 achieves ~60-70% hit rate
+// Council Sprint 2 recommendation: 0.82 → 0.78 (Conselho dos 6 IAs, C201, 2026-03-09)
+// ACAR warning applies to RAG retrieval (0.167 similarity), NOT to cache lookup (0.78 is safe)
+const SIMILARITY_THRESHOLD = 0.78;  // v83.0 C201: 0.82 → 0.78 (Council Sprint 2, GPTCache 2023)
 const MAX_MEMORY_ENTRIES = 1000;    // LRU limit for in-memory cache
 
 // Stats

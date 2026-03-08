@@ -292,16 +292,29 @@ async function fetchKnowledgeContext(query: string, tier: string): Promise<strin
 }
 
 async function fetchEpisodicContext(userId: string | undefined, query: string): Promise<string> {
-  if (!userId) return '';
+  // C201-1c: Use A-MEM retrieval (Sprint 2 — Memória Cognitiva)
+  // Scientific basis: A-MEM (arXiv:2502.12110, 2025) — retrieve relevant episodic memories
+  // Works with or without userId (userId filters by session, without userId returns global)
   try {
-    const { searchEpisodicMemory } = await import('./embeddings');
+    const { retrieveAMemContext } = await import('./amem-agent');
     const result = await Promise.race([
-      searchEpisodicMemory(query, 3).then(mems => mems.map(m => `Q: ${m.query}\nA: ${m.response}`).join('\n---\n')),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000)),
+      retrieveAMemContext(query, userId, 5),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('amem_timeout')), 3000)),
     ]);
-    return result as string;
+    return result.contextString;
   } catch {
-    return '';
+    // Fallback to embeddings.ts if A-MEM fails
+    if (!userId) return '';
+    try {
+      const { searchEpisodicMemory } = await import('./embeddings');
+      const result = await Promise.race([
+        searchEpisodicMemory(query, 3).then(mems => mems.map(m => `Q: ${m.query}\nA: ${m.response}`).join('\n---\n')),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000)),
+      ]);
+      return result as string;
+    } catch {
+      return '';
+    }
   }
 }
 
@@ -820,11 +833,31 @@ function layer6_memoryWriteBack(
       // Store in semantic cache
       await storeInCache(req.query, response, provider, model, tier, qualityScore);
 
-      // Store in episodic memory if user session (Ciclo 70: use embeddings.ts generateAndStoreEmbedding)
-      // Note: episodic-memory.ts not yet implemented; using embeddings.ts as fallback
-      // TODO: Implement episodic-memory.ts with full session-aware storage (Ciclo 71)
-      // Note: episodic-memory.ts not yet implemented (Ciclo 71 TODO)
-      // Memory write-back handled by semantic-cache.ts storeInCache above
+      // C201-1b: A-MEM episodic write-back (Sprint 2 — Memória Cognitiva)
+      // Scientific basis: A-MEM (arXiv:2502.12110, 2025) + Reflexion (arXiv:2303.11366, 2023)
+      // Every response is stored in episodic memory for future retrieval and learning
+      try {
+        const { storeAMemEntry, generateReflexion } = await import('./amem-agent');
+        const reflection = qualityScore < 0.6
+          ? await generateReflexion(req.query, response, qualityScore)
+          : '';
+        await storeAMemEntry({
+          query: req.query,
+          response,
+          qualityScore,
+          provider,
+          model,
+          tier,
+          latencyMs: 0, // latency tracked in main orchestrate fn
+          sessionId: req.sessionId,
+          userId: req.userId,
+          tags: [tier, provider],
+          reflection: reflection || undefined,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (ememErr: any) {
+        console.warn('[Orchestrator] A-MEM write-back failed (non-blocking):', ememErr.message);
+      }
     } catch (err: any) {
       console.warn('[Orchestrator] Layer 6 memory write-back failed (non-blocking):', err.message);
     }
