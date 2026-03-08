@@ -168,12 +168,16 @@ export class RedisSHMSCache {
       // Falls back to in-memory cache automatically if ioredis is not installed
       let RedisClass: (new (url: string, opts: Record<string, unknown>) => { connect(): Promise<void>; ping(): Promise<string>; get(k: string): Promise<string|null>; setex(k: string, ttl: number, v: string): Promise<void>; keys(p: string): Promise<string[]>; del(...k: string[]): Promise<number>; quit(): Promise<void> }) | null = null;
       try {
-        const mod = await import('ioredis');
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore — ioredis is an optional runtime dependency (not in devDeps)
+        const mod = await import('ioredis' as string);
         RedisClass = (mod.default ?? mod) as typeof RedisClass;
       } catch {
         throw new Error('ioredis not installed — using in-memory fallback (R38)');
       }
-      this.client = new RedisClass(this.config.redisUrl, {
+      if (!RedisClass) throw new Error('ioredis not available');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      this.client = new (RedisClass as any)(this.config.redisUrl, {
         connectTimeout: 5000,
         maxRetriesPerRequest: 2,
         lazyConnect: true,

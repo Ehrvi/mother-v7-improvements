@@ -73,7 +73,7 @@ export interface Sprint14Result {
  * Sprint 14 proposals targeting the gaps identified in Sprint 13 benchmark (R39)
  * Focus: Proposal Quality (gap 4.7%) + Code Correctness (gap 7.1%)
  */
-const SPRINT14_PROPOSALS: Omit<Sprint14Proposal, 'id' | 'proposalQualityScore' | 'codeCorrectnessScore'>[] = [
+export const SPRINT14_PROPOSALS: Omit<Sprint14Proposal, 'id' | 'proposalQualityScore' | 'codeCorrectnessScore'>[] = [
   // ── High Priority: C197-1 DGM Autonomous Loop ─────────────────────────────
   {
     title: 'C197-1: DGM Autonomous Loop — integrate dgm-cycle3.ts MCC with dgm-orchestrator.ts autoMerge',
@@ -364,4 +364,3 @@ export function getSprint14Config(): Sprint14Config {
   };
 }
 
-export { Sprint14Config, Sprint14Proposal, Sprint14Result, SPRINT14_PROPOSALS };

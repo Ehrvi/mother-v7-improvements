@@ -15,8 +15,8 @@
  * STATUS: PRÉ-PRODUÇÃO OFICIAL (R38) — sem dados reais de sensores
  */
 
-import { runDGMCycle as runDGMCycle3 } from './dgm-cycle3.js';
-import { createLogger } from '../_core/logger.js';
+import { runDGMCycle as runDGMCycle3 } from './dgm-cycle3';
+import { createLogger } from '../_core/logger';
 
 const log = createLogger('DGM-AUTONOMOUS-LOOP');
 

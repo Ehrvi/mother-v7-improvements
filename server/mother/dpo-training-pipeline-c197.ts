@@ -278,4 +278,3 @@ export async function runDPOTrainingPipeline(
   };
 }
 
-export { DPOTrainingConfig, DPOTrainingResult };
