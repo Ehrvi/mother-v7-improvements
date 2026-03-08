@@ -1,5 +1,5 @@
 /**
- * MOTHER v83.0 — HippoRAG2 Indexer C201
+ * MOTHER v87.0 — HippoRAG2 Indexer C201
  * Ciclo 201: Sprint 2 — Ativar Memória Cognitiva
  *
  * Re-indexes the knowledge graph with:
@@ -151,7 +151,7 @@ const PAPERS_C200_C201: PaperToIndex[] = [
   },
   {
     id: 'sprint1-c200-knowledge',
-    title: 'MOTHER v83.0 Sprint 1 C200 — Implementation Knowledge',
+    title: 'MOTHER v87.0 Sprint 1 C200 — Implementation Knowledge',
     authors: ['Conselho dos 6 IAs'],
     year: 2026,
     arxivId: 'internal-c200',

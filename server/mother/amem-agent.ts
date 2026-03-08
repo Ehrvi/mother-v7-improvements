@@ -1,5 +1,5 @@
 /**
- * MOTHER v83.0 - A-MEM Agent (C201-1a)
+ * MOTHER v87.0 - A-MEM Agent (C201-1a)
  * Ciclo 201: Sprint 2 - Ativar Memória Cognitiva
  *
  * Implements the Agentic Memory System (A-MEM) with episodic write-back

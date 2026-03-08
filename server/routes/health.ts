@@ -44,7 +44,7 @@ function getMotherVersion(): string {
   cachedMotherVersion =
     process.env.MOTHER_VERSION ??
     process.env.MOTHER_V ??
-    "v83.0";
+    "v87.0";
   return cachedMotherVersion;
 }
 
@@ -76,7 +76,7 @@ router.get("/", async (_req: Request, res: Response) => {
     status: dbStatus === "error" ? "degraded" : "ok",
     version: getVersion(),
     motherVersion: getMotherVersion(),
-    cycle: parseInt(process.env.MOTHER_CYCLE ?? "200"),
+    cycle: parseInt(process.env.MOTHER_CYCLE ?? "205"),
     uptime: {
       ms: uptimeMs,
       seconds: uptimeSec,
@@ -110,7 +110,7 @@ router.get("/version", (_req: Request, res: Response) => {
   res.json({
     version: getVersion(),
     motherVersion: getMotherVersion(),
-    cycle: parseInt(process.env.MOTHER_CYCLE ?? "200"),
+    cycle: parseInt(process.env.MOTHER_CYCLE ?? "205"),
     timestamp: new Date().toISOString(),
   });
 });

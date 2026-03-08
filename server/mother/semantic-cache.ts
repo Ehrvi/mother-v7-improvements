@@ -64,7 +64,7 @@ const memoryCache = new Map<string, CacheEntry>();
 // Scientific basis: GPTCache (Zeng et al., 2023): 0.78 achieves ~60-70% hit rate
 // Council Sprint 2 recommendation: 0.82 → 0.78 (Conselho dos 6 IAs, C201, 2026-03-09)
 // ACAR warning applies to RAG retrieval (0.167 similarity), NOT to cache lookup (0.78 is safe)
-const SIMILARITY_THRESHOLD = 0.78;  // v83.0 C201: 0.82 → 0.78 (Council Sprint 2, GPTCache 2023)
+const SIMILARITY_THRESHOLD = 0.78;  // v87.0 C201: 0.82 → 0.78 (Council Sprint 2, GPTCache 2023)
 const MAX_MEMORY_ENTRIES = 1000;    // LRU limit for in-memory cache
 
 // Stats

@@ -1,5 +1,5 @@
 /**
- * metrics-router.ts — MOTHER v83.0 — Ciclo 199
+ * metrics-router.ts — MOTHER v87.0 — Ciclo 199
  *
  * Metrics and observability routes extracted from a2a-server.ts.
  * Part of NC-ARCH-002 resolution: decomposing God Object a2a-server.ts (2.268L).
@@ -31,7 +31,7 @@ export const metricsRouter = Router();
 metricsRouter.get('/health', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
-    version: process.env.MOTHER_VERSION || 'v83.0',
+    version: process.env.MOTHER_VERSION || 'v87.0',
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
   });

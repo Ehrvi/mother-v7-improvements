@@ -214,7 +214,7 @@ export class LongFormGenerator {
         topic: request.topic,
         outputFormat,
         generatedAt: new Date(),
-        motherVersion: process.env.MOTHER_VERSION ?? "v83.0",
+        motherVersion: process.env.MOTHER_VERSION ?? "v87.0",
       },
     };
   }

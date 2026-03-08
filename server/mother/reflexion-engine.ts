@@ -1,5 +1,5 @@
 /**
- * MOTHER v83.0 — Reflexion Engine (C201-4a)
+ * MOTHER v87.0 — Reflexion Engine (C201-4a)
  * Ciclo 201: Sprint 2 — Ativar Memória Cognitiva
  *
  * Implements the Reflexion framework for verbal reinforcement learning.

@@ -5,7 +5,7 @@
  * NC-UI-001 fix: version must be fetched from /api/version (dynamic),
  * never hardcoded in HTML or static files.
  *
- * Displays: MOTHER v83.0 | C200 | production
+ * Displays: MOTHER v87.0 | C200 | production
  */
 
 import { useEffect, useState } from "react";
@@ -35,10 +35,10 @@ interface VersionBadgeProps {
  * Usage:
  * ```tsx
  * <VersionBadge />
- * // Renders: MOTHER v83.0 | C200
+ * // Renders: MOTHER v87.0 | C200
  *
  * <VersionBadge compact />
- * // Renders: v83.0
+ * // Renders: v87.0
  * ```
  */
 export function VersionBadge({

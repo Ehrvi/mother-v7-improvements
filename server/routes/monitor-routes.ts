@@ -76,8 +76,8 @@ function getMetrics(): SystemMetrics {
       pid: process.pid,
     },
     mother: {
-      version: process.env.MOTHER_VERSION ?? "v83.0",
-      cycle: parseInt(process.env.MOTHER_CYCLE ?? "200"),
+      version: process.env.MOTHER_VERSION ?? "v87.0",
+      cycle: parseInt(process.env.MOTHER_CYCLE ?? "205"),
       environment: process.env.NODE_ENV ?? "production",
       activeConnections,
     },
