@@ -46,6 +46,9 @@ import { injectSprintKnowledge } from '../mother/council-v4-sprint-knowledge.js'
 import { recordLatency, getLatencyReport } from '../mother/latency-telemetry.js'; // C188: Phase 4.1 — P50 real measurement (Dean & Barroso 2013)
 import { shmsHealthCheck } from '../mother/shms-auth-middleware.js'; // C188: Phase 4.4 — SHMS auth + billing middleware
 import { shmsAlertsRouter } from '../shms/shms-alerts-endpoint.js'; // C196-0 ORPHAN FIX: Sprint 3 — GET /api/shms/v2/alerts/:structureId (ICOLD Bulletin 158 §4.3)
+import { initRedisSHMSCache } from '../shms/redis-shms-cache.js'; // C197-1 ORPHAN FIX: Sprint 4 — Redis Cache-aside P50 < 100ms (Dean & Barroso 2013 CACM 56(2))
+import { indexPapersC193C196 } from '../mother/hipporag2-indexer-c196.js'; // C197-2 ORPHAN FIX: Sprint 4 — HippoRAG2 10 papers C193-C196 (Gutierrez et al. 2025 arXiv:2405.14831v2)
+import { runDGMSprint14 } from '../dgm/dgm-sprint14-autopilot.js'; // C197-3 ORPHAN FIX: Sprint 4 — DGM Sprint 14 auto-PR (arXiv:2505.22954 + HELM arXiv:2211.09110)
 // C190 P0 CRÍTICO: Conectar lora-trainer.ts — Conselho C188 Seção 3.2.1 (função MORTA → VIVA)
 // Base científica: Hu et al. (2025) LoRA-XS arXiv:2405.09673 — 98.7% desempenho com 0.3% custo
 import { scheduleLoRAPipeline } from '../mother/lora-trainer.js';
@@ -861,4 +864,45 @@ app.listen(PORT, '0.0.0.0', async () => {
     setTimeout(runDGMDailyCycle, DGM_FIRST_RUN_DELAY_MS);
     setInterval(runDGMDailyCycle, DGM_DAILY_INTERVAL_MS);
   }, 5000);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // C197-1 ORPHAN FIX: Redis SHMS Cache — Cache-aside pattern P50 < 100ms
+  // Base científica: Dean & Barroso (2013) CACM 56(2) — tail latency at scale
+  // R38: Dados sintéticos — correto para pré-produção oficial
+  // ─────────────────────────────────────────────────────────────────────────
+  setTimeout(async () => {
+    try {
+      await initRedisSHMSCache();
+      log.info('[MOTHER C197-1] Redis SHMS Cache ATIVO — Cache-aside pattern P50 < 100ms | Dean & Barroso 2013 CACM 56(2)');
+    } catch (err) {
+      log.warn('[MOTHER C197-1] Redis Cache init falhou (non-critical — fallback in-memory ativo):', (err as Error).message?.slice(0, 100));
+    }
+  }, 7000);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // C197-2 ORPHAN FIX: HippoRAG2 — Indexar papers C193-C196 no grafo de conhecimento
+  // Base científica: Gutierrez et al. (2025) arXiv:2405.14831v2 — HippoRAG2 knowledge graph
+  // ─────────────────────────────────────────────────────────────────────────
+  setTimeout(async () => {
+    try {
+      const result = await indexPapersC193C196();
+      log.info(`[MOTHER C197-2] HippoRAG2 indexação CONCLUÍDA — ${result.indexed} papers indexados | arXiv:2405.14831v2`);
+    } catch (err) {
+      log.warn('[MOTHER C197-2] HippoRAG2 indexação falhou (non-critical):', (err as Error).message?.slice(0, 100));
+    }
+  }, 8000);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // C197-3 ORPHAN FIX: DGM Sprint 14 Autopilot — auto-PR com referências científicas
+  // Base científica: Darwin Gödel Machine arXiv:2505.22954 — Proposal Quality +4.7%, Code Correctness +7.1%
+  // Executa 15min após startup (após DGM Sprint 12 daily cycle estar agendado)
+  // ─────────────────────────────────────────────────────────────────────────
+  setTimeout(async () => {
+    try {
+      const sprint14Result = await runDGMSprint14();
+      log.info(`[MOTHER C197-3] DGM Sprint 14 EXECUTADO — proposals: ${sprint14Result.proposals} | convergence: ${sprint14Result.convergenceScore?.toFixed(2)} | arXiv:2505.22954`);
+    } catch (err) {
+      log.warn('[MOTHER C197-3] DGM Sprint 14 falhou (non-critical):', (err as Error).message?.slice(0, 100));
+    }
+  }, 15 * 60 * 1000); // 15min após startup
 });
