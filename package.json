@@ -74,7 +74,7 @@
     "lucide-react": "^0.453.0",
     "mammoth": "^1.11.0",
     "mermaid": "^11.12.3",
-    "mqtt": "^5.15.0",
+    "mqtt": "^5.10.4",
     "multer": "^2.0.2",
     "mysql2": "^3.15.0",
     "nanoid": "^5.1.5",
@@ -101,7 +101,8 @@
     "winston-daily-rotate-file": "^5.0.0",
     "wouter": "^3.3.5",
     "xml2js": "^0.6.2",
-    "zod": "^4.1.12"
+    "zod": "^4.1.12",
+    "@octokit/rest": "^21.1.1"
   },
   "devDependencies": {
     "@builder.io/vite-plugin-jsx-loc": "^0.1.1",
