@@ -12,6 +12,7 @@
  */
 
 import express from 'express';
+import { corsConfig } from './cors-config.js'; // NC-001 Fix Sprint 1: CORS whitelist (OWASP A01:2021)
 import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
@@ -186,6 +187,7 @@ async function runMigrations() {
 }
 
 // Middleware
+app.use(corsConfig); // NC-001 Fix Sprint 1: CORS whitelist replaces wildcard '*' (OWASP A01:2021)
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -332,7 +334,7 @@ app.post('/api/mother/stream', async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // NC-001 Fix: CORS handled by corsConfig middleware (Sprint 1 — OWASP A01:2021)
   res.flushHeaders();
 
   const sendEvent = (event: string, data: unknown) => {
