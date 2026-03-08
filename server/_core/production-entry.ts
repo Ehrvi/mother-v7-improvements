@@ -57,6 +57,8 @@ import { listDemoTenants, getDemoTenantStatus } from '../mother/multi-tenant-dem
 import { listDemoPlans, getDemoMRRProjection } from '../mother/stripe-billing-demo.js'; // C199 COMERCIAL: Stripe billing demo (PCI DSS v4.0 + ISO/IEC 27001:2022 A.5.14) — APROVADO Everton Garcia C199
 import { getSLAReport } from '../mother/sla-monitor-demo.js'; // C199 COMERCIAL: SLA Monitor 99.9% (Google SRE Book 2016 + ISO/IEC 20000-1:2018) — APROVADO Everton Garcia C199
 import { scheduleDGMLoopC203, getDGMLoopC203Status } from '../dgm/dgm-loop-startup-c203.js'; // C203 Sprint 4: DGM Loop Activator conectado ao startup (arXiv:2505.22954 — função MORTA → VIVA R32)
+import { scheduleHippoRAG2IndexingC204 } from '../mother/hipporag2-indexer-c204.js'; // C204-2: HippoRAG2 indexer Sprint 5 — 6 papers (G-EVAL, HELM, MemGPT, Dean&Barroso, ISO25010, Reflexion)
+import { scheduleBenchmarkRunnerC204 } from '../mother/longform-benchmark-runner-c204.js'; // C204-3: Benchmark real LongFormV2 + DGM first cycle validator (G-EVAL arXiv:2303.16634 + HELM arXiv:2211.09110)
 // C190 P0 CRÍTICO: Conectar lora-trainer.ts — Conselho C188 Seção 3.2.1 (função MORTA → VIVA)
 // Base científica: Hu et al. (2025) LoRA-XS arXiv:2405.09673 — 98.7% desempenho com 0.3% custo
 import { scheduleLoRAPipeline } from '../mother/lora-trainer.js';
@@ -1035,4 +1037,31 @@ app.listen(PORT, '0.0.0.0', async () => {
       log.warn('[MOTHER C203] DGM Loop Activator agendamento falhou (non-critical):', (err as Error).message?.slice(0, 100));
     }
   }, 16000); // 16s após startup (após todos os módulos C199 estarem ativos)
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // C204 Sprint 5: HippoRAG2 Indexer — 6 papers Sprint 4 C203
+  // Resolve NC-MEM-002: papers C203 não indexados (G-EVAL, HELM, MemGPT, Dean&Barroso, ISO25010, Reflexion)
+  // Base científica: HippoRAG2 (arXiv:2502.14902) — hippocampus-inspired retrieval recall@10 ≥80%
+  // ─────────────────────────────────────────────────────────────────────────
+  setTimeout(() => {
+    try {
+      scheduleHippoRAG2IndexingC204();
+      log.info('[MOTHER C204-2] HippoRAG2 Indexer C204 AGENDADO — 6 papers Sprint 4 | t=20s | arXiv:2502.14902');
+    } catch (err) {
+      log.warn('[MOTHER C204-2] HippoRAG2 Indexer C204 falhou (non-critical):', (err as Error).message?.slice(0, 100));
+    }
+  }, 17000); // 17s após startup
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // C204 Sprint 5: Benchmark Runner — Valida LongFormV2 + DGM C203 + HippoRAG2 C204
+  // Base científica: G-EVAL (arXiv:2303.16634) + HELM (arXiv:2211.09110) + ISO/IEC 25010:2011
+  // ─────────────────────────────────────────────────────────────────────────
+  setTimeout(() => {
+    try {
+      scheduleBenchmarkRunnerC204();
+      log.info('[MOTHER C204-3] Benchmark Runner C204 AGENDADO — LongFormV2 + DGM + HippoRAG2 | t=30s | G-EVAL arXiv:2303.16634');
+    } catch (err) {
+      log.warn('[MOTHER C204-3] Benchmark Runner C204 falhou (non-critical):', (err as Error).message?.slice(0, 100));
+    }
+  }, 18000); // 18s após startup
 });
