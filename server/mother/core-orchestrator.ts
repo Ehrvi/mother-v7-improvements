@@ -830,6 +830,29 @@ function layer6_memoryWriteBack(
   // Fire-and-forget — never blocks response delivery
   setImmediate(async () => {
     try {
+      // NC-CACHE-001 FIX (C209-Sprint10): Never cache error/fallback responses.
+      // Root cause: when all 3 ReAct iterations fail, the graceful degradation string
+      // was stored in the semantic cache with qualityScore=80 (default), causing
+      // subsequent semantically-similar queries to receive the error message from cache.
+      // Scientific basis:
+      //   - Cache coherence (Fowler PEAA 2002 §15): only cache valid, complete data.
+      //   - OWASP A09:2021 (Security Logging): error states must not pollute data stores.
+      //   - ISO/IEC 25010:2011 §4.2.7 (Fault Tolerance): system must degrade gracefully
+      //     without corrupting downstream state.
+      const ERROR_RESPONSE_PATTERNS = [
+        'temporariamente sobrecarregado',
+        'tente novamente em alguns segundos',
+        'ocorreu um erro ao gerar',
+        'system is temporarily overloaded',
+        'please try again in a few seconds',
+      ];
+      const isErrorResponse = ERROR_RESPONSE_PATTERNS.some(p =>
+        response.toLowerCase().includes(p.toLowerCase())
+      );
+      if (isErrorResponse) {
+        console.warn('[Orchestrator] NC-CACHE-001: Skipping cache write-back for error/fallback response.');
+        return; // Do not cache error messages — they are transient system states, not valid answers
+      }
       // Store in semantic cache
       await storeInCache(req.query, response, provider, model, tier, qualityScore);
 

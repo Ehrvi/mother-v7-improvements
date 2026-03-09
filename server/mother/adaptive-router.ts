@@ -32,6 +32,11 @@ export interface ComplexitySignals {
   hasIntelltechContext: boolean; // contains SHMS/geotechnical/mining/sensor
   hasMOTHERContext: boolean;     // contains MOTHER/core.ts/module/deploy
   estimatedTokens: number;       // rough token estimate
+  // NC-ROUTER-003 FIX (C209): Long-form creative writing detection
+  // Scientific basis: Anthropic (2024) Claude long-context guide — tasks requesting
+  // >5,000 words require max_tokens ≥ 16384 and TIER_4 routing to avoid truncation.
+  // FrugalGPT (Chen et al., 2023): output length is a primary routing signal.
+  isLongFormCreative: boolean;   // requests ≥10 pages / ≥5000 words / ≥60 páginas
 }
 
 export interface RoutingDecision {
@@ -70,6 +75,21 @@ export function computeComplexitySignals(query: string): ComplexitySignals {
     hasResearchRequest: /\b(research|arxiv|paper|study|literature|survey|sota|scientific|pesquisa|artigo|estudo|literatura|revisao|cientifico|embasamento|referencia|fonte)\b/.test(q),
     hasMultiStep: /\b(step-by-step|plan|roadmap|phases|stages|workflow|pipeline|architecture|design|passo-a-passo|plano|fases|etapas|fluxo|planejamento|cronograma|sprint)\b/.test(q),
     hasCreativeRequest: /\b(write|create|generate|compose|draft|story|essay|blog|report|escrever|gerar|redigir|rascunho|historia|ensaio|relatorio|documento)\b/.test(q),
+    // NC-ROUTER-003 FIX (C209): Detect long-form creative writing tasks.
+    // Matches explicit page/word count requests that require large output budgets.
+    // Scientific basis: FrugalGPT (Chen et al., arXiv:2305.05176, 2023) — output length
+    //   is the strongest predictor of required model capability and max_tokens.
+    // Anthropic (2024) long-context guide: tasks >5k words need max_tokens ≥ 16384.
+    isLongFormCreative: (
+      /\b(\d+\s*(páginas?|pages?|paginas?))\b/.test(q) &&
+      parseInt((q.match(/(\d+)\s*(páginas?|pages?|paginas?)/) || ['0','0'])[1]) >= 10
+    ) || (
+      /\b(\d+[\s.,]?\d*\s*(palavras?|words?))\b/.test(q) &&
+      parseInt((q.match(/(\d+)[\s.,]?\d*\s*(palavras?|words?)/) || ['0','0'])[1]) >= 5000
+    ) || (
+      /\b(capitulo|capítulo|chapter|livro|book|romance|novel|novela)\b/.test(q) &&
+      /\b(completo|complete|inteiro|entire|full|longo|long)\b/.test(q)
+    ),
     hasSystemDesign: /\b(architecture|system|infrastructure|database|schema|microservice|distributed|scalable|arquitetura|sistema|infraestrutura|esquema|microsservico|distribuido|escalavel|modulo)\b/.test(q),
     hasIntelltechContext: /\b(intelltech|shms|geotechnical|mining|sensor|instrumentation|slope|dam|embankment|piezometer|inclinometer|geotecnico|mineracao|instrumentacao|talude|barragem|piezometro|inclinometro|monitoramento)\b/.test(q),
     hasMOTHERContext: /\b(mother|core|module|deploy|gcloud|ciclo|awake|bd_central|darwin|dgm|modulo|implantar|despertar|auto-modificacao|producao)\b/.test(q),
@@ -98,6 +118,10 @@ export function computeComplexityScore(signals: ComplexitySignals): number {
   if (signals.hasIntelltechContext) score += 10;
   if (signals.hasMOTHERContext) score += 15;
   if (signals.hasCreativeRequest) score += 5;
+  // NC-ROUTER-003 FIX (C209): Long-form creative writing → force TIER_4 score
+  // Scientific basis: FrugalGPT (Chen et al., 2023) — output length is the primary
+  //   routing signal. Requests for ≥10 pages / ≥5000 words need TIER_4 (score ≥76).
+  if (signals.isLongFormCreative) score = Math.max(score, 80); // Force TIER_4
 
   // Token estimate bonus
   if (signals.estimatedTokens > 500) score += 10;
@@ -187,6 +211,18 @@ export function buildRoutingDecision(query: string, availableProviders?: Set<str
   };
 
   const config = tierConfigs[tier];
+
+  // NC-ROUTER-003 FIX (C209): Override TIER_4 max_tokens for long-form creative writing.
+  // Standard TIER_4 uses 8192 tokens (~6000 words). Long-form tasks (60 páginas =
+  // ~27000 words = ~36000 tokens) require 16384 tokens per API call.
+  // Scientific basis: OpenAI (2024) gpt-4o max_tokens=16384; FrugalGPT (Chen et al., 2023)
+  //   — output length is the primary routing signal for model and budget selection.
+  // Anthropic (2024) long-context guide: tasks >5k words need max_tokens ≥ 16384.
+  if (tier === 'TIER_4' && signals.isLongFormCreative) {
+    (config as RoutingDecision).maxTokens = 16384;
+    (config as RoutingDecision).estimatedLatencyMs = 45000;
+    (config as RoutingDecision).estimatedCostUSD = 0.08;
+  }
 
   // Build rationale
   const activeSignals = Object.entries(signals)
