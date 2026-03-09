@@ -70,7 +70,8 @@ steps:
       # NC-CLOUDBUILD-002 Ciclo 108: DPO_FINE_TUNED_MODEL added permanently
       # Scientific basis: AWAKE V212 Regra 107 — DPO v8e must survive every CI/CD cycle
       # Without this, each new revision loses the fine-tuned model and falls back to gpt-4o-mini
-      - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA,VITE_APP_ID=mother-interface,NODE_OPTIONS=--max-old-space-size=3072,DPO_FINE_TUNED_MODEL=ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v8e:DFay6MHy,MOTHER_VERSION=v90.0,MOTHER_CYCLE=209'
+      # C210 Conselho dos 6: NC-COG-005/006/007/008 DEPLOYED — v94.0 — 2026-03-10
+      - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA,VITE_APP_ID=mother-interface,NODE_OPTIONS=--max-old-space-size=3072,DPO_FINE_TUNED_MODEL=ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v8e:DFay6MHy,MOTHER_VERSION=v94.0,MOTHER_CYCLE=210'
 
   # v74.5: DGM-2 FIX — Migrate 100% traffic to new revision after deploy
   # gcloud run deploy does not have --traffic flag; use update-traffic separately
