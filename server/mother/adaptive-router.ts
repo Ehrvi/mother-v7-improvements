@@ -75,21 +75,27 @@ export function computeComplexitySignals(query: string): ComplexitySignals {
     hasResearchRequest: /\b(research|arxiv|paper|study|literature|survey|sota|scientific|pesquisa|artigo|estudo|literatura|revisao|cientifico|embasamento|referencia|fonte)\b/.test(q),
     hasMultiStep: /\b(step-by-step|plan|roadmap|phases|stages|workflow|pipeline|architecture|design|passo-a-passo|plano|fases|etapas|fluxo|planejamento|cronograma|sprint)\b/.test(q),
     hasCreativeRequest: /\b(write|create|generate|compose|draft|story|essay|blog|report|escrever|gerar|redigir|rascunho|historia|ensaio|relatorio|documento)\b/.test(q),
-    // NC-ROUTER-003 FIX (C209): Detect long-form creative writing tasks.
-    // Matches explicit page/word count requests that require large output budgets.
+    // NC-ROUTER-003 FIX v2 (C209): Detect long-form creative writing tasks.
+    // Bug fix: Portuguese number formatting — "27.000" and "8.000" use dot as thousands
+    // separator. Must normalize before parseInt: "27.000" → "27000", "8.000" → "8000".
     // Scientific basis: FrugalGPT (Chen et al., arXiv:2305.05176, 2023) — output length
     //   is the strongest predictor of required model capability and max_tokens.
     // Anthropic (2024) long-context guide: tasks >5k words need max_tokens ≥ 16384.
-    isLongFormCreative: (
-      /\b(\d+\s*(páginas?|pages?|paginas?))\b/.test(q) &&
-      parseInt((q.match(/(\d+)\s*(páginas?|pages?|paginas?)/) || ['0','0'])[1]) >= 10
-    ) || (
-      /\b(\d+[\s.,]?\d*\s*(palavras?|words?))\b/.test(q) &&
-      parseInt((q.match(/(\d+)[\s.,]?\d*\s*(palavras?|words?)/) || ['0','0'])[1]) >= 5000
-    ) || (
-      /\b(capitulo|capítulo|chapter|livro|book|romance|novel|novela)\b/.test(q) &&
-      /\b(completo|complete|inteiro|entire|full|longo|long)\b/.test(q)
-    ),
+    isLongFormCreative: (() => {
+      // Normalize PT-BR thousands separator: "27.000" → "27000", "8.000" → "8000"
+      const qNorm = q.replace(/(\d)\.(\d{3})(?=\D|$)/g, '$1$2');
+      // Check explicit page count >= 10
+      const pageMatch = qNorm.match(/(\d+)\s*(paginas?|pages?)/);
+      if (pageMatch && parseInt(pageMatch[1]) >= 10) return true;
+      // Check explicit word count >= 3000 (covers "8.000 palavras", "27.000 palavras")
+      const wordMatch = qNorm.match(/(\d+)\s*(palavras?|words?|caracteres?|characters?)/);
+      if (wordMatch && parseInt(wordMatch[1]) >= 3000) return true;
+      // Check creative domain + expansion/detail keywords
+      const isCreativeDomain = /\b(capitulo|chapter|cena|scene|livro|book|romance|novel|novela|historia|story|narrativa|narrative|texto|redacao|ensaio|essay)\b/.test(qNorm);
+      const isLongTask = /\b(expanda|expand|detalhe|detail|aprofunde|deepen|completo|complete|inteiro|entire|full|longo|long|extenso|extensive|detalhado|detailed|pelo menos|at least|minimo|minimum)\b/.test(qNorm);
+      if (isCreativeDomain && isLongTask) return true;
+      return false;
+    })(),
     hasSystemDesign: /\b(architecture|system|infrastructure|database|schema|microservice|distributed|scalable|arquitetura|sistema|infraestrutura|esquema|microsservico|distribuido|escalavel|modulo)\b/.test(q),
     hasIntelltechContext: /\b(intelltech|shms|geotechnical|mining|sensor|instrumentation|slope|dam|embankment|piezometer|inclinometer|geotecnico|mineracao|instrumentacao|talude|barragem|piezometro|inclinometro|monitoramento)\b/.test(q),
     hasMOTHERContext: /\b(mother|core|module|deploy|gcloud|ciclo|awake|bd_central|darwin|dgm|modulo|implantar|despertar|auto-modificacao|producao)\b/.test(q),
