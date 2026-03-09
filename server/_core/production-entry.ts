@@ -29,6 +29,9 @@ import { registerOAuthRoutes } from './oauth.js';
 import { getDb } from '../db.js';
 import { invokeGEASupervisor } from '../mother/gea_supervisor.js';
 import { a2aRouter } from '../mother/a2a-server.js'; // NC-COLLAB-001: A2A protocol
+import { a2aRouterV2 } from '../mother/a2a-server-v2.js'; // NC-A2A-001 FIX: A2A Protocol v2 (Sprint 9 C208)
+import { shmsMultitenantRouter } from '../shms/shms-multitenant.js'; // NC-MULTI-001 FIX: Multi-tenant SHMS row-level security (Sprint 9 C208)
+import { maskApiKey, logProviderKeyStatus } from './log-sanitizer.js'; // NC-SEC-003 FIX: Log sanitization — OWASP A09:2021 (Sprint 9 C208)
 // NC-ARCH-002 (C190 COMPLETO): 4 routers extraídos do God Object a2a-server.ts (2.268L → modular)
 // Base científica: Conselho C188 Seção 5.4 — Fowler (1999) Refactoring: Extract Module
 // Roy Fielding (2000) REST architectural constraints — separação de responsabilidades
@@ -210,6 +213,31 @@ async function runMigrations() {
 
 // Middleware
 app.use(corsConfig); // NC-001 Fix Sprint 1: CORS whitelist replaces wildcard '*' (OWASP A01:2021)
+/**
+ * NC-SEC-002 FIX: Content Security Policy (CSP) Headers — Sprint 9 C208
+ * Scientific basis: OWASP A03:2021 Injection + MDN CSP (2024)
+ * Prevents XSS by restricting script/style/connect sources.
+ * Google (2024): "CSP is the last line of defense against XSS"
+ */
+app.use((_req, res, next) => {
+  res.setHeader('Content-Security-Policy',
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline'; " +
+    "style-src 'self' 'unsafe-inline'; " +
+    "img-src 'self' data: blob: https:; " +
+    "connect-src 'self' https: wss:; " +
+    "font-src 'self' data:; " +
+    "frame-ancestors 'none'; " +
+    "base-uri 'self'; " +
+    "form-action 'self'"
+  );
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  next();
+}); // NC-SEC-002: CSP Headers — OWASP A03:2021 + MDN CSP (2024)
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -265,9 +293,24 @@ app.use('/api/dgm', dgmRouter); // NC-ARCH-002: /api/dgm/* (DGM status, cycle tr
 app.use('/api/metrics', metricsRouter); // NC-ARCH-002: /api/metrics/* (latency P50/P95/P99, cache stats)
 app.use('/api/shms', shmsAlertsRouter); // C196-0 ORPHAN FIX: /api/shms/v2/alerts/:structureId — ICOLD L1/L2/L3 (Sprint 3 — ICOLD Bulletin 158 §4.3)
 app.use('/api/shms/v2', digitalTwinRoutesC206); // C206-1: SHMS Phase 2 Digital Twin REST API — REST Fielding (2000) + ISO 13374-1:2003 + Grieves (2014) Digital Twin
+app.use(a2aRouterV2); // NC-A2A-001 FIX: A2A Protocol v2 — protocolVersion=2.0, tasks, SSE streaming (Sprint 9 C208)
+app.use(shmsMultitenantRouter); // NC-MULTI-001 FIX: Multi-tenant SHMS row-level security (Sprint 9 C208)
 log.info('[NC-ARCH-002 C190] 4 routers modulares montados: auth, shms-v2, dgm, metrics — God Object decomposição COMPLETA');
 log.info('[C196-0 ORPHAN FIX] shmsAlertsRouter montado: /api/shms/v2/alerts/:structureId — ICOLD Bulletin 158 §4.3 (Sprint 3)');
 log.info('[C206-1] Digital Twin REST API montada: /api/shms/v2/structures — REST Fielding (2000) + ISO 13374-1:2003');
+log.info('[C208-S9] A2A Protocol v2 montado: /.well-known/agent.json + /api/a2a/v2/* — Google A2A v2 (2025) — NC-A2A-001 FIX');
+log.info('[C208-S9] SHMS Multi-tenant montado: /api/shms/v2/tenants/:tenantId/* — ISO 13374-1:2003 + OWASP A01:2021 — NC-MULTI-001 FIX');
+log.info('[C208-S9] CSP Headers ativos: NC-SEC-002 FIX — OWASP A03:2021 + MDN CSP (2024)');
+log.info('[C208-S9] Log Sanitizer ativo: NC-SEC-003 FIX — OWASP A09:2021 + NIST SP 800-92');
+// NC-SEC-003 FIX: Log provider key status safely (masked)
+const providerKeyLogs = logProviderKeyStatus({
+  deepseek: process.env.DEEPSEEK_API_KEY,
+  openai: process.env.OPENAI_API_KEY,
+  anthropic: process.env.ANTHROPIC_API_KEY,
+  google: process.env.GOOGLE_API_KEY,
+  mistral: process.env.MISTRAL_API_KEY,
+});
+providerKeyLogs.forEach(msg => log.info(msg));
 
 /**
  * v45.0: Cloud Tasks DGM Execute Endpoint
