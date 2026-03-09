@@ -83,6 +83,9 @@ import { moduleRegistry } from './module-registry.js'; // C206 NC-ARCH-001: Modu
 import { digitalTwinRoutesC206 } from '../shms/digital-twin-routes-c206.js'; // C206-1: SHMS Phase 2 REST API — REST Fielding (2000) + ISO 13374-1:2003
 import { initMQTTDigitalTwinBridgeC206 } from '../shms/mqtt-digital-twin-bridge-c206.js'; // C206-2: MQTT → Digital Twin Bridge — ISO/IEC 20922:2016 + ICOLD 158
 import { scheduleGEvalIntegrationTestC206 } from '../mother/geval-integration-test-c206.js'; // C206-5: G-EVAL Integration Test — Liu et al. (2023) arXiv:2303.16634 + ISO/IEC 25010:2011
+import { initLSTMPredictorC207 } from '../shms/lstm-predictor-c207.js'; // C207-1: LSTM Predictor Real — Hochreiter & Schmidhuber (1997) + Figueiredo (2009) OSTI:961604
+import { scheduleHippoRAG2IndexingC207 } from '../mother/hipporag2-indexer-c207.js'; // C207-3: HippoRAG2 Indexer C207 — 5 papers Sprint 7 (arXiv:2502.14902)
+import { registerAllStartupTasks } from './startup-tasks-c207.js'; // C207-2: NC-ARCH-001 COMPLETO — centraliza 25 tarefas de startup (Fowler 1999 + Martin 2003 SRP)
 const log = createLogger('PROD_ENTRY');
 
 const __filename = fileURLToPath(import.meta.url);
@@ -748,362 +751,51 @@ app.listen(PORT, '0.0.0.0', async () => {
     setInterval(runScheduledAudit, AUDIT_INTERVAL_MS);
   }, 5 * 60 * 1000);
   log.info('[MOTHER] Daily self-audit scheduler started (first run in 5 min)');
-  
-  // v69.12: Hourly metrics aggregation — populates system_metrics from queries table
-  // Scientific basis: SRE Golden Signals (Beyer et al., 2016)
-  setTimeout(() => {
-    runHourlyAggregation().catch(err => log.error('[MOTHER] Hourly metrics failed:', err));
-    setInterval(() => {
-      runHourlyAggregation().catch(err => log.error('[MOTHER] Hourly metrics failed:', err));
-    }, 60 * 60 * 1000);
-  }, 2 * 60 * 1000);
-  log.info('[MOTHER] Hourly metrics aggregation scheduler started');
-
-  // C175: Cache warming on startup — ROOT CAUSE FIX for 12% hit rate
-  // Root cause: warmCache() was only called in index.ts (dev server), NOT in production-entry.ts
-  // Effect: Cloud Run cold starts had empty in-memory cache → every query was a cache miss
-  // Fix: call warmCache() 2s after startup (after DB connection established)
-  // Scientific basis: GPTCache (Zeng et al., 2023): cache warming achieves 45-60% hit rate
-  // Expected improvement: 12% → 40%+ hit rate after first warm cycle
-  setTimeout(() => {
-    warmCache().then(() => log.info('[MOTHER] Cache warm complete')).catch(err => log.warn('[MOTHER] Cache warm failed (non-critical):', err));
-  }, 2000);
-  log.info('[MOTHER] Cache warming scheduled (2s after startup)');
-  // C179: Inject Conselho V4 sprint knowledge into bd_central on startup
-  // Scientific basis: Continual Learning (Kirkpatrick et al., 2017 arXiv:1612.00796)
-  setTimeout(() => {
-    injectSprintKnowledge().catch(err => log.warn('[MOTHER] Knowledge injection failed (non-critical):', err));
-  }, 5000);
-  log.info('[MOTHER] Conselho V4 knowledge injection scheduled (5s after startup)');
-  // C190 P0 CRÍTICO: Ativar pipeline LoRA semanal — Conselho C188 Seção 3.2.1
-  // Base científica: Hu et al. (2025) LoRA-XS arXiv:2405.09673 — 98.7% desempenho com 0.3% custo
-  // Trigger: coleta dados do BD semanalmente, gera script de treinamento (dryRun=true até HF_TOKEN)
-  // Efeito esperado: +15 pontos de qualidade nas respostas após fine-tuning (Conselho C188 estimativa)
-  scheduleLoRAPipeline();
-  log.info('[MOTHER C190] LoRA pipeline semanal ativado — coleta de dados do BD a cada 7 dias');
-
-  // C193 DESBLOQUEADO: TimescaleDB Cloud (Tiger Cloud) — conexão PostgreSQL dedicada
-  // TIMESCALE_DB_URL=postgres://tsdbadmin:***@np88jyj5mj.e8uars6xuw.tsdb.cloud.timescale.com:31052/tsdb?sslmode=require
-  // TCP connectivity confirmed: 2026-03-08 — 3 hypertables: shms_ts_sensor_readings, shms_ts_predictions, shms_ts_alerts
-  // Base científica: Freedman et al. (2018) VLDB — 1-day chunks, 7-day compression (10x storage reduction)
-  setTimeout(async () => {
-    try {
-      // C193: initTimescaleSchema() usa TIMESCALE_DB_URL (PostgreSQL/Tiger Cloud)
-      // Separado de DATABASE_URL (MySQL/Cloud SQL) — conexão dedicada para séries temporais
-      const result = await initTimescaleSchema();
-      if (result.success) {
-        const status = await getTimescalePoolStatus();
-        log.info(`[MOTHER C193] TimescaleDB Cloud ATIVO — ${result.message} | host: ${status.host}`);
-      } else {
-        log.warn(`[MOTHER C193] TimescaleDB init: ${result.message}`);
-        // Fallback: usar timescale-connector.ts (Cloud SQL) para compatibilidade
-        await initTimescaleConnector();
-        log.info('[MOTHER C193] Fallback: Cloud SQL TimescaleDB connector inicializado');
-      }
-    } catch (err) {
-      log.warn('[MOTHER C193] TimescaleDB init falhou (non-critical):', (err as Error).message?.slice(0, 100));
-    }
-  }, 3000);
-
-  // C193 DESBLOQUEADO: MQTT real (HiveMQ Cloud) — SHMSMqttConnector com pacote 'mqtt' real
-  // MQTT_BROKER_URL=mqtts://Mother:***@5d8c986a8de24d1d9d92cbd55fcd75d7.s1.eu.hivemq.cloud:8883
-  // TLS connectivity confirmed: 2026-03-08 — ISO/IEC 20922:2016 MQTT v5.0
-  // Base científica: Sun et al. (2025) DOI:10.1145/3777730.3777858 — SHMS Digital Twin em tempo real
-  setTimeout(async () => {
-    const mqttUrl = process.env.MQTT_BROKER_URL;
-    if (mqttUrl) {
-      try {
-        // C193: Usar SHMSMqttConnector com broker real (HiveMQ Cloud)
-        // connect() agora usa pacote 'mqtt' real — fallback automático para simulation se timeout
-        const mqttConnector = new SHMSMqttConnector(mqttUrl);
-        await mqttConnector.connect();
-        const status = mqttConnector.getStatus();
-        if (status.mode === 'mqtt') {
-          log.info(`[MOTHER C193] MQTT HiveMQ Cloud ATIVO — broker: ${status.brokerUrl} | sensores: ${status.activeSensors}`);
-        } else {
-          log.info('[MOTHER C193] MQTT em SIMULATION mode — broker configurado mas fallback ativo');
-        }
-        // Também iniciar Digital Twin Bridge (simulation fallback para compatibilidade)
-        mqttDigitalTwinBridge.startSimulationFallback();
-      } catch (err) {
-        log.warn('[MOTHER C193] MQTT init falhou (non-critical):', (err as Error).message?.slice(0, 100));
-        mqttDigitalTwinBridge.startSimulationFallback();
-      }
-    } else {
-      log.info('[MOTHER C193] MQTT_BROKER_URL não configurado — Digital Twin em simulation mode');
-      mqttDigitalTwinBridge.startSimulationFallback();
-    }
-  }, 4000);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // C194-1: MQTT → sensor-validator → TimescaleDB ingestion bridge
-  // Base científica: ISO/IEC 20922:2016 (MQTT) + Freedman et al. (2018) TimescaleDB
+  // C207-2: NC-ARCH-001 COMPLETO — StartupScheduler centraliza 25 tarefas
+  // Substitui 18+ setTimeout/setInterval espalhados (God Object anti-pattern)
+  // Base científica: Fowler (1999) Refactoring + Martin (2003) SRP
   // ─────────────────────────────────────────────────────────────────────────
-  setTimeout(async () => {
-    try {
-      const { initMQTTTimescaleBridge } = await import('../shms/mqtt-timescale-bridge.js');
-      await initMQTTTimescaleBridge();
-      log.info('[MOTHER C194] MQTT→TimescaleDB bridge ATIVO — sensor-validator + hypertable ingestion');
-    } catch (err) {
-      log.warn('[MOTHER C194] MQTT-TimescaleDB bridge init falhou (non-critical):', (err as Error).message?.slice(0, 100));
-    }
-  }, 6000);
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // C205-2: NC-DGM-004 FIX — Removed legacy runDGMDailyCycle (C194 Sprint 12)
-  // REPLACED BY: scheduleDGMLoopC203() at line ~1033 (C203 Sprint 4 DGM Loop Activator)
-  // Scientific basis: DRY principle (Hunt & Thomas 1999) — single source of truth for DGM scheduling
-  // The C203 DGM Loop Activator (dgm-loop-startup-c203.ts) supersedes this legacy cycle.
-  // It uses: proposal deduplication (C204), fitness gate MCC≥0.85, cryptographic proof, GitHub PR.
-  // Legacy C194 cycle used: dgm-orchestrator.ts (deprecated, no dedup, no proof chain).
-  // MOTHER v87.0 | C205 | 2026-03-09
-  log.info('[MOTHER C205] NC-DGM-004 FIX: legacy DGM daily cycle (C194) removed — C203 Loop Activator is the single DGM scheduler');
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // C197-1 ORPHAN FIX: Redis SHMS Cache — Cache-aside pattern P50 < 100ms
-  // Base científica: Dean & Barroso (2013) CACM 56(2) — tail latency at scale
-  // R38: Dados sintéticos — correto para pré-produção oficial
-  // ─────────────────────────────────────────────────────────────────────────
-  setTimeout(async () => {
-    try {
-      await initRedisSHMSCache();
-      log.info('[MOTHER C197-1] Redis SHMS Cache ATIVO — Cache-aside pattern P50 < 100ms | Dean & Barroso 2013 CACM 56(2)');
-    } catch (err) {
-      log.warn('[MOTHER C197-1] Redis Cache init falhou (non-critical — fallback in-memory ativo):', (err as Error).message?.slice(0, 100));
-    }
-  }, 7000);
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // C197-2 ORPHAN FIX: HippoRAG2 — Indexar papers C193-C196 no grafo de conhecimento
-  // Base científica: Gutierrez et al. (2025) arXiv:2405.14831v2 — HippoRAG2 knowledge graph
-  // ─────────────────────────────────────────────────────────────────────────
-  setTimeout(async () => {
-    try {
-      const result = await indexPapersC193C196();
-      log.info(`[MOTHER C197-2] HippoRAG2 indexação CONCLUÍDA — ${result.length} papers indexados | arXiv:2405.14831v2`);
-    } catch (err) {
-      log.warn('[MOTHER C197-2] HippoRAG2 indexação falhou (non-critical):', (err as Error).message?.slice(0, 100));
-    }
-  }, 8000);
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // C197-3 ORPHAN FIX: DGM Sprint 14 Autopilot — auto-PR com referências científicas
-  // Base científica: Darwin Gödel Machine arXiv:2505.22954 — Proposal Quality +4.7%, Code Correctness +7.1%
-  // Executa 15min após startup (após DGM Sprint 12 daily cycle estar agendado)
-  // ─────────────────────────────────────────────────────────────────────────
-  setTimeout(async () => {
-    try {
-      const sprint14Result = await runDGMSprint14(getSprint14Config());
-      log.info(`[MOTHER C197-3] DGM Sprint 14 EXECUTADO — proposals: ${sprint14Result.proposalsGenerated} | convergence: ${sprint14Result.avgProposalQuality?.toFixed(2)} | arXiv:2505.22954`);
-    } catch (err) {
-      log.warn('[MOTHER C197-3] DGM Sprint 14 falhou (non-critical):', (err as Error).message?.slice(0, 100));
-    }
-  }, 15 * 60 * 1000); // 15min após startup
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // C198-1 ORPHAN FIX: Curriculum Learning SHMS — pipeline progressivo sintético (Sprint 5)
-  // Base científica: Bengio et al. (2009) ICML — Curriculum Learning
-  // ICOLD Bulletin 158 §4.3 — 3 fases: básico → anomalia → crítico (225 exemplos)
-  // R38: Dados sintéticos calibrados — correto para pré-produção oficial
-  // ─────────────────────────────────────────────────────────────────────────
-  setTimeout(async () => {
-    try {
-      const clResult = await runCurriculumLearningPipeline();
-      log.info(`[MOTHER C198-1] Curriculum Learning SHMS EXECUTADO — fase: ${clResult.phase} | exemplos: ${clResult.examplesGenerated} | accuracy: ${(clResult.averageDifficulty ?? 0).toFixed(2)} | Bengio 2009 ICML`);
-    } catch (err) {
-      log.warn('[MOTHER C198-1] Curriculum Learning falhou (non-critical — R38 pré-produção):', (err as Error).message?.slice(0, 100));
-    }
-  }, 9000); // 9s após startup
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // C198-2 ORPHAN FIX: DPO Training Pipeline — Constitutional AI dry_run (Sprint 5)
-  // Base científica: Rafailov et al. (2023) arXiv:2305.18290 — Direct Preference Optimization
-  // Bai et al. (2022) arXiv:2212.08073 — Constitutional AI (6 princípios SHMS/ICOLD)
-  // MANDATÓRIO: dry_run=true até dados reais disponíveis (R38)
-  // ─────────────────────────────────────────────────────────────────────────
-  setTimeout(async () => {
-    try {
-      const dpoResult = await runDPOTrainingPipeline({ dryRun: true });
-      log.info(`[MOTHER C198-2] DPO Training Pipeline EXECUTADO — pairs: ${dpoResult.examplesUsed} | alignment: ${(dpoResult.alignmentScore ?? 0).toFixed(1)}/100 | dry_run=true (R38) | arXiv:2305.18290`);
-    } catch (err) {
-      log.warn('[MOTHER C198-2] DPO Pipeline falhou (non-critical — dry_run R38):', (err as Error).message?.slice(0, 100));
-    }
-  }, 10000); // 10s após startup
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // C198-3 ORPHAN FIX: GRPO Optimizer — benchmark GRPO vs DPO (Sprint 5)
-  // Base científica: DeepSeek-R1 (2025) arXiv:2501.12948 — GRPO for reasoning
-  // Shao et al. (2024) arXiv:2402.03300 — DeepSeekMath GRPO
-  // Votação 2 do Conselho: GRPO (DeepSeek, Gemini) reservado Sprint 5
-  // MANDATÓRIO: dry_run=true até dados reais disponíveis (R38)
-  // ─────────────────────────────────────────────────────────────────────────
-  setTimeout(async () => {
-    try {
-      const grpoResult = await runGRPOOptimizer({ dryRun: true, benchmarkMode: true });
-      log.info(`[MOTHER C198-3] GRPO Optimizer EXECUTADO — score: ${grpoResult.grpoScore}/100 | DPO: ${grpoResult.dpoScore}/100 | winner: ${grpoResult.winner} | samples: ${grpoResult.samplesProcessed} | arXiv:2501.12948`);
-    } catch (err) {
-      log.warn('[MOTHER C198-3] GRPO Optimizer falhou (non-critical — dry_run R38):', (err as Error).message?.slice(0, 100));
-    }
-  }, 11000); // 11s após startup
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // C198-4: DGM Sprint 15 — Validação final Score ≥ 90/100 (Sprint 5 FINAL)
-  // Base científica: HELM arXiv:2211.09110 + arXiv:2505.22954 + ISO/IEC 25010:2011
-  // Votação 3 do Conselho: CONSENSO UNÂNIME 5/5
-  // Executa 20min após startup (após todos os outros módulos estarem ativos)
-  // ─────────────────────────────────────────────────────────────────────────
-  setTimeout(async () => {
-    try {
-      const s15Result = await runDGMSprint15();
-      const status = s15Result.threshold90Achieved ? '✅ THRESHOLD R33 ATINGIDO' : '⚠️ abaixo do threshold';
-      log.info(`[MOTHER C198-4] DGM Sprint 15 CONCLUÍDO — score: ${s15Result.totalScore}/100 | MCC: ${s15Result.mccScore} | ${status} | arXiv:2505.22954`);
-    } catch (err) {
-      log.warn('[MOTHER C198-4] DGM Sprint 15 falhou (non-critical):', (err as Error).message?.slice(0, 100));
-    }
-  }, 20 * 60 * 1000); // 20min após startup
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // C199 MÓDULOS COMERCIAIS — APROVADOS PELO PROPRIETÁRIO
-  // Everton Garcia, Wizards Down Under — Ciclo 199 — Threshold R33 ATINGIDO: 90.1/100
-  // ─────────────────────────────────────────────────────────────────────────
-
-  // C199-1: Multi-tenant SHMS — 3 tenants ativos
-  // Base científica: ISO/IEC 27001:2022 A.8.3 + NIST SP 800-53 Rev 5 AC-4
-  // OWASP Multi-Tenancy Security — Tenant data isolation patterns
-  setTimeout(async () => {
-    try {
-      const tenants = listDemoTenants();
-      const tenantStatuses = tenants.map((t: any) => getDemoTenantStatus(t.id));
-      const activeTenants = tenantStatuses.filter((s: any) => s.mqttConnected).length;
-      log.info(`[MOTHER C199-1] Multi-tenant ATIVO — ${activeTenants}/${tenants.length} tenants | ISO/IEC 27001:2022 A.8.3 | APROVADO Everton Garcia`);
-    } catch (err) {
-      log.warn('[MOTHER C199-1] Multi-tenant falhou (non-critical):', (err as Error).message?.slice(0, 100));
-    }
-  }, 12000); // 12s após startup
-
-  // C199-2: Stripe Billing — planos R$150/R$500/R$1500
-  // Base científica: PCI DSS v4.0 + ISO/IEC 27001:2022 A.5.14
-  setTimeout(async () => {
-    try {
-      const plans = listDemoPlans();
-      const mrr = getDemoMRRProjection();
-      log.info(`[MOTHER C199-2] Stripe Billing ATIVO — ${plans.length} planos | MRR: R$${mrr.projectedMRR}/mês | PCI DSS v4.0 | APROVADO Everton Garcia`);
-    } catch (err) {
-      log.warn('[MOTHER C199-2] Stripe billing falhou (non-critical):', (err as Error).message?.slice(0, 100));
-    }
-  }, 13000); // 13s após startup
-
-  // C199-3: SLA Monitor — SLA 99.9% uptime
-  // Base científica: Google SRE Book (Beyer et al., 2016) + ISO/IEC 20000-1:2018
-  setTimeout(async () => {
-    try {
-      const slaReport = await getSLAReport('30d');
-      log.info(`[MOTHER C199-3] SLA Monitor ATIVO — uptime: ${slaReport.overallCompliance}% | SLA: ${99.9}% | incidents: ${slaReport.incidents.length} | Google SRE Book 2016 | APROVADO Everton Garcia`);
-    } catch (err) {
-      log.warn('[MOTHER C199-3] SLA Monitor falhou (non-critical):', (err as Error).message?.slice(0, 100));
-    }
-  }, 14000); // 14s após startup
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // C203 Sprint 4: DGM Loop Activator — Conectar pipeline completo 6 fases ao startup
-  // Resolve gap identificado no Sprint 3: Loop Activator implementado mas NÃO conectado
-  // Base científica: Darwin Gödel Machine (Zhang et al. 2025, arXiv:2505.22954)
-  // SICA (arXiv:2504.15228) — self-improving coding agents with pre-commit validation
-  // Padrão R32: função MORTA → VIVA (dgm-loop-activator.ts existia mas nunca era chamado)
-  // Primeiro ciclo: 25min após startup | Recorrente: a cada 24h
-  // ─────────────────────────────────────────────────────────────────────────
-  setTimeout(() => {
-    try {
-      scheduleDGMLoopC203();
-      const status = getDGMLoopC203Status();
-      log.info(`[MOTHER C203] DGM Loop Activator AGENDADO — cycle=${status.cycle} | dryRun=${status.dryRun} | firstRun=25min | interval=24h | arXiv:2505.22954`);
-    } catch (err) {
-      log.warn('[MOTHER C203] DGM Loop Activator agendamento falhou (non-critical):', (err as Error).message?.slice(0, 100));
-    }
-  }, 16000); // 16s após startup (após todos os módulos C199 estarem ativos)
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // C204 Sprint 5: HippoRAG2 Indexer — 6 papers Sprint 4 C203
-  // Resolve NC-MEM-002: papers C203 não indexados (G-EVAL, HELM, MemGPT, Dean&Barroso, ISO25010, Reflexion)
-  // Base científica: HippoRAG2 (arXiv:2502.14902) — hippocampus-inspired retrieval recall@10 ≥80%
-  // ─────────────────────────────────────────────────────────────────────────
-  setTimeout(() => {
-    try {
-      scheduleHippoRAG2IndexingC204();
-      log.info('[MOTHER C204-2] HippoRAG2 Indexer C204 AGENDADO — 6 papers Sprint 4 | t=20s | arXiv:2502.14902');
-    } catch (err) {
-      log.warn('[MOTHER C204-2] HippoRAG2 Indexer C204 falhou (non-critical):', (err as Error).message?.slice(0, 100));
-    }
-  }, 17000); // 17s após startup
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // C204 Sprint 5: Benchmark Runner — Valida LongFormV2 + DGM C203 + HippoRAG2 C204
-  // Base científica: G-EVAL (arXiv:2303.16634) + HELM (arXiv:2211.09110) + ISO/IEC 25010:2011
-  // ─────────────────────────────────────────────────────────────────────────
-  setTimeout(() => {
-    try {
-      scheduleBenchmarkRunnerC204();
-      log.info('[MOTHER C204-3] Benchmark Runner C204 AGENDADO — LongFormV2 + DGM + HippoRAG2 | t=30s | G-EVAL arXiv:2303.16634');
-    } catch (err) {
-      log.warn('[MOTHER C204-3] Benchmark Runner C204 falhou (non-critical):', (err as Error).message?.slice(0, 100));
-    }
-  }, 18000); // 18s após startup
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // C206 Sprint 7: MQTT Digital Twin Bridge C206
-  // Conecta MQTT broker ao Digital Twin Engine C205
-  // Base científica: ISO/IEC 20922:2016 + ICOLD Bulletin 158 + GISTM 2020
-  // Fallback automático para modo simulação se MQTT_BROKER_URL não configurado (R38)
-  // ─────────────────────────────────────────────────────────────────────────
-  setTimeout(async () => {
-    try {
-      await initMQTTDigitalTwinBridgeC206();
-      log.info('[MOTHER C206-2] MQTT Digital Twin Bridge C206 ATIVO | ISO/IEC 20922:2016 + ICOLD 158 + GISTM 2020');
-    } catch (err) {
-      log.warn('[MOTHER C206-2] MQTT Digital Twin Bridge C206 falhou (non-critical):', (err as Error).message?.slice(0, 100));
-    }
-  }, 19000); // 19s após startup
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // C206 Sprint 7: StartupScheduler + ModuleRegistry status log
-  // NC-ARCH-001: Documenta o estado do registry de módulos
-  // Base científica: Fowler (1999) Refactoring + Gamma et al. (1994) Registry Pattern
-  // ─────────────────────────────────────────────────────────────────────────
-  setTimeout(() => {
-    try {
-      const registryStatus = moduleRegistry.getStatus();
-      const orphans = moduleRegistry.getOrphans();
-      log.info(
-        `[MOTHER C206] ModuleRegistry: ${registryStatus.connected} connected, ` +
-        `${registryStatus.orphan} orphan, ${registryStatus.deprecated} deprecated ` +
-        `| C206 NC-ARCH-001 | Fowler (1999) + Gamma (1994)`
-      );
-      if (orphans.length > 0) {
-        log.warn(`[MOTHER C206] ORPHAN modules detected (R27): ${orphans.map(o => o.name).join(', ')}`);
-      } else {
-        log.info('[MOTHER C206] Zero ORPHAN modules — R27 COMPLIANT ✅');
-      }
-      const schedulerStatus = startupScheduler.getStatus();
-      log.info(
-        `[MOTHER C206] StartupScheduler: ${schedulerStatus.taskCount} tasks registered ` +
-        `| NC-ARCH-001 PARTIAL (production-entry.ts refactored for C206 tasks)`
-      );
-    } catch (err) {
-      log.warn('[MOTHER C206] ModuleRegistry/StartupScheduler status falhou (non-critical):', (err as Error).message?.slice(0, 100));
-    }
-  }, 20000); // 20s após startup
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // C206 Sprint 7: G-EVAL Integration Test
-  // Valida pipeline Closed-Loop Learning C205 com 3 casos de teste
-  // Base científica: Liu et al. (2023) arXiv:2303.16634 + ISO/IEC 25010:2011
-  // ─────────────────────────────────────────────────────────────────────────
-  setTimeout(async () => {
-    try {
-      await scheduleGEvalIntegrationTestC206();
-      log.info('[MOTHER C206-5] G-EVAL Integration Test AGENDADO | arXiv:2303.16634 + ISO/IEC 25010:2011 | t=30s');
-    } catch (err) {
-      log.warn('[MOTHER C206-5] G-EVAL Integration Test agendamento falhou (non-critical):', (err as Error).message?.slice(0, 100));
-    }
-  }, 21000); // 21s após startup
+  try {
+    await registerAllStartupTasks({
+      initTimescaleSchema: async () => { await initTimescaleSchema(); },
+      getTimescalePoolStatus: async () => { const s = await getTimescalePoolStatus(); return { totalCount: s.totalCount ?? 0 }; },
+      initTimescaleConnector: async () => { await initTimescaleConnector(); },
+      scheduleLoRAPipeline,
+      SHMSMqttConnector,
+      mqttDigitalTwinBridge,
+      initMQTTTimescaleBridge: async () => {
+        const { initMQTTTimescaleBridge } = await import('../shms/mqtt-timescale-bridge.js');
+        await initMQTTTimescaleBridge();
+      },
+      injectSprintKnowledge,
+      initRedisSHMSCache,
+      indexPapersC193C196: async () => { await indexPapersC193C196(); },
+      runDGMSprint14,
+      getSprint14Config,
+      runCurriculumLearningPipeline,
+      runDPOTrainingPipeline,
+      runGRPOOptimizer,
+      runDGMSprint15,
+      listDemoTenants,
+      getDemoTenantStatus,
+      listDemoPlans,
+      getDemoMRRProjection,
+      getSLAReport,
+      warmCache,
+      scheduleDGMLoopC203,
+      getDGMLoopC203Status,
+      scheduleHippoRAG2IndexingC204,
+      scheduleBenchmarkRunnerC204,
+      initMQTTDigitalTwinBridgeC206,
+      scheduleGEvalIntegrationTestC206,
+      initLSTMPredictorC207,
+      scheduleHippoRAG2IndexingC207: async () => { await scheduleHippoRAG2IndexingC207(); },
+      runHourlyAggregation,
+    });
+    log.info('[C207] NC-ARCH-001 COMPLETO ✅ — production-entry.ts God Object eliminado | Fowler (1999) + Martin (2003) SRP');
+  } catch (err) {
+    log.error('[C207] registerAllStartupTasks falhou (non-critical):', (err as Error).message);
+  }
 });
