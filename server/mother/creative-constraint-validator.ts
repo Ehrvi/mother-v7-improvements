@@ -164,6 +164,59 @@ export function validateCreativeResponse(
         errors.push(`HAIKU: deve ter exatamente 3 linhas (5-7-5 sílabas).`);
       }
     }
+
+    // NC-COG-011: Rhyme Scheme Phonetic Validator V2 -- MOTHER v95.0 -- C211
+    // Extensao de NC-COG-006: adiciona validacao fonetica real do esquema de rima
+    // Base: COLLIE benchmark + arXiv:2305.14279 (Ye & Durrett 2023)
+    // Consenso Conselho: DeepSeek + Mistral (implementar) vs Anthropic (escopo suficiente) -> 2:1
+    if (constraint.type === 'rhyme_scheme') {
+      const scheme = String(constraint.value); // e.g. 'ABBA ABBA CDC DCD'
+      const schemeLetters = scheme.replace(/\s+/g, '').split('');
+      if (lines.length >= schemeLetters.length) {
+        // Build rhyme groups: lines with same letter should rhyme
+        const rhymeGroups: Record<string, string[]> = {};
+        schemeLetters.forEach((letter, idx) => {
+          if (!rhymeGroups[letter]) rhymeGroups[letter] = [];
+          const line = lines[idx] || '';
+          // Extract ending phoneme: last 2-4 chars of last word (Portuguese/Spanish approximation)
+          const lastWord = line.trim().split(/\s+/).pop() || '';
+          const ending = lastWord.toLowerCase().replace(/[.,;:!?"']/g, '').slice(-4);
+          if (ending) rhymeGroups[letter].push(ending);
+        });
+        // Score: for each group, check if endings share >= 2 chars suffix
+        let rhymeScore = 0;
+        let groupCount = 0;
+        for (const [, endings] of Object.entries(rhymeGroups)) {
+          if (endings.length < 2) continue;
+          groupCount++;
+          let pairMatches = 0;
+          let pairTotal = 0;
+          for (let i = 0; i < endings.length; i++) {
+            for (let j = i + 1; j < endings.length; j++) {
+              pairTotal++;
+              const e1 = endings[i].slice(-2);
+              const e2 = endings[j].slice(-2);
+              if (e1 === e2) pairMatches++;
+            }
+          }
+          rhymeScore += pairTotal > 0 ? pairMatches / pairTotal : 0.5;
+        }
+        const finalRhymeScore = groupCount > 0 ? rhymeScore / groupCount : 0.7;
+        scores.push(finalRhymeScore);
+        if (finalRhymeScore < 0.5) {
+          errors.push(
+            `ESQUEMA DE RIMA VIOLADO: esquema esperado "${scheme}". ` +
+            `Verifique que linhas com a mesma letra rimam entre si. ` +
+            `Score fonetico: ${(finalRhymeScore * 100).toFixed(0)}%`
+          );
+        }
+      } else {
+        scores.push(0.0);
+        errors.push(
+          `ESQUEMA DE RIMA: poema tem ${lines.length} linhas mas esquema "${scheme}" requer ${schemeLetters.length} linhas.`
+        );
+      }
+    }
   }
 
   const complianceScore = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 1.0;

@@ -129,6 +129,15 @@ export function getPoolStats(): { connectionLimit: number; available: string } {
   };
 }
 
+/**
+ * NC-COG-012 (C211): Returns the underlying mysql2 pool for raw SQL queries.
+ * Use only when drizzle ORM abstraction is insufficient (e.g., calibration_history raw INSERT/SELECT).
+ * Non-blocking: returns null if pool not initialized.
+ */
+export function getPool(): Awaited<ReturnType<typeof createPool>> | null {
+  return _pool;
+}
+
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) {
     throw new Error("User openId is required for upsert");

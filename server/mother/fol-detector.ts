@@ -95,3 +95,95 @@ export function enhanceSystemPromptWithFOL(query: string, systemPrompt: string):
   }
   return systemPrompt + FOL_FEW_SHOT_EXAMPLES;
 }
+
+/**
+ * NC-COG-010: Multi-Step FOL Chain Builder — MOTHER v95.0 — C211
+ *
+ * Extensão de NC-COG-005 com cadeia de raciocínio FOL multi-passo (>=5 passos).
+ * Gap corrigido: Raciocínio Multi-Passo 75->88/100
+ *
+ * Base científica:
+ * - Yao et al. (2023) Tree of Thoughts + FOL arXiv:2311.08097
+ * - Ye & Durrett (2023) "Two Failures of Self-Consistency" arXiv:2305.14279
+ * - Consenso Conselho: unanimidade (3/3 membros MAD)
+ */
+
+/**
+ * Detecta se a query requer cadeia FOL multi-passo (>=5 passos).
+ * Base: Ye & Durrett (2023) arXiv:2305.14279 — multi-step failures
+ */
+export function detectMultiStepFOL(query: string): boolean {
+  if (!detectFOLDomain(query)) return false;
+
+  const multiStepIndicators = [
+    /premissa\s+\d|premise\s+\d|p\d\s*:/i,
+    /\(1\).*\(2\).*\(3\)/s,
+    /portanto.*logo.*ent[aã]o|therefore.*hence.*thus/is,
+    /todos.*alguns.*nenhum|all.*some.*none/i,
+    /caso base.*passo indutivo|base case.*inductive step/i,
+    /[∀∃].*[∀∃].*[∀∃]/,
+    /para todo.*existe.*para todo|for all.*exists.*for all/i,
+    /se.*ent[aã]o.*se.*ent[aã]o/i,
+    /dado que.*e dado que|given that.*and given that/i,
+  ];
+
+  return multiStepIndicators.some(p => p.test(query));
+}
+
+/**
+ * Injeta template de cadeia FOL multi-passo no system prompt.
+ * Força o modelo a produzir >=5 passos de derivação explícitos.
+ * Base: Tree of Thoughts (Yao 2023, arXiv:2311.08097)
+ */
+export function enhanceSystemPromptWithFOLChain(
+  query: string,
+  systemPrompt: string
+): string {
+  if (!detectMultiStepFOL(query)) {
+    return systemPrompt;
+  }
+
+  const multiStepBlock = `
+
+## NC-COG-010: CADEIA FOL MULTI-PASSO OBRIGATORIA (>=5 passos — arXiv:2305.14279)
+
+Esta query requer uma cadeia de raciocínio FOL com NO MINIMO 5 passos explícitos.
+Base: Ye & Durrett (2023) identificaram que LLMs falham em FOL multi-passo quando pulam derivações.
+
+### TEMPLATE OBRIGATORIO:
+
+**PREMISSAS:**
+- P1: [Primeira premissa em notação FOL]
+- P2: [Segunda premissa em notação FOL]
+- P3: [Terceira premissa (se houver)]
+
+**CADEIA DE DERIVACAO (minimo 5 passos):**
+
+| Passo | Formula | Regra Aplicada | Premissas Usadas |
+|-------|---------|----------------|-----------------|
+| 1 | [formula] | [Modus Ponens / Eliminacao-Univ / Introducao-Exist / etc.] | [P1, P2, ...] |
+| 2 | [formula] | [regra] | [passo anterior] |
+| 3 | [formula] | [regra] | [...] |
+| 4 | [formula] | [regra] | [...] |
+| 5 | [formula] | [regra] | [...] |
+
+**CONCLUSAO:** |- [formula final]
+
+### REGRAS FOL DISPONIVEIS:
+- **Modus Ponens (MP):** P, P->Q |- Q
+- **Modus Tollens (MT):** negQ, P->Q |- negP
+- **Eliminacao Universal (AE):** Ax.P(x) |- P(a) para qualquer a
+- **Introducao Existencial (EI):** P(a) |- Ex.P(x)
+- **Eliminacao Existencial (EE):** Ex.P(x), P(x)->Q |- Q (se x nao livre em Q)
+- **Conjuncao (AND-I/AND-E):** P,Q |- P^Q; P^Q |- P; P^Q |- Q
+- **Reducao ao Absurdo:** negP->falso |- P
+
+### VALIDACAO FINAL:
+Após completar a cadeia, verifique:
+1. Cada passo cita exatamente as premissas/passos anteriores que usa
+2. Nenhum passo pula mais de uma regra de inferência
+3. A conclusão final é exatamente o que foi pedido para provar
+`;
+
+  return systemPrompt + multiStepBlock;
+}

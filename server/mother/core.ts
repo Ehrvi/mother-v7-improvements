@@ -96,11 +96,12 @@ import { recordRequest as obsRecordRequest } from './observability'; // Ciclo 67
 import { orchestrate as coreOrchestrate } from './core-orchestrator'; // Ciclo 70: Canary A/B 10% (Oracle Medium 2025 + Google SRE Canary Deployment + ACAR arXiv:2602.21231)
 import { applyGRPOReasoning, shouldApplyGRPO } from './grpo-reasoning-enhancer'; // Ciclo 73: GRPO Reasoning Enhancer (Shao et al., arXiv:2402.03300 DeepSeekMath 2024 + DeepSeek-R1 arXiv:2501.12948 2025)
 import { applyTTCScaling, shouldApplyTTCScaling } from './test-time-compute-scaler'; // Ciclo 74: TTC Scaling Best-of-N (Snell et al., arXiv:2408.03314, 2024 + GenPRM arXiv:2504.00891, 2025)
-// ─── CICLO C210: Conselho dos 6 — NC-COG-005/006/007/008 ─────────────────────
-import { enhanceSystemPromptWithFOL } from './fol-detector'; // NC-COG-005 (C210): FOL Detector (arXiv:2601.09446 Jiang 2025 + FOLIO arXiv:2209.00840)
-import { applyCreativeConstraintValidation } from './creative-constraint-validator'; // NC-COG-006 (C210): Creative Constraint Validator (COLLIE + arXiv:2305.14279)
-import { calibrateCognitiveScore } from './cognitive-calibrator'; // NC-COG-007 (C210): Cognitive Calibrator (arXiv:2207.05221 Kadavath 2022)
+// ─── CICLO C210-C212: Conselho dos 6 — NC-COG-005 a NC-COG-013 ─────────────────
+import { enhanceSystemPromptWithFOL, enhanceSystemPromptWithFOLChain } from './fol-detector'; // NC-COG-005+010 (C210+C211): FOL Detector + Multi-Step FOL Chain (arXiv:2601.09446 + arXiv:2305.14279)
+import { applyCreativeConstraintValidation } from './creative-constraint-validator'; // NC-COG-006+011 (C210+C211): Creative Constraint Validator + Phonetic Rhyme (COLLIE + arXiv:2305.14279)
+import { calibrateCognitiveScore, calibrateCognitiveScoreAdaptive } from './cognitive-calibrator'; // NC-COG-007+012 (C210+C211): Cognitive Calibrator + Adaptive History (arXiv:2207.05221 + arXiv:2510.16374)
 import { enhanceSystemPromptWithLockFree } from './lock-free-explainer'; // NC-COG-008 (C210): Lock-Free Explainer (Herlihy & Wing 1990 + arXiv:2106.04422)
+import { applyZ3Verification } from './z3-subprocess-verifier'; // NC-COG-013 (C212): Z3 Subprocess Verifier (de Moura & Bjorner 2008 TACAS + arXiv:2006.01847)
 
 // ─── MOTHER Version (single source of truth) ─────────────────────────────────
 // v74.0: NC-010 (tier3 fix) + NC-008 (cache TTL 72h) + NC-011 (self-diagnosis routing)
@@ -126,7 +127,7 @@ import { enhanceSystemPromptWithLockFree } from './lock-free-explainer'; // NC-C
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v94.0'; // C210 Conselho dos 6: NC-COG-005 (FOL Detector) + NC-COG-006 (Creative Constraint Validator) + NC-COG-007 (Cognitive Calibrator) + NC-COG-008 (Lock-Free Explainer) — BD: 217→232 (+15) — Auditoria Código Limpo: ZERO duplicatas — TypeScript: 0 erros
+export const MOTHER_VERSION = 'v95.0'; // C211+C212 Conselho: NC-COG-009 (Lean4) + NC-COG-010 (Multi-Step FOL) + NC-COG-011 (Rhyme Phonetic) + NC-COG-012 (Adaptive Calibration) + NC-COG-013 (Z3 Subprocess) + NC-COG-014 (Benchmark Suite) — BD: 232→247 (+15)
 
 const log = createLogger('CORE');
 
@@ -1016,11 +1017,12 @@ ${autonomyStatus}
   if (routingDecision.forceToolUse) {
     log.info(`[MOTHER] ACTION_REQUIRED: forceToolUse=true (actionScore=${routingDecision.actionScore}) — tool_choice='required'`);
   }
-  // ==================== NC-COG-005/008 (C210): Domain-Specific System Prompt Enhancers ====================
+  // ==================== NC-COG-005/008/010 (C210+C211): Domain-Specific System Prompt Enhancers ====================
   // NC-COG-005: FOL Detector (arXiv:2601.09446) — injects FOL few-shot examples for formal logic queries
   // NC-COG-008: Lock-Free Explainer (Herlihy & Wing 1990) — injects CAS/Z3 guidance for concurrency queries
-  // Impact: ZERO on non-matching queries. Adds ~500-800 tokens only when domain is detected.
-  const systemPrompt = enhanceSystemPromptWithLockFree(query, enhanceSystemPromptWithFOL(query, systemPromptBase));
+  // NC-COG-010: Multi-Step FOL Chain (arXiv:2305.14279) — injects >=5 step derivation template for multi-step FOL
+  // Impact: ZERO on non-matching queries. Adds ~500-1200 tokens only when domain is detected.
+  const systemPrompt = enhanceSystemPromptWithFOLChain(query, enhanceSystemPromptWithLockFree(query, enhanceSystemPromptWithFOL(query, systemPromptBase)));
 
   const toolDetectionResponse = await invokeLLM({
     model: 'gpt-4o',
@@ -1248,17 +1250,41 @@ ${autonomyStatus}
   } catch (ccvErr) {
     log.warn('[NC-COG-006] Creative constraint validation failed (non-blocking):', (ccvErr as Error).message);
   }
-
-  // ==================== LAYER 6: QUALITY ====================
+  // ==================== NC-COG-013 (C212): Z3 Subprocess Verifier ====================
+  // Scientific basis: de Moura & Bjorner (2008) Z3 TACAS + arXiv:2006.01847 (2020) Z3 vs Prover9
+  // Detects formal verification requests and appends Z3 Python code to response.
+  // Impact: ZERO on non-verification queries. Appends code block only when explicitly requested.
+  try {
+    const z3Result = await applyZ3Verification(query, response.slice(0, 200));
+    if (z3Result.z3Code) {
+      if (z3Result.executed && z3Result.output) {
+        response += `\n\n---\n**NC-COG-013: Z3 Verification Executed**\n\`\`\`\n${z3Result.output}\n\`\`\``;
+        log.info(`[NC-COG-013] Z3 executed: result=${z3Result.result}, time=${z3Result.executionTimeMs}ms`);
+      } else {
+        response += `\n\n---\n**NC-COG-013: Z3 Verification Code** (execute localmente com \`pip install z3-solver && python3 verify.py\`)\n\`\`\`python\n${z3Result.z3Code}\n\`\`\``;
+        log.info('[NC-COG-013] Z3 code appended (not executed — Z3 not available in environment)');
+      }
+    }
+  } catch (z3Err) {
+    log.warn('[NC-COG-013] Z3 verification failed (non-blocking):', (z3Err as Error).message);
+  }
+  // ==================== LAYER 6: QUALITY =====================
   // Validate response quality
   
   const quality = await validateQuality(query, response, 2, hallucinationRisk, knowledgeContext || undefined); // Phase 2: 5 checks + hallucination risk + RAGAS (v67.8)
   // Note: hallucinationRisk already set above from grounding engine
-  // ==================== NC-COG-007 (C210): Cognitive Domain Calibrator ====================
+  // ==================== NC-COG-007+012 (C210+C211): Cognitive Domain Calibrator + Adaptive History ====================
   // Scientific basis: arXiv:2207.05221 (Kadavath et al., 2022) — LLMs overestimate 8-12% systematically.
+  // NC-COG-012: Domain-Adaptive Calibration — uses MySQL calibration_history for dynamic adjustment.
   // Empirical: v93.0 live tests showed +9pt overconfidence (declared 85%, observed 76%).
   // Non-invasive: adds calibration metadata, does NOT modify guardian thresholds.
-  const calibratedQuality = calibrateCognitiveScore(query, quality);
+  // Use adaptive calibration if DB available, fallback to synchronous NC-COG-007.
+  let calibratedQuality: ReturnType<typeof calibrateCognitiveScore>;
+  try {
+    calibratedQuality = await calibrateCognitiveScoreAdaptive(query, quality) as ReturnType<typeof calibrateCognitiveScore>;
+  } catch {
+    calibratedQuality = calibrateCognitiveScore(query, quality); // NC-COG-007 fallback
+  }
   log.info(`[MOTHER] Quality Score: ${quality.qualityScore}/100 → Calibrated: ${calibratedQuality.calibratedScore}/100 (domain=${calibratedQuality.domain}, ${quality.passed ? 'PASSED' : 'FAILED'})`);
   log.info(`[NC-COG-007] Calibration: adjustment=${calibratedQuality.calibrationAdjustment > 0 ? '+' : ''}${calibratedQuality.calibrationAdjustment}, domain=${calibratedQuality.domain}`);
   
