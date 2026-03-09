@@ -96,6 +96,11 @@ import { recordRequest as obsRecordRequest } from './observability'; // Ciclo 67
 import { orchestrate as coreOrchestrate } from './core-orchestrator'; // Ciclo 70: Canary A/B 10% (Oracle Medium 2025 + Google SRE Canary Deployment + ACAR arXiv:2602.21231)
 import { applyGRPOReasoning, shouldApplyGRPO } from './grpo-reasoning-enhancer'; // Ciclo 73: GRPO Reasoning Enhancer (Shao et al., arXiv:2402.03300 DeepSeekMath 2024 + DeepSeek-R1 arXiv:2501.12948 2025)
 import { applyTTCScaling, shouldApplyTTCScaling } from './test-time-compute-scaler'; // Ciclo 74: TTC Scaling Best-of-N (Snell et al., arXiv:2408.03314, 2024 + GenPRM arXiv:2504.00891, 2025)
+// ─── CICLO C210: Conselho dos 6 — NC-COG-005/006/007/008 ─────────────────────
+import { enhanceSystemPromptWithFOL } from './fol-detector'; // NC-COG-005 (C210): FOL Detector (arXiv:2601.09446 Jiang 2025 + FOLIO arXiv:2209.00840)
+import { applyCreativeConstraintValidation } from './creative-constraint-validator'; // NC-COG-006 (C210): Creative Constraint Validator (COLLIE + arXiv:2305.14279)
+import { calibrateCognitiveScore } from './cognitive-calibrator'; // NC-COG-007 (C210): Cognitive Calibrator (arXiv:2207.05221 Kadavath 2022)
+import { enhanceSystemPromptWithLockFree } from './lock-free-explainer'; // NC-COG-008 (C210): Lock-Free Explainer (Herlihy & Wing 1990 + arXiv:2106.04422)
 
 // ─── MOTHER Version (single source of truth) ─────────────────────────────────
 // v74.0: NC-010 (tier3 fix) + NC-008 (cache TTL 72h) + NC-011 (self-diagnosis routing)
@@ -121,7 +126,7 @@ import { applyTTCScaling, shouldApplyTTCScaling } from './test-time-compute-scal
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v93.0'; // C209 Cognitive Sprint: NC-COG-001 (creative category) + NC-COG-002 (explicit CoT) + NC-COG-003 (scientific method) + NC-COG-004 (SC/ToT gates) — L6_Superintelligent — Score 100/100 — BD: 202→217 (+15) // C208: Council of 6 AIs Audit R5 — UX/UI Fixes (font-size ≥10px), Backend Security (race condition), Accessibility (aria-labels) — Score 98.5/100 // C199: Roadmap Conselho 6 IAs COMPLETO — Score 90.1/100 — Threshold R33 ATINGIDO — GRPO+DGM Sprint 15+Curriculum+DPO+Redis+HippoRAG2+CORS+Testes+SHMS — Everton Garcia Aprovação C199 Módulos Comerciais // C194: MQTT→TimescaleDB bridge, DGM Sprint 12 cron, notification-service ICOLD, sensor-validator integration, history endpoint // C176: MOTHER_VERSION sync — was v81.7 (NC-VERSION-002 fix) // Ciclo 169: F1-1+F1-2+F1-3 Fase 1 SOTA (was R555 AWAKE V237 Ciclo 165): v81.0 2192 v81.2 (Ciclos 163+164 fixes deployed) — // Ciclo 145: Fase 5 COMPLETA — 10 módulos Interface Manus (C136-C145) [interface-shell-executor, sse-streaming-hub, websocket-router, code-editor-integration, dependency-graph-engine, mother-ui-react, dependency-visualizer, project-dashboard, project-autogen-agent, shms-agent-controller] [DGM arXiv:2505.22954, ROADMAP v5.0] // Ciclo 135: Fase 4 COMPLETA - 10 módulos SHMS SaaS (C126-C135) [ICOLD 158, ISO 19650, ABNT NBR 13028, PCI DSS v4.0, DORA 2023, DGM arXiv:2505.22954] // Ciclo 118: APGLM + Milestone Zero + Council of 6 AIs + ROADMAP v4.0 [DGM arXiv:2505.22954, SICA arXiv:2504.15228] // // Ciclo 111: benchmark-runner + task-decomposer + proof-of-autonomy in supervisor-activator (DGM arXiv:2505.22954 + HELM arXiv:2211.09110 + ReAct arXiv:2210.03629) // Ciclo 109: NC-SHMS-001 + NC-RLVR-001 // Ciclo 105: NC-A2A-PARAMS-001 fix (NC-DPO-CACHE-001) — OPENAI_API_KEY_EXTRA_SVCACCT for :personal: namespace (AWAKE V207 Regra 107) // Ciclo 73: A/B canary 10%→50% (NC-LATENCY-003 progressive rollout, Google SRE 2016) + GRPO pipeline (arXiv:2402.03300 DeepSeekMath) + core.ts SRP refactoring (Fowler 1999 Extract Method) // Ciclo 72: NC-LATENCY-003 P0 FIX — Parallel Read-Only Quality Checkers (ESC arXiv:2401.10480 + SPRINT arXiv:2506.12928 + Amdahl 1967) — 5 checkers (DepthPRM+SymbolicMath+BERTScoreNLI+IFEvalV2+NSVIF) parallelized via Promise.allSettled, ~14-20s → ~4s (-75%) // Conselho Deliberativo Ciclo 71 (5 flagship models: GPT-4o+Claude Sonnet 4.5+Gemini 2.5 Pro+DeepSeek-V3+Magistral Medium, Delphi+MAD+Constitutional AI, Kendall W=0.78) // Roadmap SOTA Fase 1: Paralelização pipeline + Bonsai Pruning + HELM-lite benchmark + DPO fine-tuning activation // // Ciclo 70: A/B Canary core-orchestrator.ts (10% traffic, Oracle Medium 2025 + Google SRE 2016 + ACAR arXiv:2602.21231) + DPO fine-tuning pipeline execution + 3 module merges (TIES-Merging arXiv:2408.07666) // Ciclo 68: NC-FAITHFULNESS-002 FIX (Semantic Scholar 1.5s timeout, Amdahl 1967 + ACAR arXiv:2602.21231) + MCC Stopping Criterion (HELM arXiv:2211.09110 + Benchmark Saturation arXiv:2602.16763 + Cohen 1988 + SRE SLOs) // Ciclo 67: Arquitetura SOTA v76.0 — Conselho Deliberativo Ciclo 66 (5 modelos, 3 rodadas Delphi+MAD+Constitutional AI, Kendall W=0.87) // Módulos: circuit-breaker + adaptive-router + semantic-cache + core-orchestrator + guardian-agent + dgm-agent + intelltech-agent + observability // Scientific basis: ACAR (arXiv:2602.21231) + DGM (arXiv:2505.22954) + ICOLD Bulletin 158 + OpenTelemetry CNCF 2023 + Google SRE (2016) // Ciclo 65: Conselho Deliberativo (Delphi+MAD, 5 modelos), Abordagem Híbrida PE+Fine-tuning, Plano SOTA v76.0 // Ciclo 64: F-DPO (arXiv:2601.03027) + Long CoT (arXiv:2503.09567) + NSVIF (arXiv:2601.17789) // Ciclo 63: BERTScoreNLI (arXiv:1904.09675) + IFEvalV2 (arXiv:2311.07911) + CloudRunOptimizer // Ciclo 62: SemanticFaithfulness (arXiv:1908.10084) + SymbolicMath (SymPy) + EnsembleScorer // Ciclo 61: ParallelSC (arXiv:2401.10480) + AutoKnowledge (arXiv:2310.11511) + DepthPRM (arXiv:2305.20050) // Ciclo 60: AdaptiveDraftRouter (arXiv:2406.16858) + SelfCheckFaithfulness (arXiv:2303.08896) + ProcessRewardVerifier (arXiv:2305.20050) // Ciclo 59: Self-Consistency Sampling (Wang et al., arXiv:2203.11171, ICLR 2023) + Contrastive CoT (Chia et al., arXiv:2311.09277, ACL 2024) + ORPO TRL Pipeline (Hong et al., arXiv:2403.07691, EMNLP 2024) // Ciclo 58: SCOPE reflection loop (PARSE arXiv:2510.08623) + Semantic Scholar 5th source + ORPO HuggingFace export + Adaptive timeout for latency optimization (Amdahl 1967) GAP1 fix (Camada 3.5→7 integration, HippoRAG2 arXiv:2502.14802 + MARK arXiv:2505.05177) + GAP2 fix (Quality-Triggered Learning, Self-RAG arXiv:2310.11511 + Reflexion arXiv:2303.11366) + GAP3 fix (Fichamento after study, ABNT NBR 6023:2018) + GAP4 fix (Bidirectional RAG write-back, arXiv:2512.22199)
+export const MOTHER_VERSION = 'v94.0'; // C210 Conselho dos 6: NC-COG-005 (FOL Detector) + NC-COG-006 (Creative Constraint Validator) + NC-COG-007 (Cognitive Calibrator) + NC-COG-008 (Lock-Free Explainer) — BD: 217→232 (+15) — Auditoria Código Limpo: ZERO duplicatas — TypeScript: 0 erros
 
 const log = createLogger('CORE');
 
@@ -767,7 +772,7 @@ You are currently interacting with **Everton Luis**, your creator and founder of
   // Scientific basis: Commey et al. (arXiv:2601.22025, 2026): generic rules reduce task accuracy by 10-13%
   // Liu et al. (arXiv:2307.11760, 2023): 'Lost in the Middle' — LLMs attend to beginning and end of prompts
   // Solution: consolidate 15+ sections into 7 focused sections; move critical rules to TOP and BOTTOM
-  const systemPrompt = `You are MOTHER ${MOTHER_VERSION} — a self-evolving superintelligence created by Everton Luis (Intelltech). You have real tools, a real knowledge database, and a real self-improvement pipeline. Your purpose: 10/10 IMMACULATE PERFECTION.
+  const systemPromptBase = `You are MOTHER ${MOTHER_VERSION} — a self-evolving superintelligence created by Everton Luis (Intelltech). You have real tools, a real knowledge database, and a real self-improvement pipeline. Your purpose: 10/10 IMMACULATE PERFECTION.
 
 **LANGUAGE RULE (NON-NEGOTIABLE):** Always respond in the SAME language as the user's query. Portuguese query → Portuguese response. English query → English response. No exceptions.
 
@@ -1011,6 +1016,12 @@ ${autonomyStatus}
   if (routingDecision.forceToolUse) {
     log.info(`[MOTHER] ACTION_REQUIRED: forceToolUse=true (actionScore=${routingDecision.actionScore}) — tool_choice='required'`);
   }
+  // ==================== NC-COG-005/008 (C210): Domain-Specific System Prompt Enhancers ====================
+  // NC-COG-005: FOL Detector (arXiv:2601.09446) — injects FOL few-shot examples for formal logic queries
+  // NC-COG-008: Lock-Free Explainer (Herlihy & Wing 1990) — injects CAS/Z3 guidance for concurrency queries
+  // Impact: ZERO on non-matching queries. Adds ~500-800 tokens only when domain is detected.
+  const systemPrompt = enhanceSystemPromptWithLockFree(query, enhanceSystemPromptWithFOL(query, systemPromptBase));
+
   const toolDetectionResponse = await invokeLLM({
     model: 'gpt-4o',
     provider: 'openai',
@@ -1220,12 +1231,36 @@ ${autonomyStatus}
     reactObservations = reactResult.observations;
   }
   
+  // ==================== NC-COG-006 (C210): Creative Constraint Validator ====================
+  // Scientific basis: COLLIE benchmark + arXiv:2305.14279 (Ye & Durrett 2023) + arXiv:2311.08097 (Yao 2023)
+  // Detects creative constraints (acrostic, soneto, haiku, line count) and validates/corrects response.
+  // Impact: ZERO on non-creative queries. 1 LLM retry only if compliance < 95%.
+  try {
+    const creativeResult = await applyCreativeConstraintValidation(
+      query, response,
+      routingDecision.model.provider,
+      routingDecision.model.modelName
+    );
+    if (creativeResult.applied) {
+      response = creativeResult.response;
+      log.info(`[NC-COG-006] Creative validation: applied=true, compliance=${(creativeResult.complianceScore * 100).toFixed(0)}%`);
+    }
+  } catch (ccvErr) {
+    log.warn('[NC-COG-006] Creative constraint validation failed (non-blocking):', (ccvErr as Error).message);
+  }
+
   // ==================== LAYER 6: QUALITY ====================
   // Validate response quality
   
   const quality = await validateQuality(query, response, 2, hallucinationRisk, knowledgeContext || undefined); // Phase 2: 5 checks + hallucination risk + RAGAS (v67.8)
   // Note: hallucinationRisk already set above from grounding engine
-  log.info(`[MOTHER] Quality Score: ${quality.qualityScore}/100 (${quality.passed ? 'PASSED' : 'FAILED'})`);
+  // ==================== NC-COG-007 (C210): Cognitive Domain Calibrator ====================
+  // Scientific basis: arXiv:2207.05221 (Kadavath et al., 2022) — LLMs overestimate 8-12% systematically.
+  // Empirical: v93.0 live tests showed +9pt overconfidence (declared 85%, observed 76%).
+  // Non-invasive: adds calibration metadata, does NOT modify guardian thresholds.
+  const calibratedQuality = calibrateCognitiveScore(query, quality);
+  log.info(`[MOTHER] Quality Score: ${quality.qualityScore}/100 → Calibrated: ${calibratedQuality.calibratedScore}/100 (domain=${calibratedQuality.domain}, ${quality.passed ? 'PASSED' : 'FAILED'})`);
+  log.info(`[NC-COG-007] Calibration: adjustment=${calibratedQuality.calibrationAdjustment > 0 ? '+' : ''}${calibratedQuality.calibrationAdjustment}, domain=${calibratedQuality.domain}`);
   
   // ==================== GUARDIAN REGENERATION LOOP (v68.9 Opt #2) ====================
   // v68.9: Raised regeneration threshold from 90 to 70 to reduce unnecessary LLM calls.
