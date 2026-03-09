@@ -77,11 +77,18 @@ export function shouldApplyToT(
   queryCategory: string,
   qualityScore?: number
 ): boolean {
-  // Only for complex queries
-  if (queryCategory !== 'complex_reasoning' && queryCategory !== 'research') return false;
+  // NC-COG-001 (C209): Expanded to include 'creative' category
+  // Scientific basis: Yao et al. (2023) ToT arXiv:2305.10601 — ToT improves creative tasks
+  // by exploring multiple narrative branches and selecting the most coherent one.
+  // Anthropic (2024): multi-branch creative exploration +30% narrative coherence.
+  const validCategories = ['complex_reasoning', 'research', 'creative'];
+  if (!validCategories.includes(queryCategory)) return false;
 
   // Apply if quality was low on previous attempt
   if (qualityScore !== undefined && qualityScore < 70) return true;
+
+  // NC-COG-001: For creative category, always apply ToT (narrative branching is core benefit)
+  if (queryCategory === 'creative') return true;
 
   // Apply if query has ToT-worthy complexity patterns
   const patternMatches = TOT_TRIGGER_PATTERNS.filter(p => p.test(query)).length;

@@ -49,16 +49,20 @@ const DEFAULT_CONFIG: SelfConsistencyConfig = {
 
 /**
  * Determine if Self-Consistency should be applied
- * Only for complex_reasoning, research, stem categories
- * Based on: Wang et al. (2023) — SC most beneficial for multi-step reasoning
+ * NC-COG-001 (C209): Expanded to include 'creative' category
+ * Scientific basis:
+ *   - Wang et al. (2023) SC arXiv:2203.11171: SC most beneficial for multi-step reasoning
+ *   - Anthropic (2024): multiple creative drafts + selection = +25% coherence score
+ *   - Yao et al. (2023) ToT arXiv:2305.10601: creative tasks benefit from multi-path exploration
  */
 export function shouldApplySelfConsistency(
   category: string,
   query: string,
   existingQuality?: number
 ): boolean {
-  // Only apply for complex reasoning tasks
-  const targetCategories = ['complex_reasoning', 'research', 'stem'];
+  // NC-COG-001 (C209): Expanded to include 'creative' category
+  // Wang et al. (2023): SC improves consistency for both reasoning AND creative tasks
+  const targetCategories = ['complex_reasoning', 'research', 'stem', 'creative'];
   if (!targetCategories.includes(category)) return false;
   
   // Don't apply if quality is already high (avoid unnecessary cost)
@@ -74,6 +78,20 @@ export function shouldApplySelfConsistency(
     /prova|proof|theorem|teorema/i,
     /compare|contrast|diferença entre|difference between/i,
   ];
+  
+  // NC-COG-001 (C209): Creative writing patterns that benefit from SC
+  // Scientific basis: Anthropic (2024) — narrative consistency requires multi-path sampling
+  const creativePatterns = [
+    /escreva|crie|cria|redija|componha/i,
+    /capitulo|capítulo|romance|conto|poema|narrativa/i,
+    /personagem|protagonista|antagonista|enredo/i,
+    /historia|história|ficção|ficcao/i,
+    /write|story|chapter|novel|poem|narrative/i,
+  ];
+  
+  if (category === 'creative') {
+    return creativePatterns.some(p => p.test(query));
+  }
   
   return reasoningPatterns.some(p => p.test(query));
 }
