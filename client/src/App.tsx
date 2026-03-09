@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import ErrorBoundary from './components/ErrorBoundary'; // NC-ARCH-004 FIX: Error Boundaries — React docs (2024) + Nygard (2007) §4.1 Bulkheads
 import { trpc } from '@/lib/trpc';
 import Home from './pages/Home';
 import DgmLineage from './pages/DgmLineage';
@@ -9,9 +10,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const { data: user, isLoading } = trpc.auth.me.useQuery();
   if (isLoading) {
     return (
-      <div style={{ minHeight: '100vh', background: '#07070f', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ width: 40, height: 40, border: '3px solid rgba(124,58,237,0.3)', borderTopColor: '#7c3aed', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <div className="mother-auth-loading">
+        <div className="mother-auth-spinner" />
       </div>
     );
   }
@@ -28,6 +28,7 @@ function GuestGuard({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
+    <ErrorBoundary componentName="App">
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<GuestGuard><Login /></GuestGuard>} />
@@ -38,6 +39,7 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 

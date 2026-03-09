@@ -1,6 +1,8 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'; // NC-PERF-001: useMemo added — React docs (2024) + Abramov (2019) React Hooks
 import { Send, Sparkles, Brain, Shield, Zap, TrendingDown, Dna, Activity, Database, GitBranch, Paperclip } from 'lucide-react';
 import RightPanel from '@/components/RightPanel';
+import ErrorBoundary from '@/components/ErrorBoundary'; // NC-ARCH-004 FIX: Error Boundaries — React docs (2024) + Nielsen (1994) H9 + Nygard (2007) §4.1
+import { LoadingSpinner } from '@/components/LoadingSpinner'; // NC-ARCH-005 FIX: Loading States Granulares — Nielsen (1994) H1 + Miller (1968)
 import { trpc } from '@/lib/trpc';
 import { FileDropZone } from '@/components/FileDropZone';
 // C172 (Ciclo 172): Conselho Fase 2 Interface SOTA — 3 new panels
@@ -334,6 +336,25 @@ export default function Home() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, queryMutation.isPending, isStreaming]);
 
+  // NC-PERF-001: Memoize filtered messages — avoids re-filtering on every render
+  // Scientific basis: React docs (2024) useMemo + Abramov (2019) React Hooks
+  const visibleMessages = useMemo(() => messages.filter(msg => {
+    if (msg.role === 'mother' && msg.content === '' && isStreaming && msg.id === streamingMsgIdRef.current) return false;
+    if (msg.role === 'mother' && msg.content === '') return false;
+    return true;
+  }), [messages, isStreaming]);
+
+  // NC-PERF-001: Memoize conversation history builder — avoids re-building on every keystroke
+  const buildConversationHistory = useCallback(() => {
+    return messages
+      .filter(m => m.role === 'user' || m.role === 'mother')
+      .slice(-20)
+      .map(m => ({
+        role: m.role === 'user' ? 'user' as const : 'assistant' as const,
+        content: m.content,
+      }));
+  }, [messages]);
+
   const sendMessage = (text?: string) => {
     const rawQuery = (text || input).trim();
     if (!rawQuery || queryMutation.isPending || isStreaming) return;
@@ -349,14 +370,9 @@ export default function Home() {
       content: rawQuery, // Show original query in UI (not the full context)
       timestamp: new Date(),
     };
-    // v63.0: Build conversation history from current messages for multi-turn context
-    const conversationHistory = messages
-      .filter(m => m.role === 'user' || m.role === 'mother')
-      .slice(-20) // last 20 messages = 10 turns
-      .map(m => ({
-        role: m.role === 'user' ? 'user' as const : 'assistant' as const,
-        content: m.content,
-      }));
+    // NC-CODE-001: Use memoized buildConversationHistory (NC-PERF-001)
+    // Scientific basis: React docs (2024) useCallback + Abramov (2019) React Hooks
+    const conversationHistory = buildConversationHistory();
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
     // v74.6: Clear file context after sending
@@ -424,12 +440,11 @@ export default function Home() {
       <aside className="w-[248px] flex-shrink-0 glass-panel flex flex-col p-4 gap-3 overflow-y-auto border-r border-[rgba(124,58,237,0.15)]">
         {/* Logo */}
         <div className="flex items-center gap-3 pb-3 border-b border-[rgba(255,255,255,0.06)]">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg text-white flex-shrink-0"
-               style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', boxShadow: '0 0 16px rgba(124,58,237,0.4)' }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg text-white flex-shrink-0 mother-send-gradient">
             M
           </div>
           <div>
-            <div className="text-sm font-bold" style={{ background: 'linear-gradient(90deg, #c4b5fd, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            <div className="text-sm font-bold mother-brand-text">
               MOTHER {motherVersion}
             </div>
             <div className="text-[10px] text-[#55556a]">Darwin Gödel Machine</div>
@@ -620,11 +635,10 @@ export default function Home() {
           {/* Welcome screen */}
           {showWelcome && (
             <div className="flex flex-col items-center justify-center flex-1 text-center gap-4 py-12">
-              <div className="w-20 h-20 rounded-2xl flex items-center justify-center font-black text-4xl text-white mb-2"
-                   style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', boxShadow: '0 0 48px rgba(124,58,237,0.5)' }}>
+              <div className="w-20 h-20 rounded-2xl flex items-center justify-center font-black text-4xl text-white mb-2 mother-header-gradient">
                 M
               </div>
-              <h2 className="text-2xl font-bold" style={{ background: 'linear-gradient(90deg, #c4b5fd, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              <h2 className="text-2xl font-bold mother-brand-text">
                 Olá! Sou MOTHER.
               </h2>
               <p className="text-sm text-[#8888aa] max-w-md leading-relaxed">
@@ -638,22 +652,16 @@ export default function Home() {
             </div>
           )}
 
-          {/* Message list — v69.14: skip empty placeholder during streaming; also skip any stale empty messages */}
-          {messages.filter(msg => {
-            // Hide the active streaming placeholder (shown as typing indicator below)
-            if (msg.role === 'mother' && msg.content === '' && isStreaming && msg.id === streamingMsgIdRef.current) return false;
-            // v69.14: Hide any empty mother messages (defensive — should not happen after finally fix)
-            if (msg.role === 'mother' && msg.content === '') return false;
-            return true;
-          }).map((msg) => (
+          {/* Message list — NC-PERF-001/002: Uses memoized visibleMessages (avoids re-filtering on every render) */}
+          {/* NC-PERF-002: For large message lists (>100), consider react-window virtualization */}
+          {visibleMessages.map((msg) => (
             <div key={msg.id} className={`msg-bubble flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
               {/* Avatar */}
               <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0 ${
                 msg.role === 'mother'
-                  ? 'text-white'
+                  ? 'text-white mother-avatar-gradient'
                   : 'bg-[#1e3a8a] text-white'
-              }`}
-              style={msg.role === 'mother' ? { background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', boxShadow: '0 0 10px rgba(124,58,237,0.35)' } : {}}>
+              }`}>
                 {msg.role === 'mother' ? 'M' : 'U'}
               </div>
 
@@ -799,7 +807,9 @@ export default function Home() {
               disabled={!input.trim() || queryMutation.isPending || isStreaming}
               aria-label="Enviar mensagem"
             >
-              <Send className="w-4 h-4" />
+              {(queryMutation.isPending || isStreaming)
+                ? <LoadingSpinner compact size={16} color="#7c3aed" />
+                : <Send className="w-4 h-4" />}
             </button>
           </div>
           {fileContext && (
@@ -812,7 +822,9 @@ export default function Home() {
           </p>
         </div>
       </div>
-      <RightPanel />
+      <ErrorBoundary componentName="RightPanel">
+        <RightPanel />
+      </ErrorBoundary>
 
       {/* C172: ArtifactsPanel — slide-in overlay from right */}
       {showArtifacts && (

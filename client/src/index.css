@@ -256,3 +256,52 @@ code, pre {
 }
 
 
+
+/* ============================================================
+ * NC-UX-007 FIX: Inline Styles Refactor — Sprint 10 C209
+ * Replaces most common inline style={{}} patterns with CSS classes.
+ * Scientific basis: Frain (2020) Enduring CSS §3.2 + MDN (2024) CSS specificity
+ * ============================================================ */
+
+.mother-avatar-gradient {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  box-shadow: 0 0 10px rgba(124, 58, 237, 0.35);
+}
+
+.mother-header-gradient {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  box-shadow: 0 0 48px rgba(124, 58, 237, 0.5);
+}
+
+.mother-brand-text {
+  background: linear-gradient(90deg, #c4b5fd, #818cf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.mother-send-gradient {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  box-shadow: 0 0 16px rgba(124, 58, 237, 0.4);
+}
+
+.mother-auth-loading {
+  min-height: 100vh;
+  background: #07070f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mother-auth-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(124, 58, 237, 0.3);
+  border-top-color: #7c3aed;
+  border-radius: 50%;
+  animation: mother-auth-spin 0.8s linear infinite;
+}
+
+@keyframes mother-auth-spin {
+  to { transform: rotate(360deg); }
+}
