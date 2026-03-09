@@ -119,7 +119,7 @@ function CustomNode({ nodeDatum }: { nodeDatum: any }) {
         <text
           textAnchor="middle"
           dominantBaseline="middle"
-          style={{ fontSize: '8px', fill: 'white', fontWeight: 'bold' }}
+          style={{ fontSize:'10px', fill: 'white', fontWeight: 'bold' }}
         >
           {fitness.toFixed(1)}
         </text>
@@ -137,7 +137,7 @@ function CustomNode({ nodeDatum }: { nodeDatum: any }) {
           textAnchor="start"
           x={radius + 4}
           y={6}
-          style={{ fontSize: '8px', fill: '#9ca3af' }}
+          style={{ fontSize:'10px', fill: '#9ca3af' }}
         >
           {nodeDatum.attributes.Data}
         </text>

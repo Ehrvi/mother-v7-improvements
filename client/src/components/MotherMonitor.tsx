@@ -274,12 +274,12 @@ const MetricBox: React.FC<{
     borderRadius: '6px',
     padding: '8px 10px',
   }}>
-    <div style={{ color: '#6060a0', fontSize: '9px', marginBottom: '3px', textTransform: 'uppercase' }}>
+    <div style={{ color: '#6060a0', fontSize:'11px', marginBottom: '3px', textTransform: 'uppercase' }}>
       {label}
     </div>
     <div style={{ color, fontWeight: 700, fontSize: '13px' }}>{value}</div>
     {target && (
-      <div style={{ color: '#4040a0', fontSize: '9px', marginTop: '1px' }}>meta: {target}</div>
+      <div style={{ color: '#4040a0', fontSize:'11px', marginTop: '1px' }}>meta: {target}</div>
     )}
   </div>
 );

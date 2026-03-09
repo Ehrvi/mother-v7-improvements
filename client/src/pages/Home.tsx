@@ -468,7 +468,7 @@ export default function Home() {
           </div>
           {/* Diagnostic group */}
           <div className="mb-2">
-            <div className="text-[8px] text-[#55556a] uppercase tracking-wider mb-1.5">Diagnostico</div>
+            <div className="text-[10px] text-[#55556a] uppercase tracking-wider mb-1.5" role="heading" aria-level={3}>Diagnostico</div>
             <div className="grid grid-cols-2 gap-1">
               {[
                 { icon: '🔍', label: '/audit', desc: 'Auditoria completa do sistema', color: '#a78bfa' },
@@ -477,20 +477,20 @@ export default function Home() {
                 <button key={cmd.label}
                   onClick={() => sendMessage(cmd.label)}
                   title={cmd.desc}
-                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[9px] font-medium text-left transition-all"
+                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-medium text-left transition-all"
                   style={{ background: `${cmd.color}0d`, border: `1px solid ${cmd.color}25`, color: cmd.color }}
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = `${cmd.color}1a`; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = `${cmd.color}0d`; }}
                 >
                   <span>{cmd.icon}</span>
-                  <code style={{fontSize:'9px'}}>{cmd.label}</code>
+                  <code style={{fontSize:'11px'}}>{cmd.label}</code>
                 </button>
               ))}
             </div>
           </div>
           {/* Evolution group */}
           <div className="mb-2">
-            <div className="text-[8px] text-[#55556a] uppercase tracking-wider mb-1.5">Evolucao DGM</div>
+            <div className="text-[10px] text-[#55556a] uppercase tracking-wider mb-1.5" role="heading" aria-level={3}>Evolucao DGM</div>
             <div className="grid grid-cols-2 gap-1">
               {[
                 { icon: '📋', label: '/proposals', desc: 'Listar propostas DGM', color: '#fbbf24' },
@@ -499,20 +499,20 @@ export default function Home() {
                 <button key={cmd.label}
                   onClick={() => sendMessage(cmd.label)}
                   title={cmd.desc}
-                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[9px] font-medium text-left transition-all"
+                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-medium text-left transition-all"
                   style={{ background: `${cmd.color}0d`, border: `1px solid ${cmd.color}25`, color: cmd.color }}
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = `${cmd.color}1a`; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = `${cmd.color}0d`; }}
                 >
                   <span>{cmd.icon}</span>
-                  <code style={{fontSize:'9px'}}>{cmd.label}</code>
+                  <code style={{fontSize:'11px'}}>{cmd.label}</code>
                 </button>
               ))}
             </div>
           </div>
           {/* Knowledge group */}
           <div>
-            <div className="text-[8px] text-[#55556a] uppercase tracking-wider mb-1.5">Conhecimento</div>
+            <div className="text-[10px] text-[#55556a] uppercase tracking-wider mb-1.5" role="heading" aria-level={3}>Conhecimento</div>
             <div className="grid grid-cols-2 gap-1">
               {[
                 { icon: '📚', label: '/knowledge', desc: 'Base de conhecimento', color: '#f472b6' },
@@ -521,20 +521,20 @@ export default function Home() {
                 <button key={cmd.label}
                   onClick={() => sendMessage(cmd.label)}
                   title={cmd.desc}
-                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[9px] font-medium text-left transition-all"
+                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-medium text-left transition-all"
                   style={{ background: `${cmd.color}0d`, border: `1px solid ${cmd.color}25`, color: cmd.color }}
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = `${cmd.color}1a`; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = `${cmd.color}0d`; }}
                 >
                   <span>{cmd.icon}</span>
-                  <code style={{fontSize:'9px'}}>{cmd.label}</code>
+                  <code style={{fontSize:'11px'}}>{cmd.label}</code>
                 </button>
               ))}
             </div>
           </div>
           {/* Fase 5 group */}
           <div className="mt-2">
-            <div className="text-[8px] text-[#55556a] uppercase tracking-wider mb-1.5">Fase 5 — Interface</div>
+            <div className="text-[10px] text-[#55556a] uppercase tracking-wider mb-1.5" role="heading" aria-level={3}>Fase 5 — Interface</div>
             <div className="grid grid-cols-2 gap-1">
               {[
                 { icon: '🖥️', label: '/shell', desc: 'Shell executor remoto', color: '#f97316' },
@@ -547,13 +547,13 @@ export default function Home() {
                 <button key={cmd.label}
                   onClick={() => sendMessage(cmd.label)}
                   title={cmd.desc}
-                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[9px] font-medium text-left transition-all"
+                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-medium text-left transition-all"
                   style={{ background: `${cmd.color}0d`, border: `1px solid ${cmd.color}25`, color: cmd.color }}
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = `${cmd.color}1a`; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = `${cmd.color}0d`; }}
                 >
                   <span>{cmd.icon}</span>
-                  <code style={{fontSize:'9px'}}>{cmd.label}</code>
+                  <code style={{fontSize:'11px'}}>{cmd.label}</code>
                 </button>
               ))}
             </div>
@@ -562,7 +562,7 @@ export default function Home() {
 
         {/* System info */}
         <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-3">
-          <div className="text-[10px] font-semibold uppercase tracking-widest text-[#55556a] mb-2">Sistema</div>
+          <div className="text-[11px] font-semibold uppercase tracking-widest text-[#55556a] mb-2" role="heading" aria-level={3}>Sistema</div>
           {[
             { icon: <GitBranch className="w-3 h-3" />, label: 'Versão', value: motherVersion, cls: 'accent-glow' },
             { icon: <Database className="w-3 h-3" />, label: 'DB', value: 'Cloud SQL ✓', cls: 'text-emerald-400' },
@@ -774,6 +774,7 @@ export default function Home() {
             <button
               onClick={() => setShowDropZone(v => !v)}
               title="Anexar arquivo (TXT, PDF, DOCX)"
+              aria-label="Anexar arquivo"
               style={{
                 background: 'none', border: 'none', cursor: 'pointer',
                 padding: '4px 2px', color: fileContext ? '#34d399' : '#55556a',
@@ -790,11 +791,13 @@ export default function Home() {
               placeholder={fileContext ? 'Arquivo anexado — escreva sua pergunta...' : 'Pergunte algo a MOTHER...'}
               rows={1}
               disabled={queryMutation.isPending || isStreaming}
+              aria-label="Campo de mensagem para MOTHER"
             />
             <button
               className="send-btn"
               onClick={() => sendMessage()}
               disabled={!input.trim() || queryMutation.isPending || isStreaming}
+              aria-label="Enviar mensagem"
             >
               <Send className="w-4 h-4" />
             </button>

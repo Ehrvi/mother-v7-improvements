@@ -724,12 +724,14 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
 
+// C208-FIX: Run migrations BEFORE accepting connections (Google AI Council fix)
+// Scientific basis: Nygard (2007) Release It! §5.3 — startup sequencing
+await runMigrations();
+
 app.listen(PORT, '0.0.0.0', async () => {
   log.info(`🚀 Production server running on http://0.0.0.0:${PORT}`);
   log.info(`📦 Serving static files from: ${distPath}`);
 
-  // Run migrations after server starts
-  await runMigrations();
 
   // v68.4: Daily self-audit scheduler — runs every 24 hours
   // Scientific basis: Continuous monitoring (Fowler, 2006 — Continuous Integration)

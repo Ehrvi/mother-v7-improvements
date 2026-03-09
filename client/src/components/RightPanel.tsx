@@ -92,10 +92,10 @@ function KAIGauge({ value, label, color, tooltip }: { value: number; label: stri
       <div className="relative">
         <ProgressRing percent={value} color={color} size={48} />
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-[9px] font-bold" style={{ color }}>{value.toFixed(1)}%</span>
+          <span className="text-[11px] font-bold" style={{ color }}>{value.toFixed(1)}%</span>
         </div>
       </div>
-      <span className="text-[8px] font-semibold text-[#55556a] uppercase tracking-wide">{label}</span>
+      <span className="text-[10px] font-semibold text-[#55556a] uppercase tracking-wide">{label}</span>
     </div>
   );
 }
@@ -121,7 +121,7 @@ function DomainCard({ domain, onClick }: { domain: any; onClick: () => void }) {
         <div className="flex items-center gap-1.5">
           <span className="text-base leading-none">{meta.emoji}</span>
           <div>
-            <div className="text-[9px] font-semibold text-[#c4b5fd] leading-tight">{meta.label}</div>
+            <div className="text-[11px] font-semibold text-[#c4b5fd] leading-tight">{meta.label}</div>
             <div className="text-[7px] text-[#44445a]">UDC {meta.udc} · {meta.description}</div>
           </div>
         </div>
@@ -188,7 +188,7 @@ function KnowledgeSection() {
     return (
       <div className="flex flex-col items-center justify-center py-8 gap-2">
         <div className="w-8 h-8 rounded-full border-2 border-[#a78bfa] border-t-transparent animate-spin" />
-        <span className="text-[9px] text-[#55556a]">Carregando mapa de conhecimento...</span>
+        <span className="text-[11px] text-[#55556a]">Carregando mapa de conhecimento...</span>
       </div>
     );
   }
@@ -220,8 +220,8 @@ function KnowledgeSection() {
           </div>
           <div className="border-t border-[rgba(255,255,255,0.05)] pt-2 mt-1">
             <div className="flex justify-between items-center mb-1">
-              <span className="text-[8px] text-[#55556a]">Progresso Global</span>
-              <span className="text-[8px] font-semibold text-[#a78bfa]">{kai.toFixed(3)}%</span>
+              <span className="text-[10px] text-[#55556a]">Progresso Global</span>
+              <span className="text-[10px] font-semibold text-[#a78bfa]">{kai.toFixed(3)}%</span>
             </div>
             <WisdomBar percent={kai} color="#a78bfa" height={4} />
             <div className="flex justify-between mt-1.5">
@@ -249,14 +249,14 @@ function KnowledgeSection() {
             placeholder="Buscar domínio ou subdomínio..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.07)] rounded-lg pl-6 pr-2 py-1.5 text-[9px] text-[#c4b5fd] placeholder-[#44445a] focus:outline-none focus:border-[rgba(167,139,250,0.4)] transition-colors"
+            className="w-full bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.07)] rounded-lg pl-6 pr-2 py-1.5 text-[11px] text-[#c4b5fd] placeholder-[#44445a] focus:outline-none focus:border-[rgba(167,139,250,0.4)] transition-colors"
           />
         </div>
 
         {/* Domain List */}
         <div className="flex flex-col gap-1.5">
           {filteredHierarchy.length === 0 ? (
-            <div className="text-[9px] text-[#44445a] text-center py-4">Nenhum domínio encontrado</div>
+            <div className="text-[11px] text-[#44445a] text-center py-4">Nenhum domínio encontrado</div>
           ) : (
             filteredHierarchy.map((d: any) => (
               <DomainCard key={d.domain} domain={d} onClick={() => setView(d.domain)} />
@@ -284,7 +284,7 @@ function KnowledgeSection() {
       <div className="flex flex-col gap-2">
         <button
           onClick={() => setView('overview')}
-          className="flex items-center gap-1.5 text-[9px] text-[#55556a] hover:text-[#a78bfa] transition-colors mb-0.5"
+          className="flex items-center gap-1.5 text-[11px] text-[#55556a] hover:text-[#a78bfa] transition-colors mb-0.5"
         >
           <ChevronLeft className="w-3 h-3" />
           Todos os domínios
@@ -302,21 +302,21 @@ function KnowledgeSection() {
             <span className="text-2xl">{meta.emoji}</span>
             <div className="flex-1">
               <div className="text-[11px] font-bold text-white">{meta.label}</div>
-              <div className="text-[8px] text-[#8888aa]">{meta.description}</div>
+              <div className="text-[10px] text-[#8888aa]">{meta.description}</div>
               <div className="text-[7px] text-[#44445a]">UDC {meta.udc}</div>
             </div>
             <div className="flex flex-col items-center">
               <div className="relative">
                 <ProgressRing percent={currentDomain.wisdomPercent} color={meta.color} size={52} />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-[9px] font-bold" style={{ color: meta.color }}>
+                  <span className="text-[11px] font-bold" style={{ color: meta.color }}>
                     {currentDomain.wisdomPercent.toFixed(1)}%
                   </span>
                 </div>
               </div>
             </div>
           </div>
-          <div className="flex justify-between text-[8px] text-[#55556a]">
+          <div className="flex justify-between text-[10px] text-[#55556a]">
             <span>{currentDomain.motherChunks} chunks absorvidos</span>
             <span>SoA: {(currentDomain.soaEstimate ?? 0).toLocaleString()}</span>
           </div>
@@ -327,7 +327,7 @@ function KnowledgeSection() {
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-1 mb-0.5">
               <Layers className="w-2.5 h-2.5 text-[#44445a]" />
-              <span className="text-[8px] font-semibold text-[#44445a] uppercase tracking-wide">
+              <span className="text-[10px] font-semibold text-[#44445a] uppercase tracking-wide">
                 Subdomínios ({sortedSubdomains.length})
               </span>
             </div>
@@ -351,9 +351,9 @@ function KnowledgeSection() {
                           style={{ background: meta.color, boxShadow: `0 0 4px ${meta.color}` }}
                         />
                       )}
-                      <span className="text-[9px] font-medium text-[#a0a0c0]">{sub.label}</span>
+                      <span className="text-[11px] font-medium text-[#a0a0c0]">{sub.label}</span>
                     </div>
-                    <span className="text-[9px] font-bold tabular-nums" style={{ color: meta.color }}>
+                    <span className="text-[11px] font-bold tabular-nums" style={{ color: meta.color }}>
                       {subPct.toFixed(1)}%
                     </span>
                   </div>
@@ -367,14 +367,14 @@ function KnowledgeSection() {
             })}
           </div>
         ) : (
-          <div className="text-[9px] text-[#44445a] text-center py-3 bg-[rgba(255,255,255,0.02)] rounded-lg border border-[rgba(255,255,255,0.04)]">
+          <div className="text-[11px] text-[#44445a] text-center py-3 bg-[rgba(255,255,255,0.02)] rounded-lg border border-[rgba(255,255,255,0.04)]">
             Sem subdomínios definidos para este domínio.
           </div>
         )}
 
         <button
           onClick={() => setView('overview')}
-          className="mt-1 w-full py-2 rounded-lg border border-[rgba(167,139,250,0.2)] text-[9px] text-[#a78bfa] hover:bg-[rgba(167,139,250,0.08)] transition-colors flex items-center justify-center gap-1"
+          className="mt-1 w-full py-2 rounded-lg border border-[rgba(167,139,250,0.2)] text-[11px] text-[#a78bfa] hover:bg-[rgba(167,139,250,0.08)] transition-colors flex items-center justify-center gap-1"
         >
           <ChevronLeft className="w-3 h-3" />
           Voltar ao Mapa Global
@@ -398,7 +398,7 @@ function StatusBadge({ status }: { status: string }) {
   };
   const c = cfg[status] ?? cfg.pending;
   return (
-    <span className={`flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded border ${c.cls}`}>
+    <span className={`flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded border ${c.cls}`}>
       {c.icon}{c.label}
     </span>
 
@@ -424,21 +424,21 @@ function ProposalActionButtons({ p, onAction }: { p: any; onAction: () => void }
         <button
           onClick={() => approveMut.mutate({ proposalId: p.id })}
           disabled={approveMut.isPending}
-          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[9px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-all disabled:opacity-40"
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-all disabled:opacity-40"
           title="Autorizar - execucao imediata com registro auditavel (ISO 27001 A.12.1.2)"
         >
           {approveMut.isPending ? <span className="animate-pulse">...</span> : <><CheckCircle className="w-2.5 h-2.5" /> Autorizar</>}
         </button>
         <button
           onClick={() => { setShowDefer(!showDefer); setShowCancel(false); }}
-          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[9px] font-semibold bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-all"
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-semibold bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-all"
           title="Adiar - reagendar revisao (ITIL Change Management)"
         >
           <Clock className="w-2.5 h-2.5" /> Adiar
         </button>
         <button
           onClick={() => { setShowCancel(!showCancel); setShowDefer(false); }}
-          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[9px] font-semibold bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-all"
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-semibold bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-all"
           title="Cancelar definitivamente - registro permanente no audit log"
         >
           <XCircle className="w-2.5 h-2.5" /> Cancelar
@@ -446,33 +446,33 @@ function ProposalActionButtons({ p, onAction }: { p: any; onAction: () => void }
       </div>
       {showDefer && (
         <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-2 flex flex-col gap-1.5">
-          <div className="text-[8px] text-amber-400 font-semibold">Adiar por quantos dias?</div>
+          <div className="text-[10px] text-amber-400 font-semibold">Adiar por quantos dias?</div>
           <div className="flex items-center gap-1.5">
             {[3, 7, 14, 30].map(d => (
               <button key={d} onClick={() => setDeferDays(d)}
-                className={`px-2 py-0.5 rounded text-[8px] font-semibold transition-all ${deferDays === d ? 'bg-amber-500/30 border border-amber-500/50 text-amber-300' : 'bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[#8888aa] hover:text-amber-400'}`}
+                className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all ${deferDays === d ? 'bg-amber-500/30 border border-amber-500/50 text-amber-300' : 'bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[#8888aa] hover:text-amber-400'}`}
               >{d}d</button>
             ))}
           </div>
           <button
             onClick={() => { deferMut.mutate({ id: p.id, daysToDefer: deferDays }); setShowDefer(false); }}
             disabled={deferMut.isPending}
-            className="py-1 rounded-lg text-[8px] font-semibold bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 transition-all disabled:opacity-40"
+            className="py-1 rounded-lg text-[10px] font-semibold bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 transition-all disabled:opacity-40"
           >{deferMut.isPending ? 'Adiando...' : `Confirmar - adiar ${deferDays} dias`}</button>
           <div className="text-[7px] text-[#55556a]">Registrado no audit log (ISO 27001 A.12.1.2)</div>
         </div>
       )}
       {showCancel && (
         <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-2 flex flex-col gap-1.5">
-          <div className="text-[8px] text-red-400 font-semibold">Cancelamento permanente e irreversivel</div>
+          <div className="text-[10px] text-red-400 font-semibold">Cancelamento permanente e irreversivel</div>
           <input type="text" placeholder="Motivo obrigatorio (min. 5 chars)..." value={cancelReason}
             onChange={e => setCancelReason(e.target.value)}
-            className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-2 py-1 text-[9px] text-[#e8e8f0] placeholder-[#55556a] outline-none focus:border-red-500/40"
+            className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-lg px-2 py-1 text-[11px] text-[#e8e8f0] placeholder-[#55556a] outline-none focus:border-red-500/40"
           />
           <button
             onClick={() => { if (cancelReason.length < 5) return; cancelMut.mutate({ id: p.id, reason: cancelReason }); setShowCancel(false); }}
             disabled={cancelMut.isPending || cancelReason.length < 5}
-            className="py-1 rounded-lg text-[8px] font-semibold bg-red-500/20 border border-red-500/40 text-red-300 hover:bg-red-500/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            className="py-1 rounded-lg text-[10px] font-semibold bg-red-500/20 border border-red-500/40 text-red-300 hover:bg-red-500/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >{cancelMut.isPending ? 'Cancelando...' : 'Confirmar cancelamento definitivo'}</button>
           <div className="text-[7px] text-[#55556a]">Imutavel no audit log - auditavel por ISO 27001/ITIL</div>
         </div>
@@ -511,13 +511,13 @@ function ProposalsSection() {
                 </span>
               )}
               {p.parentProposalId && (
-                <span className="text-[8px] px-1 py-0.5 rounded bg-[rgba(96,165,250,0.1)] border border-[rgba(96,165,250,0.2)] text-blue-400">
+                <span className="text-[10px] px-1 py-0.5 rounded bg-[rgba(96,165,250,0.1)] border border-[rgba(96,165,250,0.2)] text-blue-400">
                   Re-proposta #{p.rejectionCount}
                 </span>
               )}
             </div>
             <div className="text-[10px] font-medium text-[#e8e8f0] leading-tight">{p.title}</div>
-            <div className="text-[8px] text-[#55556a] mt-0.5 flex items-center gap-2 flex-wrap">
+            <div className="text-[10px] text-[#55556a] mt-0.5 flex items-center gap-2 flex-wrap">
               <span>Trigger: <span className="text-[#a78bfa]">{p.metricTrigger}</span></span>
               {p.createdAt && (
                 <span className="text-[7px] text-[#44445a]">
@@ -530,45 +530,45 @@ function ProposalsSection() {
         </button>
         {isOpen && (
           <div className="px-2.5 pb-2.5 flex flex-col gap-2 border-t border-[rgba(255,255,255,0.04)]">
-            <p className="text-[9px] text-[#8888aa] leading-relaxed mt-2">{p.description}</p>
+            <p className="text-[11px] text-[#8888aa] leading-relaxed mt-2">{p.description}</p>
             <div className="bg-[rgba(255,255,255,0.03)] rounded-lg p-2">
-              <div className="text-[8px] text-[#55556a] mb-1 flex justify-between">
+              <div className="text-[10px] text-[#55556a] mb-1 flex justify-between">
                 <span>Progresso da Metrica</span>
                 <span className="text-[#a78bfa]">{p.metricTrigger}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[9px] text-red-400 w-8 text-right">{p.metricValue?.toFixed(1)}</span>
+                <span className="text-[11px] text-red-400 w-8 text-right">{p.metricValue?.toFixed(1)}</span>
                 <div className="flex-1 h-1.5 bg-[rgba(255,255,255,0.06)] rounded-full overflow-hidden">
                   <div className="h-full rounded-full transition-all duration-700"
                     style={{ width: `${Math.min(100, (p.metricValue / p.metricTarget) * 100)}%`, background: 'linear-gradient(90deg, #ef4444, #f59e0b, #22c55e)' }} />
                 </div>
-                <span className="text-[9px] text-emerald-400 w-8">{p.metricTarget?.toFixed(1)}</span>
+                <span className="text-[11px] text-emerald-400 w-8">{p.metricTarget?.toFixed(1)}</span>
               </div>
             </div>
             {p.scientificBasis && (
               <div className="bg-[rgba(167,139,250,0.04)] border border-[rgba(167,139,250,0.12)] rounded-lg p-2">
-                <div className="text-[8px] text-[#a78bfa] font-semibold mb-1">Base Cientifica</div>
-                <p className="text-[8px] text-[#8888aa] leading-relaxed italic">{p.scientificBasis}</p>
+                <div className="text-[10px] text-[#a78bfa] font-semibold mb-1">Base Cientifica</div>
+                <p className="text-[10px] text-[#8888aa] leading-relaxed italic">{p.scientificBasis}</p>
               </div>
             )}
             {p.fitnessFunction && (
               <div className="bg-[rgba(52,211,153,0.04)] border border-[rgba(52,211,153,0.12)] rounded-lg p-2">
-                <div className="text-[8px] text-emerald-400 font-semibold mb-1">Funcao de Fitness</div>
-                <code className="text-[8px] text-[#8888aa] font-mono">{p.fitnessFunction}</code>
+                <div className="text-[10px] text-emerald-400 font-semibold mb-1">Funcao de Fitness</div>
+                <code className="text-[10px] text-[#8888aa] font-mono">{p.fitnessFunction}</code>
               </div>
             )}
             {p.status === 'rejected' && p.nextReproposalAt && (
               <div className="bg-[rgba(251,191,36,0.06)] border border-[rgba(251,191,36,0.15)] rounded-lg p-2">
                 <div className="flex items-center gap-1.5 mb-1">
                   <RefreshCw className="w-2.5 h-2.5 text-amber-400" />
-                  <span className="text-[9px] font-semibold text-amber-400">Re-proposta Agendada (SM-2)</span>
+                  <span className="text-[11px] font-semibold text-amber-400">Re-proposta Agendada (SM-2)</span>
                 </div>
-                <div className="text-[9px] text-[#8888aa]">
+                <div className="text-[11px] text-[#8888aa]">
                   Em <span className="text-amber-300 font-semibold">{p.reproposalDaysRemaining}d</span>
                   {' '} EF: {p.efFactor?.toFixed(2)} Rejeicoes: {p.rejectionCount}
                 </div>
                 {p.improvementNotes && (
-                  <div className="mt-1.5 text-[8px] text-[#55556a] italic leading-relaxed">{p.improvementNotes}</div>
+                  <div className="mt-1.5 text-[10px] text-[#55556a] italic leading-relaxed">{p.improvementNotes}</div>
                 )}
               </div>
             )}
@@ -591,10 +591,10 @@ function ProposalsSection() {
           <Dna className="w-3.5 h-3.5 text-[#a78bfa]" />
           <span className="text-[10px] font-semibold uppercase tracking-widest text-[#8888aa]">Propostas DGM</span>
           {pending.length > 0 && (
-            <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-400 font-bold">{pending.length}</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-400 font-bold">{pending.length}</span>
           )}
         </div>
-        <button onClick={() => refetch()} className="text-[9px] text-[#55556a] hover:text-[#a78bfa] transition-colors" title="Atualizar">
+        <button onClick={() => refetch()} className="text-[11px] text-[#55556a] hover:text-[#a78bfa] transition-colors" title="Atualizar">
           <RefreshCw className="w-3 h-3" />
         </button>
       </div>
@@ -604,7 +604,7 @@ function ProposalsSection() {
         <>
           {pending.length > 0 && (
             <div>
-              <div className="text-[9px] text-amber-400 font-semibold mb-1.5 flex items-center gap-1">
+              <div className="text-[11px] text-amber-400 font-semibold mb-1.5 flex items-center gap-1">
                 <AlertCircle className="w-2.5 h-2.5" /> Aguardando Decisao ({pending.length})
               </div>
               <div className="flex flex-col gap-1.5">{pending.map(renderProposal)}</div>
@@ -612,7 +612,7 @@ function ProposalsSection() {
           )}
           {deferred.length > 0 && (
             <div>
-              <div className="text-[9px] text-blue-400 font-semibold mb-1.5 flex items-center gap-1">
+              <div className="text-[11px] text-blue-400 font-semibold mb-1.5 flex items-center gap-1">
                 <Clock className="w-2.5 h-2.5" /> Adiadas ({deferred.length})
               </div>
               <div className="flex flex-col gap-1.5">{deferred.map(renderProposal)}</div>
@@ -620,7 +620,7 @@ function ProposalsSection() {
           )}
           {approved.length > 0 && (
             <div>
-              <div className="text-[9px] text-emerald-400 font-semibold mb-1.5 flex items-center gap-1">
+              <div className="text-[11px] text-emerald-400 font-semibold mb-1.5 flex items-center gap-1">
                 <CheckCircle className="w-2.5 h-2.5" /> Aprovadas / Em Execucao ({approved.length})
               </div>
               <div className="flex flex-col gap-1.5">{approved.map(renderProposal)}</div>
@@ -628,7 +628,7 @@ function ProposalsSection() {
           )}
           {rejected.length > 0 && (
             <div>
-              <div className="text-[9px] text-red-400 font-semibold mb-1.5 flex items-center gap-1">
+              <div className="text-[11px] text-red-400 font-semibold mb-1.5 flex items-center gap-1">
                 <RefreshCw className="w-2.5 h-2.5" /> Rejeitadas SM-2 ({rejected.length})
               </div>
               <div className="flex flex-col gap-1.5">{rejected.map(renderProposal)}</div>
@@ -636,7 +636,7 @@ function ProposalsSection() {
           )}
           {cancelled.length > 0 && (
             <div>
-              <div className="text-[9px] text-[#55556a] font-semibold mb-1.5 flex items-center gap-1">
+              <div className="text-[11px] text-[#55556a] font-semibold mb-1.5 flex items-center gap-1">
                 <XCircle className="w-2.5 h-2.5" /> Canceladas Definitivamente ({cancelled.length})
               </div>
               <div className="flex flex-col gap-1.5">{cancelled.map(renderProposal)}</div>
@@ -645,7 +645,7 @@ function ProposalsSection() {
           {/* v69.14: Bug fix — 'failed' proposals were invisible (not in any group) */}
           {failed.length > 0 && (
             <div>
-              <div className="text-[9px] text-orange-400 font-semibold mb-1.5 flex items-center gap-1">
+              <div className="text-[11px] text-orange-400 font-semibold mb-1.5 flex items-center gap-1">
                 <AlertCircle className="w-2.5 h-2.5" /> Falhou na Implementação ({failed.length})
               </div>
               <div className="flex flex-col gap-1.5">{failed.map(renderProposal)}</div>
@@ -655,7 +655,7 @@ function ProposalsSection() {
           {(!proposals || proposals.length === 0) && (
             <div className="text-[10px] text-[#55556a] text-center py-4">
               Nenhuma proposta DGM ainda.<br />
-              <span className="text-[9px]">O motor DGM gera propostas apos 10 queries.</span>
+              <span className="text-[11px]">O motor DGM gera propostas apos 10 queries.</span>
             </div>
           )}
         </>

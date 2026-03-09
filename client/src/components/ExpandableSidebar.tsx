@@ -243,7 +243,7 @@ const StatCard: React.FC<{ label: string; value: string; color: string }> = ({ l
     textAlign: 'center',
   }}>
     <div style={{ color, fontWeight: 700, fontSize: '13px' }}>{value}</div>
-    <div style={{ color: '#6060a0', fontSize: '9px', marginTop: '1px' }}>{label}</div>
+    <div style={{ color: '#6060a0', fontSize:'11px', marginTop: '1px' }}>{label}</div>
   </div>
 );
 

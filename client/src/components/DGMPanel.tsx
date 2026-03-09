@@ -152,7 +152,7 @@ export const DGMPanel: React.FC<DGMPanelProps> = ({
             borderRight: '1px solid #2d2d4e',
           }}>
             <div style={{ color: stat.color, fontWeight: 700, fontSize: '14px' }}>{stat.value}</div>
-            <div style={{ color: '#4040a0', fontSize: '9px' }}>{stat.label}</div>
+            <div style={{ color: '#4040a0', fontSize:'11px' }}>{stat.label}</div>
           </div>
         ))}
       </div>
