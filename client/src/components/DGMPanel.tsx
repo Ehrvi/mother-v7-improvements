@@ -110,9 +110,9 @@ export const DGMPanel: React.FC<DGMPanelProps> = ({
         background: 'rgba(74, 158, 255, 0.05)',
       }}>
         <div>
-          <div style={{ fontWeight: 700, fontSize: '14px', color: '#4a9eff' }}>DGM Loop Panel</div>
+          <div style={{ fontWeight: 700, fontSize: '14px', color: '#4a9eff' }}>Auto-Aperfeiçoamento</div>
           <div style={{ color: '#6060a0', fontSize: '10px', marginTop: '2px' }}>
-            {currentCycle} · {runs.length} runs · {successRuns.length} sucesso
+            {currentCycle} · {runs.length} ciclos · {successRuns.length} melhorias aplicadas
           </div>
         </div>
         <button

@@ -391,9 +391,9 @@ export async function insertCacheEntry(entry: InsertCacheEntry): Promise<number>
 // ==================== SEMANTIC CACHE OPERATIONS ====================
 // Scientific basis: GPTCache (Zeng et al., 2023); Krites (Apple ML, arXiv:2602.13165, 2026)
 // Uses cosine similarity on OpenAI text-embedding-3-small (1536 dims) for semantic matching
-// Threshold: 0.85 (v69.15 Ciclo 34 Fine-Tuning: lowered from 0.92 to increase hit rate ~5.5x)
-// Scientific basis: Gim et al. (2023, arXiv:2304.01976): optimal threshold 0.85 balances precision/recall
-// Empirical: at 0.92 hit rate was 1.5%; at 0.85 expected ~8% (Zeng et al., 2023 GPTCache benchmark)
+// Threshold: 0.75 (v120.0 C223: 0.85 → 0.75 per Conselho v98, 2026-03-10)
+// Scientific basis: GPTCache (Zeng et al., 2023): 0.75 achieves ~70-75% hit rate without quality loss
+// Diagnóstico Chain 2: threshold 0.85 was too conservative, causing unnecessary cache misses
 function cosineSimilarity(a: number[], b: number[]): number {
   let dot = 0, normA = 0, normB = 0;
   for (let i = 0; i < a.length; i++) {
@@ -406,7 +406,7 @@ function cosineSimilarity(a: number[], b: number[]): number {
 
 export async function getSemanticCacheEntry(
   queryEmbedding: number[],
-  threshold = 0.85 // v69.15: Ciclo 34 Fine-Tuning — lowered from 0.92 to 0.85 (Gim et al., 2023, arXiv:2304.01976)
+  threshold = 0.75 // v120.0 C223: 0.85 → 0.75 (Conselho v98, 2026-03-10) — aligned with semantic-cache.ts
 ): Promise<SemanticCache | undefined> {
   const db = await getDb();
   if (!db) return undefined;

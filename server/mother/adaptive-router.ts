@@ -139,15 +139,17 @@ export function computeComplexityScore(signals: ComplexitySignals): number {
 /**
  * Map complexity score to routing tier.
  * Scientific basis: FrugalGPT cascade thresholds (Chen et al., 2023)
- * - 0-25: TIER_1 (simple factual, short responses)
- * - 26-50: TIER_2 (standard reasoning, moderate complexity)
- * - 51-75: TIER_3 (complex multi-step, code, research)
- * - 76-100: TIER_4 (expert system design, MOTHER/Intelltech)
+ * C225: Adjusted thresholds to route more queries to TIER_3 (gpt-4o)
+ * Diagnóstico Chain 2: qualidade 82% vs target 95% — gpt-4o-mini insuficiente para queries moderadas
+ * - 0-25: TIER_1 (simple factual, short responses) — gpt-4o-mini
+ * - 26-40: TIER_2 (standard reasoning) — gpt-4o-mini (C225: 26-50 → 26-40)
+ * - 41-75: TIER_3 (moderate to complex multi-step, code, research) — gpt-4o (C225: 51-75 → 41-75)
+ * - 76-100: TIER_4 (expert system design, MOTHER/Intelltech) — gpt-4o
  */
 export function scoreTier(score: number): RoutingTier {
   if (score <= 25) return 'TIER_1';
-  if (score <= 50) return 'TIER_2';
-  if (score <= 75) return 'TIER_3';
+  if (score <= 40) return 'TIER_2';  // C225: 50 → 40 (Conselho v98, 2026-03-10)
+  if (score <= 75) return 'TIER_3';  // C225: now captures 41-75 (was 51-75)
   return 'TIER_4';
 }
 

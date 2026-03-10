@@ -278,6 +278,74 @@ export async function storeDecompositionPlan(plan: DecomposedPlan): Promise<bool
   }
 }
 
+// ─── C225: Decompositor Automático de Prompts (DAP) ────────────────────────────
+// Diagnóstico Chain 2: 4 falhas de sobrecarga em prompts multi-parte (Einstein, Bayes, Marte, Clima)
+// Scientific basis:
+// - LLM-Modulo (arXiv:2402.01817): decompose complex queries into sub-tasks for better coverage
+// - RAGAS (Es et al., 2023, arXiv:2309.15217): answer completeness requires sub-question coverage
+// - Chain-of-Thought (Wei et al., 2022, arXiv:2201.11903): decomposition improves reasoning
+
+export interface DecomposedPrompt {
+  /** Whether the original prompt was decomposed */
+  wasDecomposed: boolean;
+  /** Sub-questions extracted from the original prompt */
+  subQuestions: string[];
+  /** Synthesis instruction for combining sub-answers */
+  synthesisInstruction: string;
+  /** Original prompt */
+  originalPrompt: string;
+}
+
+/**
+ * C225: Decompose a multi-part user prompt into sub-questions.
+ * Used by core.ts to handle prompts that would cause system overload.
+ * Scientific basis: LLM-Modulo (arXiv:2402.01817); RAGAS (arXiv:2309.15217)
+ */
+export function decomposeUserPrompt(prompt: string): DecomposedPrompt {
+  // Split by explicit numbered lists
+  const numberedPattern = /(?:^|\n)\s*(?:\d+[\)\.]|[a-d]\))\s+(.+)/g;
+  const numberedMatches: string[] = [];
+  let m;
+  while ((m = numberedPattern.exec(prompt)) !== null) {
+    if (m[1].trim().length > 10) numberedMatches.push(m[1].trim());
+  }
+  if (numberedMatches.length >= 2) {
+    return {
+      wasDecomposed: true,
+      subQuestions: numberedMatches,
+      synthesisInstruction: 'Responda cada item numerado de forma completa e integrada, sem omitir nenhum.',
+      originalPrompt: prompt,
+    };
+  }
+
+  // Split by question marks (multiple questions)
+  const questionParts = prompt.split(/\?(?=\s+[A-ZÀ-Ü]|\s*$)/).filter(p => p.trim().length > 15);
+  if (questionParts.length >= 2) {
+    const subQs = questionParts.map((p, i) => i < questionParts.length - 1 ? p.trim() + '?' : p.trim()).filter(Boolean);
+    return {
+      wasDecomposed: true,
+      subQuestions: subQs,
+      synthesisInstruction: 'Responda cada pergunta de forma completa e integrada.',
+      originalPrompt: prompt,
+    };
+  }
+
+  // Split by connective conjunctions
+  const conjunctiveParts = prompt.split(/\b(?:e também|além disso|por outro lado|adicionalmente)\b/i)
+    .filter(p => p.trim().length > 20);
+  if (conjunctiveParts.length >= 2) {
+    return {
+      wasDecomposed: true,
+      subQuestions: conjunctiveParts.map(p => p.trim()),
+      synthesisInstruction: 'Responda todos os aspectos solicitados de forma integrada e completa.',
+      originalPrompt: prompt,
+    };
+  }
+
+  // Not decomposable
+  return { wasDecomposed: false, subQuestions: [prompt], synthesisInstruction: '', originalPrompt: prompt };
+}
+
 /**
  * Validate that a task is truly atomic (cannot be further decomposed)
  * Scientific basis: CodeAct (arXiv:2402.01030) — one action per step

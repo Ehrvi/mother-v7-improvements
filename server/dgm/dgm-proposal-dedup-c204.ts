@@ -52,7 +52,12 @@ export interface DiversifiedProposal {
 const DEDUP_SIMILARITY_THRESHOLD = 0.85; // Cosine similarity > 0.85 = duplicata
 const FAILURE_MEMORY_WINDOW_HOURS = 168; // 7 dias de memória de falhas
 const MAX_FAILURE_CONTEXT = 20; // Máximo de falhas para contexto LLM
-const MIN_NOVELTY_SCORE = 0.3; // Proposta deve ter novelty ≥ 0.3
+// C224: Increased from 0.3 to 0.5 to force more diverse proposals
+// Diagnóstico Chain 2: DGM em loop com 6/8 falhas no mesmo domínio (latência)
+// Scientific basis: Curriculum Learning (Bengio et al., 2009) — diversidade forçada
+const MIN_NOVELTY_SCORE = 0.5; // C224: 0.3 → 0.5 (Conselho v98, 2026-03-10)
+// C224: Max consecutive proposals from same domain (prevents DGM loop)
+const MAX_SAME_DOMAIN_CONSECUTIVE = 2; // After 2 proposals in same domain, force different domain
 
 // Catálogo diversificado de propostas por domínio (fallback sem LLM)
 // Organizado por área para garantir diversidade entre ciclos

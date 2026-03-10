@@ -35,7 +35,7 @@ interface ExpandableSidebarProps {
 
 const SECTIONS: SidebarSection[] = [
   { id: 'chat', label: 'Chat', icon: '💬' },
-  { id: 'dgm', label: 'DGM Runs', icon: '🔄' },
+  { id: 'dgm', label: 'Histórico de Melhorias', icon: '🔄' },  // C228: user-friendly (was 'DGM Runs')
   { id: 'memory', label: 'Memoria', icon: '🧠' },
   { id: 'monitor', label: 'Monitor', icon: '📊' },
   { id: 'artifacts', label: 'Artefatos', icon: '📁' },

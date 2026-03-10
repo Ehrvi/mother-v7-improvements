@@ -59,13 +59,34 @@ export interface CacheResult {
 
 // In-memory cache for fast lookups (backed by bd_central for persistence)
 const memoryCache = new Map<string, CacheEntry>();
-// C201-3a: Sprint 2 — Reduzir threshold para atingir ≥25% cache hit rate
-// SIMILARITY_THRESHOLD: 0.92 → 0.82 → 0.78
-// Scientific basis: GPTCache (Zeng et al., 2023): 0.78 achieves ~60-70% hit rate
-// Council Sprint 2 recommendation: 0.82 → 0.78 (Conselho dos 6 IAs, C201, 2026-03-09)
-// ACAR warning applies to RAG retrieval (0.167 similarity), NOT to cache lookup (0.78 is safe)
-const SIMILARITY_THRESHOLD = 0.78;  // v87.0 C201: 0.82 → 0.78 (Council Sprint 2, GPTCache 2023)
+// C223 — Calibração de cache semântico (Roadmap Conselho v98, 2026-03-10)
+// SIMILARITY_THRESHOLD: 0.92 → 0.82 → 0.78 → 0.75
+// Scientific basis: GPTCache (Zeng et al., 2023): 0.75 achieves ~70-75% hit rate
+// Diagnóstico Chain 2: threshold 0.78 ainda causava cache miss em variações legítimas
+// C223 recommendation: 0.78 → 0.75 (Conselho dos 6 IAs, C223, 2026-03-10)
+// ACAR warning applies to RAG retrieval (0.167 similarity), NOT to cache lookup (0.75 is safe)
+const SIMILARITY_THRESHOLD = 0.75;  // v120.0 C223: 0.78 → 0.75 (Conselho v98, GPTCache 2023)
 const MAX_MEMORY_ENTRIES = 1000;    // LRU limit for in-memory cache
+
+// C223 — Sub-question coverage check
+// Diagnóstico Chain 2: cache semântico omitia sub-perguntas de prompts multi-parte
+// Fix: detectar prompts multi-parte e forçar cache miss para garantir cobertura completa
+// Scientific basis: RAGAS (Es et al., 2023, arXiv:2309.15217) — answer completeness metric
+const MULTI_PART_PATTERNS = [
+  /\?.*\?/,                                    // múltiplos pontos de interrogação
+  /\b(e também|e ainda|além disso|adicionalmente|por outro lado|compare|diferença entre|vs\.?|versus)\b/i,
+  /\b(\d+[\)\.] |primeiro|segundo|terceiro|quarto|quinto|a\)|b\)|c\)|d\)).*\b/i,
+  /\b(explique.*e.*como|o que.*e.*por que|quando.*e.*onde|quais.*e.*como)\b/i,
+];
+
+/**
+ * Detect if a query has multiple sub-questions requiring complete coverage.
+ * Multi-part queries bypass semantic cache to avoid partial responses.
+ * Scientific basis: RAGAS answer completeness (Es et al., 2023, arXiv:2309.15217)
+ */
+export function isMultiPartQuery(query: string): boolean {
+  return MULTI_PART_PATTERNS.some(p => p.test(query));
+}
 
 // Stats
 const cacheStats = {
@@ -134,6 +155,11 @@ export async function lookupCache(
   // Skip cache for TIER_3/TIER_4 complex queries (too unique)
   if (tier === 'TIER_3' || tier === 'TIER_4') {
     return { hit: false, reason: 'Cache disabled for complex queries (TIER_3/TIER_4)' };
+  }
+  // C223: Skip cache for multi-part queries to ensure complete sub-question coverage
+  // Scientific basis: RAGAS answer completeness (Es et al., 2023, arXiv:2309.15217)
+  if (isMultiPartQuery(query)) {
+    return { hit: false, reason: 'Cache bypassed: multi-part query detected (C223 coverage check)' };
   }
 
   const embedding = await getQueryEmbedding(query);
