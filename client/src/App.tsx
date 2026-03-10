@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary'; // NC-ARCH-004 FIX: Error Boundaries — React docs (2024) + Nygard (2007) §4.1 Bulkheads
+import { ThemeProvider } from '@/contexts/ThemeContext'; // C239: WCAG AA — Theme toggle (NC-WCAG-001)
 import { trpc } from '@/lib/trpc';
 import Home from './pages/Home';
 import DgmLineage from './pages/DgmLineage';
@@ -28,18 +29,22 @@ function GuestGuard({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
-    <ErrorBoundary componentName="App">
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<GuestGuard><Login /></GuestGuard>} />
-        <Route path="/" element={<AuthGuard><Home /></AuthGuard>} />
-        <Route path="/lineage" element={<AuthGuard><DgmLineage /></AuthGuard>} />
-        <Route path="/dgm" element={<AuthGuard><DgmLineage /></AuthGuard>} />
-        <Route path="/admin" element={<AuthGuard><Admin /></AuthGuard>} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
-    </ErrorBoundary>
+    // C239: ThemeProvider wraps entire app — defaultTheme=dark preserves existing UX
+    // switchable=true enables user to toggle to light mode (WCAG 1.4.3 Contrast)
+    <ThemeProvider defaultTheme="dark" switchable={true}>
+      <ErrorBoundary componentName="App">
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<GuestGuard><Login /></GuestGuard>} />
+            <Route path="/" element={<AuthGuard><Home /></AuthGuard>} />
+            <Route path="/lineage" element={<AuthGuard><DgmLineage /></AuthGuard>} />
+            <Route path="/dgm" element={<AuthGuard><DgmLineage /></AuthGuard>} />
+            <Route path="/admin" element={<AuthGuard><Admin /></AuthGuard>} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </ErrorBoundary>
+    </ThemeProvider>
   );
 }
 
