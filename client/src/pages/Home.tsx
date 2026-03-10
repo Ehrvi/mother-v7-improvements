@@ -147,7 +147,7 @@ export default function Home() {
   const systemStatsQuery = trpc.mother.stats.useQuery(undefined, {
     refetchInterval: 60 * 1000, staleTime: 30 * 1000,
   });
-  const motherVersion = systemStatsQuery.data?.version ?? 'v69.1';
+  const motherVersion = systemStatsQuery.data?.version ?? 'v122.0'; // C249: fallback correto (era v69.1)
 
   // v69.10: SSE streaming query function
   // Scientific basis: Server-Sent Events W3C spec (2021); OpenAI streaming (2023)

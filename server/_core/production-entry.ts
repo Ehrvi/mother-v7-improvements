@@ -39,6 +39,7 @@ import { authRouter } from '../_core/routers/auth-router.js'; // NC-ARCH-002: Au
 import { shmsRouter } from '../_core/routers/shms-router.js'; // NC-ARCH-002: SHMS v2 routes (analyze, calibration)
 import { dgmRouter } from '../_core/routers/dgm-router.js'; // NC-ARCH-002: DGM routes (status, cycle)
 import { metricsRouter } from '../_core/routers/metrics-router.js'; // NC-ARCH-002: Metrics routes (latency, cache)
+import healthRouter from '../routes/health.js'; // C249: /api/health + /api/version endpoints missing from production
 import { processQuery as _processQuery } from '../mother/core.js';
 import { runSelfAudit } from '../mother/self-audit-engine.js';
 import { runHourlyAggregation } from '../mother/metrics-aggregation-job.js'; // v69.12: Fix P0 — system_metrics aggregation
@@ -291,6 +292,8 @@ app.use('/auth', authRouter); // NC-ARCH-002: /auth/* (JWT, login, logout)
 app.use('/api/shms/v2', shmsRouter); // NC-ARCH-002: /api/shms/v2/* (SHMS v2 analyze — SHMS v1 DEPRECATED C189)
 app.use('/api/dgm', dgmRouter); // NC-ARCH-002: /api/dgm/* (DGM status, cycle trigger)
 app.use('/api/metrics', metricsRouter); // NC-ARCH-002: /api/metrics/* (latency P50/P95/P99, cache stats)
+app.use('/api/health', healthRouter); // C249: /api/health + /api/health/version (was missing from production-entry)
+app.use('/api/version', (_req: express.Request, res: express.Response) => res.redirect('/api/health/version')); // C249: VersionBadge redirect
 app.use('/api/shms', shmsAlertsRouter); // C196-0 ORPHAN FIX: /api/shms/v2/alerts/:structureId — ICOLD L1/L2/L3 (Sprint 3 — ICOLD Bulletin 158 §4.3)
 app.use('/api/shms/v2', digitalTwinRoutesC206); // C206-1: SHMS Phase 2 Digital Twin REST API — REST Fielding (2000) + ISO 13374-1:2003 + Grieves (2014) Digital Twin
 app.use(a2aRouterV2); // NC-A2A-001 FIX: A2A Protocol v2 — protocolVersion=2.0, tasks, SSE streaming (Sprint 9 C208)

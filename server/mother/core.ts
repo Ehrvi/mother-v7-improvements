@@ -148,7 +148,7 @@ import { applyCalibrationV2, recordCalibrationObservation as recordCalV2, getCal
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v122.0'; // C241-C242 Conselho v100 (2026-03-10): LFSA interceptor + Dynamic timeout + OLAR routing (quality>cost, 60-page support)
+export const MOTHER_VERSION = 'v122.1'; // C249 (2026-03-10): domain-rules expanded + /api/health production fix + version fallback fix
 
 const log = createLogger('CORE');
 
