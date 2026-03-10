@@ -116,11 +116,11 @@ export interface LayerTrace {
 // CONSTANTS
 // ============================================================
 
-export const ORCHESTRATOR_VERSION = 'v82.2'; // C252: timeoutMs 45s → 60s (P99 cold start fix)
+export const ORCHESTRATOR_VERSION = 'v82.3'; // C254: timeoutMs 60s → 90s (PH-01 Kant needed 67s, CW queries need 65-70s)
 export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 3,
   successThreshold: 1,
-  timeoutMs: 60000, // C252: 45s → 60s — Anthropic P99 cold start ~50-55s (empirical 2026-03-11)
+  timeoutMs: 90000, // C254: 60s → 90s — PH-01 Kant needed 67s, CW queries 65-70s (empirical 2026-03-11)
   cooldownMs: 15000, // C247: 30s → 15s — faster recovery after transient failures
   windowMs: 60000,
 };
@@ -130,7 +130,7 @@ export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
 export const DPO_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 5,
   successThreshold: 1,
-  timeoutMs: 60000, // C252: 45s → 60s — DPO model needs same margin
+  timeoutMs: 90000, // C254: 60s → 90s — DPO model needs same margin as orchestrator
   cooldownMs: 15000,
   windowMs: 120000,
 };
@@ -142,7 +142,7 @@ export const DPO_CIRCUIT_CONFIG: CircuitBreakerConfig = {
 // This replaces unbounded LLM calls (current: 80s P95) with bounded 25s guarantee
 export const REACT_TIMEOUT_CONFIG = {
   maxIterations: 3,          // F1-1: max 3 ReAct iterations
-  iterationTimeoutMs: 60000, // C252: 45s → 60s — Anthropic P99 cold start ~50-55s (empirical 2026-03-11)
+  iterationTimeoutMs: 90000, // C254: 60s → 90s — PH-01 Kant needed 67s, CW queries 65-70s (empirical 2026-03-11)
                              // C250 (45s) still caused abort at exactly 45001ms for complex queries
                              // 60s provides 10s safety margin above P99 latency
   totalBudgetMs: 25000,      // F1-1: 25s total budget guarantee (overridden by computeDynamicTimeout)

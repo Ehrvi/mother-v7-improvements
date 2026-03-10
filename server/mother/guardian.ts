@@ -122,16 +122,16 @@ Respond ONLY with a JSON object in this exact format (no markdown, no explanatio
         'Authorization': `Bearer ${ENV.openaiApiKey}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4o', // C253: gpt-4o-mini → gpt-4o — better calibration for academic content (Q=75→90)
+        model: 'gpt-4o-mini', // C254: reverted gpt-4o → gpt-4o-mini (gpt-4o timed out frequently → heuristic fallback Q=31-60)
         messages: [
           { role: 'system', content: 'You are a precise evaluation assistant. Always respond with valid JSON only.' },
           { role: 'user', content: evaluationPrompt }
         ],
         temperature: 0.1, // Low temperature for consistent scoring
-        max_tokens: 150,
+        max_tokens: 100,
         response_format: { type: 'json_object' },
       }),
-      signal: AbortSignal.timeout(15000), // C253: 8s → 15s for gpt-4o (higher latency than mini)
+      signal: AbortSignal.timeout(12000), // C254: 12s for gpt-4o-mini (stable, low latency)
     });
     
     if (!res.ok) {
