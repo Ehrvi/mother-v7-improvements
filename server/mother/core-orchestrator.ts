@@ -116,7 +116,7 @@ export interface LayerTrace {
 // CONSTANTS
 // ============================================================
 
-export const ORCHESTRATOR_VERSION = 'v82.0'; // C241+C242: Dynamic timeout + OLAR routing (Conselho v100)
+export const ORCHESTRATOR_VERSION = 'v82.1'; // C250: iterationTimeoutMs 8s → 45s (complex query fix)
 export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 3,
   successThreshold: 1,
@@ -142,7 +142,9 @@ export const DPO_CIRCUIT_CONFIG: CircuitBreakerConfig = {
 // This replaces unbounded LLM calls (current: 80s P95) with bounded 25s guarantee
 export const REACT_TIMEOUT_CONFIG = {
   maxIterations: 3,          // F1-1: max 3 ReAct iterations
-  iterationTimeoutMs: 8000,  // F1-1: 8s per iteration
+  iterationTimeoutMs: 45000, // C250: 8s → 45s — matches ORCHESTRATOR_CIRCUIT_CONFIG.timeoutMs
+                             // Scientific basis: Anthropic P95 cold start ~35-40s (empirical 2026-03)
+                             // 8s was too short for complex queries (Gödel, Kant, CRISPR) → "aborted"
   totalBudgetMs: 25000,      // F1-1: 25s total budget guarantee (overridden by computeDynamicTimeout)
   minResponseLength: 50,     // F1-1: minimum chars to accept partial response
 } as const;
