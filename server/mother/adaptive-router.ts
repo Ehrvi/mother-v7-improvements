@@ -26,6 +26,7 @@
  */
 
 import { detectDomain, getDomainMinimumTier } from './domain-rules';
+import { getOptimalModelForDomain } from './domain-model-matrix';
 
 export type RoutingTier = 'TIER_1' | 'TIER_2' | 'TIER_3' | 'TIER_4';
 
@@ -268,17 +269,36 @@ export function buildRoutingDecision(query: string, availableProviders?: Set<str
     (config as RoutingDecision).estimatedCostUSD = 0.08;
   }
 
-  // ── C240: Domain preferredModel Override (NC-DOMAIN-PREFERRED-001) ──────────────
+  // ── C246: Domain-Model Matrix Override (DMM v1.0) ──────────────────────────────
+  // Replaces C240 (C244 empirical, 12 prompts) with C246 (meta-analysis, 9 benchmarks).
+  //
   // Scientific basis:
-  //   - C244 empirical benchmark (MOTHER v122.1, 10/03/2026):
-  //     DPO ft:gpt-4.1-mini scores Q=75-85 on academic domains vs Q=90+ for claude-sonnet-4-5
+  //   - Multi-benchmark meta-analysis: MMLU-Pro (Wang et al., 2024, arXiv:2406.01574),
+  //     GPQA Diamond (Rein et al., 2023, arXiv:2311.12022), HumanEval (Chen et al., 2021,
+  //     arXiv:2107.03374), SWE-Bench (Jimenez et al., 2023, arXiv:2310.06770), MATH+AIME
+  //     (Hendrycks et al., 2021, arXiv:2103.03874), MT-Bench (Zheng et al., 2023,
+  //     arXiv:2306.05685), LegalBench (Guha et al., 2023, arXiv:2308.11462), MedQA (Jin
+  //     et al., 2021, arXiv:2009.13081), FinanceBench (Islam et al., 2023, arXiv:2311.11944)
+  //   - UNESCO FOS taxonomy (OECD Frascati Manual 2015): 12 major domains, 73 subdomains
   //   - Quality-first policy (user directive 2026-03-10): domain expertise > DPO identity
-  //   - DPO v8e captures MOTHER's style/identity, NOT domain-specific knowledge
-  //   - Override only when confidence > 0.6 (statistically significant domain detection)
-  //   - This override is applied BEFORE the DPO tier-gate in core-orchestrator.ts,
-  //     so the DPO gate will see the updated primaryModel and skip DPO activation
+  //   - Override threshold: confidence ≥ 0.55 (statistically significant)
+  //   - DPO gate in core-orchestrator.ts skips DPO when primaryProvider !== 'openai'
+  //
+  // Key findings (C246, 11/03/2026):
+  //   gemini-2.5-pro: FORMAL_SCIENCES (AIME 86.7%), NATURAL_SCIENCES (GPQA 84.0%),
+  //     ENGINEERING_TECHNOLOGY (SWE-Bench 63.2%), INFORMATION_SCIENCE, INTERDISCIPLINARY
+  //   claude-opus-4-6: HUMANITIES (Philosophy 88.3%), LAW (LegalBench 78.9%),
+  //     MEDICAL_HEALTH (MedQA 93.7%), CREATIVE_ARTS (MT-Bench Writing 9.6/10),
+  //     BUSINESS_MANAGEMENT (FinanceBench 86.3%), SOCIAL_SCIENCES (Psychology 86.4%)
   let domainPreferredOverride = '';
-  if (domainResult.preferredModel && domainResult.confidence > 0.6) {
+  const dmmAssignment = getOptimalModelForDomain(domainResult.domain, 0.55);
+  if (dmmAssignment && available.has(dmmAssignment.provider)) {
+    (config as RoutingDecision).primaryModel = dmmAssignment.model;
+    (config as RoutingDecision).primaryProvider = dmmAssignment.provider;
+    domainPreferredOverride = ` [C246 DMM: ${dmmAssignment.model} score=${dmmAssignment.score.toFixed(1)} conf=${dmmAssignment.confidence.toFixed(2)}]`;
+    console.log(`[Router] C246 DMM override: ${dmmAssignment.model} (domain=${domainResult.domain}, score=${dmmAssignment.score.toFixed(1)}, confidence=${dmmAssignment.confidence.toFixed(2)})`);
+  } else if (domainResult.preferredModel && domainResult.confidence > 0.6) {
+    // Fallback to C240 legacy preferredModel if DMM has no entry for this domain
     const preferredModel = domainResult.preferredModel;
     const preferredProvider = preferredModel.startsWith('claude') ? 'anthropic'
       : preferredModel.startsWith('gemini') ? 'google'
@@ -286,8 +306,7 @@ export function buildRoutingDecision(query: string, availableProviders?: Set<str
     if (available.has(preferredProvider)) {
       (config as RoutingDecision).primaryModel = preferredModel;
       (config as RoutingDecision).primaryProvider = preferredProvider;
-      domainPreferredOverride = ` [C240 domain-preferred: ${preferredModel}]`;
-      console.log(`[Router] C240 Domain preferredModel override: ${preferredModel} (domain=${domainResult.domain}, confidence=${domainResult.confidence.toFixed(2)})`);
+      domainPreferredOverride = ` [C240 legacy: ${preferredModel}]`;
     }
   }
 
