@@ -1216,7 +1216,18 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     ];
     const requiresBaseModel = REQUIRES_BASE_MODEL.some(r => r.test(req.query));
 
-    if (!requiresBaseModel && isDPOBeneficial) {
+    // C240: Skip DPO when domain preferredModel override is active (non-OpenAI model)
+    // Scientific basis: C244 empirical benchmark (MOTHER v122.1, 10/03/2026):
+    //   - claude-sonnet-4-5: Q=90+ for academic domains
+    //   - ft:gpt-4.1-mini (DPO v8e): Q=75-85 for academic domains
+    //   - DPO captures MOTHER identity/style, NOT domain-specific academic expertise
+    //   - Quality-first policy: domain expert model > DPO identity model
+    const hasDomainPreferredModel = l2.routing.primaryProvider !== 'openai';
+    if (hasDomainPreferredModel) {
+      console.log(`[Orchestrator] DPO BYPASSED: domain preferredModel active (${l2.routing.primaryModel}, provider=${l2.routing.primaryProvider}) — C240`);
+    }
+
+    if (!requiresBaseModel && !hasDomainPreferredModel && isDPOBeneficial) {
       // DPO v8e for TIER_3/4 — complex queries benefit from MOTHER's identity/style
       l2.routing = {
         ...l2.routing,

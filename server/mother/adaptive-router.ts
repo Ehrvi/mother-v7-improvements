@@ -268,6 +268,29 @@ export function buildRoutingDecision(query: string, availableProviders?: Set<str
     (config as RoutingDecision).estimatedCostUSD = 0.08;
   }
 
+  // ── C240: Domain preferredModel Override (NC-DOMAIN-PREFERRED-001) ──────────────
+  // Scientific basis:
+  //   - C244 empirical benchmark (MOTHER v122.1, 10/03/2026):
+  //     DPO ft:gpt-4.1-mini scores Q=75-85 on academic domains vs Q=90+ for claude-sonnet-4-5
+  //   - Quality-first policy (user directive 2026-03-10): domain expertise > DPO identity
+  //   - DPO v8e captures MOTHER's style/identity, NOT domain-specific knowledge
+  //   - Override only when confidence > 0.6 (statistically significant domain detection)
+  //   - This override is applied BEFORE the DPO tier-gate in core-orchestrator.ts,
+  //     so the DPO gate will see the updated primaryModel and skip DPO activation
+  let domainPreferredOverride = '';
+  if (domainResult.preferredModel && domainResult.confidence > 0.6) {
+    const preferredModel = domainResult.preferredModel;
+    const preferredProvider = preferredModel.startsWith('claude') ? 'anthropic'
+      : preferredModel.startsWith('gemini') ? 'google'
+      : 'openai';
+    if (available.has(preferredProvider)) {
+      (config as RoutingDecision).primaryModel = preferredModel;
+      (config as RoutingDecision).primaryProvider = preferredProvider;
+      domainPreferredOverride = ` [C240 domain-preferred: ${preferredModel}]`;
+      console.log(`[Router] C240 Domain preferredModel override: ${preferredModel} (domain=${domainResult.domain}, confidence=${domainResult.confidence.toFixed(2)})`);
+    }
+  }
+
   // Build rationale (C232: include domain detection info)
   const activeSignals = Object.entries(signals)
     .filter(([k, v]) => typeof v === 'boolean' && v)
@@ -277,7 +300,7 @@ export function buildRoutingDecision(query: string, availableProviders?: Set<str
     ? ` [C232 domain override: ${complexityTier}→${tier}, domain=${domainResult.domain}]`
     : '';
 
-  const rationale = `Complexity score ${complexityScore}/100 → ${tier}${domainOverride}. ` +
+  const rationale = `Complexity score ${complexityScore}/100 → ${tier}${domainOverride}${domainPreferredOverride}. ` +
     `Domain: ${domainResult.domain} (confidence=${domainResult.confidence.toFixed(2)}). ` +
     `Active signals: [${activeSignals.join(', ') || 'none'}]. ` +
     `Model: ${config.primaryModel}${config.secondaryModel ? ` + ${config.secondaryModel}` : ''}${config.tertiaryModel ? ` + ${config.tertiaryModel}` : ''}. ` +
