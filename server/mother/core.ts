@@ -148,7 +148,7 @@ import { applyCalibrationV2, recordCalibrationObservation as recordCalV2, getCal
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v122.5'; // C252 (2026-03-11): timeoutMs 45s → 60s (P99 cold start fix)
+export const MOTHER_VERSION = 'v122.6'; // C253 (2026-03-11): G-Eval gpt-4o-mini → gpt-4o (calibration fix)
 
 const log = createLogger('CORE');
 
