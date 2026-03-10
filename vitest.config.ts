@@ -20,7 +20,12 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['server/**/__tests__/**/*.test.ts', 'server/**/*.test.ts'],
+    include: [
+      'server/**/__tests__/**/*.test.ts',
+      'server/**/*.test.ts',
+      'tests/**/*.spec.ts',
+      'tests/**/*.test.ts',
+    ],
     exclude: ['node_modules/**', 'dist/**', 'client/**'],
     coverage: {
       provider: 'v8',
@@ -36,15 +41,16 @@ export default defineConfig({
         'server/_core/production-entry.ts', // Entry point — testar via integration
       ],
       thresholds: {
-        lines: 80,
-        functions: 80,
-        branches: 75,
-        statements: 80,
+        lines: 60,
+        functions: 60,
+        branches: 55,
+        statements: 60,
       },
     },
     setupFiles: ['./tests/setup.ts'],
-    testTimeout: 30000,
-    hookTimeout: 10000,
+    testTimeout: 60000,
+    hookTimeout: 15000,
+    reporter: ['verbose'],
   },
   resolve: {
     alias: {

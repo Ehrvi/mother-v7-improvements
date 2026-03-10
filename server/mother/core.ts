@@ -147,7 +147,7 @@ import { applyCalibrationV2, recordCalibrationObservation as recordCalV2, getCal
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v105.0'; // C218-C220 PHASE4: NC-SHMS-004/005/006 + NC-SENS-008 + NC-BENCH-001 — BD: 272→287 (+15) — SENSORIUM 95%
+export const MOTHER_VERSION = 'v110.0'; // C218-C220 PHASE4: NC-SHMS-004/005/006 + NC-SENS-008 + NC-BENCH-001 — BD: 272→287 (+15) — SENSORIUM 95%
 
 const log = createLogger('CORE');
 
