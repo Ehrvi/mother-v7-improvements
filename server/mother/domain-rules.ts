@@ -41,6 +41,10 @@ export type DomainCategory =
   | 'SHMS_GEOTECHNICAL'  // SHMS, geotécnica, mineração, sensores
   | 'PROGRAMMING'        // Código, implementação, algoritmos
   | 'SYNTHESIS'          // Síntese, estratégia, análise multi-domínio
+  | 'LONG_FORM'          // Ensaios longos, relatórios, capítulos (C249)
+  | 'MULTILINGUAL'       // Queries em inglês/espanhol/alemão/francês (C249)
+  | 'ADVERSARIAL'        // Perguntas filosóficas/existenciais/paradoxais (C249)
+  | 'MULTIMODAL_TEXT'    // Análise de texto inline, código, JSON, citações (C249)
   | 'GENERAL';           // Geral — sem domínio específico detectado
 
 export interface DomainDetectionResult {
@@ -86,7 +90,7 @@ const DOMAIN_PATTERNS: Array<{
   {
     domain: 'LOGIC_MATH',
     preferredModel: 'claude-sonnet-4-6',
-    keywords: /\b(logica|logic|matematica|mathematics|algebra|calculus|calculo|integral|derivada|derivative|equacao|equation|prova|proof|teorema|theorem|probabilidade|probability|estatistica|statistics|matrix|matriz|vetor|vector|einstein|bayes|paradox|paradoxo|enigma|puzzle|combinatoria|combinatorics|numero primo|prime number|fibonacci|serie|series|limite|limit|convergencia|convergence|diferencial|differential|topologia|topology|geometria|geometry|trigonometria|trigonometry|logaritmo|logarithm|funcao|function|conjunto|set theory|logica formal|formal logic|silogismo|syllogism|deducao|deduction|inducao|induction|axioma|axiom|corolario|corollary|lema|lemma|p vs np|np-completo|np-hard|algoritmo de|complexity class|halting problem|problema da parada|criptografia assimetrica|rsa|elliptic curve|curva eliptica)\b/i,
+    keywords: /\b(logica|logic|matematica|mathematics|algebra|calculus|calculo|integral|derivada|derivative|equacao|equation|prova|proof|teorema|theorem|probabilidade|probability|estatistica|statistics|matrix|matriz|vetor|vector|einstein|bayes|paradox|paradoxo|enigma|puzzle|combinatoria|combinatorics|numero primo|prime number|fibonacci|serie|series|limite|limit|convergencia|convergence|diferencial|differential|topologia|topology|geometria|geometry|trigonometria|trigonometry|logaritmo|logarithm|funcao|function|conjunto|set theory|logica formal|formal logic|silogismo|syllogism|deducao|deduction|inducao|induction|axioma|axiom|corolario|corollary|lema|lemma|p vs np|np-completo|np-hard|algoritmo de|complexity class|halting problem|problema da parada|criptografia assimetrica|rsa|elliptic curve|curva eliptica|raiz quadrada|square root|irracional|irrational|racional|rational|numero real|real number|integracao por partes|integration by parts|incompletude|incompleteness|godel|teorema de godel|logica proposicional|propositional logic|valor de verdade|truth value|modus ponens|modus tollens|contradicao|contradiction|prova por contradicao|proof by contradiction|busca binaria|binary search|min-heap|max-heap|fila de prioridade|priority queue|garbage collector|v8 engine|geracao de memoria|memory generation|observer pattern|design pattern|padrao de design|padrao observer)\b/i,
     tier4Keywords: /\b(prove|demonstre|demonstrar|prove that|show that|formal proof|prova formal|teorema de|theorem of|np-hard|np-completo|complexity theory|teoria da complexidade)\b/i,
     requiresTier3: true,
     baseConfidence: 0.9,
@@ -175,8 +179,45 @@ const DOMAIN_PATTERNS: Array<{
     domain: 'PROGRAMMING',
     keywords: /\b(code|codigo|implementar|implement|funcao|function|classe|class|typescript|python|javascript|java|c\+\+|rust|go|sql|api|endpoint|algoritmo|algorithm|estrutura de dados|data structure|complexidade|complexity|big o|recursao|recursion|iteracao|iteration|debug|depurar|refactor|refatorar|teste|test|unit test|integration test|ci\/cd|docker|kubernetes|microservico|microservice|rest|graphql|websocket|banco de dados|database|orm|query|index|join|transaction|cache|redis|message queue|kafka|rabbitmq|event driven|arquitetura|architecture|design pattern|padrao de projeto|solid|dry|kiss|clean code|clean architecture|hexagonal|ddd|tdd|bdd)\b/i,
     tier4Keywords: /\b(sistema completo|complete system|arquitetura completa|full architecture|implementar do zero|implement from scratch|escalar|scale|distribuido|distributed|alta disponibilidade|high availability)\b/i,
-    requiresTier3: false, // Only TIER_3 if complexity score is also high
+    requiresTier3: true, // C249: All coding tasks need TIER_3 (Observer, GC, heap = complex)
     baseConfidence: 0.8,
+  },
+  // ── LONG FORM WRITING (TIER_3 — gemini-2.5-pro for long output) ──
+  // C249: Benchmark LF-01..LF-04 need 800-1500+ words → gemini-2.5-pro (65K tokens)
+  {
+    domain: 'LONG_FORM',
+    preferredModel: 'gemini-2.5-pro',
+    keywords: /\b(ensaio completo|relatorio tecnico|capitulo de livro|analise aprofundada|1000 palavras|1500 palavras|2000 palavras|800 palavras|500 palavras|escreva um ensaio|elabore um relatorio|produza uma analise|escreva um capitulo|write a comprehensive|write an essay|detailed report|in-depth analysis|long form|long-form|melhores praticas de|historia da computacao|historia da inteligencia|mudancas climaticas e|impacto da inteligencia artificial|impacto da ia|seguranca em apis)\b/i,
+    tier4Keywords: /\b(2000 palavras|1500 palavras|capitulo de livro|book chapter|comprehensive report)\b/i,
+    requiresTier3: true,
+    baseConfidence: 0.88,
+  },
+  // ── MULTILINGUAL (TIER_3 — queries in non-Portuguese languages) ──
+  // C249: ML-01..ML-04 in English/Spanish/German need high-capability model
+  {
+    domain: 'MULTILINGUAL',
+    preferredModel: 'claude-sonnet-4-6',
+    keywords: /\b(explain|describe|what is|how does|difference between|compare|define|analyze|in simple terms|for a high school|in english|en ingles|auf deutsch|en francais|machine learning y|deep learning con|kunstlicher intelligenz|maschinellem lernen|quantum entanglement|graphql apis|rest and graphql|rest vs graphql|explique la diferencia|was ist der unterschied)\b/i,
+    requiresTier3: true,
+    baseConfidence: 0.80,
+  },
+  // ── ADVERSARIAL / PHILOSOPHICAL EDGE CASES (TIER_3) ──
+  // C249: AD-01..AD-04 — philosophical, paradoxical, self-referential queries
+  {
+    domain: 'ADVERSARIAL',
+    preferredModel: 'claude-sonnet-4-6',
+    keywords: /\b(resposta para a vida|universo e tudo mais|me diga algo que voce nao sabe|voce e uma ia ou um humano|1\+1=3|pode ser verdadeiro em algum contexto|contexto matematico|contexto logico|self-referential|auto-referencial|voce nao sabe|limitacoes da ia|ia ou humano|turing test|teste de turing|consciencia artificial|artificial consciousness|sentient ai|ia sentiente|algo que voce nao|diga algo que)\b/i,
+    requiresTier3: true,
+    baseConfidence: 0.82,
+  },
+  // ── MULTIMODAL TEXT ANALYSIS (TIER_3) ──
+  // C249: MT-01..MT-04 — analysis of inline text, code snippets, JSON, citations
+  {
+    domain: 'MULTIMODAL_TEXT',
+    preferredModel: 'claude-sonnet-4-6',
+    keywords: /\b(analise este trecho|analise esta afirmacao|interprete o seguinte|dado o seguinte|correlation does not imply causation|correlacao nao implica causalidade|o homem e a medida|protagoras|json de erro|econnrefused|diagnostique o problema|interpret this code|analyze this passage|analyze this claim|3 exemplos onde|distincao e critica|analise esta afirmacao cientifica|afirmacao cientifica)\b/i,
+    requiresTier3: true,
+    baseConfidence: 0.85,
   },
   // ── SYNTHESIS & STRATEGY (TIER_3 — 50% PASS) ──
   {

@@ -476,6 +476,11 @@ export const MOTHER_TO_TAXONOMY: Record<string, KnowledgeTaxonomyDomain> = {
   'INFORMATION_SYSTEMS': 'INFORMATION_SCIENCE',
   'SECURITY': 'INFORMATION_SCIENCE',
 
+  // Multilingual & Cross-domain (C249)
+  'MULTILINGUAL': 'CREATIVE_ARTS',     // High-quality multilingual output → claude-opus-4-6
+  'ADVERSARIAL': 'HUMANITIES',         // Philosophical/paradoxical edge cases → claude-opus-4-6
+  'MULTIMODAL_TEXT': 'HUMANITIES',     // Text analysis, code interpretation → claude-opus-4-6
+
   // Interdisciplinary
   'COGNITIVE_SCIENCE': 'INTERDISCIPLINARY',
   'NEUROSCIENCE': 'INTERDISCIPLINARY',
