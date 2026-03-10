@@ -116,11 +116,11 @@ export interface LayerTrace {
 // CONSTANTS
 // ============================================================
 
-export const ORCHESTRATOR_VERSION = 'v82.1'; // C250: iterationTimeoutMs 8s → 45s (complex query fix)
+export const ORCHESTRATOR_VERSION = 'v82.2'; // C252: timeoutMs 45s → 60s (P99 cold start fix)
 export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 3,
   successThreshold: 1,
-  timeoutMs: 45000, // C247: 20s → 45s — Claude/Gemini need up to 40s on cold start (empirical)
+  timeoutMs: 60000, // C252: 45s → 60s — Anthropic P99 cold start ~50-55s (empirical 2026-03-11)
   cooldownMs: 15000, // C247: 30s → 15s — faster recovery after transient failures
   windowMs: 60000,
 };
@@ -130,7 +130,7 @@ export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
 export const DPO_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 5,
   successThreshold: 1,
-  timeoutMs: 45000,
+  timeoutMs: 60000, // C252: 45s → 60s — DPO model needs same margin
   cooldownMs: 15000,
   windowMs: 120000,
 };
@@ -142,9 +142,9 @@ export const DPO_CIRCUIT_CONFIG: CircuitBreakerConfig = {
 // This replaces unbounded LLM calls (current: 80s P95) with bounded 25s guarantee
 export const REACT_TIMEOUT_CONFIG = {
   maxIterations: 3,          // F1-1: max 3 ReAct iterations
-  iterationTimeoutMs: 45000, // C250: 8s → 45s — matches ORCHESTRATOR_CIRCUIT_CONFIG.timeoutMs
-                             // Scientific basis: Anthropic P95 cold start ~35-40s (empirical 2026-03)
-                             // 8s was too short for complex queries (Gödel, Kant, CRISPR) → "aborted"
+  iterationTimeoutMs: 60000, // C252: 45s → 60s — Anthropic P99 cold start ~50-55s (empirical 2026-03-11)
+                             // C250 (45s) still caused abort at exactly 45001ms for complex queries
+                             // 60s provides 10s safety margin above P99 latency
   totalBudgetMs: 25000,      // F1-1: 25s total budget guarantee (overridden by computeDynamicTimeout)
   minResponseLength: 50,     // F1-1: minimum chars to accept partial response
 } as const;
