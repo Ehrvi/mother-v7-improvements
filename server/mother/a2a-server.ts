@@ -118,7 +118,7 @@ function authenticateA2A(req: Request, res: Response, next: NextFunction): void 
 // ============================================================
 const QueryBodySchema = z.object({
   query: z.string().min(1).max(50000),
-  userId: z.number().int().optional(),  // MotherRequest.userId is number
+  userId: z.union([z.number().int(), z.string().max(256)]).optional(),  // Accept number (DB ID) or string (UUID/test ID)
   userEmail: z.string().max(256).optional(),
   useCache: z.boolean().optional().default(true),
   conversationHistory: z.array(z.object({
@@ -478,9 +478,11 @@ a2aRouter.post('/api/a2a/query', authenticateA2A, async (req: Request, res: Resp
 
     // Lazy import to avoid circular dependency
     const { processQuery } = await import('./core');
+    // C237: userId may be string (UUID/test) or number (DB ID) — coerce to number for processQuery
+    const userIdNum = typeof userId === 'string' ? undefined : userId;
     const result = await processQuery({
       query,
-      userId,
+      userId: userIdNum,
       userEmail,
       useCache,
       conversationHistory,
