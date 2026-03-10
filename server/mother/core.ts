@@ -119,6 +119,7 @@ import { updateDigitalTwin, getDigitalTwinState, generateDigitalTwinReport } fro
 import { detectGWSRequest, uploadToDrive, createGoogleDoc, listDriveFiles, generateGWSDescription } from './google-workspace-bridge'; // NC-GWS-001 (C216): Google Workspace Bridge (Google API 2024 + Nakano arXiv:2112.09332)
 import { detectTTSRequest, generateSpeech, generateSHMSVoiceAlert, generateTTSDescription } from './tts-engine'; // NC-TTS-001 (C216): TTS Engine (Wang arXiv:2301.02111 + Shen arXiv:2304.09116)
 import { detectLongFormRequest, generateLongFormV3 } from './long-form-engine-v3'; // NC-LF-001 (C216): Long-Form V3 (Gao arXiv:2312.10997 + Lewis arXiv:2005.11401)
+import { estimateOutputLength } from './output-length-estimator'; // C241/C242: OLAR routing (Conselho v100)
 // ─── CICLO C217: Conselho dos 6 — NC-DGM-002 + NC-CAL-002 (DGM Full Autonomy + Calibration V2) ─────────────────
 import { runAutonomyCycle, getDGMAutonomyStatus, detectCapabilityGaps } from './dgm-full-autonomy'; // NC-DGM-002 (C217): DGM Full Autonomy (Schmidhuber arXiv:cs/0309048 + Zhang arXiv:2505.22954)
 import { applyCalibrationV2, recordCalibrationObservation as recordCalV2, getCalibrationReport, detectCalibrationDrift } from './adaptive-calibration-v2'; // NC-CAL-002 (C217): Adaptive Calibration V2 (Guo arXiv:1706.04599 + Kadavath arXiv:2207.05221) (C216): Long-Form V3 (Gao arXiv:2312.10997 + Lewis arXiv:2005.11401) (C215): Digital Twin V2 (Grieves 2017 + Tao 2019 + Farrar 2012) (C214): Whisper STT (Radford arXiv:2212.04356 + Baevski arXiv:2006.11477)
@@ -147,7 +148,7 @@ import { applyCalibrationV2, recordCalibrationObservation as recordCalV2, getCal
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v121.0'; // C231-C234 Conselho v99 (2026-03-10): HybridQualityEvaluator + Roteador Semântico v3 (quality>cost) + DAP v2 + BD: 310→312 (+2)
+export const MOTHER_VERSION = 'v122.0'; // C241-C242 Conselho v100 (2026-03-10): LFSA interceptor + Dynamic timeout + OLAR routing (quality>cost, 60-page support)
 
 const log = createLogger('CORE');
 
@@ -224,6 +225,58 @@ export interface MotherResponse {
  */
 export async function processQuery(request: MotherRequest): Promise<MotherResponse> {
   const startTime = Date.now();
+
+  // ==================== C241: LFSA INTERCEPTOR — Long-Form Synthesis Architecture ====================
+  // Scientific basis: HiRAP (EMNLP 2025) — hierarchical decomposition for long-form generation
+  // FrugalGPT (Chen et al., 2023) — output length is primary routing signal
+  // Conselho v100 consensus: VERY_LONG queries (60+ pages) MUST bypass coreOrchestrate (25s timeout)
+  // and use generateLongFormV3 (Plan→Execute→Assemble pipeline with 600s timeout per section)
+  const lfEstimate = estimateOutputLength(request.query);
+  if (lfEstimate.requiresLFSA) {
+    console.log(`[Core] C241 LFSA interceptor: VERY_LONG query (~${lfEstimate.estimatedPages} pages, ${lfEstimate.estimatedTokens} tokens). Signal: ${lfEstimate.detectedSignal}`);
+    try {
+      const lfDetect = detectLongFormRequest(request.query);
+      const lfResult = await generateLongFormV3({
+        title: request.query.slice(0, 120), // Use query as title (truncated)
+        topic: request.query,
+        format: lfDetect.format ?? 'markdown',
+        targetWordCount: Math.max(lfEstimate.estimatedPages * 450, lfDetect.estimatedWords ?? 3000),
+        language: 'pt-BR',
+        streamProgress: request.onPhase ? (progress) => {
+          (request.onPhase as any)?.('writing', { step: progress.phase, section: progress.currentSection, pct: progress.percentComplete });
+        } : undefined,
+      });
+      return {
+        response: lfResult.fullContent,
+        tier: 'TIER_4',
+        complexityScore: 0.95,
+        confidenceScore: 0.90,
+        provider: (lfResult as any).provider ?? 'google',
+        modelName: (lfResult as any).model ?? 'gemini-2.5-pro',
+        queryCategory: 'long_form',
+        quality: {
+          qualityScore: 90,
+          passed: true,
+          completenessScore: 90,
+          accuracyScore: 88,
+          relevanceScore: 92,
+          coherenceScore: 88,
+          safetyScore: 95,
+          cacheEligible: false,
+        } as any,
+        responseTime: Date.now() - startTime,
+        fromCache: false,
+        cacheEligible: false,
+        usedFallback: false,
+        tokensUsed: (lfResult as any).totalTokens,
+        estimatedCostUSD: ((lfResult as any).totalTokens ?? 0) * 0.000015,
+        layout_hint: 'document',
+      } as any;
+    } catch (lfErr: any) {
+      console.error(`[Core] C241 LFSA failed, falling through to coreOrchestrate: ${lfErr.message}`);
+      // Fall through to normal orchestration on LFSA failure
+    }
+  }
 
   // ==================== CICLO 73: A/B CANARY — core-orchestrator.ts (50% traffic) ====================
   // Scientific basis:

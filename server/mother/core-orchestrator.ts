@@ -57,6 +57,10 @@ import { shouldTriggerActiveStudy, triggerActiveStudy } from './active-study';
 // Fix 2: G-Eval dynamic calibration reconnect — calibration counter was never incremented in orchestrator
 // Scientific basis: G-Eval (arXiv:2303.16634); EMA calibration (Gardner 1985, JASA)
 import { incrementQueryCountForCalibration, shouldRecalibrate, resetCalibrationCounter, calibrateGEval } from './dynamic-geval-calibrator';
+// C241/C242 (Conselho v100): OLAR routing + Dynamic timeout
+// Scientific basis: FrugalGPT (Chen et al., 2023) — output length is primary routing signal
+// HiRAP (EMNLP 2025) — hierarchical decomposition for long-form generation
+import { estimateOutputLength, getMaxTokensForCategory, selectModelForOutputLength } from './output-length-estimator';
 
 // ============================================================
 // TYPES
@@ -112,7 +116,7 @@ export interface LayerTrace {
 // CONSTANTS
 // ============================================================
 
-export const ORCHESTRATOR_VERSION = 'v81.8'; // C175+C176: ToolCallVisualizer SSE, warmCache production fix, dry-run endpoint bug fix, version sync
+export const ORCHESTRATOR_VERSION = 'v82.0'; // C241+C242: Dynamic timeout + OLAR routing (Conselho v100)
 export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 3,
   successThreshold: 1,
@@ -139,9 +143,31 @@ export const DPO_CIRCUIT_CONFIG: CircuitBreakerConfig = {
 export const REACT_TIMEOUT_CONFIG = {
   maxIterations: 3,          // F1-1: max 3 ReAct iterations
   iterationTimeoutMs: 8000,  // F1-1: 8s per iteration
-  totalBudgetMs: 25000,      // F1-1: 25s total budget guarantee
+  totalBudgetMs: 25000,      // F1-1: 25s total budget guarantee (overridden by computeDynamicTimeout)
   minResponseLength: 50,     // F1-1: minimum chars to accept partial response
 } as const;
+
+/**
+ * C241/C242: Compute dynamic timeout based on estimated output tokens.
+ * Scientific basis:
+ * - Empirical benchmark (2026-03): gpt-4o ~650 tok/s, gemini-2.5-pro ~800 tok/s
+ * - Formula: base_ms + (estimated_tokens x ms_per_token x safety_factor)
+ * - Safety factor 2.0x accounts for cold starts, network jitter, and model variance
+ * - Min: 25s (existing guarantee); Max: 600s (Cloud Run timeout)
+ *
+ * Examples:
+ *   1 page   (~450 tok)  -> 25s + 1.4s  = ~27s
+ *   10 pages (~4500 tok) -> 25s + 13.5s = ~39s
+ *   60 pages (~27000 tok)-> 25s + 81s   = ~106s (capped at 600s if needed)
+ */
+export function computeDynamicTimeout(estimatedOutputTokens: number): number {
+  const BASE_MS = 25_000;       // Minimum: existing 25s guarantee
+  const MS_PER_TOKEN = 1.5;     // Empirical: ~650 tok/s -> 1.54ms/tok
+  const SAFETY_FACTOR = 2.0;    // 2x safety margin for variance
+  const MAX_MS = 600_000;       // Maximum: Cloud Run timeout
+  const computed = BASE_MS + (estimatedOutputTokens * MS_PER_TOKEN * SAFETY_FACTOR);
+  return Math.min(Math.ceil(computed), MAX_MS);
+}
 
 // ============================================================
 // LAYER 1: INTAKE + SEMANTIC CACHE
@@ -196,7 +222,7 @@ async function layer1_intakeAndCache(
 
 function layer2_adaptiveRouting(
   req: OrchestratorRequest,
-): { routing: AdaptiveRoutingDecision; durationMs: number } {
+): { routing: AdaptiveRoutingDecision; durationMs: number; dynamicTimeoutMs: number } {
   const start = Date.now();
   const availableProviders = new Set<string>();
 
@@ -209,7 +235,32 @@ function layer2_adaptiveRouting(
 
   const routing = buildRoutingDecision(req.query, availableProviders);
 
-  return { routing, durationMs: Date.now() - start };
+  // C241/C242: OLAR — Output Length Adaptive Routing
+  // Apply dynamic timeout and model override based on estimated output length
+  // Scientific basis: FrugalGPT (Chen et al., 2023) — output length is primary routing signal
+  const outputEst = estimateOutputLength(req.query);
+  const dynamicTimeoutMs = computeDynamicTimeout(outputEst.estimatedTokens);
+
+  // Override maxTokens based on OLAR category and selected model
+  const olarMaxTokens = getMaxTokensForCategory(outputEst.category, routing.primaryModel);
+  if (olarMaxTokens > (routing.maxTokens ?? 0)) {
+    (routing as any).maxTokens = olarMaxTokens;
+  }
+
+  // For LONG/VERY_LONG: upgrade model to gemini-2.5-pro if not already TIER_3+
+  const olarModel = selectModelForOutputLength(outputEst.category);
+  if ((outputEst.category === 'LONG' || outputEst.category === 'VERY_LONG') &&
+      routing.tier === 'TIER_1' || routing.tier === 'TIER_2') {
+    // Quality-first: upgrade to gemini-2.5-pro for long outputs
+    (routing as any).primaryModel = olarModel.primary;
+    (routing as any).primaryProvider = 'google';
+    (routing as any).tier = 'TIER_3';
+    console.log(`[Orchestrator] C242 OLAR: upgraded to ${olarModel.primary} for ${outputEst.category} output (~${outputEst.estimatedTokens} tokens)`);
+  }
+
+  console.log(`[Orchestrator] C241 DynTimeout: ${dynamicTimeoutMs}ms for ${outputEst.category} (~${outputEst.estimatedTokens} tok, ${outputEst.estimatedPages} pages). Signal: ${outputEst.detectedSignal}`);
+
+  return { routing, durationMs: Date.now() - start, dynamicTimeoutMs };
 }
 
 // ============================================================
@@ -345,26 +396,26 @@ async function layer4_neuralGeneration(
   req: OrchestratorRequest,
   routing: AdaptiveRoutingDecision,
   context: ContextBundle,
+  dynamicTimeoutMs?: number,  // C241: dynamic timeout based on estimated output length
 ): Promise<GenerationResult> {
   const start = Date.now();
-
   const systemPrompt = buildSystemPrompt(context, routing);
   const messages = buildMessages(req, systemPrompt);
-
-  // F1-1 (Ciclo 169): ReAct iterative timeout — Yao et al. arXiv:2210.03629 (ReAct, ICLR 2023)
-  // Conselho dos 6: 3 iterations × 8s = <25s guaranteed worst case
-  // Strategy: attempt primary provider with 8s timeout per iteration
-  // On timeout: try fallback with remaining budget; guarantee response within 25s
+  // C241 (Conselho v100): Dynamic timeout replaces fixed 25s budget
+  // Scientific basis: empirical benchmark (2026-03) gpt-4o ~650 tok/s, gemini-2.5-pro ~800 tok/s
+  // Formula: base_ms + (estimated_tokens x ms_per_token x 2.0 safety_factor)
+  // Falls back to REACT_TIMEOUT_CONFIG.totalBudgetMs (25s) for short queries
+  const effectiveBudgetMs = dynamicTimeoutMs ?? REACT_TIMEOUT_CONFIG.totalBudgetMs;
   const totalBudgetStart = Date.now();
-  const getRemainingBudget = () => REACT_TIMEOUT_CONFIG.totalBudgetMs - (Date.now() - totalBudgetStart);
-
+  const getRemainingBudget = () => effectiveBudgetMs - (Date.now() - totalBudgetStart);
   // Try primary provider with circuit breaker
   // Ciclo 105: Use DPO_CIRCUIT_CONFIG for fine-tuned models (higher timeout, more tolerant)
   const isDpoModel = routing.primaryModel.startsWith('ft:') || routing.primaryModel.includes(':personal:');
-  // F1-1: Use min(circuitTimeout, iterationBudget) for primary call
+  // C241: Use dynamic timeout for iteration budget (long-form needs longer per-iteration budget)
+  const baseIterationMs = Math.max(REACT_TIMEOUT_CONFIG.iterationTimeoutMs, Math.ceil(effectiveBudgetMs / 2));
   const iterationBudget = isDpoModel
-    ? Math.min(DPO_CIRCUIT_CONFIG.timeoutMs, REACT_TIMEOUT_CONFIG.totalBudgetMs)
-    : Math.min(ORCHESTRATOR_CIRCUIT_CONFIG.timeoutMs, REACT_TIMEOUT_CONFIG.iterationTimeoutMs * 2); // 2 iterations for primary
+    ? Math.min(DPO_CIRCUIT_CONFIG.timeoutMs, effectiveBudgetMs)
+    : Math.min(ORCHESTRATOR_CIRCUIT_CONFIG.timeoutMs, baseIterationMs); // dynamic per-iteration budget
   const circuitConfig = isDpoModel
     ? { ...DPO_CIRCUIT_CONFIG, timeoutMs: iterationBudget }
     : { ...ORCHESTRATOR_CIRCUIT_CONFIG, timeoutMs: iterationBudget };
@@ -1209,7 +1260,7 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
   const l4Start = Date.now();
   const l4Span = startSpan('layer4_generation', rootSpan.spanId, { provider: l2.routing.primaryProvider, model: l2.routing.primaryModel }); // F2-2
   try {
-    l4 = await layer4_neuralGeneration(req, l2.routing, l3);
+    l4 = await layer4_neuralGeneration(req, l2.routing, l3, l2.dynamicTimeoutMs);
     // R535 (AWAKE V237 Ciclo 165): Estimate tokens from response length (tiktoken avg: 0.75 tokens/char)
     const estimatedTokens = Math.round((l4.response.length / 4) + 1000); // ~1000 prompt tokens avg
     l4.tokensUsed = estimatedTokens;

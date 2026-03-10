@@ -49,12 +49,21 @@ steps:
       - '--allow-unauthenticated'
       - '--port=8080'
       # v69.8: PERMANENT FIX — 4Gi prevents OOM crashes (heap limit exceeded)
-      # Scientific basis: Node.js V8 heap = memory * 0.75. 4Gi -> 3072MB heap.
-      - '--memory=4Gi'
-      - '--cpu=2'
+      # Scientific basis: Node.js V8 heap = memory * 0.75. 8Gi -> 6144MB heap.
+      # C236 Conselho v100 (2026-03-10): Concurrency + scaling fix
+      # Scientific basis: Node.js single-threaded event loop. TIER_3 = 2 LLM calls × 30s = 60s/req.
+      # --concurrency=5: 5 req/instance max. 5 × 60s = 300s total load per instance (safe)
+      # --max-instances=20: up to 100 concurrent requests (5×20) before throttling
+      # --cpu=4: better async I/O throughput for parallel LLM calls (TIER_3/TIER_4)
+      # --memory=8Gi: required for LFSA (Long-Form Sequential Architecture) context windows
+      # --timeout=600: LFSA generates 60-page books in ~180-300s (Plan+Execute+Assemble)
+      # Reference: arXiv:2603.04445 (Dynamic Model Routing), HiRAP EMNLP 2025
+      - '--memory=8Gi'
+      - '--cpu=4'
       - '--min-instances=1'
-      - '--max-instances=10'
-      - '--timeout=300'
+      - '--max-instances=20'
+      - '--concurrency=5'
+      - '--timeout=600'
       - '--service-account=mother-cloudrun-sa@mothers-library-mcp.iam.gserviceaccount.com'
       # v46.0: Fixed Cloud SQL instance to use Sydney (australia-southeast1) for co-location
       - '--add-cloudsql-instances=mothers-library-mcp:australia-southeast1:mother-db-sydney'
@@ -75,7 +84,11 @@ steps:
       # C232: Domain-aware routing quality > cost via domain-rules.ts (TIER_3 for 9/12 domains)
       # C234: DAP v2 — improved multi-part detection (3+ sub-questions, not just 4+)
       # C235: min-instances=1 already set (no cold starts)
-      - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA,VITE_APP_ID=mother-interface,NODE_OPTIONS=--max-old-space-size=3072,DPO_FINE_TUNED_MODEL=ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v8e:DFay6MHy,MOTHER_VERSION=v121.0,MOTHER_CYCLE=234'
+      # C241 Conselho v100 (2026-03-10): LFSA + OLAR routing
+      # C241: Long-Form Sequential Architecture (Plan→Execute→Assemble→Review)
+      # C242: Output-Length-Aware Routing (OLAR) — output_length as routing variable
+      # C236: Cloud Run concurrency=5, max-instances=20, cpu=4, memory=8Gi, timeout=600
+      - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA,VITE_APP_ID=mother-interface,NODE_OPTIONS=--max-old-space-size=6144,DPO_FINE_TUNED_MODEL=ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v8e:DFay6MHy,MOTHER_VERSION=v122.0,MOTHER_CYCLE=241'
 
   # v74.5: DGM-2 FIX — Migrate 100% traffic to new revision after deploy
   # gcloud run deploy does not have --traffic flag; use update-traffic separately
