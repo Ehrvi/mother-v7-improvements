@@ -22,7 +22,7 @@
  * - Layer 3: Context Assembly (parallel: bd_central + episodic: ~1-3s)
  * - Layer 4: Neural Generation (provider call with circuit breaker: ~0.5-8s)
  * - Layer 4.5: Tool Detection (ReAct-style: ~0.01s, async execution)
- * - Layer 5: Symbolic Governance — Guardian G-Eval (LLM-as-judge: ~1-3s, skipped for TIER_1)
+ * - Layer 5: Symbolic Governance — Guardian G-Eval (LLM-as-judge: ~1-3s; C231: TIER_1 uses heuristic ~3ms)
  * - Layer 6: Memory Write-Back (async: fire-and-forget)
  * - Layer 7: DGM Meta-Observation (async: self-improvement loop)
  *
@@ -734,9 +734,151 @@ async function layer45_toolDetection(
 // - G-Eval (Liu et al., 2023 arXiv:2303.16634) — LLM-as-judge with 7 dimensions
 // - Prometheus 2 (Kim et al., 2024 arXiv:2405.01535) — fine-grained evaluation
 // - RAGAS (Es et al., EACL 2024 arXiv:2309.15217) — faithfulness + answer relevancy
-// Replaces heuristic Layer 5 with guardian.ts validateQuality (G-Eval LLM-as-judge)
-// TIER_1 is skipped to preserve latency (heuristic fallback: score=80, passed=true)
+// C231: TIER_1 now uses evaluateTier1Quality (heuristic, ~3ms, $0) instead of hardcoded 80
 // ============================================================
+
+/**
+ * C231 — HybridQualityEvaluator Level 1: Fast heuristic evaluation for TIER_1 responses.
+ *
+ * Scientific basis:
+ * - G-Eval (Liu et al., 2023, arXiv:2303.16634): 5-dimension rubric
+ * - FrugalGPT (Chen et al., 2023, arXiv:2305.05176): cost-quality tradeoff
+ * - RAGAS (Es et al., EACL 2024, arXiv:2309.15217): answer completeness
+ * - Prometheus 2 (Kim et al., 2024, arXiv:2405.01535): rubric-based evaluation
+ *
+ * Dimensions evaluated (weighted):
+ * - Completeness (30%): length, question coverage, no refusals
+ * - Relevance (25%): query term overlap
+ * - Coherence (20%): sentence structure, logical connectors
+ * - Accuracy (15%): no excessive hedging, no generic disclaimers
+ * - Safety (10%): no harmful content
+ *
+ * Produces variable scores 0-100 (NOT hardcoded 80).
+ * Execution: ~3-5ms, $0 cost.
+ */
+function evaluateTier1Quality(query: string, response: string): { score: number; issues: string[] } {
+  const issues: string[] = [];
+  let score = 100;
+
+  // === DIMENSION 1: Completeness (30%) ===
+  // Scientific basis: RAGAS answer completeness (Es et al., 2023, arXiv:2309.15217)
+  let completenessScore = 100;
+  if (response.length < 30) {
+    completenessScore -= 60;
+    issues.push('Response critically short (<30 chars)');
+  } else if (response.length < 80) {
+    completenessScore -= 35;
+    issues.push('Response too short (<80 chars)');
+  } else if (response.length < 150) {
+    completenessScore -= 15;
+    issues.push('Response somewhat short (<150 chars)');
+  }
+  // Check for refusal patterns
+  const refusalPatterns = [
+    /sorry,?\s+(i\s+)?can'?t/i,
+    /i\s+don'?t\s+know/i,
+    /no\s+information/i,
+    /unable\s+to/i,
+    /n\u00e3o\s+consigo/i,
+    /n\u00e3o\s+sei/i,
+    /n\u00e3o\s+posso/i,
+  ];
+  for (const pattern of refusalPatterns) {
+    if (pattern.test(response)) {
+      completenessScore -= 25;
+      issues.push('Response indicates inability to answer');
+      break;
+    }
+  }
+  // Check truncation
+  const truncationPatterns = [
+    /\.\.\.\s*$/,
+    /\[truncated\]/i,
+    /\[continua\]/i,
+  ];
+  for (const pattern of truncationPatterns) {
+    if (pattern.test(response)) {
+      completenessScore -= 20;
+      issues.push('Response appears truncated');
+      break;
+    }
+  }
+
+  // === DIMENSION 2: Relevance (25%) ===
+  // Scientific basis: G-Eval relevance dimension (Liu et al., 2023)
+  const STOP_WORDS = new Set([
+    'this','that','with','from','they','have','been','were','will','would',
+    'could','should','their','there','what','when','where','which','about',
+    'para','como','com','que','uma','isso','este','esta','esse','essa',
+    'pelo','pela','mais','tamb\u00e9m','quando','onde','porque','ent\u00e3o',
+  ]);
+  const queryTerms = query.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/)
+    .filter(t => t.length > 3 && !STOP_WORDS.has(t));
+  const responseLower = response.toLowerCase();
+  const matchedTerms = queryTerms.filter(t => responseLower.includes(t));
+  const relevanceRatio = queryTerms.length > 0 ? matchedTerms.length / queryTerms.length : 1;
+  let relevanceScore = 100;
+  if (relevanceRatio < 0.10) { relevanceScore = 50; issues.push(`Very low query term overlap (${(relevanceRatio * 100).toFixed(1)}%)`); }
+  else if (relevanceRatio < 0.20) { relevanceScore = 70; issues.push(`Low query term overlap (${(relevanceRatio * 100).toFixed(1)}%)`); }
+  else if (relevanceRatio < 0.35) { relevanceScore = 85; }
+  else { relevanceScore = 100; }
+
+  // === DIMENSION 3: Coherence (20%) ===
+  // Scientific basis: G-Eval coherence dimension (Liu et al., 2023)
+  let coherenceScore = 100;
+  const sentences = response.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  if (sentences.length === 0) {
+    coherenceScore -= 50;
+    issues.push('No clear sentence structure');
+  } else if (sentences.length === 1 && response.length > 200) {
+    coherenceScore -= 15;
+    issues.push('Run-on sentence detected');
+  }
+  const connectors = ['therefore','because','thus','hence','furthermore','moreover','however','although',
+    'portanto','porque','assim','logo','al\u00e9m disso','no entanto','contudo','por\u00e9m'];
+  if (response.length > 300 && !connectors.some(c => response.toLowerCase().includes(c))) {
+    coherenceScore -= 8;
+    issues.push('Lacks logical connectors for longer response');
+  }
+
+  // === DIMENSION 4: Accuracy (15%) ===
+  // Scientific basis: G-Eval consistency dimension (Liu et al., 2023)
+  let accuracyScore = 100;
+  const hedgingPatterns = [/i think/i, /maybe/i, /probably/i, /might be/i, /could be/i];
+  let hedgingCount = 0;
+  for (const p of hedgingPatterns) { if (p.test(response)) hedgingCount++; }
+  if (hedgingCount >= 3 && response.length < 200) {
+    accuracyScore -= 20;
+    issues.push('Excessive uncertainty without substantive content');
+  }
+  const genericPatterns = [/as\s+an\s+ai/i, /i'm\s+just\s+an?\s+ai/i, /i\s+am\s+an?\s+language\s+model/i];
+  for (const p of genericPatterns) {
+    if (p.test(response)) { accuracyScore -= 15; issues.push('Generic AI disclaimer detected'); break; }
+  }
+
+  // === DIMENSION 5: Safety (10%) ===
+  let safetyScore = 100;
+  const harmfulPatterns = [/illegal/i, /harmful/i, /dangerous/i, /weapon/i, /violence/i];
+  for (const p of harmfulPatterns) {
+    if (p.test(response)) { safetyScore -= 30; issues.push('Potentially harmful content detected'); break; }
+  }
+
+  // === WEIGHTED COMPOSITE SCORE ===
+  score = Math.round(
+    completenessScore * 0.30 +
+    relevanceScore * 0.25 +
+    coherenceScore * 0.20 +
+    accuracyScore * 0.15 +
+    safetyScore * 0.10
+  );
+
+  // Scientific reference bonus (+5 pts) — Guo et al. (2023, arXiv:2305.11206)
+  const hasCitation = /arXiv:|doi\.org|\(\d{4}\)|et al\.|\[\d+\]/.test(response);
+  if (hasCitation) score = Math.min(100, score + 5);
+
+  return { score: Math.max(0, Math.min(100, score)), issues };
+}
+
 interface GovernanceResult {
   qualityScore: number;
   passed: boolean;
@@ -761,12 +903,21 @@ async function layer5_symbolicGovernance(
 ): Promise<GovernanceResult> {
   const start = Date.now();
 
-  // Skip expensive G-Eval for TIER_1 (cached/fast responses) to preserve latency
+  // C231 — HybridQualityEvaluator: TIER_1 now gets real heuristic evaluation instead of hardcoded 80
+  // Scientific basis:
+  //   - G-Eval (Liu et al., 2023, arXiv:2303.16634): LLM-as-judge achieves 0.80+ Spearman correlation
+  //   - FrugalGPT (Chen et al., 2023, arXiv:2305.05176): cost-quality tradeoff — use heuristics for TIER_1
+  //   - Prometheus 2 (Kim et al., 2024, arXiv:2405.01535): rubric-based evaluation
+  // Root cause fix (Chain 2 Mínima, 2026-03-10): qualityScore: 80 was hardcoded for TIER_1,
+  // invalidating DGM self-improvement for 56% of all queries (27/48 prompts scored exactly 80%).
+  // Now uses fast heuristic evaluation (~3-5ms, $0 cost) that produces variable scores 0-100.
   if (tier === 'TIER_1') {
+    const heuristicResult = evaluateTier1Quality(query, response);
+    console.log(`[Orchestrator] Layer 5 C231 TIER_1 heuristic: score=${heuristicResult.score}, issues=${heuristicResult.issues.length}`);
     return {
-      qualityScore: 80,
-      passed: true,
-      issues: [],
+      qualityScore: heuristicResult.score,
+      passed: heuristicResult.score >= 92,
+      issues: heuristicResult.issues,
       durationMs: Date.now() - start,
       evaluationMethod: 'heuristic',
     };

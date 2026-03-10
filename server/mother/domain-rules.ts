@@ -1,0 +1,225 @@
+/**
+ * domain-rules.ts — MOTHER v120.0 — Ciclo 231 (C232)
+ * Tiered-Adaptive Router: Domain Rules for Critical Query Detection
+ *
+ * Scientific basis:
+ * - ACAR (arXiv:2602.21231, 2026) — Adaptive Complexity & Attribution Routing
+ * - RouteLLM (Ong et al., 2024) — binary classifier for dynamic routing
+ * - FrugalGPT (Chen et al., arXiv:2305.05176, 2023) — cost-optimal LLM cascade
+ * - EvoRoute (arXiv:2601.02695, 2026) — experience-driven self-routing
+ *
+ * Purpose: Detect queries that REQUIRE high-capability models (gpt-4o / TIER_3)
+ * regardless of surface-level complexity score. These are "critical domains" where
+ * gpt-4o-mini consistently fails (Chain 2 Mínima data: 0% PASS in these domains).
+ *
+ * User directive (2026-03-10): "priority quality answer over price"
+ * → Aggressive routing to TIER_3 for any cognitively demanding query.
+ *
+ * Chain 2 Mínima failure analysis (2026-03-10):
+ * - Lógica/Matemática: 0% PASS (5/5 FAIL) with gpt-4o-mini
+ * - Ciências Naturais: 0% PASS (6/6 FAIL) with gpt-4o-mini
+ * - Criatividade/Linguagem: 0% PASS (3/3 FAIL) with gpt-4o-mini
+ * - Economia/Negócios: 0% PASS (5/5 FAIL) with gpt-4o-mini
+ * - Humanidades/Filosofia: 20% PASS (1/5) with gpt-4o-mini
+ * - Metacognição: 0% PASS (2/2 FAIL) with gpt-4o-mini
+ * → All these domains should be routed to TIER_3 (gpt-4o) by default.
+ */
+
+export type DomainCategory =
+  | 'LOGIC_MATH'         // Lógica, matemática, provas formais
+  | 'NATURAL_SCIENCE'    // Física, química, biologia, astronomia
+  | 'HUMANITIES'         // Filosofia, ética, história, literatura
+  | 'ECONOMICS'          // Economia, finanças, negócios, estratégia
+  | 'METACOGNITION'      // Autoavaliação, IA, cognição
+  | 'CREATIVITY'         // Criatividade, linguagem, poesia, narrativa
+  | 'SECURITY'           // Cibersegurança, criptografia, vulnerabilidades
+  | 'GEOPOLITICS'        // Geopolítica, história contemporânea
+  | 'AI_ML'              // Machine learning, deep learning, NLP
+  | 'SHMS_GEOTECHNICAL'  // SHMS, geotécnica, mineração, sensores
+  | 'PROGRAMMING'        // Código, implementação, algoritmos
+  | 'SYNTHESIS'          // Síntese, estratégia, análise multi-domínio
+  | 'GENERAL';           // Geral — sem domínio específico detectado
+
+export interface DomainDetectionResult {
+  domain: DomainCategory;
+  confidence: number;       // 0-1
+  requiresTier3: boolean;   // Should be routed to TIER_3 minimum
+  requiresTier4: boolean;   // Should be routed to TIER_4 (expert)
+  rationale: string;
+}
+
+// ─── Domain Detection Patterns ────────────────────────────────────────────────
+// Each domain has:
+// - keywords: regex patterns that strongly indicate the domain
+// - tier3Threshold: if matched, route to TIER_3 minimum
+// - tier4Keywords: if matched AND domain detected, route to TIER_4
+
+const DOMAIN_PATTERNS: Array<{
+  domain: DomainCategory;
+  keywords: RegExp;
+  tier4Keywords?: RegExp;
+  requiresTier3: boolean;
+  baseConfidence: number;
+}> = [
+  // ── LOGIC & MATHEMATICS (always TIER_3 — 0% PASS with gpt-4o-mini) ──
+  {
+    domain: 'LOGIC_MATH',
+    keywords: /\b(logica|logic|matematica|mathematics|algebra|calculus|calculo|integral|derivada|derivative|equacao|equation|prova|proof|teorema|theorem|probabilidade|probability|estatistica|statistics|matrix|matriz|vetor|vector|einstein|bayes|paradox|paradoxo|enigma|puzzle|combinatoria|combinatorics|numero primo|prime number|fibonacci|serie|series|limite|limit|convergencia|convergence|diferencial|differential|topologia|topology|geometria|geometry|trigonometria|trigonometry|logaritmo|logarithm|funcao|function|conjunto|set theory|logica formal|formal logic|silogismo|syllogism|deducao|deduction|inducao|induction|axioma|axiom|corolario|corollary|lema|lemma)\b/i,
+    tier4Keywords: /\b(prove|demonstre|demonstrar|prove that|show that|formal proof|prova formal|teorema de|theorem of|np-hard|np-completo|complexity theory|teoria da complexidade)\b/i,
+    requiresTier3: true,
+    baseConfidence: 0.9,
+  },
+  // ── NATURAL SCIENCES (always TIER_3 — 0% PASS with gpt-4o-mini) ──
+  {
+    domain: 'NATURAL_SCIENCE',
+    keywords: /\b(fisica|physics|quimica|chemistry|biologia|biology|astronomia|astronomy|genetica|genetics|evolucao|evolution|quantum|quantico|relatividade|relativity|termodinamica|thermodynamics|eletromagnetismo|electromagnetism|mecanica|mechanics|optica|optics|nucleo|nucleus|atomo|atom|molecula|molecule|celula|cell|dna|rna|proteina|protein|ecosistema|ecosystem|clima|climate|mudanca climatica|climate change|aquecimento global|global warming|marte|mars|buraco negro|black hole|supernova|galaxia|galaxy|universo|universe|big bang|crispr|neurociencia|neuroscience|cerebro|brain|sinapses|synapses|neurotransmissor|neurotransmitter|fotossintese|photosynthesis|mitose|mitosis|meiose|meiosis|osmose|osmosis|entropia|entropy|fissao|fission|fusao nuclear|nuclear fusion)\b/i,
+    tier4Keywords: /\b(mecanismo molecular|molecular mechanism|prova experimental|experimental proof|modelo matematico|mathematical model|equacao de|equation of|lei de|law of)\b/i,
+    requiresTier3: true,
+    baseConfidence: 0.85,
+  },
+  // ── HUMANITIES & PHILOSOPHY (always TIER_3 — 20% PASS with gpt-4o-mini) ──
+  {
+    domain: 'HUMANITIES',
+    keywords: /\b(filosofia|philosophy|etica|ethics|moral|moralidade|morality|existencialismo|existentialism|fenomenologia|phenomenology|epistemologia|epistemology|ontologia|ontology|metafisica|metaphysics|kant|hegel|nietzsche|aristoteles|plato|socrates|descartes|hume|locke|rousseau|marx|sartre|foucault|derrida|habermas|wittgenstein|historia|history|civilizacao|civilization|renascimento|renaissance|iluminismo|enlightenment|revolucao|revolution|guerra|war|imperialismo|imperialism|colonialismo|colonialism|democracia|democracy|totalitarismo|totalitarianism|fascismo|fascism|comunismo|communism|capitalismo|capitalism|literatura|literature|poesia|poetry|narrativa|narrative|hermeneutica|hermeneutics|semiotica|semiotics|linguistica|linguistics|antropologia|anthropology|sociologia|sociology|psicologia|psychology|cognicao|cognition|consciencia|consciousness|livre arbitrio|free will|determinismo|determinism|utilitarismo|utilitarianism|kantianismo|kantianism|contratualismo|contractualism)\b/i,
+    tier4Keywords: /\b(analise critica|critical analysis|argumento filosofico|philosophical argument|teoria do|theory of|implicacoes eticas|ethical implications)\b/i,
+    requiresTier3: true,
+    baseConfidence: 0.85,
+  },
+  // ── ECONOMICS & BUSINESS (always TIER_3 — 0% PASS with gpt-4o-mini) ──
+  {
+    domain: 'ECONOMICS',
+    keywords: /\b(economia|economics|macroeconomia|macroeconomics|microeconomia|microeconomics|inflacao|inflation|deflacao|deflation|pib|gdp|mercado|market|bolsa|stock market|investimento|investment|portfolio|risco|risk|retorno|return|derivativos|derivatives|opcoes|options|futuros|futures|criptomoeda|cryptocurrency|blockchain|bitcoin|ethereum|banco central|central bank|politica monetaria|monetary policy|taxa de juros|interest rate|cambio|exchange rate|balanca comercial|trade balance|deficit|surplus|keynes|friedman|hayek|smith|ricardo|marx economico|schumpeter|estrategia|strategy|vantagem competitiva|competitive advantage|modelo de negocio|business model|disrupcao|disruption|inovacao|innovation|startup|escala|scale|crescimento|growth|valuation|due diligence|fusao|merger|aquisicao|acquisition|ipo|vc|venture capital|private equity)\b/i,
+    tier4Keywords: /\b(modelo econometrico|econometric model|analise quantitativa|quantitative analysis|previsao|forecast|cenario|scenario)\b/i,
+    requiresTier3: true,
+    baseConfidence: 0.85,
+  },
+  // ── METACOGNITION & AI SELF-REFLECTION (always TIER_3 — 0% PASS) ──
+  {
+    domain: 'METACOGNITION',
+    keywords: /\b(metacognicao|metacognition|autoavaliacao|self-assessment|limitacoes|limitations|capacidades|capabilities|como voce|how do you|o que voce|what do you|voce consegue|can you|voce sabe|do you know|sua consciencia|your consciousness|voce e consciente|are you conscious|inteligencia artificial|artificial intelligence|agi|superinteligencia|superintelligence|singularidade|singularity|alinhamento|alignment|seguranca ia|ai safety|bias|vies|fairness|explicabilidade|explainability|interpretabilidade|interpretability|black box|caixa preta|emergencia|emergence|raciocinio|reasoning|compreensao|understanding|aprendizado|learning|memoria|memory|atencao|attention|transformer|llm|large language model|modelo de linguagem)\b/i,
+    requiresTier3: true,
+    baseConfidence: 0.8,
+  },
+  // ── CREATIVITY & LANGUAGE (always TIER_3 — 0% PASS with gpt-4o-mini) ──
+  {
+    domain: 'CREATIVITY',
+    keywords: /\b(criatividade|creativity|poema|poem|poesia|poetry|soneto|sonnet|haiku|conto|short story|narrativa|narrative|personagem|character|dialogo|dialogue|metafora|metaphor|alegoria|allegory|simbolismo|symbolism|estilo literario|literary style|genero literario|literary genre|traducao|translation|interpretacao|interpretation|analise literaria|literary analysis|critica literaria|literary criticism|retórica|rhetoric|argumentacao|argumentation|persuasao|persuasion|redacao|writing|ensaio|essay|artigo|article|discurso|speech|lingua|language|gramatica|grammar|semantica|semantics|pragmatica|pragmatics|fonologia|phonology|morfologia|morphology|sintaxe|syntax)\b/i,
+    requiresTier3: true,
+    baseConfidence: 0.8,
+  },
+  // ── SECURITY (TIER_3 — 33% PASS, needs higher capability) ──
+  {
+    domain: 'SECURITY',
+    keywords: /\b(seguranca|security|ciberseguranca|cybersecurity|criptografia|cryptography|vulnerabilidade|vulnerability|exploit|ataque|attack|defesa|defense|firewall|ids|ips|siem|soc|pentest|penetration testing|red team|blue team|malware|ransomware|phishing|engenharia social|social engineering|zero-day|cve|owasp|nist|iso 27001|gdpr|lgpd|autenticacao|authentication|autorizacao|authorization|oauth|jwt|ssl|tls|https|certificado|certificate|hash|sha|aes|rsa|ecc|chave publica|public key|chave privada|private key|assinatura digital|digital signature|blockchain security|smart contract|devsecops|sast|dast|threat modeling|modelagem de ameacas)\b/i,
+    requiresTier3: true,
+    baseConfidence: 0.85,
+  },
+  // ── GEOPOLITICS & HISTORY (TIER_3 — 33% PASS) ──
+  {
+    domain: 'GEOPOLITICS',
+    keywords: /\b(geopolitica|geopolitics|relacoes internacionais|international relations|diplomacia|diplomacy|guerra fria|cold war|segunda guerra|world war|nato|onu|un|brics|g7|g20|china|russia|estados unidos|united states|europa|europe|oriente medio|middle east|africa|asia|america latina|latin america|imperialismo|imperialism|colonialismo|colonialism|sancoes|sanctions|embargo|tratado|treaty|acordo|agreement|alianca|alliance|conflito|conflict|paz|peace|terrorismo|terrorism|refugiados|refugees|migracao|migration|soberania|sovereignty|autodeterminacao|self-determination|democracia|democracy|autoritarismo|authoritarianism|eleicoes|elections|corrupcao|corruption|direitos humanos|human rights)\b/i,
+    requiresTier3: true,
+    baseConfidence: 0.8,
+  },
+  // ── AI & MACHINE LEARNING (TIER_3 — 40% PASS) ──
+  {
+    domain: 'AI_ML',
+    keywords: /\b(machine learning|deep learning|neural network|rede neural|transformer|bert|gpt|llm|nlp|computer vision|visao computacional|reinforcement learning|aprendizado por reforco|supervised learning|unsupervised learning|semi-supervised|transfer learning|fine-tuning|dpo|rlhf|backpropagation|gradient descent|otimizacao|optimization|loss function|funcao de perda|overfitting|underfitting|regularizacao|regularization|cross-validation|validacao cruzada|confusion matrix|precision|recall|f1|roc|auc|embedding|attention mechanism|mecanismo de atencao|encoder|decoder|autoencoder|gan|vae|diffusion model|modelo de difusao|rag|retrieval augmented|vector database|banco vetorial|langchain|llama|claude|gemini|openai|anthropic|google ai|hugging face|pytorch|tensorflow|keras|scikit-learn|xgboost|random forest|svm|kmeans|dbscan|pca|tsne|umap)\b/i,
+    tier4Keywords: /\b(implementar|implement|treinar|train|fine-tune|ajustar|arquitetura|architecture|hiperparametros|hyperparameters|ablation study|benchmark|sota|state of the art)\b/i,
+    requiresTier3: true,
+    baseConfidence: 0.85,
+  },
+  // ── SHMS & GEOTECHNICAL (TIER_3 — 33% PASS) ──
+  {
+    domain: 'SHMS_GEOTECHNICAL',
+    keywords: /\b(shms|slope health monitoring|geotecnico|geotechnical|mineracao|mining|sensor|instrumentacao|instrumentation|talude|slope|barragem|dam|embankment|piezometro|piezometer|inclinometro|inclinometer|acelerometro|accelerometer|mqtt|iot|telemetria|telemetry|alerta|alert|monitoramento|monitoring|vibration|vibracao|deformacao|deformation|recalque|settlement|percolacao|percolation|liquefacao|liquefaction|fator de seguranca|factor of safety|estabilidade|stability|ruptura|failure|deslizamento|landslide|intelltech|geotecnia|geotechnics|solo|soil|rocha|rock|fundacao|foundation|aterro|fill|compactacao|compaction|ensaio|test|spt|cpt|vane shear|triaxial|oedometer)\b/i,
+    requiresTier3: true,
+    baseConfidence: 0.9,
+  },
+  // ── PROGRAMMING (TIER_3 for complex, TIER_1 for simple) ──
+  {
+    domain: 'PROGRAMMING',
+    keywords: /\b(code|codigo|implementar|implement|funcao|function|classe|class|typescript|python|javascript|java|c\+\+|rust|go|sql|api|endpoint|algoritmo|algorithm|estrutura de dados|data structure|complexidade|complexity|big o|recursao|recursion|iteracao|iteration|debug|depurar|refactor|refatorar|teste|test|unit test|integration test|ci\/cd|docker|kubernetes|microservico|microservice|rest|graphql|websocket|banco de dados|database|orm|query|index|join|transaction|cache|redis|message queue|kafka|rabbitmq|event driven|arquitetura|architecture|design pattern|padrao de projeto|solid|dry|kiss|clean code|clean architecture|hexagonal|ddd|tdd|bdd)\b/i,
+    tier4Keywords: /\b(sistema completo|complete system|arquitetura completa|full architecture|implementar do zero|implement from scratch|escalar|scale|distribuido|distributed|alta disponibilidade|high availability)\b/i,
+    requiresTier3: false, // Only TIER_3 if complexity score is also high
+    baseConfidence: 0.8,
+  },
+  // ── SYNTHESIS & STRATEGY (TIER_3 — 50% PASS) ──
+  {
+    domain: 'SYNTHESIS',
+    keywords: /\b(sintese|synthesis|estrategia|strategy|analise|analysis|comparacao|comparison|avaliacao|evaluation|decisao|decision|recomendacao|recommendation|plano|plan|roadmap|visao|vision|missao|mission|objetivo|objective|kpi|okr|swot|pestel|porter|canvas|modelo|model|framework|metodologia|methodology|abordagem|approach|perspectiva|perspective|implicacao|implication|consequencia|consequence|trade-off|custo-beneficio|cost-benefit|risco|risk|oportunidade|opportunity|ameaca|threat|cenario|scenario|projecao|projection|tendencia|trend|futuro|future|inovacao|innovation|disrupcao|disruption|transformacao|transformation)\b/i,
+    requiresTier3: true,
+    baseConfidence: 0.75,
+  },
+];
+
+/**
+ * Detect the domain of a query and determine required routing tier.
+ *
+ * C232 Strategy (quality > cost):
+ * - Any cognitively demanding domain → TIER_3 minimum
+ * - Expert-level queries in any domain → TIER_4
+ * - Simple factual queries → TIER_1 (only if no domain detected)
+ *
+ * Scientific basis:
+ * - RouteLLM (Ong et al., 2024): domain-aware routing improves quality
+ * - ACAR (arXiv:2602.21231, 2026): adaptive routing with domain signals
+ */
+export function detectDomain(query: string): DomainDetectionResult {
+  const q = query.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+
+  let bestMatch: DomainDetectionResult = {
+    domain: 'GENERAL',
+    confidence: 0,
+    requiresTier3: false,
+    requiresTier4: false,
+    rationale: 'No specific domain detected',
+  };
+
+  for (const pattern of DOMAIN_PATTERNS) {
+    if (pattern.keywords.test(q)) {
+      let confidence = pattern.baseConfidence;
+
+      // Boost confidence for longer queries (more domain-specific content)
+      if (query.length > 300) confidence = Math.min(1.0, confidence + 0.05);
+      if (query.length > 600) confidence = Math.min(1.0, confidence + 0.05);
+
+      // Check for TIER_4 keywords
+      const requiresTier4 = pattern.tier4Keywords ? pattern.tier4Keywords.test(q) : false;
+
+      if (confidence > bestMatch.confidence) {
+        bestMatch = {
+          domain: pattern.domain,
+          confidence,
+          requiresTier3: pattern.requiresTier3,
+          requiresTier4,
+          rationale: `Domain '${pattern.domain}' detected with confidence ${confidence.toFixed(2)}${requiresTier4 ? ' (TIER_4: expert-level keywords)' : ''}`,
+        };
+      }
+    }
+  }
+
+  // C232 Quality-first rule: any query > 200 chars with no domain detected
+  // still gets TIER_2 minimum (gpt-4o-mini for very short queries only)
+  if (bestMatch.domain === 'GENERAL' && query.length > 200) {
+    bestMatch.requiresTier3 = false; // Let complexity score decide
+    bestMatch.rationale = 'General domain, complexity score will determine tier';
+  }
+
+  return bestMatch;
+}
+
+/**
+ * Get the minimum routing tier based on domain detection.
+ * This is the "floor" — the actual tier may be higher based on complexity score.
+ *
+ * C232 Quality-first routing table:
+ * - TIER_3-required domains → minimum TIER_3 (gpt-4o)
+ * - TIER_4-required queries → minimum TIER_4 (gpt-4o + claude + gemini)
+ * - Other domains → use complexity score (may still reach TIER_3)
+ */
+export function getDomainMinimumTier(result: DomainDetectionResult): 'TIER_1' | 'TIER_2' | 'TIER_3' | 'TIER_4' {
+  if (result.requiresTier4) return 'TIER_4';
+  if (result.requiresTier3) return 'TIER_3';
+  return 'TIER_1'; // Let complexity score decide
+}

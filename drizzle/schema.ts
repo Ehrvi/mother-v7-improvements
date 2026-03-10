@@ -660,3 +660,39 @@ export const knowledgeWisdom = mysqlTable("knowledge_wisdom", {
 });
 export type KnowledgeWisdom = typeof knowledgeWisdom.$inferSelect;
 export type InsertKnowledgeWisdom = typeof knowledgeWisdom.$inferInsert;
+
+/**
+ * C231 — HybridQualityEvaluator: Quality Evaluations Cache
+ * Stores evaluation results for caching and DGM learning.
+ * Scientific basis:
+ * - G-Eval (Liu et al., 2023, arXiv:2303.16634): LLM-as-judge evaluation
+ * - FrugalGPT (Chen et al., 2023, arXiv:2305.05176): cache evaluations to reduce cost
+ * - Darwin Gödel Machine (arXiv:2505.22954, 2025): fitness tracking for self-improvement
+ */
+export const qualityEvaluations = mysqlTable("quality_evaluations", {
+  id: int("id").autoincrement().primaryKey(),
+  responseHash: varchar("response_hash", { length: 64 }).notNull(),
+  queryHash: varchar("query_hash", { length: 64 }).notNull(),
+  tier: varchar("tier", { length: 20 }).notNull(),
+  model: varchar("model", { length: 128 }),
+  provider: varchar("provider", { length: 64 }),
+  qualityScore: float("quality_score").notNull(),
+  passed: int("passed").default(0).notNull(),
+  evaluationMethod: varchar("evaluation_method", { length: 20 }),
+  completenessScore: float("completeness_score"),
+  relevanceScore: float("relevance_score"),
+  coherenceScore: float("coherence_score"),
+  accuracyScore: float("accuracy_score"),
+  safetyScore: float("safety_score"),
+  gEvalCoherence: float("geval_coherence"),
+  gEvalConsistency: float("geval_consistency"),
+  gEvalFluency: float("geval_fluency"),
+  gEvalRelevance: float("geval_relevance"),
+  gEvalDepth: float("geval_depth"),
+  gEvalObedience: float("geval_obedience"),
+  issues: text("issues"),
+  evaluationDurationMs: int("evaluation_duration_ms"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type QualityEvaluation = typeof qualityEvaluations.$inferSelect;
+export type InsertQualityEvaluation = typeof qualityEvaluations.$inferInsert;

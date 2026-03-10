@@ -147,7 +147,7 @@ import { applyCalibrationV2, recordCalibrationObservation as recordCalV2, getCal
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v120.0'; // C223-C230 Conselho v98: Cache 0.75 + DGM UX Fitness + DAP + Stop/Regenerar + Onboarding + Terminologia PT-BR — BD: 302→310 (+8)
+export const MOTHER_VERSION = 'v121.0'; // C231-C234 Conselho v99 (2026-03-10): HybridQualityEvaluator + Roteador Semântico v3 (quality>cost) + DAP v2 + BD: 310→312 (+2)
 
 const log = createLogger('CORE');
 

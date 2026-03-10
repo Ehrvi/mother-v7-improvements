@@ -1,6 +1,7 @@
 /**
- * MOTHER v76.0 — Adaptive 4-Tier Complexity Router
+ * MOTHER v120.0 — Adaptive 4-Tier Complexity Router + Domain-Aware Semantic Router v3
  * Ciclo 67: Arquitetura SOTA v76.0 — Conselho Deliberativo Ciclo 66
+ * C232 (2026-03-10): Roteador Semântico v3 — Domain-aware routing (quality > cost)
  *
  * Scientific basis:
  * - ACAR (arXiv:2602.21231, Feb 2026) — Adaptive Complexity & Attribution Routing
@@ -10,14 +11,21 @@
  * - EAGLE-2 (Li et al., arXiv:2406.16858, EMNLP 2024) — speculative decoding -40% latency
  * - FrugalGPT (Chen et al., arXiv:2305.05176, 2023) — cost-optimal LLM cascade
  *
+ * C232 Quality-First Policy (user directive 2026-03-10: "priority quality answer over price"):
+ * - Domain detection runs BEFORE complexity scoring
+ * - Critical domains (Logic, Math, Science, Humanities, Economics, etc.) → TIER_3 minimum
+ * - Expert-level queries in any domain → TIER_4
+ * - Complexity score is used as a FLOOR, not a ceiling
+ * - Chain 2 Mínima data: 0% PASS for gpt-4o-mini in 7/12 domains
+ *
  * 4 Tiers:
  * - TIER_1 (Simple): gpt-4o-mini, 1 model, P50 latency ~0.8s, cost ~$0.0001
  * - TIER_2 (Standard): gpt-4o, 1 model, P50 latency ~1.5s, cost ~$0.001
  * - TIER_3 (Complex): gpt-4o + claude-sonnet, 2 models, P50 latency ~3s, cost ~$0.005
  * - TIER_4 (Expert): gpt-4o + claude-sonnet + gemini-2.5-pro, 3 models, P50 latency ~8s, cost ~$0.02
- *
- * Expected improvement: median latency 12s → 1.2s (-90%) for simple queries (60% of traffic)
  */
+
+import { detectDomain, getDomainMinimumTier } from './domain-rules';
 
 export type RoutingTier = 'TIER_1' | 'TIER_2' | 'TIER_3' | 'TIER_4';
 
@@ -155,12 +163,40 @@ export function scoreTier(score: number): RoutingTier {
 
 /**
  * Build full routing decision from query.
+ * C232: Now integrates domain-aware routing (quality > cost policy).
  * Main entry point for the adaptive router.
+ *
+ * Routing algorithm (C232 Tiered-Adaptive):
+ * 1. Detect domain (domain-rules.ts)
+ * 2. Compute complexity score (complexity signals)
+ * 3. Final tier = max(domain_minimum_tier, complexity_tier)
+ * 4. Domain minimum acts as a FLOOR, never a ceiling
+ *
+ * Scientific basis:
+ * - RouteLLM (Ong et al., 2024): domain-aware routing improves quality
+ * - ACAR (arXiv:2602.21231, 2026): adaptive routing with domain signals
+ * - Chain 2 Mínima (2026-03-10): 0% PASS in 7/12 domains with gpt-4o-mini
  */
 export function buildRoutingDecision(query: string, availableProviders?: Set<string>): RoutingDecision {
   const signals = computeComplexitySignals(query);
   const complexityScore = computeComplexityScore(signals);
-  const tier = scoreTier(complexityScore);
+  const complexityTier = scoreTier(complexityScore);
+
+  // C232: Domain detection — runs BEFORE complexity scoring
+  // Quality-first policy: domain minimum tier acts as a floor
+  const domainResult = detectDomain(query);
+  const domainMinTier = getDomainMinimumTier(domainResult);
+
+  // C232: Final tier = max(domain_minimum_tier, complexity_tier)
+  // Tier ordering: TIER_1 < TIER_2 < TIER_3 < TIER_4
+  const TIER_ORDER: Record<RoutingTier, number> = { TIER_1: 1, TIER_2: 2, TIER_3: 3, TIER_4: 4 };
+  const tier: RoutingTier = TIER_ORDER[domainMinTier] > TIER_ORDER[complexityTier]
+    ? domainMinTier
+    : complexityTier;
+
+  if (domainMinTier !== 'TIER_1' && TIER_ORDER[domainMinTier] > TIER_ORDER[complexityTier]) {
+    console.log(`[Router] C232 Domain override: ${complexityTier} → ${tier} (domain=${domainResult.domain}, confidence=${domainResult.confidence.toFixed(2)})`);
+  }
 
   // Default available providers (all)
   const available = availableProviders ?? new Set(['openai', 'anthropic', 'google', 'mistral', 'deepseek']);
@@ -232,12 +268,17 @@ export function buildRoutingDecision(query: string, availableProviders?: Set<str
     (config as RoutingDecision).estimatedCostUSD = 0.08;
   }
 
-  // Build rationale
+  // Build rationale (C232: include domain detection info)
   const activeSignals = Object.entries(signals)
     .filter(([k, v]) => typeof v === 'boolean' && v)
     .map(([k]) => k.replace('has', '').replace(/([A-Z])/g, ' $1').trim().toLowerCase());
 
-  const rationale = `Complexity score ${complexityScore}/100 → ${tier}. ` +
+  const domainOverride = TIER_ORDER[domainMinTier] > TIER_ORDER[complexityTier]
+    ? ` [C232 domain override: ${complexityTier}→${tier}, domain=${domainResult.domain}]`
+    : '';
+
+  const rationale = `Complexity score ${complexityScore}/100 → ${tier}${domainOverride}. ` +
+    `Domain: ${domainResult.domain} (confidence=${domainResult.confidence.toFixed(2)}). ` +
     `Active signals: [${activeSignals.join(', ') || 'none'}]. ` +
     `Model: ${config.primaryModel}${config.secondaryModel ? ` + ${config.secondaryModel}` : ''}${config.tertiaryModel ? ` + ${config.tertiaryModel}` : ''}. ` +
     `Est. latency: ${config.estimatedLatencyMs}ms, cost: $${config.estimatedCostUSD.toFixed(4)}.`;

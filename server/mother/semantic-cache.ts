@@ -68,24 +68,58 @@ const memoryCache = new Map<string, CacheEntry>();
 const SIMILARITY_THRESHOLD = 0.75;  // v120.0 C223: 0.78 → 0.75 (Conselho v98, GPTCache 2023)
 const MAX_MEMORY_ENTRIES = 1000;    // LRU limit for in-memory cache
 
-// C223 — Sub-question coverage check
-// Diagnóstico Chain 2: cache semântico omitia sub-perguntas de prompts multi-parte
-// Fix: detectar prompts multi-parte e forçar cache miss para garantir cobertura completa
-// Scientific basis: RAGAS (Es et al., 2023, arXiv:2309.15217) — answer completeness metric
+/// C223/C234 — Sub-question coverage check (DAP v2)
+// C223: cache semântico omitia sub-perguntas de prompts multi-parte
+// C234 DAP v2 (2026-03-10): Expandir detecção para prompts com 3+ sub-perguntas
+// Root cause (Chain 2 Mínima): prompts como Bayes (4 partes), Marte (4 partes)
+//   causavam sobrecarga por não serem detectados como multi-parte
+// Scientific basis:
+//   - RAGAS (Es et al., 2023, arXiv:2309.15217) — answer completeness metric
+//   - ReAct (Yao et al., arXiv:2210.03629, ICLR 2023) — decompose complex tasks
+//   - Reflexion (Shinn et al., arXiv:2303.11366, NeurIPS 2023) — learn from failures
 const MULTI_PART_PATTERNS = [
   /\?.*\?/,                                    // múltiplos pontos de interrogação
   /\b(e também|e ainda|além disso|adicionalmente|por outro lado|compare|diferença entre|vs\.?|versus)\b/i,
   /\b(\d+[\)\.] |primeiro|segundo|terceiro|quarto|quinto|a\)|b\)|c\)|d\)).*\b/i,
   /\b(explique.*e.*como|o que.*e.*por que|quando.*e.*onde|quais.*e.*como)\b/i,
+  // C234 DAP v2: Detect numbered lists with 3+ items (primary overload cause in Chain 2 Mínima)
+  /\(1\)[\s\S]*?\(2\)[\s\S]*?\(3\)/,           // 3+ numbered items with parentheses
+  /\b1\)[\s\S]*?\b2\)[\s\S]*?\b3\)/,           // 3+ numbered items without parentheses
+  /\binclu[ia]:[\s\S]*?\(1\)/i,               // "inclua: (1)" pattern
+  /\binclude:[\s\S]*?\(1\)/i,                 // English "include: (1)" pattern
+  /\bcompare[\s\S]*?e[\s\S]*?explique/i,      // compare + explain multi-part
+  // C234: Detect "Inclua:" or "Include:" followed by numbered items
+  /\b(inclua|include|aborde|address|considere|consider|analise|analyze)\b[^.]*:[\s\n]*[\(\[]?[1-9]/i,
 ];
 
 /**
  * Detect if a query has multiple sub-questions requiring complete coverage.
+ * C234 DAP v2: Improved detection for 3+ sub-questions (was 4+).
  * Multi-part queries bypass semantic cache to avoid partial responses.
- * Scientific basis: RAGAS answer completeness (Es et al., 2023, arXiv:2309.15217)
+ *
+ * Scientific basis:
+ * - RAGAS answer completeness (Es et al., 2023, arXiv:2309.15217)
+ * - ReAct (Yao et al., arXiv:2210.03629, ICLR 2023): decompose complex tasks
+ * - Chain 2 Mínima data: 3/48 overloads caused by undetected multi-part prompts
  */
 export function isMultiPartQuery(query: string): boolean {
   return MULTI_PART_PATTERNS.some(p => p.test(query));
+}
+
+/**
+ * C234 DAP v2: Count the number of sub-questions in a multi-part query.
+ * Used to determine decomposition strategy.
+ */
+export function countSubQuestions(query: string): number {
+  // Count numbered items: (1), (2), (3)... or 1), 2), 3)...
+  const parenItems = query.match(/\(\d+\)/g);
+  if (parenItems && parenItems.length >= 3) return parenItems.length;
+  const dotItems = query.match(/\b\d+\)/g);
+  if (dotItems && dotItems.length >= 3) return dotItems.length;
+  // Count question marks
+  const questionMarks = (query.match(/\?/g) || []).length;
+  if (questionMarks >= 3) return questionMarks;
+  return isMultiPartQuery(query) ? 2 : 1;
 }
 
 // Stats

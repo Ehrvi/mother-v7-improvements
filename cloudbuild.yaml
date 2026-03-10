@@ -70,8 +70,12 @@ steps:
       # NC-CLOUDBUILD-002 Ciclo 108: DPO_FINE_TUNED_MODEL added permanently
       # Scientific basis: AWAKE V212 Regra 107 — DPO v8e must survive every CI/CD cycle
       # Without this, each new revision loses the fine-tuned model and falls back to gpt-4o-mini
-      # C230 Conselho v98: C223-C230 DEPLOYED — v120.0 — 2026-03-10
-      - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA,VITE_APP_ID=mother-interface,NODE_OPTIONS=--max-old-space-size=3072,DPO_FINE_TUNED_MODEL=ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v8e:DFay6MHy,MOTHER_VERSION=v120.0,MOTHER_CYCLE=230'
+      # C231-C234 Conselho v99 (2026-03-10): HybridQualityEvaluator + Roteador Semântico v3 + DAP v2
+      # C231: Fix qualityScore hardcoded 80 for TIER_1 (evaluateTier1Quality heuristic ~3ms)
+      # C232: Domain-aware routing quality > cost via domain-rules.ts (TIER_3 for 9/12 domains)
+      # C234: DAP v2 — improved multi-part detection (3+ sub-questions, not just 4+)
+      # C235: min-instances=1 already set (no cold starts)
+      - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA,VITE_APP_ID=mother-interface,NODE_OPTIONS=--max-old-space-size=3072,DPO_FINE_TUNED_MODEL=ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v8e:DFay6MHy,MOTHER_VERSION=v121.0,MOTHER_CYCLE=234'
 
   # v74.5: DGM-2 FIX — Migrate 100% traffic to new revision after deploy
   # gcloud run deploy does not have --traffic flag; use update-traffic separately
