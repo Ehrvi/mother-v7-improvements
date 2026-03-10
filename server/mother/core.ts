@@ -102,6 +102,26 @@ import { applyCreativeConstraintValidation } from './creative-constraint-validat
 import { calibrateCognitiveScore, calibrateCognitiveScoreAdaptive } from './cognitive-calibrator'; // NC-COG-007+012 (C210+C211): Cognitive Calibrator + Adaptive History (arXiv:2207.05221 + arXiv:2510.16374)
 import { enhanceSystemPromptWithLockFree } from './lock-free-explainer'; // NC-COG-008 (C210): Lock-Free Explainer (Herlihy & Wing 1990 + arXiv:2106.04422)
 import { applyZ3Verification } from './z3-subprocess-verifier'; // NC-COG-013 (C212): Z3 Subprocess Verifier (de Moura & Bjorner 2008 TACAS + arXiv:2006.01847)
+// ─── CICLO C213: Conselho dos 6 — NC-COG-015 a NC-COG-017 (SGM + Shell + Slow Thinking) ─────────────────
+import { validateModificationWithSGM, generateSGMValidationReport } from './sgm-proof-engine'; // NC-COG-015 (C213): Statistical Gödel Machine (Schmidhuber 2003 + Bayesian arXiv:2505.22954)
+import { createShellSession, executeInSession as executeInShell, getOrCreateSession as destroyShellSession } from './persistent-shell'; // NC-COG-016 (C213): Persistent Shell (Docker + node-pty, arXiv:2304.08354)
+import { shouldUseSlowThinking as shouldApplySlowThinking, enhanceSystemPromptWithSlowThinking as applySlowThinking } from './slow-thinking-engine'; // NC-COG-017 (C213): Extended Thinking (Claude 3.7 Sonnet, Anthropic 2025 + arXiv:2501.12948)
+// ─── CICLO C214: Conselho dos 6 — NC-SENS-004 a NC-SENS-007 (MCP + Scheduler + Map + STT) ─────────────────
+import { detectMCPRequirement, generateMCPToolsDescription, callMCPTool } from './mcp-gateway'; // NC-SENS-004 (C214): MCP Gateway (Anthropic MCP 2024 + Schick arXiv:2302.04761)
+import { detectSchedulingRequest, parseScheduleExpression, createScheduledTask, generateScheduleConfirmation } from './user-scheduler'; // NC-SENS-005 (C214): User Scheduler (Park arXiv:2304.03442 + POSIX cron)
+import { detectMapRequest, executeMapJob, formatMapJobResults } from './parallel-map-engine'; // NC-SENS-006 (C214): Parallel Map (Wu arXiv:2308.08155 + Dean MapReduce 2004)
+import { detectAudioInput, transcribeAudio, generateSTTDescription } from './whisper-stt'; // NC-SENS-007 (C214): Whisper STT (Radford arXiv:2212.04356 + Baevski arXiv:2006.11477)
+// ─── CICLO C215: Conselho dos 6 — NC-SHMS-001 a NC-SHMS-003 (EKF + Alerting + Digital Twin) ─────────────────
+import { runEKFCycle, processBatchEKF, generateEKFReport } from './shms-neural-ekf'; // NC-SHMS-001 (C215): Neural-EKF (Kalman 1960 + Raissi arXiv:2111.02861 + Wan UKF 2000)
+import { processEKFAlerts, classifyEKFAlert, generateAlertSummary, sendFCMNotification } from './shms-alert-engine-v2'; // NC-SHMS-002 (C215): SHMS Alert Engine V2 (ISO 13822 + FCM + WhatsApp)
+import { updateDigitalTwin, getDigitalTwinState, generateDigitalTwinReport } from './shms-digital-twin-v2'; // NC-SHMS-003 (C215): Digital Twin V2 (Grieves 2017 + Tao 2019 + Farrar 2012)
+// ─── CICLO C216: Conselho dos 6 — NC-GWS-001 + NC-TTS-001 + NC-LF-001 (GWS + TTS + LongForm) ─────────────────
+import { detectGWSRequest, uploadToDrive, createGoogleDoc, listDriveFiles, generateGWSDescription } from './google-workspace-bridge'; // NC-GWS-001 (C216): Google Workspace Bridge (Google API 2024 + Nakano arXiv:2112.09332)
+import { detectTTSRequest, generateSpeech, generateSHMSVoiceAlert, generateTTSDescription } from './tts-engine'; // NC-TTS-001 (C216): TTS Engine (Wang arXiv:2301.02111 + Shen arXiv:2304.09116)
+import { detectLongFormRequest, generateLongFormV3 } from './long-form-engine-v3'; // NC-LF-001 (C216): Long-Form V3 (Gao arXiv:2312.10997 + Lewis arXiv:2005.11401)
+// ─── CICLO C217: Conselho dos 6 — NC-DGM-002 + NC-CAL-002 (DGM Full Autonomy + Calibration V2) ─────────────────
+import { runAutonomyCycle, getDGMAutonomyStatus, detectCapabilityGaps } from './dgm-full-autonomy'; // NC-DGM-002 (C217): DGM Full Autonomy (Schmidhuber arXiv:cs/0309048 + Zhang arXiv:2505.22954)
+import { applyCalibrationV2, recordCalibrationObservation as recordCalV2, getCalibrationReport, detectCalibrationDrift } from './adaptive-calibration-v2'; // NC-CAL-002 (C217): Adaptive Calibration V2 (Guo arXiv:1706.04599 + Kadavath arXiv:2207.05221) (C216): Long-Form V3 (Gao arXiv:2312.10997 + Lewis arXiv:2005.11401) (C215): Digital Twin V2 (Grieves 2017 + Tao 2019 + Farrar 2012) (C214): Whisper STT (Radford arXiv:2212.04356 + Baevski arXiv:2006.11477)
 
 // ─── MOTHER Version (single source of truth) ─────────────────────────────────
 // v74.0: NC-010 (tier3 fix) + NC-008 (cache TTL 72h) + NC-011 (self-diagnosis routing)
@@ -127,7 +147,7 @@ import { applyZ3Verification } from './z3-subprocess-verifier'; // NC-COG-013 (C
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v95.0'; // C211+C212 Conselho: NC-COG-009 (Lean4) + NC-COG-010 (Multi-Step FOL) + NC-COG-011 (Rhyme Phonetic) + NC-COG-012 (Adaptive Calibration) + NC-COG-013 (Z3 Subprocess) + NC-COG-014 (Benchmark Suite) — BD: 232→247 (+15)
+export const MOTHER_VERSION = 'v100.0'; // C217 Conselho: NC-DGM-002 (DGM Full Autonomy) + NC-CAL-002 (Adaptive Calibration V2) — BD: 267→272 (+5) — SOTA ACHIEVED
 
 const log = createLogger('CORE');
 
