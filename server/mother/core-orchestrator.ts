@@ -120,8 +120,8 @@ export const ORCHESTRATOR_VERSION = 'v82.0'; // C241+C242: Dynamic timeout + OLA
 export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 3,
   successThreshold: 1,
-  timeoutMs: 20000,
-  cooldownMs: 30000,
+  timeoutMs: 45000, // C247: 20s → 45s — Claude/Gemini need up to 40s on cold start (empirical)
+  cooldownMs: 15000, // C247: 30s → 15s — faster recovery after transient failures
   windowMs: 60000,
 };
 // Ciclo 105: Separate circuit config for DPO model (NC-CIRCUIT-DPO-001)

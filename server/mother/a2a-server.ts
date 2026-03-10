@@ -46,6 +46,7 @@ import { getDb } from '../db';
 import { knowledge, queries } from '../../drizzle/schema';
 import { getRecentQueries, getQueryStats, getAllKnowledge } from '../db';
 import { checkAllProviders } from './provider-health';
+import { resetCircuit, getAllCircuitStats } from './circuit-breaker'; // C247: admin circuit reset
 import { MOTHER_VERSION } from './core';
 import { gte, desc, sql } from 'drizzle-orm';
 import { createLogger } from '../_core/logger';
@@ -156,6 +157,26 @@ const LongFormStreamBodySchema = z.object({
 });
 
 export const a2aRouter = Router();
+
+/**
+ * POST /api/a2a/admin/reset-circuits
+ * C247: Reset all circuit breakers to CLOSED state.
+ * Use after adding new API keys or recovering from cascading failures.
+ * Requires A2A auth token (or dev mode).
+ * Scientific basis: Nygard (2007) Release It! — manual circuit reset is essential for ops
+ */
+a2aRouter.post('/api/a2a/admin/reset-circuits', authenticateA2A, (_req: Request, res: Response) => {
+  const providers = ['openai', 'anthropic', 'google', 'mistral', 'deepseek'];
+  providers.forEach(p => resetCircuit(p));
+  const stats = getAllCircuitStats();
+  log.info(`[C247] Admin reset all circuit breakers to CLOSED`);
+  res.json({
+    status: 'ok',
+    message: `Reset ${providers.length} circuit breakers to CLOSED`,
+    circuits: stats,
+    timestamp: new Date().toISOString(),
+  });
+});
 
 // NC-SHMS-001: Register SHMS routes under /api/shms/*
 // Scientific basis: GISTM 2020, ICOLD Bulletin 158, arXiv:2602.19603 (OPC UA PubSub)
