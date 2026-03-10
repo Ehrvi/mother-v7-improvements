@@ -101,7 +101,7 @@ export default function ChatInput() {
           )}
 
           {/* C226: Regenerate button — shown after a response, not while generating */}
-          {!isTyping && regenerateLastMessage && (
+          {!isTyping && !!regenerateLastMessage && (
             <Button
               onClick={handleRegenerate}
               size="sm"
