@@ -561,7 +561,7 @@ async function callProvider(
   if (provider === 'anthropic') {
     // F1-2 (Ciclo 169): Anthropic native streaming support
     // Scientific basis: Anthropic SSE API (2024) — stream: true emits content_block_delta events
-    // Enables native token streaming for complex_reasoning queries (QW-3: claude-sonnet-4-5)
+    // Enables native token streaming for complex_reasoning queries (QW-3: claude-sonnet-4-6)
     // Reduces perceived latency from ~80s to ~3s TTFT for SSE clients
     // arXiv:2310.12931 (2023): "Progress indicators reduce perceived wait time by 35%"
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -661,7 +661,7 @@ async function streamResponse(body: ReadableStream<Uint8Array>, onChunk: (chunk:
  * F1-2 (Ciclo 169): Anthropic SSE stream parser
  * Scientific basis: Anthropic Streaming API (2024) — content_block_delta events
  * Anthropic SSE format differs from OpenAI: uses event: content_block_delta + delta.text
- * Enables native token streaming for claude-sonnet-4-5 (QW-3 complex_reasoning routing)
+ * Enables native token streaming for claude-sonnet-4-6 (QW-3 complex_reasoning routing)
  */
 async function streamAnthropicResponse(body: ReadableStream<Uint8Array>, onChunk: (chunk: string) => void): Promise<string> {
   const reader = body.getReader();
@@ -1218,7 +1218,7 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
 
     // C240: Skip DPO when domain preferredModel override is active (non-OpenAI model)
     // Scientific basis: C244 empirical benchmark (MOTHER v122.1, 10/03/2026):
-    //   - claude-sonnet-4-5: Q=90+ for academic domains
+    //   - claude-sonnet-4-6: Q=90+ for academic domains
     //   - ft:gpt-4.1-mini (DPO v8e): Q=75-85 for academic domains
     //   - DPO captures MOTHER identity/style, NOT domain-specific academic expertise
     //   - Quality-first policy: domain expert model > DPO identity model

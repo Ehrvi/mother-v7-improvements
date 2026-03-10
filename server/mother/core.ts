@@ -1069,8 +1069,8 @@ ${autonomyStatus}
     'deepseek-chat': 0.3,        // Tier 1: simple → factual precision
     'gemini-2.5-flash': 0.6,     // Tier 2: general/analytical → richer responses
     'gemini-2.5-pro': 0.5,       // Tier 2: analytical → balanced
-    'claude-sonnet-4-5': 0.2,    // Tier 3: coding → deterministic precision
-    'claude-opus-4-5': 0.3,      // Tier 3: complex → balanced precision
+    'claude-sonnet-4-6': 0.2,    // Tier 3: coding → deterministic precision
+    'claude-opus-4-6': 0.3,      // Tier 3: complex → balanced precision
     'gpt-4o': 0.5,               // Tier 4: complex/research → balanced
     'gpt-4o-mini-2024-07-18': 0.3,
   };

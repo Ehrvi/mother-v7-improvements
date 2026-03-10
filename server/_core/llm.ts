@@ -334,7 +334,7 @@ async function invokeOpenAICompatible(
 async function invokeAnthropic(params: InvokeParams): Promise<InvokeResult> {
   if (!ENV.anthropicApiKey) throw new Error("ANTHROPIC_API_KEY is not configured");
 
-  const modelName = params.model || "claude-opus-4-5";
+  const modelName = params.model || "claude-opus-4-6";
 
   // Separate system message from conversation messages
   const systemMessages = params.messages.filter(m => m.role === "system");

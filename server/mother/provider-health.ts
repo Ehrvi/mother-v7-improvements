@@ -289,7 +289,7 @@ export async function checkAllProviders(forceRefresh = false): Promise<ProviderH
   
   const providers: ProviderStatus[] = [
     openai.status === 'fulfilled' ? openai.value : { provider: 'openai', displayName: 'OpenAI', model: 'gpt-4o', status: 'error' as const, errorMessage: 'Health check failed', lastChecked: now },
-    anthropic.status === 'fulfilled' ? anthropic.value : { provider: 'anthropic', displayName: 'Anthropic', model: 'claude-sonnet-4-5', status: 'error' as const, errorMessage: 'Health check failed', lastChecked: now },
+    anthropic.status === 'fulfilled' ? anthropic.value : { provider: 'anthropic', displayName: 'Anthropic', model: 'claude-sonnet-4-6', status: 'error' as const, errorMessage: 'Health check failed', lastChecked: now },
     google.status === 'fulfilled' ? google.value : { provider: 'google', displayName: 'Google AI', model: 'gemini-2.5-flash', status: 'error' as const, errorMessage: 'Health check failed', lastChecked: now },
     deepseek.status === 'fulfilled' ? deepseek.value : { provider: 'deepseek', displayName: 'DeepSeek', model: 'deepseek-chat', status: 'error' as const, errorMessage: 'Health check failed', lastChecked: now },
     mistral.status === 'fulfilled' ? mistral.value : { provider: 'mistral', displayName: 'Mistral AI', model: 'mistral-small-latest', status: 'error' as const, errorMessage: 'Health check failed', lastChecked: now },

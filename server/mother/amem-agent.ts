@@ -39,7 +39,7 @@ export interface AMemEntry {
   response: string;
   qualityScore: number;       // G-EVAL score 0-1
   provider: string;           // e.g., 'openai', 'anthropic'
-  model: string;              // e.g., 'gpt-4o', 'claude-opus-4-5'
+  model: string;              // e.g., 'gpt-4o', 'claude-opus-4-6'
   tier: string;               // TIER_1, TIER_2, TIER_3
   latencyMs: number;
   sessionId?: string;

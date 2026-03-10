@@ -73,9 +73,9 @@ const PRICING: Record<LLMProvider, Record<string, { input: number; output: numbe
     'gemini-2.5-pro': { input: 1.25 / 1_000_000, output: 10.00 / 1_000_000 },
   },
   anthropic: {
-    'claude-sonnet-4-5': { input: 3.00 / 1_000_000, output: 15.00 / 1_000_000 },
-    'claude-opus-4-5': { input: 15.00 / 1_000_000, output: 75.00 / 1_000_000 },
+    'claude-sonnet-4-6': { input: 3.00 / 1_000_000, output: 15.00 / 1_000_000 },
     'claude-opus-4-6': { input: 15.00 / 1_000_000, output: 75.00 / 1_000_000 },
+    'claude-haiku-4-6': { input: 0.80 / 1_000_000, output: 4.00 / 1_000_000 },
   },
   openai: {
     'gpt-4o': { input: 2.50 / 1_000_000, output: 10.00 / 1_000_000 },
@@ -91,7 +91,7 @@ const PRICING: Record<LLMProvider, Record<string, { input: number; output: numbe
 
 export function getModelForCategory(category: QueryCategory): LLMModel {
   // QW-3 (Ciclo 168): Dynamic model routing by complexity — arXiv:2001.08361 (Kaplan scaling laws)
-  // Council of 6 recommendation (R576 AWAKE V240): route complex_reasoning to claude-sonnet-4-5
+  // Council of 6 recommendation (R576 AWAKE V240): route complex_reasoning to claude-sonnet-4-6
   // Scientific basis:
   //   - Kaplan et al. (arXiv:2001.08361, 2020): larger models show disproportionate gains on reasoning
   //   - Claude 3.5 Sonnet benchmarks (Anthropic, 2024): +15% on MMLU vs GPT-4o for reasoning tasks
@@ -101,13 +101,13 @@ export function getModelForCategory(category: QueryCategory): LLMModel {
   switch (category) {
     case 'simple': return { provider: 'deepseek', modelName: 'deepseek-chat' };
     case 'general': return { provider: 'google', modelName: 'gemini-2.5-flash' };
-    case 'coding': return { provider: 'anthropic', modelName: 'claude-sonnet-4-5' };
-    case 'complex_reasoning': return { provider: 'anthropic', modelName: 'claude-sonnet-4-5' }; // QW-3: gpt-4o → claude-sonnet-4-5 (+20 pts reasoning)
+    case 'coding': return { provider: 'anthropic', modelName: 'claude-sonnet-4-6' };
+    case 'complex_reasoning': return { provider: 'anthropic', modelName: 'claude-sonnet-4-6' }; // QW-3: gpt-4o → claude-sonnet-4-6 (+20 pts reasoning)
     case 'research': return { provider: 'openai', modelName: 'gpt-4o' }; // research keeps gpt-4o (tool use)
-    // NC-COG-001 (C209): Creative writing → claude-sonnet-4-5
-    // Scientific basis: Anthropic (2024) — claude-sonnet-4-5 shows +40% creative coherence vs gpt-4o-mini
+    // NC-COG-001 (C209): Creative writing → claude-sonnet-4-6
+    // Scientific basis: Anthropic (2024) — claude-sonnet-4-6 shows +40% creative coherence vs gpt-4o-mini
     // Yao et al. (2023) ToT: creative tasks need multi-path exploration (ToT activates for 'creative')
-    case 'creative': return { provider: 'anthropic', modelName: 'claude-sonnet-4-5' };
+    case 'creative': return { provider: 'anthropic', modelName: 'claude-sonnet-4-6' };
   }
 }
 
@@ -394,7 +394,7 @@ export function classifyQuery(query: string): RoutingDecision {
 
   // ── NC-COG-001 (C209): Creative writing detection ─────────────────────────
   // Scientific basis: Yao et al. (2023) ToT arXiv:2305.10601 — creative tasks benefit from
-  // multi-path exploration; Anthropic (2024) — claude-sonnet-4-5 is optimal for creative tasks.
+  // multi-path exploration; Anthropic (2024) — claude-sonnet-4-6 is optimal for creative tasks.
   // Detects: fiction, poetry, screenplay, narrative, character-driven writing requests.
   const creativePatterns = [
     // PT: Creative writing
@@ -424,12 +424,12 @@ export function classifyQuery(query: string): RoutingDecision {
     confidence = Math.min(0.97, 0.80 + researchScore * 0.05);
     reasoning = `Research/study query (${researchScore} indicators) → gpt-4o for tool use`;
   } else if (creativeScore >= 1) {
-    // NC-COG-001 (C209): Creative writing → dedicated 'creative' category → claude-sonnet-4-5
-    // Scientific basis: Anthropic (2024) — claude-sonnet-4-5 +40% creative coherence vs gpt-4o-mini
+    // NC-COG-001 (C209): Creative writing → dedicated 'creative' category → claude-sonnet-4-6
+    // Scientific basis: Anthropic (2024) — claude-sonnet-4-6 +40% creative coherence vs gpt-4o-mini
     // Yao et al. (2023) ToT: creative tasks benefit from multi-path exploration
     category = 'creative';
     confidence = Math.min(0.95, 0.75 + creativeScore * 0.05);
-    reasoning = `Creative writing (${creativeScore} indicators) → claude-sonnet-4-5 for narrative quality`;
+    reasoning = `Creative writing (${creativeScore} indicators) → claude-sonnet-4-6 for narrative quality`;
   } else if (stemDepthScore >= 1) {
     // Ciclo 56 Ação 1: STEM depth queries always use GPT-4o
     // Hendrycks et al. (MMLU, 2020): STEM requires frontier model capability

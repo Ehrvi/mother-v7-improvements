@@ -242,7 +242,7 @@ export function getMaxTokensForCategory(
   const MODEL_LIMITS: Record<string, number> = {
     'gpt-4o-mini':          16384,
     'gpt-4o':               16384,
-    'claude-sonnet-4-5':    8192,
+    'claude-sonnet-4-6':    8192,
     'claude-opus-4-6':      8192,
     'gemini-2.5-pro':       65536,
     'gemini-2.5-flash':     65536,

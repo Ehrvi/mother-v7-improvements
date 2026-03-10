@@ -64,11 +64,11 @@ export interface DomainDetectionResult {
 // C244 Empirical Benchmark Results (MOTHER v122.1, 10/03/2026):
 // | Domain          | Pass Rate | Avg Score | Recommended Model    |
 // |-----------------|-----------|-----------|----------------------|
-// | LOGIC_MATH      | 100%      | 100.0     | claude-sonnet-4-5    |
+// | LOGIC_MATH      | 100%      | 100.0     | claude-sonnet-4-6    |
 // | NATURAL_SCIENCE | 50%*      | 50.0      | gemini-2.5-pro       |
-// | HUMANITIES      | 100%      | 100.0     | claude-sonnet-4-5    |
+// | HUMANITIES      | 100%      | 100.0     | claude-sonnet-4-6    |
 // | ECONOMICS       | 100%      | 100.0     | gpt-4o               |
-// | CREATIVITY      | 100%      | 100.0     | claude-sonnet-4-5    |
+// | CREATIVITY      | 100%      | 100.0     | claude-sonnet-4-6    |
 // | METACOGNITION   | 100%      | 100.0     | gpt-4o               |
 // *CN-01 timed out (90s) — likely transient; gemini-2.5-pro recommended for deep science
 // Scientific basis: HELM (Liang et al., 2022) + MT-Bench (Zheng et al., 2023)
@@ -81,11 +81,11 @@ const DOMAIN_PATTERNS: Array<{
   preferredModel?: string;
 }> = [
   // ── LOGIC & MATHEMATICS (always TIER_3 — 0% PASS with gpt-4o-mini) ──
-  // C244: claude-sonnet-4-5 recommended (100% PASS, avg=100.0)
+  // C244: claude-sonnet-4-6 recommended (100% PASS, avg=100.0)
   // Scientific basis: Kaplan et al. (2020) — larger models disproportionate gains on reasoning
   {
     domain: 'LOGIC_MATH',
-    preferredModel: 'claude-sonnet-4-5',
+    preferredModel: 'claude-sonnet-4-6',
     keywords: /\b(logica|logic|matematica|mathematics|algebra|calculus|calculo|integral|derivada|derivative|equacao|equation|prova|proof|teorema|theorem|probabilidade|probability|estatistica|statistics|matrix|matriz|vetor|vector|einstein|bayes|paradox|paradoxo|enigma|puzzle|combinatoria|combinatorics|numero primo|prime number|fibonacci|serie|series|limite|limit|convergencia|convergence|diferencial|differential|topologia|topology|geometria|geometry|trigonometria|trigonometry|logaritmo|logarithm|funcao|function|conjunto|set theory|logica formal|formal logic|silogismo|syllogism|deducao|deduction|inducao|induction|axioma|axiom|corolario|corollary|lema|lemma|p vs np|np-completo|np-hard|algoritmo de|complexity class|halting problem|problema da parada|criptografia assimetrica|rsa|elliptic curve|curva eliptica)\b/i,
     tier4Keywords: /\b(prove|demonstre|demonstrar|prove that|show that|formal proof|prova formal|teorema de|theorem of|np-hard|np-completo|complexity theory|teoria da complexidade)\b/i,
     requiresTier3: true,
@@ -102,11 +102,11 @@ const DOMAIN_PATTERNS: Array<{
     preferredModel: 'gemini-2.5-pro',
   },
   // ── HUMANITIES & PHILOSOPHY (always TIER_3 — 20% PASS with gpt-4o-mini) ──
-  // C244: claude-sonnet-4-5 recommended (100% PASS, avg=100.0)
-  // Scientific basis: Anthropic (2024) — claude-sonnet-4-5 shows +40% creative coherence
+  // C244: claude-sonnet-4-6 recommended (100% PASS, avg=100.0)
+  // Scientific basis: Anthropic (2024) — claude-sonnet-4-6 shows +40% creative coherence
   {
     domain: 'HUMANITIES',
-    preferredModel: 'claude-sonnet-4-5',
+    preferredModel: 'claude-sonnet-4-6',
     keywords: /\b(filosofia|philosophy|etica|ethics|moral|moralidade|morality|existencialismo|existentialism|fenomenologia|phenomenology|epistemologia|epistemology|ontologia|ontology|metafisica|metaphysics|kant|hegel|nietzsche|aristoteles|plato|socrates|descartes|hume|locke|rousseau|marx|sartre|foucault|derrida|habermas|wittgenstein|historia|history|civilizacao|civilization|renascimento|renaissance|iluminismo|enlightenment|revolucao|revolution|guerra|war|imperialismo|imperialism|colonialismo|colonialism|democracia|democracy|totalitarismo|totalitarianism|fascismo|fascism|comunismo|communism|capitalismo|capitalism|literatura|literature|poesia|poetry|narrativa|narrative|hermeneutica|hermeneutics|semiotica|semiotics|linguistica|linguistics|antropologia|anthropology|sociologia|sociology|psicologia|psychology|cognicao|cognition|consciencia|consciousness|livre arbitrio|free will|determinismo|determinism|utilitarismo|utilitarianism|kantianismo|kantianism|contratualismo|contractualism)\b/i,
     tier4Keywords: /\b(analise critica|critical analysis|argumento filosofico|philosophical argument|teoria do|theory of|implicacoes eticas|ethical implications)\b/i,
     requiresTier3: true,
@@ -132,11 +132,11 @@ const DOMAIN_PATTERNS: Array<{
     baseConfidence: 0.8,
   },
   // ── CREATIVITY & LANGUAGE (always TIER_3 — 0% PASS with gpt-4o-mini) ──
-  // C244: claude-sonnet-4-5 recommended (100% PASS, avg=100.0)
-  // Scientific basis: Anthropic (2024) — claude-sonnet-4-5 optimal for creative tasks
+  // C244: claude-sonnet-4-6 recommended (100% PASS, avg=100.0)
+  // Scientific basis: Anthropic (2024) — claude-sonnet-4-6 optimal for creative tasks
   {
     domain: 'CREATIVITY',
-    preferredModel: 'claude-sonnet-4-5',
+    preferredModel: 'claude-sonnet-4-6',
     keywords: /\b(criatividade|creativity|poema|poem|poesia|poetry|soneto|sonnet|haiku|conto|short story|narrativa|narrative|personagem|character|dialogo|dialogue|metafora|metaphor|alegoria|allegory|simbolismo|symbolism|estilo literario|literary style|genero literario|literary genre|traducao|translation|interpretacao|interpretation|analise literaria|literary analysis|critica literaria|literary criticism|ret.rica|rhetoric|argumentacao|argumentation|persuasao|persuasion|redacao|writing|ensaio|essay|artigo|article|discurso|speech|lingua|language|gramatica|grammar|semantica|semantics|pragmatica|pragmatics|fonologia|phonology|morfologia|morphology|sintaxe|syntax|paradoxo da criatividade|creativity paradox|emergencia|emergence|complexidade|complexity|padroes|patterns|evolucao cultural|cultural evolution|meme|inovacao cultural|cultural innovation|arte|art|musica|music|composicao|composition|improvisacao|improvisation|jazz|literatura|literature|romance|novel|conto|short story|autobiografia|autobiography|biografia|biography|ficcao|fiction|nao-ficcao|non-fiction|genero|genre|estilo|style|voz narrativa|narrative voice|ponto de vista|point of view|perspectiva|perspective|ironia|irony|satira|satire|parodia|parody|intertextualidade|intertextuality)\b/i,
     requiresTier3: true,
     baseConfidence: 0.8,

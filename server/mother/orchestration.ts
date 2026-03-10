@@ -116,7 +116,7 @@ export async function runMoA(ctx: OrchestrationContext): Promise<OrchestrationRe
   const proposerConfigs = [
     { provider: 'deepseek' as const, model: 'deepseek-chat', role: 'Factual Grounding Specialist' },
     { provider: 'google' as const, model: 'gemini-2.5-flash', role: 'Reasoning and Analysis Specialist' },
-    { provider: 'anthropic' as const, model: 'claude-sonnet-4-5', role: 'Nuanced Analysis Specialist' },
+    { provider: 'anthropic' as const, model: 'claude-sonnet-4-6', role: 'Nuanced Analysis Specialist' },
   ];
 
   // Run all 3 proposers in parallel
@@ -216,7 +216,7 @@ export async function runDebate(
   const [agent1Initial, agent2Initial] = await Promise.all([
     invokeLLM({
       provider: 'anthropic',
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-4-6',
       messages: [
         { role: 'system', content: `${systemBase}\n\nYou are Agent 1 in a multi-agent debate. Provide your initial, well-reasoned response. Be thorough and cite evidence.` },
         ...(ctx.conversationHistory || []),
@@ -242,7 +242,7 @@ export async function runDebate(
     const [agent1Reply, agent2Reply] = await Promise.all([
       invokeLLM({
         provider: 'anthropic',
-        model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-4-6',
         messages: [
           { role: 'system', content: `${systemBase}\n\nYou are Agent 1 in round ${round} of a debate. Review Agent 2's response and either defend your position with new evidence, concede valid points, or refine your answer.` },
           { role: 'user', content: ctx.query },
