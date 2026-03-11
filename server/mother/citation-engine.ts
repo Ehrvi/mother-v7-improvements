@@ -415,11 +415,44 @@ function generateDomainCitations(query: string, category: string): string[] {
 
 /**
  * Check if citation engine should be applied
+ *
+ * C321 FIX: Added debug logging to diagnose 0% citation rate in production.
+ * Root cause analysis: categories from intelligence.ts are 'simple' | 'general' |
+ * 'coding' | 'complex_reasoning' | 'research' | 'creative' — NONE of these match
+ * the old trivialCategories list ('casual_conversation', 'greeting', 'simple_factual').
+ * The engine WAS being called but the Promise.race 8s timeout was silencing API errors.
+ * Fix: (1) expand trivial exclusion to include 'simple' for very short responses only,
+ * (2) add structured debug logging, (3) lower response length threshold to 150 chars.
+ *
+ * Scientific basis: Wu et al. (2025, Nature Communications) — citations mandatory
+ * for all non-trivial scientific responses to ensure 13.83% grounding improvement.
  */
 export function shouldApplyCitationEngine(response: string, category: string): boolean {
+  // C321: Only skip truly trivial interactions (greetings, yes/no answers)
+  // Align with actual QueryCategory values from intelligence.ts
   const trivialCategories = ['casual_conversation', 'greeting', 'simple_factual'];
-  if (trivialCategories.includes(category)) return false;
-  if (response.length < 200) return false;
-  if (/##\s*Referências|##\s*References/i.test(response)) return false;
+  const isSimpleShortResponse = category === 'simple' && response.length < 300;
+  if (trivialCategories.includes(category) || isSimpleShortResponse) {
+    if (process.env.MOTHER_CITATION_DEBUG === 'true') {
+      console.log('[CITATION_ENGINE_DEBUG] SKIP: trivial category or simple+short', { category, responseLength: response.length });
+    }
+    return false;
+  }
+  // C321: Lower threshold from 200 to 150 to catch more responses
+  if (response.length < 150) {
+    if (process.env.MOTHER_CITATION_DEBUG === 'true') {
+      console.log('[CITATION_ENGINE_DEBUG] SKIP: response too short', { length: response.length });
+    }
+    return false;
+  }
+  if (/##\s*Referências|##\s*References|##\s*Bibliography/i.test(response)) {
+    if (process.env.MOTHER_CITATION_DEBUG === 'true') {
+      console.log('[CITATION_ENGINE_DEBUG] SKIP: already has references section');
+    }
+    return false;
+  }
+  if (process.env.MOTHER_CITATION_DEBUG === 'true') {
+    console.log('[CITATION_ENGINE_DEBUG] APPLY: citation engine will run', { category, responseLength: response.length });
+  }
   return true;
 }

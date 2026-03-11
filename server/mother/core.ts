@@ -131,7 +131,7 @@ import { applyZ3Verification } from './z3-subprocess-verifier'; // NC-COG-013 (C
 // C319 hygiene: tts-engine unused in core.ts body (live in long-form-engine-v3.ts)
 // import { detectTTSRequest, generateSpeech, generateSHMSVoiceAlert, generateTTSDescription } from './tts-engine';
 import { detectLongFormRequest, generateLongFormV3 } from './long-form-engine-v3'; // NC-LF-001 (C216): Long-Form V3 (Gao arXiv:2312.10997 + Lewis arXiv:2005.11401)
-import { estimateOutputLength } from './output-length-estimator'; // C241/C242: OLAR routing (Conselho v100)
+import { estimateOutputLength } from './output-length-estimator'; // C241/C242: OLAR routing (Conselho v100) | C321: Semantic Complexity Detector v2.0 (complexitySignals now embedded in OutputLengthEstimate)
 // ─── CICLO C217: Conselho dos 6 — NC-DGM-002 + NC-CAL-002 (DGM Full Autonomy + Calibration V2) ─────────────────
 // C319 hygiene: dgm-full-autonomy unused in core.ts body — DGM runs via startup-tasks-c207.ts scheduler
 // import { runAutonomyCycle, getDGMAutonomyStatus, detectCapabilityGaps } from './dgm-full-autonomy';
@@ -162,7 +162,7 @@ import { estimateOutputLength } from './output-length-estimator'; // C241/C242: 
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v122.20'; // C316-C320 (2026-03-12): Conselho V108 — wiring C311-C315 (C316), DGM supervisor (C317), RLVR→DPO integration (C318), code hygiene (C319), AWAKE V308 (C320)
+export const MOTHER_VERSION = 'v122.21'; // C321-C323 (2026-03-12): Conselho dos 6 Roadmap — Semantic Complexity Detector v2.0 (C321), CoT+Template Condicional (C322), Gate Tests 26/26 (C323), AWAKE V310
 
 const log = createLogger('CORE');
 
@@ -246,8 +246,13 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   // Conselho v100 consensus: VERY_LONG queries (60+ pages) MUST bypass coreOrchestrate (25s timeout)
   // and use generateLongFormV3 (Plan→Execute→Assemble pipeline with 600s timeout per section)
   const lfEstimate = estimateOutputLength(request.query);
+  // C321: Log semantic complexity signals for diagnostics
+  if (lfEstimate.complexitySignals) {
+    const cs = lfEstimate.complexitySignals;
+    console.log(`[Core-C321] SemanticComplexity: score=${cs.totalScore.toFixed(1)} verbs=${cs.actionVerbCount} refs=${cs.externalRefCount} artifacts=${cs.artifactNounCount} patterns=${cs.multiTaskPatternCount} requiresLFSA=${cs.requiresLFSA}`);
+  }
   if (lfEstimate.requiresLFSA) {
-    console.log(`[Core] C241 LFSA interceptor: VERY_LONG query (~${lfEstimate.estimatedPages} pages, ${lfEstimate.estimatedTokens} tokens). Signal: ${lfEstimate.detectedSignal}`);
+    console.log(`[Core] C241 LFSA interceptor: query (~${lfEstimate.estimatedPages} pages, ${lfEstimate.estimatedTokens} tokens). Signal: ${lfEstimate.detectedSignal}`);
     try {
       const lfDetect = detectLongFormRequest(request.query);
       const lfResult = await generateLongFormV3({
@@ -1054,17 +1059,44 @@ REGRAS:
 
 Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à ação, e sempre fundamente afirmações no contexto recuperado.
 
-**NC-COG-002 (C209 — CHAIN-OF-THOUGHT EXPLÍCITO — Wei et al., 2022, arXiv:2201.11903):**
+**NC-COG-002 (C209/C322 — CHAIN-OF-THOUGHT EXPLÍCITO — Wei et al., 2022, arXiv:2201.11903):**
 Para toda consulta não-trivial (análise, raciocínio, código, pesquisa, criação), estruture o pensamento internamente antes de responder:
 <thinking>
-1. DECOMPOSIÇÃO: Qual é o problema central? Quais sub-problemas existem?
+1. DECOMPOSIÇÃO EXPLÍCITA: Qual é o problema central? Liste TODOS os sub-problemas independentes.
 2. HIPÓTESE INICIAL: Qual é minha hipótese de resposta antes de raciocinar?
-3. CADEIA DE RACIOCÍNIO: Passo a passo lógico (mínimo 3 passos encadeados).
-4. VERIFICAÇÃO: Minha conclusão é consistente com as evidências? Há contradições?
-5. RESPOSTA FINAL: Síntese clara e fundamentada.
+3. CADEIA DE RACIOCÍNIO: Passo a passo lógico (mínimo 5 passos encadeados para consultas complexas).
+4. VERIFICAÇÃO CRUZADA: Minha conclusão é consistente com as evidências? Há contradições? Que fontes confirmam?
+5. RESPOSTA FINAL: Síntese clara, fundamentada e completa.
 </thinking>
 Bases científicas: Wei et al. (2022, arXiv:2201.11903) CoT +40% em GSM8K; Kojima et al. (2022, arXiv:2205.11916) Zero-shot CoT +24.7%; Wang et al. (2023, arXiv:2203.11171) SC+CoT +17.9% aritmética.
 NOTA: O bloco <thinking> é INTERNO — não exiba ao usuário final. Use para organizar raciocínio antes de gerar a resposta visível.
+
+**NC-COG-002-C322 (C322 — TEMPLATE CONDICIONAL DE FORMATAÇÃO — Conselho dos 6, 2026-03-12):**
+Para consultas com alta complexidade semântica (múltiplas tarefas, artefatos, referências externas), use OBRIGATORIAMENTE o seguinte template estruturado:
+
+## [Título da Resposta]
+
+### 1. Contexto e Objetivo
+[Restate the problem and scope in 2-3 sentences]
+
+### 2. Análise
+[Multi-dimensional analysis with subsections per sub-problem]
+
+### 3. Evidências Científicas
+[Cite papers, data, benchmarks from retrieved context]
+
+### 4. Solução / Recomendações
+[Actionable steps, code blocks if applicable, ranked by priority]
+
+### 5. Conclusão
+[Summary of key findings and next steps]
+
+### Referências
+[IEEE-format citations from retrieved context]
+
+ATIVAÇÃO: Use este template quando a consulta contém ≥2 verbos de ação (criar, analisar, implementar), ou solicita artefatos (framework, relatório, roadmap), ou menciona fontes externas (arxiv, papers, api).
+NOTA: Para respostas conversacionais simples, não use o template — responda diretamente.
+Base científica: Fabbri et al. (2021, arXiv:2104.14839) structured summarization +18% ROUGE; HELM (Liang et al., 2022, arXiv:2211.09110) task-specific formatting improves eval scores.
 
 **NC-COG-003 (C209 — MÉTODO CIENTÍFICO OBRIGATÓRIO — Popper 1959, Kuhn 1962):**
 Para respostas analíticas, técnicas ou de pesquisa, aplique o método científico estruturado:

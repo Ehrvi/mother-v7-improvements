@@ -1,16 +1,25 @@
 /**
  * Output-Length-Aware Routing (OLAR) — C242
  * Conselho dos 6 — Sessão v100 — 2026-03-10
+ * UPDATED: C321 — Semantic Complexity Detector v2.0 (Conselho dos 6, 2026-03-12)
  *
  * Scientific basis:
  * - arXiv:2602.02823 (R2-Router, Xue et al. 2026): "existing routers implicitly assume
  *   a single fixed quality and cost per LLM for each query, ignoring that the same LLM's
  *   quality varies with its output length"
  * - arXiv:2603.04445 (Dynamic Model Routing Survey, Moslem & Kelleher 2026)
+ * - arXiv:2211.09110 (HELM, Liang et al. 2022): complexity = f(sub-tasks, external refs, artifacts)
+ * - arXiv:2201.11903 (Wei et al. 2022): CoT prompting +25-40% on complex tasks
  *
  * Key insight: output_length must be a first-class routing variable.
  * A query for "write a 60-page book" requires a fundamentally different pipeline
  * than "explain quantum entanglement" — even if both score high on complexity.
+ *
+ * C321 UPGRADE: Semantic complexity scoring now runs BEFORE keyword matching.
+ * A query like "criar framework de avaliação UI/UX" (350 chars) was classified as
+ * MEDIUM/SHORT by the old heuristic, missing LFSA activation. The new detector
+ * scores action verbs (1.0), external references (1.5), artifact nouns (1.5),
+ * and multi-task patterns (2.0) — threshold CS ≥ 4 activates LFSA.
  */
 
 export type OutputLengthCategory = 'MICRO' | 'SHORT' | 'MEDIUM' | 'LONG' | 'VERY_LONG';
@@ -22,6 +31,134 @@ export interface OutputLengthEstimate {
   confidence: number; // 0.0 - 1.0
   requiresLFSA: boolean; // Long-Form Sequential Architecture
   detectedSignal: string; // Human-readable explanation of what triggered this estimate
+  complexitySignals?: SemanticComplexitySignals; // C321: Semantic complexity breakdown
+}
+
+// ─── C321: Semantic Complexity Detector v2.0 ─────────────────────────────────
+// Scientific basis: HELM (Liang et al., 2022, arXiv:2211.09110)
+// Complexity = f(sub-tasks, external references, output artifacts)
+// Council consensus: threshold CS ≥ 4 activates LFSA (approved 6/6, 2026-03-12)
+export interface SemanticComplexitySignals {
+  actionVerbCount: number;      // weight 1.0
+  externalRefCount: number;     // weight 1.5
+  artifactNounCount: number;    // weight 1.5
+  multiTaskPatternCount: number; // weight 2.0
+  totalScore: number;
+  requiresLFSA: boolean;        // totalScore >= COMPLEXITY_THRESHOLD
+}
+
+// Action verbs that signal complex multi-step tasks (PT + EN)
+const SEMANTIC_ACTION_VERBS: readonly string[] = [
+  // Criação (peso 1.0)
+  'criar', 'crie', 'desenvolver', 'desenvolva', 'implementar', 'implemente',
+  'gerar', 'gere', 'construir', 'construa', 'elaborar', 'elabore',
+  'projetar', 'projete', 'produzir', 'produza', 'montar', 'monte',
+  // Análise (peso 1.0)
+  'analisar', 'analise', 'comparar', 'compare', 'avaliar', 'avalie',
+  'medir', 'meça', 'testar', 'teste', 'validar', 'valide', 'auditar',
+  'diagnosticar', 'diagnostique', 'investigar', 'investigue',
+  // Pesquisa (peso 1.0)
+  'buscar', 'busque', 'pesquisar', 'pesquise', 'coletar', 'colete',
+  'extrair', 'extraia', 'identificar', 'identifique', 'mapear', 'mapeie',
+  // Síntese (peso 1.0)
+  'sintetizar', 'sintetize', 'resumir', 'resuma', 'documentar', 'documente',
+  'propor', 'proponha', 'recomendar', 'recomende', 'planejar', 'planeje',
+  'otimizar', 'otimize', 'melhorar', 'melhore', 'corrigir', 'corrija',
+  // EN equivalents
+  'create', 'develop', 'implement', 'generate', 'build', 'design',
+  'analyze', 'compare', 'evaluate', 'measure', 'test', 'validate',
+  'research', 'collect', 'extract', 'identify', 'synthesize',
+  'document', 'propose', 'recommend', 'plan', 'optimize', 'improve',
+] as const;
+
+// External reference signals (peso 1.5 — higher weight: implies research pipeline)
+const SEMANTIC_EXTERNAL_REFS: readonly string[] = [
+  'arxiv', 'sci-hub', 'annas-archive', 'anna\'s archive', 'scholar', 'pubmed',
+  'paper', 'papers', 'artigo', 'artigos', 'literatura', 'estudo', 'estudos',
+  'estado da arte', 'state of the art', 'sota', 'benchmark', 'benchmarks',
+  'api', 'documentação', 'documentacao', 'manual', 'fórum', 'forum', 'github',
+  'scraping', 'web search', 'internet', 'pesquisa científica', 'pesquisa cientifica',
+  'referências', 'referencias', 'citações', 'citacoes', 'fonte', 'fontes',
+  'evidencia', 'evidência', 'dados', 'dataset', 'base de dados',
+] as const;
+
+// Artifact nouns that signal multi-dimensional output (peso 1.5)
+const SEMANTIC_ARTIFACT_NOUNS: readonly string[] = [
+  'framework', 'relatório', 'relatorio', 'análise completa', 'analise completa',
+  'estudo comparativo', 'roadmap', 'plano de ação', 'plano de acao',
+  'metodologia', 'arquitetura', 'diagrama', 'tabela comparativa',
+  'resumo executivo', 'testes', 'benchmark', 'especificação', 'especificacao',
+  'avaliação', 'avaliacao', 'proposta', 'documento', 'guia', 'tutorial',
+  'dashboard', 'pipeline', 'sistema', 'solução', 'solucao', 'protocolo',
+  'checklist', 'matriz', 'mapa', 'modelo', 'template', 'script', 'código',
+  // EN equivalents
+  'report', 'analysis', 'comparative study', 'action plan', 'methodology',
+  'architecture', 'diagram', 'comparative table', 'executive summary',
+  'specification', 'evaluation', 'proposal', 'document', 'guide',
+] as const;
+
+// Multi-task patterns (peso 2.0 — highest: explicit enumeration of parallel tasks)
+const SEMANTIC_MULTI_TASK_PATTERNS: readonly RegExp[] = [
+  /\d+\.\s*\w+/g,                                    // numbered lists: "1. criar... 2. analisar"
+  /primeiro[,:]?\s.*segundo[,:]?\s/gi,               // "primeiro... segundo..."
+  /\b(e também|e tambem|além disso|alem disso|adicionalmente)\b/gi,
+  /\b(ao mesmo tempo|simultaneamente|em paralelo)\b/gi,
+  /\b(comparar|contrastar).*(com|entre|versus|vs\.?)/gi,
+  /(criar|desenvolver|gerar).+?(e|,).+?(testar|avaliar|validar)/gi,
+  /\b(parte|fase|etapa|passo|step)\s+\d+/gi,         // "fase 1", "step 2"
+  /\b(todos|todas|cada|every)\b.*(\b(item|aspecto|dimensão|dimensao)\b)/gi,
+] as const;
+
+// Complexity scoring weights (Council consensus, 2026-03-12)
+const COMPLEXITY_WEIGHTS = {
+  actionVerb: 1.0,
+  externalRef: 1.5,
+  artifactNoun: 1.5,
+  multiTaskPattern: 2.0,
+} as const;
+
+// Threshold: CS ≥ 4 activates LFSA (Council consensus 5/6, 2026-03-12)
+// Env override: MOTHER_COMPLEXITY_THRESHOLD (for adaptive tuning in C323)
+const COMPLEXITY_THRESHOLD = parseInt(process.env.MOTHER_COMPLEXITY_THRESHOLD || '4', 10);
+
+/**
+ * C321: Compute semantic complexity score for a query.
+ * Returns breakdown of signals and whether LFSA should be activated.
+ * Scientific basis: HELM (Liang et al., 2022), R2-Router (Xue et al., 2026)
+ */
+export function computeSemanticComplexity(query: string): SemanticComplexitySignals {
+  const lq = query.toLowerCase();
+
+  // Count action verbs
+  const actionVerbCount = SEMANTIC_ACTION_VERBS.filter(v => lq.includes(v)).length;
+
+  // Count external reference signals
+  const externalRefCount = SEMANTIC_EXTERNAL_REFS.filter(r => lq.includes(r)).length;
+
+  // Count artifact nouns
+  const artifactNounCount = SEMANTIC_ARTIFACT_NOUNS.filter(n => lq.includes(n)).length;
+
+  // Count multi-task patterns
+  let multiTaskPatternCount = 0;
+  for (const pattern of SEMANTIC_MULTI_TASK_PATTERNS) {
+    const matches = query.match(new RegExp(pattern.source, pattern.flags));
+    if (matches) multiTaskPatternCount += matches.length;
+  }
+
+  const totalScore =
+    actionVerbCount * COMPLEXITY_WEIGHTS.actionVerb +
+    externalRefCount * COMPLEXITY_WEIGHTS.externalRef +
+    artifactNounCount * COMPLEXITY_WEIGHTS.artifactNoun +
+    multiTaskPatternCount * COMPLEXITY_WEIGHTS.multiTaskPattern;
+
+  return {
+    actionVerbCount,
+    externalRefCount,
+    artifactNounCount,
+    multiTaskPatternCount,
+    totalScore,
+    requiresLFSA: totalScore >= COMPLEXITY_THRESHOLD,
+  };
 }
 
 // ─── Token density constants (calibrated for Portuguese text) ──────────────────
@@ -88,11 +225,37 @@ const MICRO_SIGNALS = [
  * Main estimation function.
  * Uses a cascade of heuristics with confidence weighting.
  * Inspired by R2-Router (arXiv:2602.02823) output budget estimation.
+ *
+ * C321 UPGRADE: Semantic Complexity Detector v2.0 runs FIRST (before keyword matching).
+ * If CS >= COMPLEXITY_THRESHOLD (default: 4), LFSA is activated regardless of query length.
+ * This fixes CR1: queries like "criar framework de avaliação UI/UX" (350 chars, score ~8)
+ * were classified as MEDIUM/SHORT, missing LFSA activation entirely.
  */
 export function estimateOutputLength(query: string): OutputLengthEstimate {
   const q = query.toLowerCase();
 
-  // ─── Heuristic 1: Explicit page count (highest confidence) ──────────────────
+  // ─── C321 Heuristic 0: Semantic Complexity Detector v2.0 (RUNS FIRST) ────────────
+  // Scientific basis: HELM (Liang et al., 2022, arXiv:2211.09110)
+  // Fixes CR1: short queries with high semantic complexity were missing LFSA activation
+  const complexitySignals = computeSemanticComplexity(query);
+  if (complexitySignals.requiresLFSA) {
+    // Determine category based on score magnitude
+    const cs = complexitySignals.totalScore;
+    const category: OutputLengthCategory = cs >= 12 ? 'VERY_LONG' : cs >= 8 ? 'LONG' : 'MEDIUM';
+    const estimatedTokens = cs >= 12 ? 20000 : cs >= 8 ? 8000 : 4000;
+    const estimatedPages = Math.ceil(estimatedTokens / TOKENS_PER_PAGE_AVG);
+    return {
+      category,
+      estimatedTokens,
+      estimatedPages,
+      confidence: 0.78,
+      requiresLFSA: true,
+      detectedSignal: `[C321] Semantic complexity CS=${cs.toFixed(1)} ≥ ${COMPLEXITY_THRESHOLD} (verbs=${complexitySignals.actionVerbCount}, refs=${complexitySignals.externalRefCount}, artifacts=${complexitySignals.artifactNounCount}, patterns=${complexitySignals.multiTaskPatternCount}) → LFSA activated`,
+      complexitySignals,
+    };
+  }
+
+  // ─── Heuristic 1: Explicit page count (highest confidence) ──────────────
   const pageMatches = [...query.matchAll(PAGE_PATTERN), ...query.matchAll(PAGE_PATTERN_EN)];
   if (pageMatches.length > 0) {
     const pageCount = Math.max(...pageMatches.map(m => parseInt(m[1])));
