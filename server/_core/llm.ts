@@ -502,16 +502,46 @@ async function invokeGoogle(params: InvokeParams): Promise<InvokeResult> {
     typeof m.content === "string" ? m.content : JSON.stringify(m.content)
   ).join("\n\n");
 
-  // Convert to Gemini format
+  // C273: Convert to Gemini format with Vision support (multimodal image analysis)
+  // Scientific basis: Gemini 2.5 Pro Vision (Google, 2025) — MMMU 72.7%, DocVQA 93.1%
+  // Gemini API image format: https://ai.google.dev/api/generate-content#v1beta.Part
   const geminiContents = conversationMessages.map(msg => {
-    const text = typeof msg.content === "string"
-      ? msg.content
-      : Array.isArray(msg.content)
-        ? msg.content.map(c => typeof c === "string" ? c : JSON.stringify(c)).join("")
-        : JSON.stringify(msg.content);
-
+    // Handle multimodal content (text + images)
+    if (Array.isArray(msg.content)) {
+      const parts: Array<Record<string, unknown>> = [];
+      for (const part of msg.content) {
+        if (typeof part === 'string') {
+          parts.push({ text: part });
+        } else if (part.type === 'text') {
+          parts.push({ text: (part as TextContent).text });
+        } else if (part.type === 'image_url') {
+          // C273: Convert image_url to Gemini inlineData (base64) or fileData (URL)
+          const imgPart = part as ImageContent;
+          const url = imgPart.image_url.url;
+          if (url.startsWith('data:')) {
+            // Base64 inline image: data:image/jpeg;base64,<data>
+            const commaIdx = url.indexOf(',');
+            const header = url.slice(0, commaIdx); // e.g. 'data:image/jpeg;base64'
+            const data = url.slice(commaIdx + 1);
+            const mimeType = header.split(':')[1]?.split(';')[0] || 'image/jpeg';
+            parts.push({ inlineData: { mimeType, data } });
+          } else {
+            // URL-based image: use fileData for Gemini (requires Google File API or direct URL)
+            parts.push({ fileData: { mimeType: 'image/jpeg', fileUri: url } });
+          }
+        } else {
+          parts.push({ text: JSON.stringify(part) });
+        }
+      }
+      return {
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts,
+      };
+    }
+    // Plain text content (no images)
+    const text = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
     return {
-      role: msg.role === "assistant" ? "model" : "user",
+      role: msg.role === 'assistant' ? 'model' : 'user',
       parts: [{ text }],
     };
   });

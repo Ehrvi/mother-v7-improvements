@@ -43,7 +43,8 @@ import healthRouter from '../routes/health.js'; // C249: /api/health + /api/vers
 import { processQuery as _processQuery } from '../mother/core.js';
 import { runSelfAudit } from '../mother/self-audit-engine.js';
 import { runHourlyAggregation } from '../mother/metrics-aggregation-job.js'; // v69.12: Fix P0 — system_metrics aggregation
-import { warmCache } from '../mother/semantic-cache.js'; // C175: Cache warming on startup — fixes 12% hit rate (warmCache was only in index.ts, not production-entry.ts)
+import { warmCache, schedulePrefetchRefresh } from '../mother/semantic-cache.js'; // C175: Cache warming on startup — fixes 12% hit rate (warmCache was only in index.ts, not production-entry.ts)
+// C276: schedulePrefetchRefresh — periodic prefetch of top-50 frequent queries every 6h (Denning 1968 Working Set Model)
 import { getTwinState, getAlerts, getSensorHistory, startSimulator, stopSimulator } from '../mother/shms-digital-twin.js'; // C179: SHMS Digital Twin REST routes
 import { handleSHMSAnalyze, handleSHMSCalibration } from '../mother/shms-analyze-endpoint.js'; // C182: Sprint 7 — SHMS analyze + G-Eval geotechnical
 import { injectSprintKnowledge } from '../mother/council-v4-sprint-knowledge.js'; // C179: Knowledge injection on startup
@@ -523,16 +524,16 @@ app.post('/api/mother/stream', async (req, res) => {
     // If no real-time streaming occurred (e.g., cache hit, MoA/Debate path), stream the final text
     // Scientific basis: Xiao et al. (arXiv:2309.17453) — avoid duplicate tokens in hybrid mode
     const finalText = result.response || '';
+    const CHUNK_SIZE = 16; // C260: 16 chars per chunk (~4 tokens) — faster streaming
     if (_streamingTokenCount === 0) {
       // No real-time streaming happened (cache hit, orchestration path, etc.) — stream now
-      const CHUNK_SIZE = 16; // C260: 16 chars per chunk (~4 tokens) — faster streaming
       for (let i = 0; i < finalText.length; i += CHUNK_SIZE) {
         sendEvent('token', { text: finalText.slice(i, i + CHUNK_SIZE) });
       }
     } else {
       // C267: Real-time tokens already sent — emit 'stream_complete' to signal end of token stream
       // The final 'response' event will contain the complete post-processed text
-       sendEvent('stream_complete', { tokens_sent: _streamingTokenCount, elapsed_ms: Date.now() - _ttftStart });
+      sendEvent('stream_complete', { tokens_sent: _streamingTokenCount, elapsed_ms: Date.now() - _ttftStart });
     }
     // Emit the final complete response (with metadata + TTFT metrics)
     const totalTime = Date.now() - _ttftStart;
@@ -885,6 +886,7 @@ app.listen(PORT, '0.0.0.0', async () => {
       getDemoMRRProjection,
       getSLAReport,
       warmCache,
+      schedulePrefetchRefresh, // C276: Prefetch top-50 frequent queries every 6h — P50 latency 37s→10s
       scheduleDGMLoopC203,
       getDGMLoopC203Status,
       scheduleHippoRAG2IndexingC204,

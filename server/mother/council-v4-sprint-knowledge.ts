@@ -218,6 +218,33 @@ export const COUNCIL_V102_KNOWLEDGE = [
   },
 ];
 
+// C259-THRESHOLDS: Type definition for sprint knowledge entries
+interface SprintKnowledgeEntry {
+  title: string;
+  content: string;
+  category?: string;
+  domain?: string;
+  tags?: string[];
+}
+
+// C259-THRESHOLDS: Helper to inject a knowledge entry only if it doesn't exist
+async function injectIfNotExists(db: any, entry: SprintKnowledgeEntry): Promise<void> {
+  const hash = crypto.createHash('sha256').update(entry.title + entry.content).digest('hex').slice(0, 16);
+  try {
+    await db.insert(knowledge).values({
+      title: entry.title,
+      content: entry.content,
+      source: `C259 Threshold Knowledge hash:${hash}`,
+      sourceType: 'learning' as const,
+      domain: entry.domain ?? entry.category ?? 'benchmark',
+    });
+  } catch (err: any) {
+    if (!err.message?.includes('duplicate') && !err.message?.includes('Duplicate')) {
+      console.error('[SprintKnowledge] injectIfNotExists failed:', err.message);
+    }
+  }
+}
+
 // C259-THRESHOLDS: Manus vs SOTA vs MOTHER calibration (11 Mar 2026)
 const MANUS_THRESHOLD_KNOWLEDGE: SprintKnowledgeEntry[] = [
   {

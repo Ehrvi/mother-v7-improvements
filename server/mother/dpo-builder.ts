@@ -10,8 +10,9 @@
  *
  * Architecture:
  * - Collects (prompt, chosen, rejected) preference pairs from production queries
- * - chosen: responses with quality score ≥ 85/100 AND scientific references
+ * - chosen: responses with quality score ≥ 90/100 AND scientific references (C277: raised from 85)
  * - rejected: responses with quality score < 70/100 OR no scientific grounding
+ * - C277: MODPO multi-objective: quality + scientific_refs + latency composite score
  * - Exports in Hugging Face datasets format for fine-tuning with TRL/Axolotl
  * - Implements curriculum learning: pairs sorted by difficulty (Δquality ascending)
  *
@@ -96,9 +97,11 @@ export async function buildDPODataset(limit: number = 500): Promise<DPODataset> 
     .orderBy(desc(queries.createdAt))
     .limit(limit * 4);
 
-  // Separate into high-quality (chosen) and low-quality (rejected) pools
+  // C277: DPO v9 — Separate into high-quality (chosen) and low-quality (rejected) pools
+  // Threshold raised from Q≥85 to Q≥90 (Conselho V102 requirement: maximum quality)
+  // Scientific basis: MODPO (Wang et al., arXiv:2310.03708, 2023) multi-objective DPO
   const chosenPool = allQueries.filter(q =>
-    q.qualityScore !== null && parseFloat(q.qualityScore || '0') >= 85
+    q.qualityScore !== null && parseFloat(q.qualityScore || '0') >= 90
   );
   const rejectedPool = allQueries.filter(q =>
     q.qualityScore !== null && parseFloat(q.qualityScore || '0') < 70

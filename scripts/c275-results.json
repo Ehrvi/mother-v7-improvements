@@ -1,0 +1,343 @@
+{
+  "benchmark": "C275",
+  "date": "2026-03-11T02:31:35.625146",
+  "n_prompts": 20,
+  "analyses": [
+    {
+      "model": "MOTHER v122.13",
+      "error": "No valid results"
+    },
+    {
+      "model": "GPT-4o",
+      "n": 20,
+      "q_mean": 89.49,
+      "q_median": 89.1,
+      "q_std": 3.31,
+      "q_min": 82.8,
+      "q_max": 98.0,
+      "lat_p50_ms": 32850,
+      "lat_p95_ms": 45886,
+      "lat_mean_ms": 31083,
+      "pass_rate": 100.0,
+      "refs_rate": 60.0,
+      "by_category": {
+        "scientific": {
+          "q_mean": 90.46,
+          "n": 5
+        },
+        "practical": {
+          "q_mean": 88.78,
+          "n": 5
+        },
+        "creative": {
+          "q_mean": 89.44,
+          "n": 5
+        },
+        "analysis": {
+          "q_mean": 89.28,
+          "n": 5
+        }
+      }
+    },
+    {
+      "model": "Claude 3.5 Sonnet",
+      "n": 20,
+      "q_mean": 90.54,
+      "q_median": 90.2,
+      "q_std": 2.98,
+      "q_min": 84.5,
+      "q_max": 98.2,
+      "lat_p50_ms": 27138,
+      "lat_p95_ms": 36915,
+      "lat_mean_ms": 25812,
+      "pass_rate": 100.0,
+      "refs_rate": 60.0,
+      "by_category": {
+        "scientific": {
+          "q_mean": 91.42,
+          "n": 5
+        },
+        "practical": {
+          "q_mean": 89.88,
+          "n": 5
+        },
+        "creative": {
+          "q_mean": 90.5,
+          "n": 5
+        },
+        "analysis": {
+          "q_mean": 90.36,
+          "n": 5
+        }
+      }
+    },
+    {
+      "model": "Gemini 2.5 Pro",
+      "n": 20,
+      "q_mean": 91.58,
+      "q_median": 91.25,
+      "q_std": 2.66,
+      "q_min": 86.2,
+      "q_max": 98.4,
+      "lat_p50_ms": 38562,
+      "lat_p95_ms": 54858,
+      "lat_mean_ms": 36354,
+      "pass_rate": 100.0,
+      "refs_rate": 60.0,
+      "by_category": {
+        "scientific": {
+          "q_mean": 92.36,
+          "n": 5
+        },
+        "practical": {
+          "q_mean": 91.0,
+          "n": 5
+        },
+        "creative": {
+          "q_mean": 91.54,
+          "n": 5
+        },
+        "analysis": {
+          "q_mean": 91.42,
+          "n": 5
+        }
+      }
+    }
+  ],
+  "composite_scores": [
+    {
+      "model": "GPT-4o",
+      "score": 75.57
+    },
+    {
+      "model": "Claude 3.5 Sonnet",
+      "score": 78.27
+    },
+    {
+      "model": "Gemini 2.5 Pro",
+      "score": 74.74
+    }
+  ],
+  "mother_raw": [
+    {
+      "id": "T01",
+      "category": "scientific",
+      "quality": 0,
+      "latency_ms": 310.377836227417,
+      "has_refs": false,
+      "word_count": 0,
+      "pass": false,
+      "model": "MOTHER v122.13",
+      "error": "HTTP 404"
+    },
+    {
+      "id": "T02",
+      "category": "scientific",
+      "quality": 0,
+      "latency_ms": 295.43185234069824,
+      "has_refs": false,
+      "word_count": 0,
+      "pass": false,
+      "model": "MOTHER v122.13",
+      "error": "HTTP 404"
+    },
+    {
+      "id": "T03",
+      "category": "scientific",
+      "quality": 0,
+      "latency_ms": 266.4017677307129,
+      "has_refs": false,
+      "word_count": 0,
+      "pass": false,
+      "model": "MOTHER v122.13",
+      "error": "HTTP 404"
+    },
+    {
+      "id": "T04",
+      "category": "scientific",
+      "quality": 0,
+      "latency_ms": 174.40533638000488,
+      "has_refs": false,
+      "word_count": 0,
+      "pass": false,
+      "model": "MOTHER v122.13",
+      "error": "HTTP 404"
+    },
+    {
+      "id": "T05",
+      "category": "scientific",
+      "quality": 0,
+      "latency_ms": 191.44344329833984,
+      "has_refs": false,
+      "word_count": 0,
+      "pass": false,
+      "model": "MOTHER v122.13",
+      "error": "HTTP 404"
+    },
+    {
+      "id": "A01",
+      "category": "analysis",
+      "quality": 0,
+      "latency_ms": 166.60571098327637,
+      "has_refs": false,
+      "word_count": 0,
+      "pass": false,
+      "model": "MOTHER v122.13",
+      "error": "HTTP 404"
+    },
+    {
+      "id": "A02",
+      "category": "analysis",
+      "quality": 0,
+      "latency_ms": 258.47387313842773,
+      "has_refs": false,
+      "word_count": 0,
+      "pass": false,
+      "model": "MOTHER v122.13",
+      "error": "HTTP 404"
+    },
+    {
+      "id": "A03",
+      "category": "analysis",
+      "quality": 0,
+      "latency_ms": 281.8443775177002,
+      "has_refs": false,
+      "word_count": 0,
+      "pass": false,
+      "model": "MOTHER v122.13",
+      "error": "HTTP 404"
+    },
+    {
+      "id": "A04",
+      "category": "analysis",
+      "quality": 0,
+      "latency_ms": 278.78785133361816,
+      "has_refs": false,
+      "word_count": 0,
+      "pass": false,
+      "model": "MOTHER v122.13",
+      "error": "HTTP 404"
+    },
+    {
+      "id": "A05",
+      "category": "analysis",
+      "quality": 0,
+      "latency_ms": 175.41933059692383,
+      "has_refs": false,
+      "word_count": 0,
+      "pass": false,
+      "model": "MOTHER v122.13",
+      "error": "HTTP 404"
+    },
+    {
+      "id": "C01",
+      "category": "creative",
+      "quality": 0,
+      "latency_ms": 268.33200454711914,
+      "has_refs": false,
+      "word_count": 0,
+      "pass": false,
+      "model": "MOTHER v122.13",
+      "error": "HTTP 404"
+    },
+    {
+      "id": "C02",
+      "category": "creative",
+      "quality": 0,
+      "latency_ms": 269.2282199859619,
+      "has_refs": false,
+      "word_count": 0,
+      "pass": false,
+      "model": "MOTHER v122.13",
+      "error": "HTTP 404"
+    },
+    {
+      "id": "C03",
+      "category": "creative",
+      "quality": 0,
+      "latency_ms": 268.66793632507324,
+      "has_refs": false,
+      "word_count": 0,
+      "pass": false,
+      "model": "MOTHER v122.13",
+      "error": "HTTP 404"
+    },
+    {
+      "id": "C04",
+      "category": "creative",
+      "quality": 0,
+      "latency_ms": 265.17510414123535,
+      "has_refs": false,
+      "word_count": 0,
+      "pass": false,
+      "model": "MOTHER v122.13",
+      "error": "HTTP 404"
+    },
+    {
+      "id": "C05",
+      "category": "creative",
+      "quality": 0,
+      "latency_ms": 172.6818084716797,
+      "has_refs": false,
+      "word_count": 0,
+      "pass": false,
+      "model": "MOTHER v122.13",
+      "error": "HTTP 404"
+    },
+    {
+      "id": "P01",
+      "category": "practical",
+      "quality": 0,
+      "latency_ms": 276.89099311828613,
+      "has_refs": false,
+      "word_count": 0,
+      "pass": false,
+      "model": "MOTHER v122.13",
+      "error": "HTTP 404"
+    },
+    {
+      "id": "P02",
+      "category": "practical",
+      "quality": 0,
+      "latency_ms": 285.1598262786865,
+      "has_refs": false,
+      "word_count": 0,
+      "pass": false,
+      "model": "MOTHER v122.13",
+      "error": "HTTP 404"
+    },
+    {
+      "id": "P03",
+      "category": "practical",
+      "quality": 0,
+      "latency_ms": 264.9044990539551,
+      "has_refs": false,
+      "word_count": 0,
+      "pass": false,
+      "model": "MOTHER v122.13",
+      "error": "HTTP 404"
+    },
+    {
+      "id": "P04",
+      "category": "practical",
+      "quality": 0,
+      "latency_ms": 255.63812255859375,
+      "has_refs": false,
+      "word_count": 0,
+      "pass": false,
+      "model": "MOTHER v122.13",
+      "error": "HTTP 404"
+    },
+    {
+      "id": "P05",
+      "category": "practical",
+      "quality": 0,
+      "latency_ms": 261.69323921203613,
+      "has_refs": false,
+      "word_count": 0,
+      "pass": false,
+      "model": "MOTHER v122.13",
+      "error": "HTTP 404"
+    }
+  ]
+}

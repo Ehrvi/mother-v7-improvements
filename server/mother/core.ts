@@ -150,7 +150,7 @@ import { applyCalibrationV2, recordCalibrationObservation as recordCalV2, getCal
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v122.13'; // C267-C274 (2026-03-11): Conselho V102 — Streaming Gemini (C267), Metrics Dashboard (C268), Self-Refine Q<88 (C269), Gemini 2.5 Pro TIER_4 (C271), Long-term Memory A-MEM (C272), Web Search Outdated (C274)
+export const MOTHER_VERSION = 'v122.14'; // C275-C280 (2026-03-11): Conselho V102 — Benchmark SOTA (C275), Cache Prefetch (C276), DPO v9 Q≥90 (C277), Gemini Vision (C273+C278), Tool Use Calc+Fetch (C279), Final Eval 78.4/100 (C280), TypeScript Build Fix
 
 const log = createLogger('CORE');
 

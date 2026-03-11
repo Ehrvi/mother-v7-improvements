@@ -97,6 +97,7 @@ export async function registerAllStartupTasks(
     getDemoMRRProjection,
     getSLAReport,
     warmCache,
+    schedulePrefetchRefresh,
     scheduleDGMLoopC203,
     getDGMLoopC203Status,
     scheduleHippoRAG2IndexingC204,
@@ -431,7 +432,19 @@ export async function registerAllStartupTasks(
     cycle: 'C198',
   });
 
-  // ── T25: Hourly Aggregation (1h interval) ───────────────────────────────
+  // ── T26: Prefetch Refresh C276 (24s) ──────────────────────────────────
+  startupScheduler.register({
+    name: 'prefetch-refresh-c276',
+    delayMs: 24000,
+    fn: async () => {
+      schedulePrefetchRefresh();
+      log.info('[C276] Prefetch Refresh AGENDADO — top-50 queries a cada 6h | Varnish Cache + Dean & Barroso (2013) CACM');
+    },
+    nonCritical: true,
+    cycle: 'C276',
+  });
+
+  // ── T25: Hourly Aggregation (1h interval) ───────────────────────────
   startupScheduler.register({
     name: 'hourly-aggregation',
     delayMs: 60 * 60 * 1000,
@@ -481,6 +494,7 @@ export interface StartupTaskImports {
   getDemoMRRProjection: () => any;
   getSLAReport: (period: string) => Promise<any>;
   warmCache: () => Promise<void>;
+  schedulePrefetchRefresh: () => void; // C276: Periodic prefetch of top-50 frequent queries every 6h
   scheduleDGMLoopC203: () => void;
   getDGMLoopC203Status: () => any;
   scheduleHippoRAG2IndexingC204: () => void;

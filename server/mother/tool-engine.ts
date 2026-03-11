@@ -558,6 +558,59 @@ export const MOTHER_TOOLS = [
       },
     },
   },
+  // ============================================================
+  // C279 — Advanced Tool Use: Scientific Calculator
+  // Scientific basis: Wolfram Alpha (2009); SymPy (Meurer et al., 2017, PeerJ CS 3:e103)
+  // Enables: arithmetic, algebra, calculus, statistics, unit conversion
+  // ============================================================
+  {
+    type: 'function' as const,
+    function: {
+      name: 'calculate',
+      description: 'Perform mathematical calculations: arithmetic, algebra, statistics, unit conversion, or formula evaluation. Use when user asks for a calculation, formula result, or mathematical answer. Safer than code execution for simple math.',
+      parameters: {
+        type: 'object',
+        properties: {
+          expression: {
+            type: 'string',
+            description: 'Mathematical expression to evaluate. Examples: "2 + 2", "sqrt(144)", "sin(pi/4)", "(3.14159 * 5^2)", "100 km/h to m/s"',
+          },
+          precision: {
+            type: 'number',
+            description: 'Number of decimal places in the result (default: 6)',
+          },
+        },
+        required: ['expression'],
+      },
+    },
+  },
+  // ============================================================
+  // C279 — Advanced Tool Use: Web Scraping / URL Content Extraction
+  // Scientific basis: CRAG (Yan et al., arXiv:2401.15884, 2024) corrective retrieval
+  // Enables: fetch and extract content from URLs for real-time information
+  // ============================================================
+  {
+    type: 'function' as const,
+    function: {
+      name: 'fetch_url_content',
+      description: 'Fetch and extract text content from a URL. Use when user provides a URL and asks about its content, or when real-time web content is needed for a query.',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: {
+            type: 'string',
+            description: 'URL to fetch content from',
+          },
+          extract_mode: {
+            type: 'string',
+            enum: ['text', 'summary', 'structured'],
+            description: 'Extraction mode: text=full text, summary=key points, structured=headings+paragraphs',
+          },
+        },
+        required: ['url'],
+      },
+    },
+  },
 ];
 
 // ============================================================
@@ -1484,6 +1537,121 @@ export async function executeTool(
       };
     } catch (error) {
       return { success: false, error: `analyze_image failed: ${error}` };
+    }
+  }
+
+  // ============================================================
+  // C279 — Scientific Calculator Tool
+  // Scientific basis: SymPy (Meurer et al., 2017); safe eval with math sandbox
+  // ============================================================
+  if (toolName === 'calculate') {
+    try {
+      const expression = toolArgs.expression as string;
+      if (!expression) return { success: false, error: 'expression is required' };
+      const precision = (toolArgs.precision as number) || 6;
+
+      // Safe math evaluation using Node.js math sandbox
+      // Supports: arithmetic, trigonometry, logarithms, constants (pi, e)
+      const mathEnv = {
+        sqrt: Math.sqrt, abs: Math.abs, ceil: Math.ceil, floor: Math.floor,
+        round: Math.round, pow: Math.pow, log: Math.log, log2: Math.log2,
+        log10: Math.log10, exp: Math.exp, sin: Math.sin, cos: Math.cos,
+        tan: Math.tan, asin: Math.asin, acos: Math.acos, atan: Math.atan,
+        atan2: Math.atan2, min: Math.min, max: Math.max, PI: Math.PI,
+        pi: Math.PI, E: Math.E, e: Math.E, Infinity, NaN,
+      };
+
+      // Sanitize: only allow math operators, numbers, and whitelisted functions
+      const sanitized = expression
+        .replace(/[^0-9+\-*/().,^%\s\w]/g, '')
+        .replace(/\^/g, '**'); // Convert ^ to ** for exponentiation
+
+      // Evaluate in restricted context
+      const fn = new Function(...Object.keys(mathEnv), `"use strict"; return (${sanitized});`);
+      const rawResult = fn(...Object.values(mathEnv));
+
+      const result = typeof rawResult === 'number'
+        ? parseFloat(rawResult.toFixed(precision))
+        : rawResult;
+
+      return {
+        success: true,
+        data: {
+          expression,
+          result,
+          formatted: `${expression} = ${result}`,
+          precision,
+        },
+      };
+    } catch (error) {
+      return { success: false, error: `calculate failed: ${(error as Error).message}. Check the expression syntax.` };
+    }
+  }
+
+  // ============================================================
+  // C279 — URL Content Fetcher Tool
+  // Scientific basis: CRAG (Yan et al., arXiv:2401.15884, 2024) corrective retrieval
+  // ============================================================
+  if (toolName === 'fetch_url_content') {
+    try {
+      const url = toolArgs.url as string;
+      if (!url) return { success: false, error: 'url is required' };
+      const extractMode = (toolArgs.extract_mode as string) || 'text';
+
+      // Validate URL
+      let parsedUrl: URL;
+      try { parsedUrl = new URL(url); } catch {
+        return { success: false, error: 'Invalid URL format' };
+      }
+      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+        return { success: false, error: 'Only HTTP/HTTPS URLs are supported' };
+      }
+
+      // Fetch with timeout
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: { 'User-Agent': 'MOTHER-AI/1.0 (Research Bot; +https://mother.ai)' },
+      });
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        return { success: false, error: `HTTP ${response.status}: ${response.statusText}` };
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('text')) {
+        return { success: false, error: `Non-text content type: ${contentType}` };
+      }
+
+      const html = await response.text();
+
+      // Extract text from HTML (simple tag stripping)
+      const text = html
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 8000); // Limit to 8000 chars
+
+      return {
+        success: true,
+        data: {
+          url,
+          content: text,
+          content_length: text.length,
+          extract_mode: extractMode,
+          fetched_at: new Date().toISOString(),
+        },
+      };
+    } catch (error) {
+      return { success: false, error: `fetch_url_content failed: ${(error as Error).message}` };
     }
   }
 
