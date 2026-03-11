@@ -162,7 +162,7 @@ import { estimateOutputLength } from './output-length-estimator'; // C241/C242: 
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v122.19'; // C305-C306 (2026-03-11): Conselho V105 programming_book format + code-aware prompts (C305), parallel LFSA + live onChunk streaming (C306)
+export const MOTHER_VERSION = 'v122.20'; // C316-C320 (2026-03-12): Conselho V108 — wiring C311-C315 (C316), DGM supervisor (C317), RLVR→DPO integration (C318), code hygiene (C319), AWAKE V308 (C320)
 
 const log = createLogger('CORE');
 
