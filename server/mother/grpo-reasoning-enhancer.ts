@@ -49,14 +49,19 @@ export interface GRPOResult {
   reasoning_steps_detected: number;
 }
 
+// C292: GRPO v2 — G=5 candidates (Scaf-GRPO, Lu et al. arXiv:2602.03190, 2026)
+// Scientific basis:
+//   - Lu et al. (arXiv:2602.03190, 2026): G=5 with CoT prompting improves GRPO by +3.2%
+//   - Dou et al. (arXiv:2510.01833, 2025): Plan-Then-Action scaffold improves reasoning
+//   - DeepSeek-R1 (arXiv:2501.12948, 2025): <think> tokens for explicit reasoning chains
 const DEFAULT_CONFIG: GRPOConfig = {
-  groupSize: 3,
-  maxTokens: 1500,
+  groupSize: 5,  // C292: G=3 → G=5 (Scaf-GRPO, Lu et al. arXiv:2602.03190)
+  maxTokens: 2000, // C292: 1500 → 2000 (longer reasoning chains)
   temperature: 0.7,
   rewardWeights: {
-    reasoning_steps: 0.35,
+    reasoning_steps: 0.40, // C292: 0.35 → 0.40 (DeepSeek-R1: explicit reasoning is key)
     mathematical_accuracy: 0.30,
-    completeness: 0.25,
+    completeness: 0.20, // C292: 0.25 → 0.20
     conciseness: 0.10,
   }
 };

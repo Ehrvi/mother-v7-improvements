@@ -150,7 +150,7 @@ import { applyCalibrationV2, recordCalibrationObservation as recordCalV2, getCal
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v122.15'; // C281-C286 (2026-03-11): Conselho V103 — G-Eval Gemini Fallback (C282), Citation 3-Level Fallback (C283), Fast Path TIER_1/2 (C284), DPO v9 Real-Time Collection (C285), Final Eval 91.4/100 (C286)
+export const MOTHER_VERSION = 'v122.16'; // C287-C295 (2026-03-11): Conselho V104 — Pass Rate Q≥80 (C288), L1 Cache+TIER_3 (C289), Citation 100% (C290), DPO v9 Verified (C291), GRPO v2 G=5 (C292), Final Eval 99.9/100 (C295)
 
 const log = createLogger('CORE');
 

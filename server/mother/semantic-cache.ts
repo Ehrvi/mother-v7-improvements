@@ -59,6 +59,11 @@ export interface CacheResult {
 
 // In-memory cache for fast lookups (backed by bd_central for persistence)
 const memoryCache = new Map<string, CacheEntry>();
+// C289: L1 exact-match cache (O(1) lookup, no embedding needed)
+// Scientific basis: Ousterhout (1990) "Why Aren't Operating Systems Getting Faster"
+// Principle: exact-match check before expensive similarity computation
+const exactMatchCache = new Map<string, { response: string; qualityScore: number; expiresAt: Date; hitCount: number }>();
+const MAX_EXACT_ENTRIES = 500;
 // C223 — Calibração de cache semântico (Roadmap Conselho v98, 2026-03-10)
 // SIMILARITY_THRESHOLD: 0.92 → 0.82 → 0.78 → 0.75
 // Scientific basis: GPTCache (Zeng et al., 2023): 0.75 achieves ~70-75% hit rate
@@ -186,9 +191,30 @@ export async function lookupCache(
   query: string,
   tier: string,
 ): Promise<CacheResult> {
-  // Skip cache for TIER_3/TIER_4 complex queries (too unique)
-  if (tier === 'TIER_3' || tier === 'TIER_4') {
-    return { hit: false, reason: 'Cache disabled for complex queries (TIER_3/TIER_4)' };
+  // C289: L1 exact-match check first (O(1), no embedding, <1ms)
+  const exactKey = query.trim().toLowerCase().slice(0, 500);
+  const exactEntry = exactMatchCache.get(exactKey);
+  if (exactEntry && exactEntry.expiresAt > new Date()) {
+    exactEntry.hitCount++;
+    cacheStats.hits++;
+    console.log(`[Cache] L1 exact-match hit (hitCount=${exactEntry.hitCount})`);
+    return {
+      hit: true,
+      entry: {
+        id: 'exact-l1', queryHash: exactKey, queryEmbedding: [], query,
+        response: exactEntry.response, provider: 'cache', model: 'l1-exact',
+        tier, qualityScore: exactEntry.qualityScore, hitCount: exactEntry.hitCount,
+        createdAt: new Date(), expiresAt: exactEntry.expiresAt
+      },
+      similarity: 1.0,
+      reason: 'L1 exact-match cache hit (C289 — O(1) lookup)'
+    };
+  }
+  // C289: Enable TIER_3 semantic cache with shorter TTL (2h)
+  // Previous: TIER_3/TIER_4 always bypassed. Now TIER_3 allowed, TIER_4 still bypassed.
+  // Scientific basis: GPTCache (Zeng et al., 2023) — even complex queries benefit from caching
+  if (tier === 'TIER_4') {
+    return { hit: false, reason: 'Cache disabled for TIER_4 ultra-complex queries' };
   }
   // C223: Skip cache for multi-part queries to ensure complete sub-question coverage
   // Scientific basis: RAGAS answer completeness (Es et al., 2023, arXiv:2309.15217)
@@ -252,8 +278,16 @@ export async function storeInCache(
 ): Promise<void> {
   // Don't cache low-quality responses
   if (qualityScore < 70) return;
-  // Don't cache TIER_3/TIER_4
-  if (tier === 'TIER_3' || tier === 'TIER_4') return;
+  // C289: Cache TIER_3 with shorter TTL (2h). Only skip TIER_4.
+  if (tier === 'TIER_4') return;
+  // C289: Also store in L1 exact-match cache for O(1) future lookups
+  const exactKey = query.trim().toLowerCase().slice(0, 500);
+  const ttlMs = tier === 'TIER_1' ? 24 * 3600000 : tier === 'TIER_2' ? 4 * 3600000 : 2 * 3600000;
+  if (exactMatchCache.size >= MAX_EXACT_ENTRIES) {
+    const firstKey = exactMatchCache.keys().next().value;
+    if (firstKey) exactMatchCache.delete(firstKey);
+  }
+  exactMatchCache.set(exactKey, { response, qualityScore, expiresAt: new Date(Date.now() + ttlMs), hitCount: 0 });
 
   const embedding = await getQueryEmbedding(query);
   if (!embedding) return;

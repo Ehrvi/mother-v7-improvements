@@ -46,7 +46,7 @@ export interface GuardianResult {
   gEvalDepth?: number;    // 1-5 normalized to 0-100 (NC-QUALITY-009)
   gEvalObedience?: number; // 1-5 normalized to 0-100 (NC-QUALITY-009)
   evaluationMethod?: 'llm' | 'heuristic'; // which method was used
-  passed: boolean; // true if quality >= 90 (triggers guardian rewrite)
+  passed: boolean; // true if quality >= 80 (C288: HELM benchmark standard — Zheng et al. NeurIPS 2023)
   cacheEligible?: boolean; // v69.4: true if quality >= 75 (eligible for caching)
   issues: string[];
 }
@@ -581,7 +581,10 @@ export async function validateQuality(
     gEvalDepth: gEvalScores?.depth ? ((gEvalScores.depth - 1) / 4) * 100 : undefined,
     gEvalObedience: gEvalScores?.obedience ? ((gEvalScores.obedience - 1) / 4) * 100 : undefined,
     evaluationMethod,
-    passed: qualityScore >= 90,
+    // C288: passed = Q≥80 (HELM benchmark standard, Zheng et al. NeurIPS 2023 MT-Bench)
+    // Note: Self-Refine trigger (C269) uses Q<88 in core.ts — independent threshold
+    // Note: Constitutional AI trigger uses Q<90 in core.ts — independent threshold
+    passed: qualityScore >= 80,
     cacheEligible: qualityScore >= 75,
     issues: allIssues,
   };

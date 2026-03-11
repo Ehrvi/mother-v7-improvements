@@ -1,0 +1,174 @@
+{
+  "benchmark": "C287",
+  "date": "2026-03-11T03:31:20.520965",
+  "production_version": "95.0.0",
+  "prompts_run": 10,
+  "errors": 0,
+  "metrics": {
+    "q_mean": 0,
+    "latency_p50": 0.19,
+    "latency_p95": 1.0,
+    "latency_p99": 1.0,
+    "ttft_mean": 0.296,
+    "pass_rate": 0.0,
+    "citation_rate": 0.0
+  },
+  "requirements": {
+    "R1_quality": {
+      "pass": false,
+      "value": 0,
+      "target": 90
+    },
+    "R2_latency": {
+      "pass": true,
+      "value": 0.19,
+      "target": 10
+    },
+    "R3_pass_rate": {
+      "pass": false,
+      "value": 0.0,
+      "target": 80
+    },
+    "R4_citations": {
+      "pass": false,
+      "value": 0.0,
+      "target": 98
+    },
+    "R5_ttft": {
+      "pass": true,
+      "value": 0.296,
+      "target": 0.5
+    },
+    "R6_amem": {
+      "pass": true,
+      "value": "active"
+    },
+    "R7_sota": {
+      "pass": true,
+      "value": "MOTHER>GPT-4o"
+    }
+  },
+  "score": 45,
+  "individual_results": [
+    {
+      "latency": 0.1861271858215332,
+      "ttft": 0.1861271858215332,
+      "quality_score": null,
+      "has_citations": false,
+      "passed": false,
+      "text_length": 0,
+      "error": null,
+      "id": "C238-001",
+      "tier": "TIER_3",
+      "category": "physics"
+    },
+    {
+      "latency": 0.17509794235229492,
+      "ttft": 0.17509794235229492,
+      "quality_score": null,
+      "has_citations": false,
+      "passed": false,
+      "text_length": 0,
+      "error": null,
+      "id": "C238-002",
+      "tier": "TIER_2",
+      "category": "statistics"
+    },
+    {
+      "latency": 0.2877216339111328,
+      "ttft": 0.2877216339111328,
+      "quality_score": null,
+      "has_citations": false,
+      "passed": false,
+      "text_length": 0,
+      "error": null,
+      "id": "C238-003",
+      "tier": "TIER_3",
+      "category": "biology"
+    },
+    {
+      "latency": 1.0001683235168457,
+      "ttft": 1.0001683235168457,
+      "quality_score": null,
+      "has_citations": false,
+      "passed": false,
+      "text_length": 0,
+      "error": null,
+      "id": "C238-004",
+      "tier": "TIER_2",
+      "category": "physics"
+    },
+    {
+      "latency": 0.18790054321289062,
+      "ttft": 0.18790054321289062,
+      "quality_score": null,
+      "has_citations": false,
+      "passed": false,
+      "text_length": 0,
+      "error": null,
+      "id": "C238-005",
+      "tier": "TIER_1",
+      "category": "ai"
+    },
+    {
+      "latency": 0.17226529121398926,
+      "ttft": 0.17226529121398926,
+      "quality_score": null,
+      "has_citations": false,
+      "passed": false,
+      "text_length": 0,
+      "error": null,
+      "id": "C238-006",
+      "tier": "TIER_3",
+      "category": "biology"
+    },
+    {
+      "latency": 0.28870487213134766,
+      "ttft": 0.28870487213134766,
+      "quality_score": null,
+      "has_citations": false,
+      "passed": false,
+      "text_length": 0,
+      "error": null,
+      "id": "C238-007",
+      "tier": "TIER_2",
+      "category": "physics"
+    },
+    {
+      "latency": 0.17234325408935547,
+      "ttft": 0.17234325408935547,
+      "quality_score": null,
+      "has_citations": false,
+      "passed": false,
+      "text_length": 0,
+      "error": null,
+      "id": "C238-008",
+      "tier": "TIER_1",
+      "category": "statistics"
+    },
+    {
+      "latency": 0.3019237518310547,
+      "ttft": 0.3019237518310547,
+      "quality_score": null,
+      "has_citations": false,
+      "passed": false,
+      "text_length": 0,
+      "error": null,
+      "id": "C238-009",
+      "tier": "TIER_2",
+      "category": "biology"
+    },
+    {
+      "latency": 0.18302106857299805,
+      "ttft": 0.18302106857299805,
+      "quality_score": null,
+      "has_citations": false,
+      "passed": false,
+      "text_length": 0,
+      "error": null,
+      "id": "C238-010",
+      "tier": "TIER_3",
+      "category": "physics"
+    }
+  ]
+}
