@@ -1,0 +1,150 @@
+{
+  "aggregated": {
+    "n": 10,
+    "SUS": {
+      "mean": 76.2,
+      "std": 6.0
+    },
+    "SUS_scores": [
+      87.5,
+      67.5,
+      72.5,
+      82.5,
+      77.5,
+      70.0,
+      80.0,
+      72.5,
+      77.5,
+      75.0
+    ],
+    "BUS15": {
+      "Efficiency": {
+        "mean": 3.7,
+        "std": 0.5
+      },
+      "Effectiveness": {
+        "mean": 4.1,
+        "std": 0.3
+      },
+      "Satisfaction": {
+        "mean": 3.6,
+        "std": 0.5
+      },
+      "Learnability": {
+        "mean": 3.8,
+        "std": 0.4
+      },
+      "Accessibility": {
+        "mean": 4.0,
+        "std": 0.3
+      },
+      "Overall": {
+        "mean": 3.9,
+        "std": 0.2
+      }
+    },
+    "NASA_TLX": {
+      "Mental Demand": {
+        "mean": 39.8,
+        "std": 7.9
+      },
+      "Physical Demand": {
+        "mean": 13.4,
+        "std": 3.6
+      },
+      "Temporal Demand": {
+        "mean": 23.5,
+        "std": 10.2
+      },
+      "Performance (inv.)": {
+        "mean": 23.1,
+        "std": 9.0
+      },
+      "Effort": {
+        "mean": 36.5,
+        "std": 9.9
+      },
+      "Frustration": {
+        "mean": 25.2,
+        "std": 8.3
+      },
+      "Overall": {
+        "mean": 26.9,
+        "std": 4.1
+      }
+    },
+    "TAM": {
+      "Perceived Usefulness": {
+        "mean": 78.3,
+        "std": 7.1
+      },
+      "Perceived Ease of Use": {
+        "mean": 62.8,
+        "std": 5.9
+      },
+      "Behavioral Intention": {
+        "mean": 65.8,
+        "std": 9.2
+      },
+      "Trust": {
+        "mean": 46.7,
+        "std": 8.0
+      },
+      "Overall": {
+        "mean": 63.4,
+        "std": 4.0
+      }
+    },
+    "UMUX_LITE": {
+      "mean": 72.5,
+      "std": 8.8
+    },
+    "MOTHER_SPECIFIC": {
+      "Citation Quality": {
+        "mean": 80.0,
+        "std": 19.7
+      },
+      "Domain Expertise": {
+        "mean": 90.0,
+        "std": 12.9
+      },
+      "Multi-turn Coherence": {
+        "mean": 72.5,
+        "std": 21.9
+      },
+      "Hallucination Perception": {
+        "mean": 80.0,
+        "std": 10.5
+      },
+      "Response Depth": {
+        "mean": 80.0,
+        "std": 10.5
+      },
+      "Language Quality": {
+        "mean": 90.0,
+        "std": 12.9
+      },
+      "Response Time Perception": {
+        "mean": 57.5,
+        "std": 16.9
+      },
+      "Formatting & Readability": {
+        "mean": 85.0,
+        "std": 12.9
+      },
+      "Overall Satisfaction": {
+        "mean": 75.0,
+        "std": 20.4
+      },
+      "Comparison with Alternatives": {
+        "mean": 75.0,
+        "std": 16.7
+      },
+      "Overall": {
+        "mean": 78.5,
+        "std": 7.0
+      }
+    }
+  },
+  "n": 10
+}

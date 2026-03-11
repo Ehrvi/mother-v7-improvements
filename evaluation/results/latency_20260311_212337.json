@@ -1,0 +1,132 @@
+{
+  "results": [
+    {
+      "query": "O que \u00e9 MOTHER?",
+      "complexity": "simple",
+      "e2e_ms": 1709.6,
+      "word_count": 287,
+      "tps_estimated": 125.9,
+      "cache_hit": true,
+      "tier": "TIER_1",
+      "provider": "cache",
+      "quality_score": 85,
+      "error": null,
+      "timestamp": "2026-03-11T21:23:39.475870"
+    },
+    {
+      "query": "Defina piez\u00f4metro.",
+      "complexity": "simple",
+      "e2e_ms": 28909.7,
+      "word_count": 652,
+      "tps_estimated": 16.9,
+      "cache_hit": false,
+      "tier": "TIER_3",
+      "provider": "google",
+      "quality_score": 95,
+      "error": null,
+      "timestamp": "2026-03-11T21:24:08.687022"
+    },
+    {
+      "query": "Explique o m\u00e9todo de Bishop para an\u00e1lise de estabilidade de ",
+      "complexity": "medium",
+      "e2e_ms": 35751.6,
+      "word_count": 479,
+      "tps_estimated": 10.0,
+      "cache_hit": false,
+      "tier": "TIER_3",
+      "provider": "google",
+      "quality_score": 100,
+      "error": null,
+      "timestamp": "2026-03-11T21:24:44.740131"
+    },
+    {
+      "query": "Quais s\u00e3o as principais diferen\u00e7as entre CRAG v1 e CRAG v2?",
+      "complexity": "medium",
+      "e2e_ms": 26481.1,
+      "word_count": 695,
+      "tps_estimated": 19.7,
+      "cache_hit": false,
+      "tier": "TIER_1",
+      "provider": "google",
+      "quality_score": 100,
+      "error": null,
+      "timestamp": "2026-03-11T21:25:11.523628"
+    },
+    {
+      "query": "Descreva a arquitetura completa de um SHMS para barragens, i",
+      "complexity": "complex",
+      "e2e_ms": 41987.7,
+      "word_count": 1278,
+      "tps_estimated": 22.8,
+      "cache_hit": false,
+      "tier": "TIER_3",
+      "provider": "google",
+      "quality_score": 100,
+      "error": null,
+      "timestamp": "2026-03-11T21:25:53.813449"
+    },
+    {
+      "query": "Compare os m\u00e9todos de avalia\u00e7\u00e3o de LLMs: HELM, MT-Bench, G-E",
+      "complexity": "complex",
+      "e2e_ms": 38097.9,
+      "word_count": 998,
+      "tps_estimated": 19.6,
+      "cache_hit": false,
+      "tier": "TIER_3",
+      "provider": "google",
+      "quality_score": 95,
+      "error": null,
+      "timestamp": "2026-03-11T21:26:32.213150"
+    }
+  ],
+  "analysis": {
+    "total": 6,
+    "valid": 6,
+    "errors": 0,
+    "error_rate": 0.0,
+    "availability": 1.0,
+    "simple": {
+      "n": 2,
+      "p50_ms": 15309.6,
+      "p95_ms": 28909.7,
+      "p99_ms": 28909.7,
+      "mean_ms": 15309.6,
+      "std_ms": 19233.4,
+      "min_ms": 1709.6,
+      "max_ms": 28909.7,
+      "mean_tps": 71.4,
+      "cache_rate": 0.5
+    },
+    "medium": {
+      "n": 2,
+      "p50_ms": 31116.3,
+      "p95_ms": 35751.6,
+      "p99_ms": 35751.6,
+      "mean_ms": 31116.3,
+      "std_ms": 6555.2,
+      "min_ms": 26481.1,
+      "max_ms": 35751.6,
+      "mean_tps": 14.8,
+      "cache_rate": 0.0
+    },
+    "complex": {
+      "n": 2,
+      "p50_ms": 40042.8,
+      "p95_ms": 41987.7,
+      "p99_ms": 41987.7,
+      "mean_ms": 40042.8,
+      "std_ms": 2750.5,
+      "min_ms": 38097.9,
+      "max_ms": 41987.7,
+      "mean_tps": 21.2,
+      "cache_rate": 0.0
+    },
+    "overall": {
+      "n": 6,
+      "p50_ms": 32330.7,
+      "p95_ms": 41987.7,
+      "mean_ms": 28822.9,
+      "cache_rate": 0.1667
+    }
+  }
+}

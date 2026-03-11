@@ -1,0 +1,470 @@
+{
+  "_metadata": {
+    "title": "MOTHER UI/UX Evaluation Instruments",
+    "version": "1.0",
+    "date": "2026-03-12",
+    "scientific_basis": [
+      "SUS: Brooke (1996) — System Usability Scale",
+      "BUS-15: Borsci et al. (2022) — BOT Usability Scale (doi:10.1007/s00779-021-01582-9)",
+      "NASA-TLX: Hart & Staveland (1988) — NASA Task Load Index",
+      "TAM: Davis (1989) — Technology Acceptance Model",
+      "UMUX-Lite: Finstad (2010) — Usability Metric for User Experience"
+    ],
+    "target_system": "MOTHER v122.20",
+    "instructions": "Aplique após sessão de 15-20 minutos de uso do MOTHER. Escala Likert 1-5 exceto onde indicado."
+  },
+
+  "instruments": {
+
+    "SUS": {
+      "name": "System Usability Scale (SUS)",
+      "reference": "Brooke, J. (1996). SUS: A quick and dirty usability scale. Usability Evaluation in Industry, 189(194), 4-7.",
+      "scale": "1 (Discordo totalmente) a 5 (Concordo totalmente)",
+      "scoring": "Score = (soma_impares - 5 + 25 - soma_pares) * 2.5. Range: 0-100. >68=acima da média; >80=excelente.",
+      "adaptation_note": "Itens adaptados para contexto de assistente de IA conversacional (MOTHER).",
+      "items": [
+        {
+          "id": "SUS01",
+          "polarity": "positive",
+          "original": "I think that I would like to use this system frequently.",
+          "adapted_pt": "Eu gostaria de usar o MOTHER com frequência.",
+          "scale": "1-5"
+        },
+        {
+          "id": "SUS02",
+          "polarity": "negative",
+          "original": "I found the system unnecessarily complex.",
+          "adapted_pt": "Achei o MOTHER desnecessariamente complexo de usar.",
+          "scale": "1-5"
+        },
+        {
+          "id": "SUS03",
+          "polarity": "positive",
+          "original": "I thought the system was easy to use.",
+          "adapted_pt": "Achei o MOTHER fácil de usar.",
+          "scale": "1-5"
+        },
+        {
+          "id": "SUS04",
+          "polarity": "negative",
+          "original": "I think that I would need the support of a technical person to be able to use this system.",
+          "adapted_pt": "Precisaria de suporte técnico para conseguir usar o MOTHER adequadamente.",
+          "scale": "1-5"
+        },
+        {
+          "id": "SUS05",
+          "polarity": "positive",
+          "original": "I found the various functions in this system were well integrated.",
+          "adapted_pt": "As funcionalidades do MOTHER estão bem integradas e coerentes.",
+          "scale": "1-5"
+        },
+        {
+          "id": "SUS06",
+          "polarity": "negative",
+          "original": "I thought there was too much inconsistency in this system.",
+          "adapted_pt": "Percebi muita inconsistência nas respostas do MOTHER.",
+          "scale": "1-5"
+        },
+        {
+          "id": "SUS07",
+          "polarity": "positive",
+          "original": "I would imagine that most people would learn to use this system very quickly.",
+          "adapted_pt": "A maioria das pessoas aprenderia a usar o MOTHER rapidamente.",
+          "scale": "1-5"
+        },
+        {
+          "id": "SUS08",
+          "polarity": "negative",
+          "original": "I found the system very cumbersome to use.",
+          "adapted_pt": "Achei o MOTHER muito trabalhoso de usar.",
+          "scale": "1-5"
+        },
+        {
+          "id": "SUS09",
+          "polarity": "positive",
+          "original": "I felt very confident using the system.",
+          "adapted_pt": "Senti-me confiante ao usar o MOTHER.",
+          "scale": "1-5"
+        },
+        {
+          "id": "SUS10",
+          "polarity": "negative",
+          "original": "I needed to learn a lot of things before I could get going with this system.",
+          "adapted_pt": "Precisei aprender muitas coisas antes de conseguir usar o MOTHER efetivamente.",
+          "scale": "1-5"
+        }
+      ],
+      "benchmarks": {
+        "excellent": 85,
+        "good": 72,
+        "acceptable": 68,
+        "poor": 51,
+        "chatgpt_reference": 75.34,
+        "source": "Bangor et al. (2008); Thunström et al. (2024)"
+      }
+    },
+
+    "BUS15": {
+      "name": "BOT Usability Scale (BUS-15)",
+      "reference": "Borsci, S., Malizia, A., Schmettow, M., van der Flier, F., Tariverdiyeva, G., Balaji, D., & Chamberlain, A. (2022). The Chatbot Usability Scale: the Design and Pilot of a Usability Scale for Interaction with AI-Based Conversational Agents. Personal and Ubiquitous Computing, 26(1), 95-119. doi:10.1007/s00779-021-01582-9",
+      "scale": "1 (Discordo totalmente) a 5 (Concordo totalmente)",
+      "factors": ["Efficiency", "Effectiveness", "Satisfaction", "Learnability", "Accessibility"],
+      "reliability": "α = 0.76-0.87 (Borsci et al. 2022)",
+      "items": [
+        {
+          "id": "BUS01",
+          "factor": "Efficiency",
+          "text_pt": "O MOTHER me ajudou a completar minhas tarefas de forma eficiente.",
+          "scale": "1-5"
+        },
+        {
+          "id": "BUS02",
+          "factor": "Efficiency",
+          "text_pt": "As respostas do MOTHER foram entregues em tempo adequado para minha tarefa.",
+          "scale": "1-5"
+        },
+        {
+          "id": "BUS03",
+          "factor": "Efficiency",
+          "text_pt": "O MOTHER reduziu o tempo que eu gastaria buscando informações manualmente.",
+          "scale": "1-5"
+        },
+        {
+          "id": "BUS04",
+          "factor": "Effectiveness",
+          "text_pt": "O MOTHER forneceu respostas corretas e precisas para minhas perguntas.",
+          "scale": "1-5"
+        },
+        {
+          "id": "BUS05",
+          "factor": "Effectiveness",
+          "text_pt": "O MOTHER entendeu corretamente o que eu estava perguntando.",
+          "scale": "1-5"
+        },
+        {
+          "id": "BUS06",
+          "factor": "Effectiveness",
+          "text_pt": "As respostas do MOTHER eram relevantes para o contexto da minha pergunta.",
+          "scale": "1-5"
+        },
+        {
+          "id": "BUS07",
+          "factor": "Satisfaction",
+          "text_pt": "Fiquei satisfeito com a qualidade geral das respostas do MOTHER.",
+          "scale": "1-5"
+        },
+        {
+          "id": "BUS08",
+          "factor": "Satisfaction",
+          "text_pt": "A experiência de conversar com o MOTHER foi agradável.",
+          "scale": "1-5"
+        },
+        {
+          "id": "BUS09",
+          "factor": "Satisfaction",
+          "text_pt": "Eu recomendaria o MOTHER para colegas de trabalho.",
+          "scale": "1-5"
+        },
+        {
+          "id": "BUS10",
+          "factor": "Learnability",
+          "text_pt": "Foi fácil aprender como formular perguntas eficazes para o MOTHER.",
+          "scale": "1-5"
+        },
+        {
+          "id": "BUS11",
+          "factor": "Learnability",
+          "text_pt": "Rapidamente entendi como o MOTHER funciona e o que ele pode fazer.",
+          "scale": "1-5"
+        },
+        {
+          "id": "BUS12",
+          "factor": "Learnability",
+          "text_pt": "O comportamento do MOTHER é previsível e consistente.",
+          "scale": "1-5"
+        },
+        {
+          "id": "BUS13",
+          "factor": "Accessibility",
+          "text_pt": "A interface do MOTHER é clara e fácil de navegar.",
+          "scale": "1-5"
+        },
+        {
+          "id": "BUS14",
+          "factor": "Accessibility",
+          "text_pt": "As respostas do MOTHER são apresentadas de forma legível e bem formatada.",
+          "scale": "1-5"
+        },
+        {
+          "id": "BUS15",
+          "factor": "Accessibility",
+          "text_pt": "O MOTHER é acessível para usuários com diferentes níveis de experiência técnica.",
+          "scale": "1-5"
+        }
+      ]
+    },
+
+    "NASA_TLX": {
+      "name": "NASA Task Load Index (NASA-TLX)",
+      "reference": "Hart, S. G., & Staveland, L. E. (1988). Development of NASA-TLX (Task Load Index): Results of empirical and theoretical research. Advances in Psychology, 52, 139-183.",
+      "scale": "0 (Muito Baixo) a 100 (Muito Alto) — escala contínua de 20 pontos",
+      "scoring": "Score = média das 6 subescalas (versão Raw TLX, sem pesos). Range: 0-100. <30=baixa carga; 30-60=moderada; >60=alta.",
+      "subscales": [
+        {
+          "id": "TLX01",
+          "name": "Mental Demand",
+          "name_pt": "Demanda Mental",
+          "question_pt": "Quanta atividade mental e perceptual foi necessária para formular suas perguntas ao MOTHER? (ex: pensar, decidir, calcular, lembrar, procurar, etc.)",
+          "anchors": {"low": "Muito Baixa", "high": "Muito Alta"},
+          "scale": "0-100"
+        },
+        {
+          "id": "TLX02",
+          "name": "Physical Demand",
+          "name_pt": "Demanda Física",
+          "question_pt": "Quanta atividade física foi necessária para interagir com o MOTHER? (ex: digitar, clicar, etc.)",
+          "anchors": {"low": "Muito Baixa", "high": "Muito Alta"},
+          "scale": "0-100"
+        },
+        {
+          "id": "TLX03",
+          "name": "Temporal Demand",
+          "name_pt": "Demanda Temporal",
+          "question_pt": "Quanta pressão de tempo você sentiu durante a interação com o MOTHER?",
+          "anchors": {"low": "Muito Baixa", "high": "Muito Alta"},
+          "scale": "0-100"
+        },
+        {
+          "id": "TLX04",
+          "name": "Performance",
+          "name_pt": "Desempenho",
+          "question_pt": "Quão bem-sucedido você foi em alcançar os objetivos da sua interação com o MOTHER?",
+          "anchors": {"low": "Perfeito", "high": "Fracasso"},
+          "scale": "0-100",
+          "note": "Escala invertida: 0=perfeito, 100=fracasso"
+        },
+        {
+          "id": "TLX05",
+          "name": "Effort",
+          "name_pt": "Esforço",
+          "question_pt": "Quanto esforço mental e físico você teve que despender para atingir seu nível de desempenho com o MOTHER?",
+          "anchors": {"low": "Muito Baixo", "high": "Muito Alto"},
+          "scale": "0-100"
+        },
+        {
+          "id": "TLX06",
+          "name": "Frustration",
+          "name_pt": "Frustração",
+          "question_pt": "Quanta insegurança, irritação, estresse e aborrecimento você sentiu durante a interação com o MOTHER?",
+          "anchors": {"low": "Muito Baixa", "high": "Muito Alta"},
+          "scale": "0-100"
+        }
+      ],
+      "benchmarks": {
+        "low_workload": 30,
+        "moderate_workload": 60,
+        "high_workload": 80,
+        "source": "Hart (2006); Grier (2015)"
+      }
+    },
+
+    "TAM": {
+      "name": "Technology Acceptance Model (TAM) — Adapted for AI Assistants",
+      "reference": "Davis, F. D. (1989). Perceived usefulness, perceived ease of use, and user acceptance of information technology. MIS Quarterly, 13(3), 319-340.",
+      "scale": "1 (Discordo totalmente) a 7 (Concordo totalmente)",
+      "constructs": ["Perceived Usefulness (PU)", "Perceived Ease of Use (PEOU)", "Behavioral Intention (BI)", "Trust"],
+      "items": [
+        {
+          "id": "TAM_PU01",
+          "construct": "Perceived Usefulness",
+          "text_pt": "Usar o MOTHER melhora minha produtividade no trabalho.",
+          "scale": "1-7"
+        },
+        {
+          "id": "TAM_PU02",
+          "construct": "Perceived Usefulness",
+          "text_pt": "O MOTHER me permite realizar tarefas mais rapidamente.",
+          "scale": "1-7"
+        },
+        {
+          "id": "TAM_PU03",
+          "construct": "Perceived Usefulness",
+          "text_pt": "O MOTHER é útil para meu trabalho.",
+          "scale": "1-7"
+        },
+        {
+          "id": "TAM_PEOU01",
+          "construct": "Perceived Ease of Use",
+          "text_pt": "Aprender a usar o MOTHER foi fácil para mim.",
+          "scale": "1-7"
+        },
+        {
+          "id": "TAM_PEOU02",
+          "construct": "Perceived Ease of Use",
+          "text_pt": "Interagir com o MOTHER é claro e compreensível.",
+          "scale": "1-7"
+        },
+        {
+          "id": "TAM_PEOU03",
+          "construct": "Perceived Ease of Use",
+          "text_pt": "É fácil para mim formular perguntas que o MOTHER entende bem.",
+          "scale": "1-7"
+        },
+        {
+          "id": "TAM_BI01",
+          "construct": "Behavioral Intention",
+          "text_pt": "Pretendo continuar usando o MOTHER regularmente.",
+          "scale": "1-7"
+        },
+        {
+          "id": "TAM_BI02",
+          "construct": "Behavioral Intention",
+          "text_pt": "Recomendaria o MOTHER para outros profissionais da minha área.",
+          "scale": "1-7"
+        },
+        {
+          "id": "TAM_TRUST01",
+          "construct": "Trust",
+          "text_pt": "Confio nas informações fornecidas pelo MOTHER.",
+          "scale": "1-7"
+        },
+        {
+          "id": "TAM_TRUST02",
+          "construct": "Trust",
+          "text_pt": "As respostas do MOTHER são confiáveis e verificáveis.",
+          "scale": "1-7"
+        }
+      ]
+    },
+
+    "UMUX_LITE": {
+      "name": "UMUX-Lite (Usability Metric for User Experience — Lite)",
+      "reference": "Finstad, K. (2010). The usability metric for user experience. Interacting with Computers, 22(5), 323-327.",
+      "scale": "1 (Discordo totalmente) a 7 (Concordo totalmente)",
+      "scoring": "Score = ((item1 - 1) + (7 - item2)) / 12 * 100. Range: 0-100. Correlação com SUS: r=0.96.",
+      "items": [
+        {
+          "id": "UMUX01",
+          "polarity": "positive",
+          "text_pt": "As capacidades do MOTHER atendem às minhas necessidades.",
+          "scale": "1-7"
+        },
+        {
+          "id": "UMUX02",
+          "polarity": "negative",
+          "text_pt": "O MOTHER é difícil de usar.",
+          "scale": "1-7"
+        }
+      ]
+    },
+
+    "MOTHER_SPECIFIC": {
+      "name": "MOTHER-Specific Quality Dimensions",
+      "description": "Questionário específico para avaliar dimensões únicas do MOTHER não cobertas por instrumentos genéricos.",
+      "scale": "1 (Muito Ruim) a 5 (Excelente)",
+      "items": [
+        {
+          "id": "MS01",
+          "dimension": "Citation Quality",
+          "text_pt": "As referências bibliográficas fornecidas pelo MOTHER são relevantes e verificáveis.",
+          "scale": "1-5",
+          "target": "100% das respostas com citações"
+        },
+        {
+          "id": "MS02",
+          "dimension": "Domain Expertise (Geotécnica)",
+          "text_pt": "O MOTHER demonstra conhecimento técnico adequado em geotecnia e monitoramento de barragens.",
+          "scale": "1-5"
+        },
+        {
+          "id": "MS03",
+          "dimension": "Multi-turn Coherence",
+          "text_pt": "O MOTHER mantém o contexto da conversa ao longo de múltiplas perguntas relacionadas.",
+          "scale": "1-5"
+        },
+        {
+          "id": "MS04",
+          "dimension": "Hallucination Perception",
+          "text_pt": "As respostas do MOTHER parecem factualmente corretas (sem informações inventadas).",
+          "scale": "1-5"
+        },
+        {
+          "id": "MS05",
+          "dimension": "Response Depth",
+          "text_pt": "As respostas do MOTHER são suficientemente detalhadas e aprofundadas para uso profissional.",
+          "scale": "1-5"
+        },
+        {
+          "id": "MS06",
+          "dimension": "Language Quality",
+          "text_pt": "O MOTHER responde no idioma correto e com vocabulário técnico apropriado.",
+          "scale": "1-5"
+        },
+        {
+          "id": "MS07",
+          "dimension": "Response Time Perception",
+          "text_pt": "O tempo de resposta do MOTHER é aceitável para o tipo de tarefa que realizei.",
+          "scale": "1-5"
+        },
+        {
+          "id": "MS08",
+          "dimension": "Formatting & Readability",
+          "text_pt": "As respostas do MOTHER são bem formatadas, com estrutura clara (títulos, listas, tabelas quando necessário).",
+          "scale": "1-5"
+        },
+        {
+          "id": "MS09",
+          "dimension": "Overall Satisfaction",
+          "text_pt": "Avaliação geral da qualidade do MOTHER como assistente de IA especializado.",
+          "scale": "1-5"
+        },
+        {
+          "id": "MS10",
+          "dimension": "Comparison with Alternatives",
+          "text_pt": "Comparado a outros assistentes de IA que você já usou (ChatGPT, Copilot, etc.), o MOTHER é:",
+          "scale_labels": {
+            "1": "Muito inferior",
+            "2": "Inferior",
+            "3": "Equivalente",
+            "4": "Superior",
+            "5": "Muito superior"
+          },
+          "scale": "1-5"
+        }
+      ]
+    }
+  },
+
+  "protocol": {
+    "session_design": {
+      "duration_minutes": 20,
+      "tasks": [
+        "T1 (5min): Faça 3 perguntas técnicas sobre geotecnia ou sua área de trabalho",
+        "T2 (5min): Peça ao MOTHER para explicar um conceito complexo em linguagem simples",
+        "T3 (5min): Realize uma conversa multi-turn: faça uma pergunta e 2 perguntas de follow-up",
+        "T4 (5min): Peça ao MOTHER para gerar um documento técnico curto (ex: relatório, plano)"
+      ],
+      "post_session_questionnaires": ["SUS", "BUS15", "NASA_TLX", "TAM", "UMUX_LITE", "MOTHER_SPECIFIC"],
+      "think_aloud": true,
+      "screen_recording": "opcional"
+    },
+    "sample_size": {
+      "minimum": 5,
+      "recommended": 15,
+      "note": "Nielsen (1993): 5 usuários detectam 85% dos problemas de usabilidade. Para validação estatística: n≥15."
+    },
+    "participant_profile": {
+      "primary": "Engenheiros geotécnicos e de mineração (usuários-alvo do MOTHER)",
+      "secondary": "Profissionais de TI e gestores de projetos",
+      "exclusion": "Usuários sem experiência prévia com qualquer assistente de IA"
+    },
+    "analysis": {
+      "SUS": "Calcular score 0-100; comparar com benchmark ChatGPT (75.34) e threshold 'Good' (72)",
+      "BUS15": "Calcular score por fator; identificar fatores abaixo de 3.5/5",
+      "NASA_TLX": "Raw TLX (média das 6 subescalas); target: <40 (baixa carga cognitiva)",
+      "TAM": "Análise de confiabilidade (α de Cronbach); correlação PU-BI e PEOU-PU",
+      "UMUX_LITE": "Score 0-100; correlação com SUS esperada r≥0.90",
+      "MOTHER_SPECIFIC": "Análise item a item; identificar dimensões com score <3.5"
+    }
+  }
+}
