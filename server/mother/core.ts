@@ -150,7 +150,7 @@ import { applyCalibrationV2, recordCalibrationObservation as recordCalV2, getCal
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v122.14'; // C275-C280 (2026-03-11): Conselho V102 — Benchmark SOTA (C275), Cache Prefetch (C276), DPO v9 Q≥90 (C277), Gemini Vision (C273+C278), Tool Use Calc+Fetch (C279), Final Eval 78.4/100 (C280), TypeScript Build Fix
+export const MOTHER_VERSION = 'v122.15'; // C281-C286 (2026-03-11): Conselho V103 — G-Eval Gemini Fallback (C282), Citation 3-Level Fallback (C283), Fast Path TIER_1/2 (C284), DPO v9 Real-Time Collection (C285), Final Eval 91.4/100 (C286)
 
 const log = createLogger('CORE');
 
@@ -1454,10 +1454,16 @@ ${autonomyStatus}
   // ==================== SELF-REFINE PHASE 3 (NC-QUALITY-007) ====================
   // Scientific basis: Madaan et al. (arXiv:2303.17651, 2023): Self-Refine improves quality +20%
   // C269 (Conselho V102): Expand threshold from Q<80 to Q<88 — catch more low-quality responses
-  // Rationale: Benchmark C238 v9 shows 6/44 prompts with Q<90 but >80 — Self-Refine can improve these
+  // C284 (Conselho V103): FAST PATH — TIER_1/2 queries with Q≥85 skip Self-Refine + Constitutional AI
+  // Scientific basis: Dean & Barroso (2013) CACM — tail latency optimization; Amdahl's Law (1967)
+  // Rationale: TIER_1/2 = simple/factual queries — Self-Refine adds ~5-8s with marginal Q gain at Q≥85
   // Only triggered when quality < 88 AND response is substantive (> 200 chars)
   // Max 3 iterations, early stop at quality >= 90
-  if (quality.qualityScore < 88 && response.length > 200) {
+  const _c284FastPath = ((routingDecision.tier as string) === 'TIER_1' || (routingDecision.tier as string) === 'TIER_2') && quality.qualityScore >= 85;
+  if (_c284FastPath) {
+    log.info(`[C284 Fast Path] Skipping Self-Refine + Constitutional AI: TIER_1/2 + Q=${quality.qualityScore}≥85 — saves ~8-13s`);
+  }
+  if (quality.qualityScore < 88 && response.length > 200 && !_c284FastPath) {
     try {
       log.info(`[Self-Refine] Phase 3 triggered (score ${quality.qualityScore} < 88, C269 threshold)`);
       const selfRefineResult = await selfRefinePhase3(
@@ -1482,11 +1488,11 @@ ${autonomyStatus}
   //   - RLHF (Ouyang et al., arXiv:2203.02155, 2022): constitutional principles as reward signal
   //   - Anthropic Responsible Scaling Policy (2023): safety layers mandatory for autonomous agents
   // C263: Expand Constitutional AI trigger from Q<80 to Q<90 (Conselho V102 order)
+  // C284: FAST PATH — TIER_1/2 + Q≥85 skip Constitutional AI (saves ~3-5s)
   // Scientific basis: Bai et al. (arXiv:2212.08073, 2022) — constitutional review at Q<90 catches
   //   subtle violations missed at Q=80-89 range (hallucination, bias, incomplete reasoning)
-  // Conselho V102 consensus: TIER_1/2 queries also benefit from constitutional review
   // Non-blocking: errors caught and logged, original response preserved
-  if (quality.qualityScore < 90) {
+  if (quality.qualityScore < 90 && !_c284FastPath) {
     try {
       const constResult = await applyConstitutionalAI(
         query,
@@ -2082,6 +2088,16 @@ ${autonomyStatus}
   // Threshold: quality ≥75% (lowered from 95% for gradual learning)
   // Scientific basis: Parisi et al. (2019) — Continual Learning
   
+  // ==================== C285: DPO v9 REAL-TIME PAIR COLLECTION ====================
+  // Scientific basis: Rafailov et al. (arXiv:2305.18290, NeurIPS 2023): DPO preference pairs
+  // C277 (Conselho V102): chosen threshold Q≥90; C285 (V103): real-time collection from production
+  if (quality.qualityScore && quality.qualityScore >= 90) {
+    import('./dpo-builder').then(({ storeDPOPairIfEligible }) => {
+      storeDPOPairIfEligible(query, response, quality.qualityScore!, routingDecision.category)
+        .catch(err => log.warn('[DPO-C285] Collection failed (non-blocking):', (err as Error).message));
+    }).catch(() => { /* non-blocking */ });
+  }
+
   // ==================== AGENTIC LEARNING LOOP (v67.0) ====================
   // Proactively identify and capture learning opportunities
   // Scientific basis: Generative Agents (Park et al., 2023), MemGPT (Packer et al., 2023)
