@@ -282,12 +282,12 @@ export async function storeInCache(
   if (tier === 'TIER_4') return;
   // C289: Also store in L1 exact-match cache for O(1) future lookups
   const exactKey = query.trim().toLowerCase().slice(0, 500);
-  const ttlMs = tier === 'TIER_1' ? 24 * 3600000 : tier === 'TIER_2' ? 4 * 3600000 : 2 * 3600000;
+  const l1TtlMs = tier === 'TIER_1' ? 24 * 3600000 : tier === 'TIER_2' ? 4 * 3600000 : 2 * 3600000;
   if (exactMatchCache.size >= MAX_EXACT_ENTRIES) {
     const firstKey = exactMatchCache.keys().next().value;
     if (firstKey) exactMatchCache.delete(firstKey);
   }
-  exactMatchCache.set(exactKey, { response, qualityScore, expiresAt: new Date(Date.now() + ttlMs), hitCount: 0 });
+  exactMatchCache.set(exactKey, { response, qualityScore, expiresAt: new Date(Date.now() + l1TtlMs), hitCount: 0 });
 
   const embedding = await getQueryEmbedding(query);
   if (!embedding) return;
