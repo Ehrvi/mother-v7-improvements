@@ -67,17 +67,10 @@ export async function analyzeSensorData(
     
     const result = await processQuery({
       query: cognitivePrompt,
-      userId: 'shms-bridge',
-      metadata: {
-        isComplex: true,
-        domain: 'shms',
-        source: 'sensor-data',
-        sensorId: request.sensorId
-      }
     });
     
     // Parse the cognitive response to extract structured data
-    const parsed = parseCognitiveResponse(result.response || result.content || '');
+    const parsed = parseCognitiveResponse(result.response || '');
     
     const analysisResult: SHMSAnalysisResult = {
       sensorId: request.sensorId,
@@ -87,7 +80,7 @@ export async function analyzeSensorData(
       recommendations: parsed.recommendations,
       confidence: parsed.confidence,
       analysisTime: Date.now() - startTime,
-      cognitiveResponse: result.response || result.content || ''
+      cognitiveResponse: result.response || ''
     };
     
     log.info('SHMS cognitive analysis completed', {

@@ -1,3 +1,12 @@
+import { z } from "zod";
+import { Router, Request, Response, NextFunction } from "express";
+import { createLogger } from "../_core/logger";
+import { authenticateA2A } from "../_core/routers/auth-router";
+import { addKnowledge } from "./knowledge";
+
+const log = createLogger("DictationEndpoint");
+const router = Router();
+
 
 // C315: Structured Dictation Endpoint
 // Add to server/mother/a2a-server.ts after existing /knowledge endpoint
@@ -17,10 +26,10 @@ const DictationBodySchema = z.object({
 });
 
 // POST /api/a2a/dictation — Structured knowledge injection
-router.post('/dictation', authenticate, async (req, res) => {
+router.post('/dictation', authenticateA2A, async (req: Request, res: Response) => {
   const parsed = DictationBodySchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: 'Invalid dictation payload', details: parsed.error.errors });
+    return res.status(400).json({ error: 'Invalid dictation payload', details: parsed.error.issues });
   }
   
   const diktat = parsed.data;
@@ -46,14 +55,14 @@ router.post('/dictation', authenticate, async (req, res) => {
       }
     };
     
-    const result = await addKnowledge(knowledgeEntry);
+    const result = await addKnowledge(knowledgeEntry.title || diktat.content.slice(0, 80), diktat.content, diktat.type, diktat.author, diktat.domain);
     
     log.info('Dictation injected successfully', { diktatId, type: diktat.type, domain: diktat.domain });
     
     return res.status(201).json({
       success: true,
       diktat_id: diktatId,
-      knowledge_id: result.id,
+      knowledge_id: result,
       message: `Dictation ${diktatId} integrated successfully`,
       type: diktat.type,
       domain: diktat.domain,

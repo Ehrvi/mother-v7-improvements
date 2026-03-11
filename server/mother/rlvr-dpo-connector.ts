@@ -75,22 +75,8 @@ export async function processRLVRAndStoreDPO(
     }
     
     // Store the DPO pair
-    const { storeDPOPair } = await import('./dpo-builder');
-    await storeDPOPair({
-      prompt,
-      chosen: best.text,
-      rejected: worst.text,
-      chosenScore: bestComposite,
-      rejectedScore: worstComposite,
-      domain,
-      source: 'rlvr-auto',
-      metadata: {
-        chosenRLVR: bestRLVR,
-        rejectedRLVR: worstRLVR,
-        qualityGap,
-        candidateCount: candidates.length
-      }
-    });
+    const { storeDPOPairIfEligible } = await import('./dpo-builder');
+    await storeDPOPairIfEligible(prompt, best.text, best.qualityScore, domain);
     
     log.info('DPO pair stored via RLVR connector', {
       domain,

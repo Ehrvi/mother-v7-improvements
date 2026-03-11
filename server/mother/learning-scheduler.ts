@@ -96,12 +96,9 @@ async function runMorningStudy(): Promise<StudySession> {
     
     for (const domain of selectedDomains) {
       try {
-        const result = await triggerActiveStudy(
-          domain.query,
-          `Morning study — domain: ${domain.category}`
-        );
+        const result = await triggerActiveStudy(domain.query, 'high');
         session.papersIngested += result?.papersIngested || 0;
-        session.knowledgeUpdated += result?.knowledgeIdsAdded?.length || 0;
+        session.knowledgeUpdated += result?.knowledgeAdded || 0;
         session.domains.push(domain.category);
         log.info(`Studied domain ${domain.category}`, { ingested: result?.papersIngested });
       } catch (e) {
@@ -151,12 +148,9 @@ async function runShmsWeeklyStudy(): Promise<StudySession> {
     
     for (const module of modulesToStudy) {
       try {
-        const result = await triggerActiveStudy(
-          `geotechnical ${module} monitoring sensors machine learning 2025`,
-          `SHMS Curriculum — module: ${module}`
-        );
+        const result = await triggerActiveStudy(`geotechnical ${module} monitoring sensors machine learning 2025`, 'high');
         session.papersIngested += result?.papersIngested || 0;
-        session.knowledgeUpdated += result?.knowledgeIdsAdded?.length || 0;
+        session.knowledgeUpdated += result?.knowledgeAdded || 0;
         log.info(`Studied SHMS module ${module}`, { ingested: result?.papersIngested });
       } catch (e) {
         log.warn(`Failed to study SHMS module ${module}`, { error: e });
@@ -186,7 +180,7 @@ export function initLearningScheduler(): void {
   log.info('Initializing Learning Scheduler (C313) — Forced Learning System');
   
   // Daily morning study at 08:00 UTC
-  scheduleDaily(8, 0, 'morning-study', runMorningStudy);
+  scheduleDaily(8, 0, 'morning-study', async () => { await runMorningStudy(); });
   
   // SHMS weekly curriculum at 05:00 UTC on Mondays
   // Check if today is Monday and schedule accordingly
