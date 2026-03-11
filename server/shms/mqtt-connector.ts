@@ -119,6 +119,15 @@ export class SHMSMqttConnector extends EventEmitter {
    * Scientific basis: ISO/IEC 20922:2016 MQTT v5.0 + Sun et al. (2025) DOI:10.1145/3777730.3777858
    */
   async connect(): Promise<void> {
+    // C316 (Conselho V108): SHMS_SIMULATION_ONLY guard — block any real broker connection.
+    // Scientific basis: Madaan et al. (2023) "Self-Refine" — validate in simulation before real-world deployment.
+    // Per user directive 2026-03-12: SHMS must ONLY use simulation data until explicitly authorized.
+    const forceSimulation = process.env.SHMS_SIMULATION_ONLY === 'true' || !process.env.MQTT_BROKER_URL;
+    if (forceSimulation) {
+      console.log('[SHMS-MQTT] C316: SIMULATION mode enforced (SHMS_SIMULATION_ONLY=true or no MQTT_BROKER_URL)');
+      this._startSimulationMode();
+      return;
+    }
     const isRealBroker = this.brokerUrl && !this.brokerUrl.includes('localhost');
     if (isRealBroker) {
       console.log(`[SHMS-MQTT] C193: Connecting to HiveMQ Cloud: ${this.brokerUrl.replace(/:[^:@]*@/, ':***@')}`);

@@ -100,10 +100,14 @@ export class MQTTDigitalTwinBridgeC206 {
    * Fallback automático para modo simulação se broker não disponível (R38).
    */
   async initialize(config?: Partial<MQTTBridgeConfig>): Promise<void> {
-    const brokerUrl = config?.brokerUrl || process.env.MQTT_BROKER_URL;
+    // C316 (Conselho V108): SHMS_SIMULATION_ONLY guard — block real broker connection.
+    // Per user directive 2026-03-12: SHMS must ONLY use simulation data until explicitly authorized.
+    const forceSimulation = process.env.SHMS_SIMULATION_ONLY === 'true' || !process.env.MQTT_BROKER_URL;
+    const brokerUrl = forceSimulation ? undefined : (config?.brokerUrl || process.env.MQTT_BROKER_URL);
 
     if (!brokerUrl) {
-      log.info('[C206-Bridge] MQTT_BROKER_URL não configurado — iniciando modo simulação (R38 pré-produção)');
+      const reason = forceSimulation ? 'SHMS_SIMULATION_ONLY=true (C316 guard)' : 'MQTT_BROKER_URL não configurado';
+      log.info(`[C206-Bridge] ${reason} — iniciando modo simulação (R38 pré-produção)`);
       this.startSimulationMode();
       return;
     }

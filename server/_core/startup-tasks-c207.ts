@@ -457,6 +457,22 @@ export async function registerAllStartupTasks(
     cycle: 'v69',
   });
 
+  // ── T27: Learning Scheduler C311/C313 (25s) ─────────────────────────────
+  // C316 (Conselho V108): Wire learning-scheduler.ts into startup.
+  // Scientific basis: Bengio et al. (2009) curriculum learning; Madaan et al. (2023) self-refine.
+  // Schedules morning study (06:00), SHMS weekly review (Mon 08:00), active study (every 4h).
+  startupScheduler.register({
+    name: 'learning-scheduler-c316',
+    delayMs: 25000,
+    fn: async () => {
+      const { initLearningScheduler } = await import('../mother/learning-scheduler.js');
+      initLearningScheduler();
+      log.info('[C316] Learning Scheduler ATIVO — morning study + SHMS curriculum + active study | Bengio et al. (2009)');
+    },
+    nonCritical: true,
+    cycle: 'C316',
+  });
+
   // Executar todas as tarefas registradas
   await startupScheduler.start();
 

@@ -33,7 +33,7 @@ import { invokeLLM } from '../_core/llm';
 import { assessComplexity, classifyQuery, getModelForTier, calculateCost, calculateCostForModel, calculateBaselineCost, calculateCostReduction, type LLMTier } from './intelligence';
 import { validateQuality, type GuardianResult } from './guardian';
 import { getKnowledgeContext } from './knowledge';
-import { cragRetrieve } from './crag';
+// C319 hygiene: cragRetrieve removed (unused in core.ts; cragV2Retrieve used instead)
 import { cragV2Retrieve } from './crag-v2'; // NC-QUALITY-006: CRAG v2 with query expansion + hybrid search
 import { selfRefinePhase3 } from './self-refine'; // NC-QUALITY-007: Self-Refine Phase 3 (3 iterations)
 import { orchestrate, shouldUseMoA, shouldUseDebate } from './orchestration'; // NC-ORCH-001: MoA + Debate (Ciclo 46)
@@ -74,7 +74,7 @@ import { addORPOPair } from './orpo-finetune-pipeline'; // Ciclo 59 Action 4: OR
 import { createLogger } from '../_core/logger'; // v74.0: NC-003 — structured logger
 import { getAutonomySummary } from './autonomy'; // v74.6: Anti-hallucination autonomy status
 // ─── CICLO 60-65: New Quality Modules ────────────────────────────────────────
-import { adaptiveDraftRouter, estimateQueryComplexity as estimateDraftComplexity } from './adaptive-draft-router'; // Ciclo 60: AdaptiveDraftRouter (EAGLE-2, arXiv:2406.16858, EMNLP 2024)
+import { estimateQueryComplexity as estimateDraftComplexity } from './adaptive-draft-router'; // Ciclo 60: AdaptiveDraftRouter (EAGLE-2, arXiv:2406.16858, EMNLP 2024) — C319: adaptiveDraftRouter removed (unused)
 import { applyFaithfulnessCalibration } from './selfcheck-faithfulness'; // Ciclo 60: SelfCheckFaithfulness (arXiv:2303.08896, EMNLP 2023)
 import { applyProcessRewardVerification } from './process-reward-verifier'; // Ciclo 60: ProcessRewardVerifier (arXiv:2305.20050, ICLR 2024)
 import { applyParallelSelfConsistency, shouldApplyParallelSC } from './parallel-self-consistency'; // Ciclo 61: ParallelSC N=3 (arXiv:2401.10480, ICLR 2024) — shouldApplyParallelSC(category, queryLength, hasErrors)
@@ -82,7 +82,7 @@ import { injectAutoKnowledge, shouldInjectAutoKnowledge, formatAKIContextForProm
 import { applyDepthPRM, shouldApplyDepthPRM } from './depth-prm-activator'; // Ciclo 61: DepthPRM (arXiv:2305.20050 + arXiv:2312.08935)
 import { applySemanticFaithfulnessCalibration } from './semantic-faithfulness-scorer'; // Ciclo 62: SemanticFaithfulness (arXiv:1908.10084, EMNLP 2019)
 import { verifyMathematicalContent } from './symbolic-math-verifier'; // Ciclo 62: SymbolicMath (SymPy + arXiv:2305.20050)
-import { computeEnsembleScore, evaluateStoppingCriterion, getDynamicGEvalThreshold } from './quality-ensemble-scorer'; // Ciclo 62: EnsembleScorer + StoppingCriterion
+import { getDynamicGEvalThreshold } from './quality-ensemble-scorer'; // Ciclo 62: EnsembleScorer + StoppingCriterion — C319: computeEnsembleScore/evaluateStoppingCriterion removed (unused)
 import { semanticChunker } from './semantic-chunker'; // C154: SemanticChunker (ISSUE-001: loop on prompts >46k tokens — arXiv:2312.06648)
 import { evaluateFaithfulness as bertEvaluateFaithfulness } from './bertscore-nli-faithfulness'; // Ciclo 63: BERTScoreNLI (arXiv:1904.09675, ICLR 2020)
 import { evaluateInstructionFollowing as ifEvalV2 } from './ifeval-verifier-v2'; // Ciclo 63: IFEvalV2 (arXiv:2311.07911, Google 2023)
@@ -90,13 +90,14 @@ import { calibrateFaithfulness, shouldApplyFDPO } from './fdpo-faithfulness-cali
 import { enhanceDepth, shouldActivateLongCoT } from './long-cot-depth-enhancer'; // Ciclo 64: Long CoT (arXiv:2503.09567, 2025)
 import { verifyInstructionFollowing as nsvifVerify, shouldApplyNSVIF } from './nsvif-instruction-verifier'; // Ciclo 64: NSVIF CSP (arXiv:2601.17789, 2026)
 // ─── CICLO 67: Arquitetura SOTA v76.0 ────────────────────────────────────────
-import { withCircuitBreaker, recordSuccess as cbRecordSuccess, recordFailure as cbRecordFailure } from './circuit-breaker'; // Ciclo 67: Circuit Breaker (Nygard 2007, Google SRE 2016)
+// C319 hygiene: circuit-breaker imported via other modules; withCircuitBreaker/cbRecord* unused in core.ts (module live in 3 other files)
 import { recordObservation as guardianObserve } from './guardian-agent'; // Ciclo 67: Guardian SLO monitoring (Google SRE 2016, Four Golden Signals)
 import { observeAndLearn as dgmObserve } from './dgm-agent'; // Ciclo 67: Darwin Gödel Machine (arXiv:2505.22954, Sakana AI 2025)
 import { recordRequest as obsRecordRequest } from './observability'; // Ciclo 67: OpenTelemetry observability (CNCF 2023, DORA Metrics 2018)
 // ─── CICLO 73: A/B Test — core-orchestrator.ts (50% traffic canary) ──────────
 import { orchestrate as coreOrchestrate } from './core-orchestrator'; // Ciclo 70: Canary A/B 10% (Oracle Medium 2025 + Google SRE Canary Deployment + ACAR arXiv:2602.21231)
 import { applyGRPOReasoning, shouldApplyGRPO } from './grpo-reasoning-enhancer'; // Ciclo 73: GRPO Reasoning Enhancer (Shao et al., arXiv:2402.03300 DeepSeekMath 2024 + DeepSeek-R1 arXiv:2501.12948 2025)
+import { processRLVRAndStoreDPO } from './rlvr-dpo-connector'; // C318 (Conselho V108): RLVR→DPO automatic loop (DeepSeek-R1 arXiv:2501.12948 + Rafailov arXiv:2305.18290)
 import { applyTTCScaling, shouldApplyTTCScaling } from './test-time-compute-scaler'; // Ciclo 74: TTC Scaling Best-of-N (Snell et al., arXiv:2408.03314, 2024 + GenPRM arXiv:2504.00891, 2025)
 // ─── CICLO C210-C212: Conselho dos 6 — NC-COG-005 a NC-COG-013 ─────────────────
 import { enhanceSystemPromptWithFOL, enhanceSystemPromptWithFOLChain } from './fol-detector'; // NC-COG-005+010 (C210+C211): FOL Detector + Multi-Step FOL Chain (arXiv:2601.09446 + arXiv:2305.14279)
@@ -105,26 +106,37 @@ import { calibrateCognitiveScore, calibrateCognitiveScoreAdaptive } from './cogn
 import { enhanceSystemPromptWithLockFree } from './lock-free-explainer'; // NC-COG-008 (C210): Lock-Free Explainer (Herlihy & Wing 1990 + arXiv:2106.04422)
 import { applyZ3Verification } from './z3-subprocess-verifier'; // NC-COG-013 (C212): Z3 Subprocess Verifier (de Moura & Bjorner 2008 TACAS + arXiv:2006.01847)
 // ─── CICLO C213: Conselho dos 6 — NC-COG-015 a NC-COG-017 (SGM + Shell + Slow Thinking) ─────────────────
-import { validateModificationWithSGM, generateSGMValidationReport } from './sgm-proof-engine'; // NC-COG-015 (C213): Statistical Gödel Machine (Schmidhuber 2003 + Bayesian arXiv:2505.22954)
-import { createShellSession, executeInSession as executeInShell, getOrCreateSession as destroyShellSession } from './persistent-shell'; // NC-COG-016 (C213): Persistent Shell (Docker + node-pty, arXiv:2304.08354)
-import { shouldUseSlowThinking as shouldApplySlowThinking, enhanceSystemPromptWithSlowThinking as applySlowThinking } from './slow-thinking-engine'; // NC-COG-017 (C213): Extended Thinking (Claude 3.7 Sonnet, Anthropic 2025 + arXiv:2501.12948)
+// C319 hygiene: sgm-proof-engine validateModificationWithSGM/generateSGMValidationReport unused in core.ts (module live in dgm-full-autonomy.ts)
+// C319 hygiene: persistent-shell createShellSession/executeInShell/destroyShellSession unused in core.ts (module live in dgm-full-autonomy.ts)
+// C319 hygiene: slow-thinking-engine unused in core.ts (0 uses in codebase; file preserved for future use)
 // ─── CICLO C214: Conselho dos 6 — NC-SENS-004 a NC-SENS-007 (MCP + Scheduler + Map + STT) ─────────────────
-import { detectMCPRequirement, generateMCPToolsDescription, callMCPTool } from './mcp-gateway'; // NC-SENS-004 (C214): MCP Gateway (Anthropic MCP 2024 + Schick arXiv:2302.04761)
-import { detectSchedulingRequest, parseScheduleExpression, createScheduledTask, generateScheduleConfirmation } from './user-scheduler'; // NC-SENS-005 (C214): User Scheduler (Park arXiv:2304.03442 + POSIX cron)
-import { detectMapRequest, executeMapJob, formatMapJobResults } from './parallel-map-engine'; // NC-SENS-006 (C214): Parallel Map (Wu arXiv:2308.08155 + Dean MapReduce 2004)
-import { detectAudioInput, transcribeAudio, generateSTTDescription } from './whisper-stt'; // NC-SENS-007 (C214): Whisper STT (Radford arXiv:2212.04356 + Baevski arXiv:2006.11477)
+// C319 hygiene: mcp-gateway imported but never called in core.ts — wiring pending in a2a-server.ts (C320)
+// import { detectMCPRequirement, generateMCPToolsDescription, callMCPTool } from './mcp-gateway';
+// C319 hygiene: user-scheduler imported but never called in core.ts — wiring pending in a2a-server.ts (C320)
+// import { detectSchedulingRequest, parseScheduleExpression, createScheduledTask, generateScheduleConfirmation } from './user-scheduler';
+// C319 hygiene: parallel-map-engine imported but never called in core.ts — wiring pending in a2a-server.ts (C320)
+// import { detectMapRequest, executeMapJob, formatMapJobResults } from './parallel-map-engine';
+// C319 hygiene: whisper-stt imported but never called in core.ts — wiring pending in a2a-server.ts (C320)
+// import { detectAudioInput, transcribeAudio, generateSTTDescription } from './whisper-stt';
 // ─── CICLO C215: Conselho dos 6 — NC-SHMS-001 a NC-SHMS-003 (EKF + Alerting + Digital Twin) ─────────────────
-import { runEKFCycle, processBatchEKF, generateEKFReport } from './shms-neural-ekf'; // NC-SHMS-001 (C215): Neural-EKF (Kalman 1960 + Raissi arXiv:2111.02861 + Wan UKF 2000)
-import { processEKFAlerts, classifyEKFAlert, generateAlertSummary, sendFCMNotification } from './shms-alert-engine-v2'; // NC-SHMS-002 (C215): SHMS Alert Engine V2 (ISO 13822 + FCM + WhatsApp)
-import { updateDigitalTwin, getDigitalTwinState, generateDigitalTwinReport } from './shms-digital-twin-v2'; // NC-SHMS-003 (C215): Digital Twin V2 (Grieves 2017 + Tao 2019 + Farrar 2012)
+// C319 hygiene: shms-neural-ekf unused in core.ts body (live in shms-alert-engine-v2.ts + shms-digital-twin-v2.ts)
+// import { runEKFCycle, processBatchEKF, generateEKFReport } from './shms-neural-ekf';
+// C319 hygiene: shms-alert-engine-v2 unused in core.ts body (live in shms-digital-twin-v2.ts)
+// import { processEKFAlerts, classifyEKFAlert, generateAlertSummary, sendFCMNotification } from './shms-alert-engine-v2';
+// C319 hygiene: shms-digital-twin-v2 unused in core.ts body — SHMS pipeline runs via mqtt-connector startup task
+// import { updateDigitalTwin, getDigitalTwinState, generateDigitalTwinReport } from './shms-digital-twin-v2';
 // ─── CICLO C216: Conselho dos 6 — NC-GWS-001 + NC-TTS-001 + NC-LF-001 (GWS + TTS + LongForm) ─────────────────
-import { detectGWSRequest, uploadToDrive, createGoogleDoc, listDriveFiles, generateGWSDescription } from './google-workspace-bridge'; // NC-GWS-001 (C216): Google Workspace Bridge (Google API 2024 + Nakano arXiv:2112.09332)
-import { detectTTSRequest, generateSpeech, generateSHMSVoiceAlert, generateTTSDescription } from './tts-engine'; // NC-TTS-001 (C216): TTS Engine (Wang arXiv:2301.02111 + Shen arXiv:2304.09116)
+// C319 hygiene: google-workspace-bridge unused in core.ts body (live in long-form-engine-v3.ts)
+// import { detectGWSRequest, uploadToDrive, createGoogleDoc, listDriveFiles, generateGWSDescription } from './google-workspace-bridge';
+// C319 hygiene: tts-engine unused in core.ts body (live in long-form-engine-v3.ts)
+// import { detectTTSRequest, generateSpeech, generateSHMSVoiceAlert, generateTTSDescription } from './tts-engine';
 import { detectLongFormRequest, generateLongFormV3 } from './long-form-engine-v3'; // NC-LF-001 (C216): Long-Form V3 (Gao arXiv:2312.10997 + Lewis arXiv:2005.11401)
 import { estimateOutputLength } from './output-length-estimator'; // C241/C242: OLAR routing (Conselho v100)
 // ─── CICLO C217: Conselho dos 6 — NC-DGM-002 + NC-CAL-002 (DGM Full Autonomy + Calibration V2) ─────────────────
-import { runAutonomyCycle, getDGMAutonomyStatus, detectCapabilityGaps } from './dgm-full-autonomy'; // NC-DGM-002 (C217): DGM Full Autonomy (Schmidhuber arXiv:cs/0309048 + Zhang arXiv:2505.22954)
-import { applyCalibrationV2, recordCalibrationObservation as recordCalV2, getCalibrationReport, detectCalibrationDrift } from './adaptive-calibration-v2'; // NC-CAL-002 (C217): Adaptive Calibration V2 (Guo arXiv:1706.04599 + Kadavath arXiv:2207.05221) (C216): Long-Form V3 (Gao arXiv:2312.10997 + Lewis arXiv:2005.11401) (C215): Digital Twin V2 (Grieves 2017 + Tao 2019 + Farrar 2012) (C214): Whisper STT (Radford arXiv:2212.04356 + Baevski arXiv:2006.11477)
+// C319 hygiene: dgm-full-autonomy unused in core.ts body — DGM runs via startup-tasks-c207.ts scheduler
+// import { runAutonomyCycle, getDGMAutonomyStatus, detectCapabilityGaps } from './dgm-full-autonomy';
+// C319 hygiene: adaptive-calibration-v2 unused in core.ts body — calibration runs via calibratedQuality pipeline
+// import { applyCalibrationV2, recordCalibrationObservation as recordCalV2, getCalibrationReport, detectCalibrationDrift } from './adaptive-calibration-v2';
 
 // ─── MOTHER Version (single source of truth) ─────────────────────────────────
 // v74.0: NC-010 (tier3 fix) + NC-008 (cache TTL 72h) + NC-011 (self-diagnosis routing)
@@ -1819,6 +1831,28 @@ ${autonomyStatus}
       }
     } catch (grpoErr) {
       log.warn('[GRPO] Failed (non-blocking):', (grpoErr as Error).message);
+    }
+  }
+
+  // ==================== C318: RLVR→DPO AUTOMATIC LOOP ====================
+  // Scientific basis: DeepSeek-R1 (Guo et al., arXiv:2501.12948) GRPO→DPO pipeline
+  //   Rafailov et al. (arXiv:2305.18290, NeurIPS 2023) DPO: Direct Preference Optimization
+  //   Shinn et al. (arXiv:2303.11366) Reflexion: language agents with verbal reinforcement
+  // Trigger: GRPO was applied AND produced multiple candidates with quality gap ≥15
+  // Non-blocking: failure does not affect response quality
+  if (grpoQualityGate && grpoTierGate) {
+    try {
+      const domain = routingDecision.category ?? 'general';
+      const rlvrResult = await processRLVRAndStoreDPO(
+        query,
+        [{ text: response, qualityScore: calibratedQuality.calibratedScore ?? quality.qualityScore ?? 70 }],
+        domain
+      );
+      if (rlvrResult.stored) {
+        log.info(`[RLVR→DPO] Pair stored: domain=${domain}, pairCount=${rlvrResult.pairCount}`);
+      }
+    } catch (rlvrErr) {
+      log.debug('[RLVR→DPO] Skipped (non-blocking):', (rlvrErr as Error).message);
     }
   }
   // ==================== CICLO 61: AUTO-KNOWLEDGE INJECTION ====================

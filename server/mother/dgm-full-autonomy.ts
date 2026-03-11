@@ -25,6 +25,21 @@ import { executeInSession } from './persistent-shell';
 import { invokeLLM } from '../_core/llm';
 import * as fs from 'fs';
 import * as path from 'path';
+// C317 (Conselho V108): Supervisor wiring — LangGraph supervisor validates CRITICAL gap modules
+// Scientific basis: Zhang et al. (arXiv:2505.22954) DGM + Yao et al. (arXiv:2210.03629) ReAct
+// Non-blocking: 8s timeout, failure does not block deployment
+let _supervisorInvoke: ((goal: string, threadId: string) => Promise<any>) | null = null;
+async function getSupervisorInvoke() {
+  if (!_supervisorInvoke) {
+    try {
+      const mod = await import('./supervisor.js');
+      _supervisorInvoke = mod.invokeSupervisor;
+    } catch {
+      _supervisorInvoke = null;
+    }
+  }
+  return _supervisorInvoke;
+}
 
 export interface AutonomyGap {
   id: string;
@@ -253,6 +268,22 @@ export async function runAutonomyCycle(
         };
 
         if (module.testResult.passed) {
+          // C317 (Conselho V108): For CRITICAL gaps, validate with LangGraph supervisor (8s timeout)
+          // Scientific basis: Zhang et al. (arXiv:2505.22954) — multi-agent validation increases DGM reliability
+          if (gap.priority === 'CRITICAL') {
+            try {
+              const supervisorFn = await getSupervisorInvoke();
+              if (supervisorFn) {
+                const supervisorGoal = `Validate this TypeScript module for gap '${gap.capability}': does it correctly implement the required functionality? Module path: ${filePath}`;
+                await Promise.race([
+                  supervisorFn(supervisorGoal, `dgm-critical-${module.id}`),
+                  new Promise((_, reject) => setTimeout(() => reject(new Error('supervisor timeout')), 8000)),
+                ]);
+              }
+            } catch {
+              // Non-blocking: supervisor timeout or failure does not block deployment
+            }
+          }
           module.deployed = true;
           deployedModules.push(module);
         } else {

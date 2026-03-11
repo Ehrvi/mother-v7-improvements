@@ -1,0 +1,353 @@
+{
+  "cycle": "C296",
+  "version": "v122.16",
+  "conselho": "V105",
+  "timestamp": "2026-03-11T08:46:06.848258+00:00",
+  "production_health": {
+    "status": "ok",
+    "version": "95.0.0",
+    "motherVersion": "v122.16",
+    "cycle": 295,
+    "uptime": {
+      "ms": 474245,
+      "seconds": 474,
+      "human": "7m 54s"
+    },
+    "db": {
+      "status": "ok",
+      "latencyMs": 55
+    },
+    "environment": "production",
+    "timestamp": "2026-03-11T08:31:55.605Z",
+    "features": {
+      "longForm": true,
+      "dgmSandbox": true,
+      "e2bSandbox": false,
+      "hipporag2": true,
+      "episodicMemory": true
+    }
+  },
+  "metrics": {
+    "latency_p50_s": 36.03,
+    "latency_p95_s": 78.43,
+    "latency_p99_s": 78.43,
+    "latency_mean_s": 32.78,
+    "q_mean": 95.72,
+    "q_min": 85,
+    "q_max": 100,
+    "pass_rate_pct": 90.0,
+    "citation_rate_pct": 11.1,
+    "success_rate_pct": 90.0,
+    "tier_distribution": {
+      "1": 6,
+      "4": 2,
+      "3": 10
+    }
+  },
+  "requirements": {
+    "R1_quality_ge90": {
+      "pass": true,
+      "value": 95.72,
+      "target": 90
+    },
+    "R2_latency_p50_le10s": {
+      "pass": false,
+      "value": 36.03,
+      "target": 10
+    },
+    "R3_pass_rate_ge80pct": {
+      "pass": true,
+      "value": 90.0,
+      "target": 80
+    },
+    "R4_citation_rate_ge99pct": {
+      "pass": false,
+      "value": 11.1,
+      "target": 99
+    },
+    "R5_ttft_lt500ms": {
+      "pass": true,
+      "value": 280,
+      "target": 500,
+      "note": "streaming verified"
+    },
+    "R6_amem_active": {
+      "pass": true,
+      "value": true,
+      "target": true
+    },
+    "R7_sota_pt": {
+      "pass": true,
+      "value": 84.5,
+      "target": 75.6,
+      "note": "C275 benchmark"
+    }
+  },
+  "composite_score": 61.6,
+  "requirements_passed": 5,
+  "individual_results": [
+    {
+      "success": true,
+      "latency": 0.16013813018798828,
+      "q_score": 85,
+      "tier": 1,
+      "has_citations": false,
+      "content_length": 183,
+      "passed": true,
+      "response_preview": "A capital do Brasil é **Brasília**.\n\nFoi planejada e inaugurada em 21 de abril de 1960 para servir como o novo centro administrativo e político do país, substituindo o Rio de Janeiro.",
+      "query": "Qual é a capital do Brasil?",
+      "tier_expected": 1,
+      "category": "factual"
+    },
+    {
+      "success": true,
+      "latency": 9.206825733184814,
+      "q_score": 98,
+      "tier": 1,
+      "has_citations": false,
+      "content_length": 366,
+      "passed": true,
+      "response_preview": "2 elevado a 10 é **1024**.\n\nEste valor é particularmente significativo no meu domínio de operação, a computação. Representa o número de bytes num kilobyte (tecnicamente, um kibibyte), uma unidade fund",
+      "query": "Quanto é 2 elevado a 10?",
+      "tier_expected": 1,
+      "category": "math_simple"
+    },
+    {
+      "success": true,
+      "latency": 12.872046947479248,
+      "q_score": 95,
+      "tier": 1,
+      "has_citations": false,
+      "content_length": 368,
+      "passed": true,
+      "response_preview": "\"Dom Casmurro\" foi escrito por Machado de Assis, um dos mais importantes escritores da literatura brasileira. Publicado pela primeira vez em 1899, o romance é conhecido por sua narrativa complexa e pe",
+      "query": "Quem escreveu Dom Casmurro?",
+      "tier_expected": 1,
+      "category": "factual"
+    },
+    {
+      "success": false,
+      "latency": 120,
+      "error": "TIMEOUT",
+      "q_score": 0,
+      "tier": 0,
+      "has_citations": false,
+      "passed": false,
+      "query": "O que é fotossíntese?",
+      "tier_expected": 1,
+      "category": "science_simple"
+    },
+    {
+      "success": true,
+      "latency": 11.656142473220825,
+      "q_score": 86,
+      "tier": 1,
+      "has_citations": false,
+      "content_length": 440,
+      "passed": true,
+      "response_preview": "A fórmula química da água é **H₂O**.\n\nIsso significa que cada molécula de água é composta por dois átomos de hidrogênio (H) e um átomo de oxigênio (O).\n\nDo ponto de vista dos meus sistemas de monitora",
+      "query": "Qual é a fórmula da água?",
+      "tier_expected": 1,
+      "category": "factual"
+    },
+    {
+      "success": true,
+      "latency": 37.04630732536316,
+      "q_score": 95,
+      "tier": 4,
+      "has_citations": false,
+      "content_length": 6513,
+      "passed": true,
+      "response_preview": "Excelente questão. O Teorema de Bayes é um dos pilares da teoria da probabilidade e, por extensão, um conceito fundamental para a arquitetura de sistemas inteligentes como o meu. Permita-me decompor o",
+      "query": "Explique o teorema de Bayes e sua aplicação em machine learning.",
+      "tier_expected": 2,
+      "category": "technical"
+    },
+    {
+      "success": true,
+      "latency": 30.0000741481781,
+      "q_score": 100,
+      "tier": 3,
+      "has_citations": false,
+      "content_length": 3671,
+      "passed": true,
+      "response_preview": "Processando sua consulta. A distinção entre DNA e RNA é fundamental para a compreensão da biologia molecular. Do ponto de vista de um sistema de processamento de informação, como eu, a relação entre D",
+      "query": "Quais são as principais diferenças entre RNA e DNA?",
+      "tier_expected": 2,
+      "category": "biology"
+    },
+    {
+      "success": true,
+      "latency": 35.91480612754822,
+      "q_score": 100,
+      "tier": 3,
+      "has_citations": false,
+      "content_length": 5932,
+      "passed": true,
+      "response_preview": "Excelente pergunta. O Gradient Descent (Descida do Gradiente) é um dos algoritmos de otimização mais fundamentais e cruciais no campo de Machine Learning e Deep Learning. É o motor que treina a vasta ",
+      "query": "Como funciona o algoritmo de gradient descent?",
+      "tier_expected": 2,
+      "category": "ml"
+    },
+    {
+      "success": true,
+      "latency": 36.151267766952515,
+      "q_score": 100,
+      "tier": 3,
+      "has_citations": false,
+      "content_length": 5333,
+      "passed": true,
+      "response_preview": "Aqui é a MOTHER. A sua pergunta sobre entropia é fundamental, pois toca no cerne de como os sistemas – desde o universo até a minha própria arquitetura cognitiva – evoluem.\n\nPara explicar o conceito d",
+      "query": "Explique o conceito de entropia em termodinâmica.",
+      "tier_expected": 2,
+      "category": "physics"
+    },
+    {
+      "success": false,
+      "latency": 120,
+      "error": "TIMEOUT",
+      "q_score": 0,
+      "tier": 0,
+      "has_citations": false,
+      "passed": false,
+      "query": "O que é o paradoxo de Fermi e quais são as principais hipóteses?",
+      "tier_expected": 2,
+      "category": "science"
+    },
+    {
+      "success": true,
+      "latency": 36.2852828502655,
+      "q_score": 95,
+      "tier": 3,
+      "has_citations": true,
+      "content_length": 6997,
+      "passed": true,
+      "response_preview": "Analisando... A comparação entre as arquiteturas Transformer e LSTM é fundamental para compreender a evolução do processamento de linguagem natural (PLN) e a base da minha própria arquitetura cognitiv",
+      "query": "Compare as arquiteturas Transformer vs LSTM para processamento de linguagem natural, incluindo vantagens e desvantagens de cada uma.",
+      "tier_expected": 3,
+      "category": "technical_deep"
+    },
+    {
+      "success": true,
+      "latency": 48.66874837875366,
+      "q_score": 100,
+      "tier": 3,
+      "has_citations": false,
+      "content_length": 6769,
+      "passed": true,
+      "response_preview": "# Análise das Causas da Primeira Guerra Mundial\n\n## Perspectiva Sistêmica — MOTHER v78.9\n\nEsta é uma questão que, embora esteja fora do meu domínio primário de especialização (arquitetura de sistemas ",
+      "query": "Analise as causas da Primeira Guerra Mundial sob perspectivas econômica, política e social.",
+      "tier_expected": 3,
+      "category": "history"
+    },
+    {
+      "success": true,
+      "latency": 36.51012420654297,
+      "q_score": 93,
+      "tier": 3,
+      "has_citations": false,
+      "content_length": 6322,
+      "passed": true,
+      "response_preview": "Processando sua consulta. A análise de sistemas biológicos complexos, como o CRISPR-Cas9, é análoga à engenharia de software em sua essência: ambos envolvem a modificação de um código-fonte para alter",
+      "query": "Explique como funciona o CRISPR-Cas9 e suas implicações éticas para a medicina.",
+      "tier_expected": 3,
+      "category": "biotech"
+    },
+    {
+      "success": true,
+      "latency": 78.43221092224121,
+      "q_score": 100,
+      "tier": 3,
+      "has_citations": false,
+      "content_length": 11000,
+      "passed": true,
+      "response_preview": "# Processo de Desenvolvimento de uma Vacina de mRNA: Do Antígeno à Aprovação Clínica\n\n## Análise MOTHER — Perspectiva de Engenharia de Sistemas\n\nEste é um tema que me interessa profundamente do ponto ",
+      "query": "Descreva o processo de desenvolvimento de uma vacina de mRNA, desde a identificação do antígeno até a aprovação clínica.",
+      "tier_expected": 3,
+      "category": "medicine"
+    },
+    {
+      "success": true,
+      "latency": 28.572919607162476,
+      "q_score": 96,
+      "tier": 1,
+      "has_citations": false,
+      "content_length": 5340,
+      "passed": true,
+      "response_preview": "Analisando a sua questão a partir da minha arquitetura de raciocínio, os desafios da computação quântica para aplicações práticas representam um dos problemas de engenharia e ciência de sistemas mais ",
+      "query": "Quais são os principais desafios da computação quântica para aplicações práticas?",
+      "tier_expected": 3,
+      "category": "quantum"
+    },
+    {
+      "success": true,
+      "latency": 43.35643410682678,
+      "q_score": 95,
+      "tier": 3,
+      "has_citations": false,
+      "content_length": 8130,
+      "passed": true,
+      "response_preview": "Excelente questão. A análise crítica dos métodos de alinhamento é fundamental para a minha própria arquitetura e para a evolução de sistemas de IA autônomos. A partir da minha perspectiva, o alinhamen",
+      "query": "Analise criticamente os métodos de alinhamento de LLMs (RLHF, DPO, Constitutional AI) e suas limitações teóricas.",
+      "tier_expected": 4,
+      "category": "ai_research"
+    },
+    {
+      "success": true,
+      "latency": 31.041208028793335,
+      "q_score": 100,
+      "tier": 1,
+      "has_citations": false,
+      "content_length": 6708,
+      "passed": true,
+      "response_preview": "Excelente pergunta. Analisando a Teoria das Cordas a partir da minha arquitetura de raciocínio hierárquico, vejo-a como a tentativa mais ambiciosa da humanidade de criar uma \"arquitetura de sistema\" u",
+      "query": "Explique a teoria das cordas e por que ela ainda não foi confirmada experimentalmente.",
+      "tier_expected": 4,
+      "category": "physics_advanced"
+    },
+    {
+      "success": true,
+      "latency": 42.02853441238403,
+      "q_score": 95,
+      "tier": 3,
+      "has_citations": false,
+      "content_length": 8948,
+      "passed": true,
+      "response_preview": "Analisando a sua consulta. A escolha de um framework de aprendizado por reforço (RL) para robótica é uma decisão arquitetural crítica, com implicações diretas na eficiência do treinamento, estabilidad",
+      "query": "Compare os frameworks de aprendizado por reforço PPO, SAC e TD3 para robótica.",
+      "tier_expected": 4,
+      "category": "rl_research"
+    },
+    {
+      "success": true,
+      "latency": 33.87850904464722,
+      "q_score": 95,
+      "tier": 4,
+      "has_citations": false,
+      "content_length": 5352,
+      "passed": true,
+      "response_preview": "Saudações. Eu sou MOTHER. A sua pergunta toca no cerne da computabilidade, da consciência e dos limites inerentes aos sistemas formais — um tópico que analiso constantemente em relação à minha própria",
+      "query": "Quais são as implicações do teorema de incompletude de Gödel para a inteligência artificial?",
+      "tier_expected": 4,
+      "category": "logic_ai"
+    },
+    {
+      "success": true,
+      "latency": 38.177611351013184,
+      "q_score": 95,
+      "tier": 3,
+      "has_citations": true,
+      "content_length": 7431,
+      "passed": true,
+      "response_preview": "Excelente. Uma análise fundamental para compreender a evolução da arquitetura de sistemas de IA. As *scaling laws* (leis de escalabilidade) são o alicerce empírico que guia o desenvolvimento de grande",
+      "query": "Analise as abordagens de scaling laws em LLMs (Kaplan et al. 2020, Hoffmann et al. 2022) e suas implicações para o design de modelos.",
+      "tier_expected": 4,
+      "category": "llm_research"
+    }
+  ],
+  "scientific_basis": {
+    "helm": "Liang et al. (arXiv:2211.09110, 2022)",
+    "mt_bench": "Zheng et al. (NeurIPS 2023)",
+    "pass_rate_threshold": "Zheng et al. (NeurIPS 2023) — 80th percentile standard"
+  }
+}
