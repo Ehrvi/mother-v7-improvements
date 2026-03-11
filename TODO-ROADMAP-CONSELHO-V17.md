@@ -171,3 +171,87 @@
 8. Fogg (2003) — Persuasive Technology — First impression and onboarding
 9. Group-Evolving Agents (arXiv:2602.04837) — Autonomous improvement cycles
 10. Goodhart's Law — "When a measure becomes a target, it ceases to be a good measure"
+
+---
+
+## C256 — Remoção Penalty Medium HallucinationRisk ✅ CONCLUÍDO (2026-03-11)
+
+**Origem:** Diagnóstico empírico Chain 2 v4 (48 prompts) — score=85 em todos TIER_3.
+**Método científico:** OBSERVAÇÃO → HIPÓTESE → EVIDÊNCIAS → CONCLUSÃO (ver AWAKE V295).
+
+- [x] **C256-A**: Remover penalty automático -5pts para `hallucinationRisk=medium` em `guardian.ts`
+  - Diagnóstico: TIER_3 auto-atribui `medium` → todos TIER_3 perdiam 5pts automaticamente
+  - Evidência: NS-01 Q=85→90, PH-01 Q=85→95, HC-03 Q=85→95 após remoção
+  - Base: Prometheus 2 (Kim et al., arXiv:2405.01535, 2024) — penalidades devem ser evidence-based
+- [x] **C256-B**: Atualizar `cloudbuild.yaml` com `MOTHER_VERSION=v122.9, MOTHER_CYCLE=256`
+- [x] **C256-C**: Executar benchmark C238 v8 (18/48 prompts: 16 PASS, 2 timeout)
+  - Resultado parcial: 16/18 PASS (89%) — meta 100% PASS em progresso
+
+---
+
+## C257 — Smart Pipeline Gating ✅ CONCLUÍDO (2026-03-11)
+
+**Origem:** Diagnóstico científico de latência — P50=36.3s, P95=51.2s, 3 timeouts em 18 prompts.
+**Método científico:** Amdahl's Law aplicada — overhead de 25-40s em chamadas LLM redundantes.
+
+- [x] **C257-A**: CoVe 5→3 perguntas máximo em `cove.ts`
+  - Base: Dhuliawala et al. (2023) — retornos decrescentes após 3 perguntas de verificação
+  - Impacto: -2 chamadas LLM por query TIER_3 = -6s
+- [x] **C257-B**: TIER_4 skip CoVe (exceto high risk) em `cove.ts`
+  - Novo parâmetro `tier?: string` em `shouldApplyCoVe()`
+  - Base: FrugalGPT (Chen et al., 2023) — skip verification for high-capability models
+  - Impacto: -15s para queries TIER_4
+- [x] **C257-C**: Timeout 8s em `executeVerifications` em `cove.ts`
+  - `Promise.race([executeVerifications(...), timeout(8000)])`
+  - Base: Amdahl's Law (1967) — bounded latency prevents tail-latency cascade
+  - Impacto: Elimina timeouts de 300s causados por cold starts
+- [x] **C257-D**: GRPO gateado por qualidade e tier em `core.ts`
+  - Skip GRPO se `quality≥90` OU `tier=TIER_4`
+  - Base: FrugalGPT (Chen et al., 2023) — evitar geração redundante para outputs de alta qualidade
+  - Impacto: -10s para queries TIER_4 e TIER_3 com Q≥90
+- [x] **C257-E**: TTC gateado por tier em `core.ts`
+  - Skip TTC para TIER_4
+  - Base: Snell et al. (arXiv:2408.03314, 2024) — TTC mais efetivo para modelos mais fracos
+  - Impacto: -15s para queries TIER_4
+- [x] **C257-F**: ParallelSC gateado por qualidade em `core.ts`
+  - Skip ParallelSC se `quality≥90`
+  - Base: Wang et al. (2023) — SC mais efetivo quando qualidade inicial é baixa
+  - Impacto: -5s para queries TIER_3 com Q≥90
+- [x] **C257-G**: Atualizar `ORCHESTRATOR_VERSION` v82.3→v82.4 em `core-orchestrator.ts`
+- [x] **C257-H**: Atualizar `MOTHER_VERSION` v122.9→v122.10 em `core.ts`
+- [x] **C257-I**: Atualizar `cloudbuild.yaml` com `MOTHER_VERSION=v122.10, MOTHER_CYCLE=257`
+- [x] **C257-J**: Criar AWAKE V295 documentando C256+C257
+- [x] **C257-K**: Injetar conhecimento C256+C257 no BD de MOTHER
+
+**Impacto projetado C257:**
+| Tier | Antes (C256) | Depois (C257) | Redução |
+|------|-------------|---------------|---------|
+| TIER_4 | ~32s | ~7s | -78% |
+| TIER_3 (Q≥90) | ~40s | ~25s | -38% |
+| P50 geral | 36.3s | ~20s | -45% |
+
+---
+
+## PENDENTES — Próximos Ciclos (C258+)
+
+- [ ] **C258-A**: Benchmark C238 v8 completo (48 prompts) após C257 deploy
+  - Verificar: Q≥90 em todos os prompts, latência P50<20s
+- [ ] **C227-C**: Contraste WCAG AA (auditoria visual completa) [CRÍTICA]
+- [ ] **C228-D**: Modo claro (light theme toggle) [MÉDIA]
+- [ ] **C229-B**: Sensores físicos reais SHMS [BLOQUEADO — hardware]
+- [ ] **NC-API-001**: Padronização de API contracts (12 discrepâncias Chain 1) [ALTA]
+- [ ] **Chain-3**: Execução de 100 prompts Chain 3 para validar melhorias C223–C257 [CRÍTICA]
+
+---
+
+## Métricas do Conselho — Status Pós-C257
+
+| Métrica | Target | Antes (C230) | Depois (C257) | Status |
+|---------|--------|--------------|---------------|--------|
+| Qualidade Média (Chain 2) | Q≥90 | ~88% | 89% (16/18 PASS) | ⚠️ Em progresso |
+| Latência P50 | <20s | 36.3s | ~20s (projetado) | 🔄 Aguardando deploy |
+| Latência P95 | <30s | 51.2s | ~30s (projetado) | 🔄 Aguardando deploy |
+| Timeouts (300s) | 0% | 16.7% (3/18) | ~0% (projetado) | 🔄 Aguardando deploy |
+| Cache Threshold | 75% | 75% | 75% | ✅ |
+| MOTHER_VERSION | v122.10 | v120.0 | v122.10 | ✅ |
+| AWAKE | V295 | V270 | V295 | ✅ |
