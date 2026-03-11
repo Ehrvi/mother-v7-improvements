@@ -150,7 +150,7 @@ import { applyCalibrationV2, recordCalibrationObservation as recordCalV2, getCal
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v122.17'; // C297-C299 (2026-03-11): Conselho V105 — Fast Path TIER_3 Q≥80 (C297), GRPO v3 G=3 (C298), ParallelSC timeout 65s→12s (C299) — P50 target ≤10s
+export const MOTHER_VERSION = 'v122.18'; // C297-C300 (2026-03-11): Conselho V105 2014 Fast Path TIER_3 (C297), GRPO v3 G=3 (C298), PSC timeout fix (C299), Citation on cache (C300)
 
 const log = createLogger('CORE');
 
@@ -441,7 +441,23 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
         ragasAnswerRelevancy: null,
         ragasContextPrecision: null,
       })).catch(() => {}); // fire-and-forget
-      return { ...cachedResponse, cacheHit: true, responseTime: Date.now() - startTime };
+      // C300 (R4 Fix): Apply citation engine to cache hits — cached responses may lack citations
+      // Scientific basis: Wu et al. (2025, Nature Communications): citations mandatory for scientific grounding
+      // Root cause: Citation Engine (C290) runs post-generation, but cache returns early — bypassing it
+      let cachedFinalResponse = cachedResponse.response || '';
+      const cachedCategory = cachedResponse.queryCategory || 'general';
+      if (shouldApplyCitationEngine(cachedFinalResponse, cachedCategory)) {
+        try {
+          const citResult = await applyCitationEngine(query, cachedFinalResponse, cachedCategory);
+          if (citResult.citationsFound > 0) {
+            cachedFinalResponse = citResult.responseWithCitations;
+            log.info(`[CitationEngine-Cache] Applied to cache hit: ${citResult.citationsFound} citations added`);
+          }
+        } catch (citErr) {
+          log.warn('[CitationEngine-Cache] Failed (non-blocking):', (citErr as Error).message);
+        }
+      }
+      return { ...cachedResponse, response: cachedFinalResponse, cacheHit: true, responseTime: Date.now() - startTime };
     }
     
     // Tier 2: Semantic similarity match (requires embedding)
@@ -485,7 +501,21 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
               ragasAnswerRelevancy: null,
               ragasContextPrecision: null,
             })).catch(() => {}); // fire-and-forget
-            return { ...cachedResponse, cacheHit: true, responseTime: Date.now() - startTime };
+            // C300 (R4 Fix): Apply citation engine to semantic cache hits too
+            let semCachedFinalResponse = cachedResponse.response || '';
+            const semCachedCategory = cachedResponse.queryCategory || 'general';
+            if (shouldApplyCitationEngine(semCachedFinalResponse, semCachedCategory)) {
+              try {
+                const citResult = await applyCitationEngine(query, semCachedFinalResponse, semCachedCategory);
+                if (citResult.citationsFound > 0) {
+                  semCachedFinalResponse = citResult.responseWithCitations;
+                  log.info(`[CitationEngine-SemanticCache] Applied: ${citResult.citationsFound} citations added`);
+                }
+              } catch (citErr) {
+                log.warn('[CitationEngine-SemanticCache] Failed (non-blocking):', (citErr as Error).message);
+              }
+            }
+            return { ...cachedResponse, response: semCachedFinalResponse, cacheHit: true, responseTime: Date.now() - startTime };
           }
         }
       }
