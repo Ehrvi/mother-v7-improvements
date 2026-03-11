@@ -460,7 +460,7 @@ app.post('/api/mother/stream', async (req, res) => {
     sendEvent('thinking', {
       message: '\ud83e\udde0 MOTHER est\u00e1 processando...',
       timestamp: _ttftStart,
-      version: process.env.MOTHER_VERSION || 'v122.11'
+      version: process.env.MOTHER_VERSION || 'v122.19' // C308: updated fallback (2026-03-11)
     });
     sendEvent('progress', { phase: 'routing', message: 'Analisando complexidade da query...', ttft_ms: Date.now() - _ttftStart });
 

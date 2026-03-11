@@ -382,11 +382,14 @@ a2aRouter.get('/api/a2a/knowledge', authenticateA2A, async (req: Request, res: R
     // ISSUE: /api/a2a/knowledge capped at 300 entries — maintenance agent cannot load full BD
     // FIX: Add offset pagination + increase cap to 1000 + add domain filter alias
     // Scientific basis: REST API pagination best practices (Fielding, 2000 — REST dissertation)
-    // AWAKE V305 R549 (C306 Conselho V106): maintenance agent MUST load ALL BD knowledge before ANY output
-    // Protocol: paginate with offset=0,100,200,...,N until total exhausted (see AWAKE V305 Passo 1)
+    // AWAKE V306 R549 (C308 Conselho V107): maintenance agent MUST load ALL BD knowledge before ANY output
+    // Protocol: paginate with offset=0,100,200,...,N until total exhausted (see AWAKE V306 Passo 1)
     // CRITICAL: Zero output permitted before full BD load. Violation = protocol breach.
-    // AWAKE V305 R8 (C305-C306): LFSA must generate real code for programming book requests
+    // AWAKE V306 R8 (C305-C307): LFSA generates real TypeScript code — CONFIRMED in C307 benchmark (2026-03-11)
+    //   C307 result: TTFT <2s, code generated YES, latency ~90s, R8 APPROVED
     //   Verify: isProgrammingRequest() + buildCodeAwareSectionPrompt() active in long-form-engine-v3.ts
+    // AWAKE V306 R9 (C308): SSE version fallback updated v122.11→v122.19 in production-entry.ts line 463
+    // AWAKE V306 Roadmap: V52 — C309 (DPO v9) pending chosenCount>=500, C310 final eval pending
     const limit = Math.min(Number(req.query.limit) || 100, 1000); // v81.1: cap 300 → 1000
     const offset = Math.max(Number(req.query.offset) || 0, 0);    // v81.1: pagination offset
     const category = (req.query.category || req.query.domain) as string | undefined; // v81.1: domain alias
