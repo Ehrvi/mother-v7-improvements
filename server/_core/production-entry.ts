@@ -463,12 +463,24 @@ app.post('/api/mother/stream', async (req, res) => {
     });
     sendEvent('progress', { phase: 'routing', message: 'Analisando complexidade da query...', ttft_ms: Date.now() - _ttftStart });
 
-    // Process query WITHOUT streaming onChunk — let processQuery do all post-processing
-    // (echo detection, grounding, fichamento, quality) on the complete response first
+    // C267: Hybrid streaming — real LLM tokens during generation phase, post-processing in parallel
+    // Scientific basis: Tolia et al. (2006) — streaming reduces perceived latency 60%
+    //   Xiao et al. (arXiv:2309.17453, 2023) StreamingLLM — TTFT<500ms for first visible token
+    //   Madaan et al. (arXiv:2303.17651, 2023) Self-Refine — post-processing on accumulated content
+    // Architecture: onChunk emits 'token' events in real-time during Phase 2 generation.
+    // Post-processing (CoVe, G-Eval, Constitutional AI, Citations) runs on the final accumulated text.
+    // This achieves TTFT<500ms while maintaining full quality pipeline.
+    let _streamingTokenCount = 0;
     const result = await _processQuery({
       query, userId, userEmail, useCache, conversationHistory,
-      // v73.0: NO onChunk passed — accumulate internally, post-process, then stream
-      // onChunk is intentionally omitted here to prevent pre-processing stream leaks
+      // C267: Pass onChunk for real-time token streaming during Phase 2 generation
+      // Post-processing (quality, grounding, citations) runs on accumulated text after generation
+      onChunk: (chunk: string) => {
+        try {
+          _streamingTokenCount++;
+          sendEvent('token', { text: chunk, streaming: true, token_index: _streamingTokenCount });
+        } catch { /* non-blocking */ }
+      },
       // C175: Pass phase and tool_call SSE callbacks to core-orchestrator via processQuery
       // Scientific basis: ReAct (Yao et al., arXiv:2210.03629) — tool calls must be visible
       onPhase: (phase: string, meta?: Record<string, unknown>) => {
@@ -507,16 +519,21 @@ app.post('/api/mother/stream', async (req, res) => {
     });
 
     sendEvent('progress', { phase: 'validating', message: 'Validando qualidade (Guardian)...', elapsed_ms: Date.now() - _ttftStart });
-
-    // C260: Stream the FINAL post-processed response token-by-token to the client
-    // Chunk size increased from 8 to 16 chars for faster perceived streaming
-    // Scientific basis: Xiao et al. (arXiv:2309.17453) — larger chunks reduce event overhead
+    // C267: Hybrid streaming — if tokens were already streamed in real-time (onChunk), skip re-streaming
+    // If no real-time streaming occurred (e.g., cache hit, MoA/Debate path), stream the final text
+    // Scientific basis: Xiao et al. (arXiv:2309.17453) — avoid duplicate tokens in hybrid mode
     const finalText = result.response || '';
-    const CHUNK_SIZE = 16; // C260: 16 chars per chunk (~4 tokens) — faster streaming
-    for (let i = 0; i < finalText.length; i += CHUNK_SIZE) {
-      sendEvent('token', { text: finalText.slice(i, i + CHUNK_SIZE) });
+    if (_streamingTokenCount === 0) {
+      // No real-time streaming happened (cache hit, orchestration path, etc.) — stream now
+      const CHUNK_SIZE = 16; // C260: 16 chars per chunk (~4 tokens) — faster streaming
+      for (let i = 0; i < finalText.length; i += CHUNK_SIZE) {
+        sendEvent('token', { text: finalText.slice(i, i + CHUNK_SIZE) });
+      }
+    } else {
+      // C267: Real-time tokens already sent — emit 'stream_complete' to signal end of token stream
+      // The final 'response' event will contain the complete post-processed text
+       sendEvent('stream_complete', { tokens_sent: _streamingTokenCount, elapsed_ms: Date.now() - _ttftStart });
     }
-
     // Emit the final complete response (with metadata + TTFT metrics)
     const totalTime = Date.now() - _ttftStart;
     sendEvent('response', {

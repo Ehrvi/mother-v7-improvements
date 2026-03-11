@@ -70,6 +70,35 @@ export function requiresResearch(query: string): boolean {
     /pesquise/i,
     /investigue/i,
     /descubra/i,
+    // C274 (Conselho V102): Detect outdated knowledge queries — trigger real-time web search
+    // Scientific basis: CRAG (Yan et al., arXiv:2401.15884, 2024): corrective retrieval for stale knowledge
+    //   Temporal Knowledge Cutoff (Dhingra et al., arXiv:2203.01520, 2022): LLMs have knowledge cutoffs
+    //   Web-Augmented LLMs (Nakano et al., arXiv:2112.09332, 2021): real-time search improves accuracy
+    // Outdated knowledge patterns (Portuguese + English)
+    /pre[çc]o.*atual/i,       // current price
+    /cota[çc][ãa]o.*hoje/i,   // today's quote
+    /valor.*atual/i,           // current value
+    /hoje.*[0-9]{4}/i,         // today + year
+    /agora.*mesmo/i,           // right now
+    /tempo.*real/i,            // real-time
+    /em.*tempo.*real/i,        // in real-time
+    /ao.*vivo/i,               // live
+    /breaking.*news/i,         // breaking news
+    /latest.*news/i,           // latest news
+    /current.*price/i,         // current price (English)
+    /today.*price/i,           // today's price (English)
+    /live.*data/i,             // live data (English)
+    /real.*time.*data/i,       // real-time data (English)
+    /o que.*est[aá].*acontecendo/i, // what is happening
+    /quais.*s[aã]o.*as.*[úu]ltimas/i, // what are the latest
+    /novidades.*sobre/i,       // news about
+    /atualiza[çc][ãa]o.*sobre/i, // update about
+    /quando.*foi.*lan[çc]ado/i, // when was launched (recent products)
+    /lan[çc]amento.*recente/i, // recent launch
+    /nova.*vers[aã]o/i,        // new version
+    /[úu]ltima.*vers[aã]o/i,   // latest version
+    /release.*notes/i,         // release notes
+    /changelog/i,              // changelog
   ];
 
   return researchIndicators.some(pattern => pattern.test(query));

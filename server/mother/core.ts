@@ -150,7 +150,7 @@ import { applyCalibrationV2, recordCalibrationObservation as recordCalV2, getCal
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v122.12'; // C259 (2026-03-11): Conselho V102 — Parallelize CoVe+G-Eval (Promise.all), Knowledge Graph active, Citation Engine (Semantic Scholar+arXiv), latency P50: ~20s→~16s
+export const MOTHER_VERSION = 'v122.13'; // C267-C274 (2026-03-11): Conselho V102 — Streaming Gemini (C267), Metrics Dashboard (C268), Self-Refine Q<88 (C269), Gemini 2.5 Pro TIER_4 (C271), Long-term Memory A-MEM (C272), Web Search Outdated (C274)
 
 const log = createLogger('CORE');
 
@@ -299,6 +299,8 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
         // C175: Pass SSE callbacks through to core-orchestrator
         onPhase: request.onPhase as any,
         onToolCall: request.onToolCall,
+        // C267: Pass onChunk for real-time token streaming in core-orchestrator path
+        onChunk: request.onChunk,
       });
       // Map OrchestratorResponse → MotherResponse (Ciclo 70 A/B)
       // Ciclo 75 BUG-FIX: include quality + all MotherResponse fields to prevent downstream crashes
@@ -1451,11 +1453,13 @@ ${autonomyStatus}
   
   // ==================== SELF-REFINE PHASE 3 (NC-QUALITY-007) ====================
   // Scientific basis: Madaan et al. (arXiv:2303.17651, 2023): Self-Refine improves quality +20%
-  // Only triggered when quality < 80 AND response is substantive (> 200 chars)
+  // C269 (Conselho V102): Expand threshold from Q<80 to Q<88 — catch more low-quality responses
+  // Rationale: Benchmark C238 v9 shows 6/44 prompts with Q<90 but >80 — Self-Refine can improve these
+  // Only triggered when quality < 88 AND response is substantive (> 200 chars)
   // Max 3 iterations, early stop at quality >= 90
-  if (quality.qualityScore < 80 && response.length > 200) {
+  if (quality.qualityScore < 88 && response.length > 200) {
     try {
-      log.info(`[Self-Refine] Phase 3 triggered (score ${quality.qualityScore} < 80)`);
+      log.info(`[Self-Refine] Phase 3 triggered (score ${quality.qualityScore} < 88, C269 threshold)`);
       const selfRefineResult = await selfRefinePhase3(
         query,
         response,

@@ -538,6 +538,53 @@ async function invokeGoogle(params: InvokeParams): Promise<InvokeResult> {
     }];
   }
 
+  // C267: Google Gemini streaming support (streamGenerateContent API)
+  // Scientific basis: Tolia et al. (2006) — streaming reduces perceived latency 60%
+  // Gemini streaming API: https://ai.google.dev/api/generate-content#v1beta.models.streamGenerateContent
+  if (params.onChunk) {
+    const streamUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:streamGenerateContent?alt=sse&key=${ENV.googleApiKey}`;
+    const streamResponse = await fetch(streamUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!streamResponse.ok) {
+      const errorText = await streamResponse.text();
+      throw new Error(`Google AI streaming failed: ${streamResponse.status} ${streamResponse.statusText} – ${errorText}`);
+    }
+    const reader = streamResponse.body!.getReader();
+    const decoder = new TextDecoder();
+    let fullContent = '';
+    let totalTokens = { prompt: 0, completion: 0, total: 0 };
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const text = decoder.decode(value, { stream: true });
+      const lines = text.split('\n');
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const chunk = JSON.parse(line.slice(6));
+            const delta = chunk.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (delta) { fullContent += delta; params.onChunk!(delta); }
+            if (chunk.usageMetadata) {
+              totalTokens.prompt = chunk.usageMetadata.promptTokenCount || 0;
+              totalTokens.completion = chunk.usageMetadata.candidatesTokenCount || 0;
+              totalTokens.total = chunk.usageMetadata.totalTokenCount || 0;
+            }
+          } catch { /* ignore malformed SSE lines */ }
+        }
+      }
+    }
+    return {
+      id: `gemini-stream-${Date.now()}`,
+      created: Math.floor(Date.now() / 1000),
+      model: modelName,
+      choices: [{ index: 0, message: { role: 'assistant', content: fullContent }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: totalTokens.prompt, completion_tokens: totalTokens.completion, total_tokens: totalTokens.total },
+    };
+  }
+
   const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${ENV.googleApiKey}`;
 
   const response = await fetch(apiUrl, {
