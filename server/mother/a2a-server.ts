@@ -382,7 +382,9 @@ a2aRouter.get('/api/a2a/knowledge', authenticateA2A, async (req: Request, res: R
     // ISSUE: /api/a2a/knowledge capped at 300 entries — maintenance agent cannot load full BD
     // FIX: Add offset pagination + increase cap to 1000 + add domain filter alias
     // Scientific basis: REST API pagination best practices (Fielding, 2000 — REST dissertation)
-    // AWAKE V235 R549: maintenance agent MUST load all BD knowledge before output
+    // AWAKE V304 R549 (C304 Conselho V105): maintenance agent MUST load ALL BD knowledge before ANY output
+    // Protocol: paginate with offset=0,100,200,...,N until total exhausted (see AWAKE V304 Passo 1)
+    // CRITICAL: Zero output permitted before full BD load. Violation = protocol breach.
     const limit = Math.min(Number(req.query.limit) || 100, 1000); // v81.1: cap 300 → 1000
     const offset = Math.max(Number(req.query.offset) || 0, 0);    // v81.1: pagination offset
     const category = (req.query.category || req.query.domain) as string | undefined; // v81.1: domain alias
