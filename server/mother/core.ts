@@ -1465,7 +1465,7 @@ ${autonomyStatus}
   // Scientific basis: Dhuliawala et al. (arXiv:2309.11495, 2023): 28-46% hallucination reduction
   // Trigger: research/complex_reasoning queries with medium/high hallucination risk
   // Non-blocking: errors caught, original response preserved
-  if (shouldApplyCoVe(response, routingDecision.category, hallucinationRisk)) {
+  if (shouldApplyCoVe(response, routingDecision.category, hallucinationRisk, routingDecision.tier)) { // C257: tier-aware CoVe gating
     try {
       const coveResult = await applyCoVe(
         query,
@@ -1697,7 +1697,10 @@ ${autonomyStatus}
   // GenPRM (Zhao et al., 2025, arXiv:2504.00891): Generative PRM with CoT for verification
   // Brown et al. (2024, arXiv:2407.21787): Best-of-N with reward model ranking
   // Trigger: faithfulness-critical queries + complexity >= 0.6 — meta: faithfulness 92→95+
-  if (!onChunk && shouldApplyTTCScaling(query, routingDecision.category, routingDecision.complexityScore ?? 0)) {
+  // C257: Gate TTC — skip for TIER_4 (best model, TTC adds latency without quality gain)
+  // Scientific basis: Snell et al. (2024) — TTC most effective for weaker models, not frontier models
+  const ttcTierGate = routingDecision.tier !== 'TIER_4';
+  if (!onChunk && ttcTierGate && shouldApplyTTCScaling(query, routingDecision.category, routingDecision.complexityScore ?? 0)) {
     try {
       const ttcResult = await applyTTCScaling({
         query,
@@ -1722,7 +1725,11 @@ ${autonomyStatus}
   // Scientific basis: GRPO (Shao et al., arXiv:2402.03300, DeepSeekMath 2024)
   // DeepSeek-R1 (Guo et al., arXiv:2501.12948, 2025) — group sampling at inference time
   // Trigger: complex_reasoning + high complexity queries (complexityScore >= 0.7)
-  if (shouldApplyGRPO(routingDecision.category, query, routingDecision.complexityScore ?? 0)) {
+  // C257: Gate GRPO — skip if quality already ≥90 (redundant) or TIER_4 (best model)
+  // Scientific basis: FrugalGPT (Chen et al., 2023) — avoid redundant generation for high-quality outputs
+  const grpoQualityGate = (calibratedQuality.calibratedScore ?? quality.qualityScore ?? 100) < 90;
+  const grpoTierGate = routingDecision.tier !== 'TIER_4'; // TIER_4 already best model
+  if (grpoQualityGate && grpoTierGate && shouldApplyGRPO(routingDecision.category, query, routingDecision.complexityScore ?? 0)) {
     try {
       const grpoResult = await applyGRPOReasoning(
         query, response, routingDecision.model.modelName ?? 'gpt-4o-mini',
@@ -1758,7 +1765,10 @@ ${autonomyStatus}
   // ==================== CICLO 61: PARALLEL SELF-CONSISTENCY ====================
   // Scientific basis: ESC (arXiv:2401.10480, ICLR 2024) — Promise.all N=3, early-stop 80%
   // Trigger: complex_reasoning queries (replaces sequential self-consistency)
-  if (shouldApplyParallelSC(routingDecision.category, query.length, (quality.qualityScore ?? 100) < 80)) {
+  // C257: Gate ParallelSC — skip if quality already ≥90 (redundant)
+  // Scientific basis: Wang et al. (2023) — SC most effective when initial quality is low
+  const pscQualityGate = (calibratedQuality.calibratedScore ?? quality.qualityScore ?? 100) < 90;
+  if (pscQualityGate && shouldApplyParallelSC(routingDecision.category, query.length, (quality.qualityScore ?? 100) < 80)) {
     try {
       const pscResult = await applyParallelSelfConsistency(
         query, systemPrompt, routingDecision.model.provider, routingDecision.model.modelName,

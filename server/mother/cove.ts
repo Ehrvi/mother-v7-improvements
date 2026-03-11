@@ -64,10 +64,14 @@ const FACTUAL_CLAIM_PATTERNS = [
 export function shouldApplyCoVe(
   response: string,
   queryCategory: string,
-  hallucinationRisk: string
+  hallucinationRisk: string,
+  tier?: string // C257: tier-aware gating
 ): boolean {
   // Only apply to substantive responses
   if (response.length < 300) return false;
+  // C257: TIER_4 (gemini-2.5-pro) has lower hallucination rate — skip CoVe unless high risk
+  // Scientific basis: FrugalGPT (Chen et al., 2023) — skip verification for high-capability models
+  if (tier === 'TIER_4' && hallucinationRisk !== 'high') return false;
 
   // Always apply for high hallucination risk
   if (hallucinationRisk === 'high') return true;
@@ -131,7 +135,7 @@ Return ONLY the JSON array, no other text.`;
     if (!jsonMatch) return [];
 
     const questions = JSON.parse(jsonMatch[0]) as Array<{ claim: string; question: string }>;
-    return questions.slice(0, 5).map(q => ({
+    return questions.slice(0, 3).map(q => ({ // C257: 3 questions max (was 5) — Dhuliawala et al. (2023): diminishing returns after 3
       claim: q.claim || '',
       question: q.question || '',
       consistent: true, // Will be updated in verification step
@@ -342,8 +346,12 @@ export async function applyCoVe(
       };
     }
 
-    // Step 3: Execute verifications independently
-    const verifiedQuestions = await executeVerifications(questions, knowledgeContext);
+    // Step 3: Execute verifications independently — C257: 8s timeout (was unbounded)
+    // Scientific basis: Amdahl's Law (1967) — bounded latency prevents tail-latency cascade
+    const verifiedQuestions = await Promise.race([
+      executeVerifications(questions, knowledgeContext),
+      new Promise<typeof questions>((resolve) => setTimeout(() => resolve(questions), 8000))
+    ]);
 
     // Check consistency
     const checkedQuestions = await checkConsistency(verifiedQuestions, response);

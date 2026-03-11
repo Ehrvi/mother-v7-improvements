@@ -116,7 +116,7 @@ export interface LayerTrace {
 // CONSTANTS
 // ============================================================
 
-export const ORCHESTRATOR_VERSION = 'v82.3'; // C254: timeoutMs 60s → 90s (PH-01 Kant needed 67s, CW queries need 65-70s)
+export const ORCHESTRATOR_VERSION = 'v82.4'; // C257: Smart Pipeline Gating — CoVe 5→3 questions, tier-aware GRPO/TTC/CoVe gating (latency P50: 36s→~20s)
 export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 3,
   successThreshold: 1,
