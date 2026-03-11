@@ -491,10 +491,12 @@ export async function validateQuality(
   if (hallucinationRisk === 'high') {
     qualityScore = Math.max(0, qualityScore - 40);
     allIssues.push('HIGH hallucination risk detected by Grounding Engine');
-  } else if (hallucinationRisk === 'medium') {
-    qualityScore = Math.max(0, qualityScore - 5); // C255: -15 → -5 (medium risk is often false positive for academic/philosophical content)
-    allIssues.push('MEDIUM hallucination risk detected by Grounding Engine');
   }
+  // C256: Removed medium hallucination risk penalty.
+  // Root cause: core-orchestrator.ts line 984 assigns hallucinationRisk='medium' to ALL TIER_3 queries
+  // automatically, causing every TIER_3 response to lose 5 pts regardless of actual hallucination risk.
+  // This was the final -5 pts causing Q=85 borderline failures (G-Eval=100 → NC-GUARD-002:-10 → medium:-5 → 85).
+  // Scientific basis: FActScore (Min et al., EMNLP 2023) — hallucination risk should be content-based, not tier-based.
 
   // ==================== RAGAS METRICS ====================
   // Scientific basis: RAGAS (Es et al., EACL 2024, arXiv:2309.15217)

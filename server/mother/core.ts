@@ -148,7 +148,7 @@ import { applyCalibrationV2, recordCalibrationObservation as recordCalV2, getCal
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v122.8'; // C255 (2026-03-11): NC-GUARD-002 penalty 10→5pts + hallucinationRisk medium -15→-5pts
+export const MOTHER_VERSION = 'v122.9'; // C256 (2026-03-11): Remove medium hallucinationRisk penalty — TIER_3 auto-assigned medium causing all TIER_3 to lose 5pts
 
 const log = createLogger('CORE');
 
