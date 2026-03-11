@@ -115,8 +115,7 @@ async function computeSimpleRLVR(response: string, prompt: string): Promise<RLVR
   // Check for scientific indicators
   const hasReferences = /(arXiv|doi|et al\.|IEEE|ACM|NeurIPS|ICML|ICLR|Nature|Science)/i.test(response);
   const hasNumbers = /\d+\.?\d*\s*(%|ms|s|tokens|pairs|accuracy)/i.test(response);
-  const hasStructure = response.includes('
-') && response.length > 200;
+  const hasStructure = response.split('\n').length > 3 && response.length > 200;
   const hasCode = /```[\s\S]*```/.test(response);
   const wordCount = response.split(/\s+/).length;
   

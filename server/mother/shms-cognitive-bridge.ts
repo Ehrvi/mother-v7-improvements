@@ -181,14 +181,11 @@ function parseCognitiveResponse(response: string): {
   
   // Extract recommendations
   const recommendations: string[] = [];
-  const recSection = response.match(/recomenda[çc][õo]es?[:\s]+([\s\S]*?)(?:
-
-|
-#|$)/i);
+  const recPattern = new RegExp("recomenda.{0,20}[:\\s]+([\\s\\S]*?)(?:\\n\\n|\\n#|$)", "i");
+  const recSection = response.match(recPattern);
   if (recSection) {
-    const lines = recSection[1].split('
-').filter(l => l.trim().length > 10);
-    recommendations.push(...lines.slice(0, 3).map(l => l.replace(/^[-*\d.]\s*/, '').trim()));
+    const lines = recSection[1].split('\n').filter((l: string) => l.trim().length > 10);
+    recommendations.push(...lines.slice(0, 3).map((l: string) => l.replace(/^[-*\d.]\s*/, '').trim()));
   }
   
   return {
@@ -218,7 +215,7 @@ function fallbackRuleBasedAnalysis(
     sensorId: request.sensorId,
     alertLevel,
     diagnosis: `Análise rule-based (fallback): valor atual ${stats.latest.toFixed(3)}, tendência ${stats.trend}`,
-    trend: stats.trend as any,
+    trend: stats.trend as 'stable' | 'increasing' | 'decreasing' | 'anomalous',
     recommendations: ['Verificar dados manualmente', 'Consultar engenheiro geotécnico'],
     confidence: 0.5,
     analysisTime: Date.now() - startTime,
