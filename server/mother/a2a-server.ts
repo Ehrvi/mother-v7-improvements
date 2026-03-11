@@ -382,14 +382,37 @@ a2aRouter.get('/api/a2a/knowledge', authenticateA2A, async (req: Request, res: R
     // ISSUE: /api/a2a/knowledge capped at 300 entries — maintenance agent cannot load full BD
     // FIX: Add offset pagination + increase cap to 1000 + add domain filter alias
     // Scientific basis: REST API pagination best practices (Fielding, 2000 — REST dissertation)
-    // AWAKE V306 R549 (C308 Conselho V107): maintenance agent MUST load ALL BD knowledge before ANY output
-    // Protocol: paginate with offset=0,100,200,...,N until total exhausted (see AWAKE V306 Passo 1)
-    // CRITICAL: Zero output permitted before full BD load. Violation = protocol breach.
-    // AWAKE V306 R8 (C305-C307): LFSA generates real TypeScript code — CONFIRMED in C307 benchmark (2026-03-11)
-    //   C307 result: TTFT <2s, code generated YES, latency ~90s, R8 APPROVED
-    //   Verify: isProgrammingRequest() + buildCodeAwareSectionPrompt() active in long-form-engine-v3.ts
-    // AWAKE V306 R9 (C308): SSE version fallback updated v122.11→v122.19 in production-entry.ts line 463
-    // AWAKE V306 Roadmap: V52 — C309 (DPO v9) pending chosenCount>=500, C310 final eval pending
+    // ═══════════════════════════════════════════════════════════════════════════
+    // AWAKE V307 (C315 — Conselho V108 — 2026-03-11) — MAINTENANCE AGENT PROTOCOL
+    // ═══════════════════════════════════════════════════════════════════════════
+    // RULE 0 (ABSOLUTE): ZERO output before full BD load. Violation = protocol breach.
+    // Protocol: paginate offset=0,100,200,...,N until total_entries exhausted.
+    // BD total: ~12.430+ entries. Load ALL before any response.
+    // See AWAKEV307—MOTHERv122.19—CicloC315—ConselhoV108—2026-03-11.md for full protocol.
+    //
+    // CONSELHO V108 DIAGNOSIS (2026-03-11) — 5 CRITICAL PROBLEMS:
+    // P1: DGM Loop 0% success rate — supervisor.ts disconnected from core.ts
+    // P2: Reasoning simplistic — TIER_3 does not invoke supervisor ReAct agent
+    // P3: RLVR→DPO disconnected — 0 DPO pairs/week generated
+    // P4: No proactive learning — active-study.ts has no scheduler
+    // P5: SHMS blind — 31 modules on simulated data, 0 real sensor readings
+    //
+    // MODULES IMPLEMENTED BUT PENDING WIRING (C316 CRITICAL):
+    // - learning-scheduler.ts (C311/C313): initializeLearningScheduler() not called at startup
+    // - rlvr-dpo-connector.ts (C312): not integrated with GRPO candidates
+    // - shms-cognitive-bridge.ts (C314): analyzeSensorData() not called from SHMS pipeline
+    // - dictation-endpoint-patch.ts (C315): dictationRouter not registered in production-entry.ts
+    //
+    // CONFIRMED WORKING (C307 benchmark 2026-03-11):
+    // R8: LFSA generates real TypeScript code — TTFT <2s, ~90s for 60 pages, code YES
+    // R9: SSE version fallback v122.11→v122.19 fixed in production-entry.ts
+    //
+    // NEXT ACTIONS (ROADMAP V53):
+    // C316 (CRITICAL): Wire all C311-C315 modules in production-entry.ts
+    // C317 (HIGH): Fix DGM Loop — connect supervisor.ts to core.ts for complex queries
+    // C318 (HIGH): RLVR→DPO integration with GRPO candidates
+    // C319 (MEDIUM): SHMS MQTT Client for real sensor data
+    // C320: Benchmark Conselho V109 — validate C316-C319 in production
     const limit = Math.min(Number(req.query.limit) || 100, 1000); // v81.1: cap 300 → 1000
     const offset = Math.max(Number(req.query.offset) || 0, 0);    // v81.1: pagination offset
     const category = (req.query.category || req.query.domain) as string | undefined; // v81.1: domain alias
