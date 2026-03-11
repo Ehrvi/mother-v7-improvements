@@ -104,8 +104,26 @@ export async function injectSprintKnowledge(): Promise<void> {
       }
     }
   }
-  const total = SPRINT_KNOWLEDGE.length + SOTA_EVALUATION_KNOWLEDGE.length;
-  console.log(`[SprintKnowledge] Injected ${injected}/${total} entries into bd_central (${SPRINT_KNOWLEDGE.length} sprint + ${SOTA_EVALUATION_KNOWLEDGE.length} SOTA C258)`);
+  // C259: Council V102 Delphi+MAD knowledge (11 Mar 2026)
+  for (const entry of COUNCIL_V102_KNOWLEDGE) {
+    const hash = crypto.createHash("sha256").update(entry.title + entry.content).digest("hex").slice(0, 16);
+    try {
+      await db.insert(knowledge).values({
+        title: entry.title,
+        content: entry.content,
+        source: `C259 Council V102 Delphi+MAD hash:${hash}`,
+        sourceType: "learning" as const,
+        domain: entry.domain,
+      });
+      injected++;
+    } catch (err: any) {
+      if (!err.message?.includes('duplicate') && !err.message?.includes('Duplicate')) {
+        console.error("[SprintKnowledge C259] Failed: " + err.message);
+      }
+    }
+  }
+  const total = SPRINT_KNOWLEDGE.length + SOTA_EVALUATION_KNOWLEDGE.length + COUNCIL_V102_KNOWLEDGE.length;
+  console.log(`[SprintKnowledge] Injected ${injected}/${total} entries into bd_central (${SPRINT_KNOWLEDGE.length} sprint + ${SOTA_EVALUATION_KNOWLEDGE.length} SOTA C258 + ${COUNCIL_V102_KNOWLEDGE.length} Council V102 C259)`);
 }
 
 // ============================================================
@@ -170,6 +188,31 @@ export const SOTA_EVALUATION_KNOWLEDGE = [
   {
     title: "Roadmap Latência MOTHER C258-C270 — Baseado em SOTA",
     content: "C258: Paralelizar CoVe+G-Eval via Promise.all → P50 36s→16s (-20%). C259: Cache semântico embeddings (similarity 0.85) → P50 16s→14s (-10%). C260: Streaming SSE TTFT<2s → percepção velocidade. C265: Gemini Flash para TIER_1/TIER_2 (FrugalGPT cascade) → P50 14s→10s (-30%). C270: Speculative decoding (Leviathan 2023) → P50 10s→8s. Meta: Score Composto 83.6→91.7/100 (B+→A).",
+    domain: "roadmap",
+    category: "roadmap",
+  },
+];
+
+// ============================================================
+// C259 — Council V102 Delphi+MAD Knowledge (11 Mar 2026)
+// Protocolo: Delphi + MAD | Membros: DeepSeek, Gemini 2.5 Pro, Mistral Large, MOTHER
+// ============================================================
+export const COUNCIL_V102_KNOWLEDGE = [
+  {
+    title: "Conselho V102 — Diagnóstico Científico MOTHER v122.10",
+    content: "Sessão V102 (11 Mar 2026) | Protocolo Delphi+MAD | Consenso unânime: MOTHER está a ~30% do objetivo final. Paradoxo: possui componentes Nível 4 (9 módulos avançados) mas opera como Nível 1 (pipeline sequencial). BLOQUEADOR 1: Pipeline sequencial 5-16 chamadas LLM → Latência P50 36.3s (target ≤10s). BLOQUEADOR 2: 9 módulos desconectados (supervisor.ts, knowledge-graph.ts, abductive-engine.ts, tot-router.ts, tool-engine.ts, constitutional-ai.ts, rlvr-verifier.ts). BLOQUEADOR 3: UX Score 47.5/100 (target ≥80) — sem feedback visual, sem referências bibliográficas.",
+    domain: "diagnostico",
+    category: "diagnostico",
+  },
+  {
+    title: "Requisitos Inegociáveis de Chat MOTHER (7 Requisitos do Criador)",
+    content: "REQUISITOS INEGOCIÁVEIS para TODAS as respostas: (1) Metodologia científica — Hipótese→Evidência→Conclusão [C259]. (2) Embasamento teórico — Teorias citadas em ≥80% respostas [C259]. (3) Aprendizado em background — Knowledge freshness ≤7 dias [C265]. (4) Feedback visual — Confidence meter + progress bar [C265]. (5) Raciocínio complexo encadeado — Hipóteses em queries TIER_3/4 [C260]. (6) Referências bibliográficas — 100% respostas com refs APA/ABNT (mínimo 3) [C259]. (7) Ferramentas UX/UI — Markdown rico, tabelas, diagramas Mermaid [C260].",
+    domain: "requisitos",
+    category: "requisitos",
+  },
+  {
+    title: "Roadmap C259-C280 — Ordens do Conselho V102",
+    content: "C259: Paralelizar CoVe+G-Eval, ativar knowledge-graph.ts, criar citation-engine.ts (Semantic Scholar + arXiv), streaming SSE → Latência P50 ≤25s. C260: Ativar supervisor.ts (BDI), tool-engine.ts, abductive-engine.ts, tot-router.ts → Autonomia 3/5. C261: RLVR→DPO, Reflexion Loop, DPO v9 MODPO. C265: UX Gen 4, histórico sessões, background-learner.ts → UX ≥70. C270: SHMS GISTM 2020 MVP (MQTT/OPC-UA, LSTM-Autoencoder, Guardian missão crítica). C280: OBJETIVO FINAL — Score ≥95, Latência ≤10s, UX ≥80, DGM 5/5, SHMS 4/5.",
     domain: "roadmap",
     category: "roadmap",
   },
