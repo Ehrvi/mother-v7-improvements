@@ -492,7 +492,7 @@ export async function validateQuality(
     qualityScore = Math.max(0, qualityScore - 40);
     allIssues.push('HIGH hallucination risk detected by Grounding Engine');
   } else if (hallucinationRisk === 'medium') {
-    qualityScore = Math.max(0, qualityScore - 15);
+    qualityScore = Math.max(0, qualityScore - 5); // C255: -15 → -5 (medium risk is often false positive for academic/philosophical content)
     allIssues.push('MEDIUM hallucination risk detected by Grounding Engine');
   }
 

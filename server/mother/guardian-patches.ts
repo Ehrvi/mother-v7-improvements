@@ -102,8 +102,8 @@ export function applyUncertaintyPenalty(
   qualityScore: number,
   response: string
 ): { score: number; uncertaintyCount: number } {
-  const PENALTY_PER_MATCH = 10;
-  const MAX_PENALTY_MATCHES = 3;
+  const PENALTY_PER_MATCH = 5;  // C255: 10 → 5 pts (philosophical/academic hedging is legitimate epistemic language)
+  const MAX_PENALTY_MATCHES = 2; // C255: 3 → 2 (max -10 pts total, was -30 pts)
 
   const matchedPatterns = ALL_UNCERTAINTY_PATTERNS.filter((p) =>
     p.test(response)
@@ -154,7 +154,7 @@ export function applyGuardianPatches(
   score = uncertainty.score;
   if (uncertainty.uncertaintyCount > 0) {
     penalties.push(
-      `NC-GUARD-002: ${uncertainty.uncertaintyCount} uncertainty pattern(s) detected. Penalty: -${Math.min(uncertainty.uncertaintyCount, 3) * 10} points.`
+      `NC-GUARD-002: ${uncertainty.uncertaintyCount} uncertainty pattern(s) detected. Penalty: -${Math.min(uncertainty.uncertaintyCount, 2) * 5} points.`
     );
   }
 
