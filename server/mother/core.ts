@@ -150,7 +150,7 @@ import { applyCalibrationV2, recordCalibrationObservation as recordCalV2, getCal
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v122.18'; // C297-C300 (2026-03-11): Conselho V105 2014 Fast Path TIER_3 (C297), GRPO v3 G=3 (C298), PSC timeout fix (C299), Citation on cache (C300)
+export const MOTHER_VERSION = 'v122.19'; // C305-C306 (2026-03-11): Conselho V105 programming_book format + code-aware prompts (C305), parallel LFSA + live onChunk streaming (C306)
 
 const log = createLogger('CORE');
 
@@ -247,6 +247,9 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
         streamProgress: request.onPhase ? (progress) => {
           (request.onPhase as any)?.('writing', { step: progress.phase, section: progress.currentSection, pct: progress.percentComplete });
         } : undefined,
+        // C306: Wire onChunk for live streaming — sections emitted as they complete
+        // Scientific basis: Nielsen (1994) Heuristic #1 — visibility of system status
+        onChunk: request.onChunk,
       });
       return {
         response: lfResult.fullContent,
