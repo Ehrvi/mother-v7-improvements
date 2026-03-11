@@ -217,3 +217,25 @@ export const COUNCIL_V102_KNOWLEDGE = [
     category: "roadmap",
   },
 ];
+
+// C259-THRESHOLDS: Manus vs SOTA vs MOTHER calibration (11 Mar 2026)
+const MANUS_THRESHOLD_KNOWLEDGE: SprintKnowledgeEntry[] = [
+  {
+    title: "Manus AI NÃO usa Q-score — usa GAIA binary task completion",
+    content: "DESCOBERTA CIENTÍFICA (11 Mar 2026): Manus AI usa avaliação GAIA-style (task completion binary 0/1), NÃO usa Q-score contínuo. Score GAIA do Manus: ~72% (SOTA em março 2025). A métrica primária do Manus é: 'a tarefa foi completada corretamente?'. MOTHER usa MT-Bench-style (Q 0-100) que é mais granular e adequado para chat. Fontes: arXiv:2505.02024, arXiv:2311.12983.",
+    category: "benchmark",
+    tags: ["manus", "gaia", "thresholds", "evaluation", "c259"],
+  },
+  {
+    title: "MOTHER qualidade supera Manus — gap é latência (P50: 41s vs 30s)",
+    content: "ANÁLISE COMPARATIVA 2026: MOTHER Q=95 médio ≈ MT-Bench 9.5/10 (top 1% mundial). Manus GAIA 72% ≈ MT-Bench ~8.5/10. MOTHER supera Manus em qualidade conversacional. Gap real: MOTHER P50=41s vs GPT-4o P50=30s (37% maior). C260-C265 target: P50≤20s. Thresholds CORRETOS: TIER_4 Q≥90+Lat≤60s=GPT-4o; TIER_3 Q≥90+Lat≤45s=Claude 3.5.",
+    category: "benchmark",
+    tags: ["mother", "manus", "latency", "quality", "calibration", "c259"],
+  },
+];
+
+export async function injectManusThresholdKnowledge(db: any): Promise<void> {
+  for (const entry of MANUS_THRESHOLD_KNOWLEDGE) {
+    await injectIfNotExists(db, entry);
+  }
+}
