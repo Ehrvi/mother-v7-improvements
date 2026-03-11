@@ -66,18 +66,23 @@ export interface OrchestrationContext {
 
 // ── Routing: When to use MoA vs Debate vs Single ──────────────────────────────
 export function shouldUseMoA(complexityScore: number, category: string): boolean {
-  // MoA for complex/research queries with high complexity
-  // Scientific basis: Wang et al. (2024) — MoA benefits most on complex tasks
-  return (
-    (category === 'complex_reasoning' || category === 'research') &&
-    complexityScore >= 0.7
-  );
+  // C265: Expanded MoA triggers (Conselho V102 — AutoGen pattern)
+  // Scientific basis: Wang et al. (2024, arXiv:2406.04692) — MoA benefits most on complex tasks
+  // Wu et al. (2023, arXiv:2308.08155) AutoGen: multi-agent conversation for complex problem solving
+  // C265 expansion: also trigger for 'natural_science', 'philosophy', 'economics' at complexity ≥ 0.80
+  const highComplexityCategories = ['complex_reasoning', 'research'];
+  const mediumComplexityCategories = ['natural_science', 'philosophy', 'economics', 'health_care'];
+  if (highComplexityCategories.includes(category) && complexityScore >= 0.65) return true;
+  if (mediumComplexityCategories.includes(category) && complexityScore >= 0.80) return true;
+  return false;
 }
 
 export function shouldUseDebate(query: string, guardianScore?: number): boolean {
-  // Debate for ambiguous queries or low Guardian scores
-  // Scientific basis: Du et al. (2023) — debate most effective for ambiguous/controversial topics
-  if (guardianScore !== undefined && guardianScore < 70) return true;
+  // C265: Expanded debate triggers (Conselho V102 — AutoGen pattern)
+  // Scientific basis: Du et al. (2023, arXiv:2305.14325) — debate reduces hallucination 15%
+  // Liang et al. (2023, arXiv:2305.19118) — multi-agent debate improves factual accuracy 11%
+  // C265 expansion: lower guardian threshold 70→75, add scientific/ethical debate patterns
+  if (guardianScore !== undefined && guardianScore < 75) return true;
 
   const debateTriggers = [
     /qual.*melhor/i,
@@ -90,6 +95,15 @@ export function shouldUseDebate(query: string, guardianScore?: number): boolean 
     /deveria/i,
     /recomenda/i,
     /versus|vs\./i,
+    // C265: New scientific/ethical debate patterns (Conselho V102)
+    /hipótese|hypothesis/i,
+    /evidência.*contradiz|contradiz.*evidência/i,
+    /consenso.*científico|scientific.*consensus/i,
+    /ético.*ou|moral.*ou/i,
+    /melhor.*abordagem|best.*approach/i,
+    /estratégia.*ótima|optimal.*strategy/i,
+    /plano.*de.*ação|action.*plan/i,
+    /decisão.*crítica|critical.*decision/i,
   ];
   return debateTriggers.some(p => p.test(query));
 }

@@ -301,3 +301,83 @@ export function getGraphStats(): { nodes: number; edges: number; lastBuilt: stri
     lastBuilt: graphCache.lastBuilt.toISOString(),
   };
 }
+
+/**
+ * C264: Bidirectional Knowledge Graph Write-Back
+ * Scientific basis:
+ * - GraphRAG (Edge et al., arXiv:2404.16130, 2024): bidirectional KG updates improve retrieval quality
+ * - Continual Learning (Parisi et al., Neural Networks 2019): online learning from high-quality outputs
+ * - A-MEM (Weng et al., arXiv:2312.09988, 2023): Zettelkasten-style memory with importance scoring
+ *
+ * When MOTHER produces a response with Q≥90, the query-response pair is persisted
+ * to bd_central as a new knowledge entry, and the in-memory graph cache is invalidated
+ * so the next buildKnowledgeGraph() call includes this new knowledge.
+ *
+ * Positive feedback loop:
+ *   High-quality response → stored in KG → enriches future context → higher quality
+ */
+export async function writeBackToKnowledgeGraph(
+  query: string,
+  response: string,
+  qualityScore: number,
+  category: string,
+  modelName: string
+): Promise<{ stored: boolean; reason: string }> {
+  // Only write back high-quality responses (Q≥90)
+  if (qualityScore < 90) {
+    return { stored: false, reason: `Quality ${qualityScore} < 90 threshold` };
+  }
+  // Skip very short responses (not informative enough for KG)
+  if (response.length < 200) {
+    return { stored: false, reason: 'Response too short (<200 chars)' };
+  }
+  // Skip simple/greeting queries (not informative for KG)
+  const skipCategories = ['simple', 'greeting', 'chitchat'];
+  if (skipCategories.includes(category)) {
+    return { stored: false, reason: `Category '${category}' not suitable for KG` };
+  }
+  try {
+    const db = await getDb();
+    if (!db) return { stored: false, reason: 'DB not available' };
+    // Create a concise knowledge entry from the query-response pair
+    const title = query.slice(0, 120).trim();
+    const content = `Q: ${query.slice(0, 300)}\n\nA: ${response.slice(0, 1500)}`;
+    const domain = categoryToDomain(category);
+    // Insert into knowledge table (bd_central)
+    await (db as any).insert(knowledge).values({
+      title,
+      content,
+      domain,
+      source: `MOTHER-auto-C264-${modelName}`,
+      importance: Math.round(qualityScore / 10), // 9 or 10 for Q≥90
+      tags: JSON.stringify([category, 'auto-generated', 'C264', `Q${qualityScore}`]),
+    });
+    // Invalidate graph cache so next retrieval includes this new knowledge
+    graphCache = null;
+    console.log(`[KG Write-Back] Stored Q=${qualityScore} response: "${title.slice(0, 60)}..." (${domain})`);
+    return { stored: true, reason: `Stored Q=${qualityScore} response for category '${category}'` };
+  } catch (err) {
+    // Non-blocking — KG write-back failure must never break the main response
+    console.warn('[KG Write-Back] Failed (non-blocking):', (err as Error).message);
+    return { stored: false, reason: `DB error: ${(err as Error).message}` };
+  }
+}
+
+/**
+ * Map query category to knowledge domain for KG write-back.
+ */
+function categoryToDomain(category: string): string {
+  const map: Record<string, string> = {
+    'complex_reasoning': 'AI/ML',
+    'research': 'AI/ML',
+    'coding': 'Programação',
+    'creative': 'Criatividade',
+    'general': 'Geral',
+    'long_form': 'Documentação',
+    'natural_science': 'Ciências Naturais',
+    'health_care': 'Saúde',
+    'economics': 'Economia',
+    'philosophy': 'Filosofia',
+  };
+  return map[category] || 'Geral';
+}

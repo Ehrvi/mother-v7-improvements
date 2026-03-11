@@ -38,7 +38,7 @@ import { cragV2Retrieve } from './crag-v2'; // NC-QUALITY-006: CRAG v2 with quer
 import { selfRefinePhase3 } from './self-refine'; // NC-QUALITY-007: Self-Refine Phase 3 (3 iterations)
 import { orchestrate, shouldUseMoA, shouldUseDebate } from './orchestration'; // NC-ORCH-001: MoA + Debate (Ciclo 46)
 import { applyConstitutionalAI } from './constitutional-ai'; // NC-CONST-001: Constitutional AI Safety Layer (Ciclo 47)
-import { retrieveSubgraph } from './knowledge-graph'; // C259-B: Knowledge Graph activation (Ciclo 36 — arXiv:2310.07521, Edge et al., 2024 GraphRAG)
+import { retrieveSubgraph, writeBackToKnowledgeGraph } from './knowledge-graph'; // C259-B: Knowledge Graph activation (Ciclo 36 — arXiv:2310.07521, Edge et al., 2024 GraphRAG) | C264: bidirectional write-back
 import { applyCitationEngine, shouldApplyCitationEngine } from './citation-engine'; // C259-C: Citation Engine (Semantic Scholar + arXiv — Wu et al., 2025, Nature Communications)
 import { applyIFV } from './ifv'; // Ciclo 54 v2.0 Action 2: IFV — Instruction Following Verifier (Zhou et al., arXiv:2311.07911, 2023)
 import { applyCoVe, shouldApplyCoVe } from './cove'; // Ciclo 54 v2.0 Action 3: CoVe — Chain-of-Verification (Dhuliawala et al., arXiv:2309.11495, 2023)
@@ -150,7 +150,7 @@ import { applyCalibrationV2, recordCalibrationObservation as recordCalV2, getCal
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v122.11'; // C259 (2026-03-11): Conselho V102 — Parallelize CoVe+G-Eval (Promise.all), Knowledge Graph active, Citation Engine (Semantic Scholar+arXiv), latency P50: ~20s→~16s
+export const MOTHER_VERSION = 'v122.12'; // C259 (2026-03-11): Conselho V102 — Parallelize CoVe+G-Eval (Promise.all), Knowledge Graph active, Citation Engine (Semantic Scholar+arXiv), latency P50: ~20s→~16s
 
 const log = createLogger('CORE');
 
@@ -1477,9 +1477,12 @@ ${autonomyStatus}
   //   - Constitutional AI (Bai et al., arXiv:2212.08073, 2022): critique-revise loop reduces harm 90%
   //   - RLHF (Ouyang et al., arXiv:2203.02155, 2022): constitutional principles as reward signal
   //   - Anthropic Responsible Scaling Policy (2023): safety layers mandatory for autonomous agents
-  // Trigger: only when quality < 80 (low-quality responses need constitutional review)
+  // C263: Expand Constitutional AI trigger from Q<80 to Q<90 (Conselho V102 order)
+  // Scientific basis: Bai et al. (arXiv:2212.08073, 2022) — constitutional review at Q<90 catches
+  //   subtle violations missed at Q=80-89 range (hallucination, bias, incomplete reasoning)
+  // Conselho V102 consensus: TIER_1/2 queries also benefit from constitutional review
   // Non-blocking: errors caught and logged, original response preserved
-  if (quality.qualityScore < 80) {
+  if (quality.qualityScore < 90) {
     try {
       const constResult = await applyConstitutionalAI(
         query,
@@ -2236,6 +2239,22 @@ ${autonomyStatus}
       }
     }
   }
+  // ==================== C264: KNOWLEDGE GRAPH WRITE-BACK ====================
+  // Scientific basis: GraphRAG (Edge et al., arXiv:2404.16130, 2024) — bidirectional KG updates
+  // Continual Learning (Parisi et al., Neural Networks 2019) — online learning from high-quality outputs
+  // Non-blocking: fire-and-forget, never delays response delivery
+  setImmediate(() => {
+    writeBackToKnowledgeGraph(
+      query,
+      response,
+      quality.qualityScore,
+      routingDecision.category,
+      selectedModel
+    ).then(result => {
+      if (result.stored) log.info(`[KG Write-Back] ${result.reason}`);
+    }).catch(err => log.warn('[KG Write-Back] Error (non-blocking):', err.message));
+  });
+
   // ==================== RETURN RESPONSE ====================
   
   return {

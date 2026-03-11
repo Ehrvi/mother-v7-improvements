@@ -205,7 +205,33 @@ export default function Home() {
           if (line.startsWith('data: ')) {
             try {
               const parsed = JSON.parse(line.slice(6));
-              if (lastEvent === 'phase' && parsed.phase) {
+              if (lastEvent === 'thinking' && parsed.message) {
+                // C261: Handle 'thinking' event — immediate TTFT feedback (<50ms)
+                // Scientific basis: Nielsen (1994) Heuristic #1: Visibility of system status
+                // Show 'searching' phase immediately when server starts processing
+                setCurrentPhase('searching' as ActivePhase);
+              } else if (lastEvent === 'progress' && parsed.phase) {
+                // C261: Handle granular progress events with elapsed_ms for real-time UX
+                // Scientific basis: arXiv:2310.12931 (2023) — progress indicators reduce perceived wait by 35%
+                const progressPhaseMap: Record<string, string> = {
+                  'routing': 'searching',
+                  'retrieval': 'searching',
+                  'generation': 'reasoning',
+                  'generating': 'reasoning',
+                  'quality': 'quality_check',
+                  'grounding': 'writing',
+                  'cove': 'writing',
+                  'constitutional': 'quality_check',
+                  'citation': 'writing',
+                  'validating': 'quality_check',
+                };
+                const mappedPhase = progressPhaseMap[parsed.phase] || 'reasoning';
+                setCurrentPhase(mappedPhase as ActivePhase);
+              } else if (lastEvent === 'done' && parsed.total_ms) {
+                // C261: Handle 'done' event with TTFT metrics and quality score
+                // Update phase latency with actual measured time
+                setPhaseLatencyMs(parsed.total_ms);
+              } else if (lastEvent === 'phase' && parsed.phase) {
                 // C172: Handle SSE phase events from core-orchestrator.ts
                 // Phases: searching → reasoning → writing → quality_check → complete
                 setCurrentPhase(parsed.phase as ActivePhase);

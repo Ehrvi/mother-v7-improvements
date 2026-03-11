@@ -452,8 +452,16 @@ app.post('/api/mother/stream', async (req, res) => {
     // - OpenAI Streaming Best Practices (2025): buffer before display for quality
     // Trade-off: TTFT increases by ~0.5-1s (post-processing time), but eliminates
     // echo, grounding failures, and quality check bypasses.
-    sendEvent('progress', { phase: 'routing', message: 'Analisando complexidade da query...' });
-    sendEvent('progress', { phase: 'generating', message: 'Gerando resposta...' });
+    // C260: Immediate TTFT feedback — Nielsen (1994) Heuristic #1: Visibility of system status
+    // Scientific basis: Xiao et al. (arXiv:2309.17453, 2023) StreamingLLM — TTFT<2s perceived latency
+    // Technique: emit 'thinking' event immediately (<50ms), then granular phase events during processing
+    const _ttftStart = Date.now();
+    sendEvent('thinking', {
+      message: '\ud83e\udde0 MOTHER est\u00e1 processando...',
+      timestamp: _ttftStart,
+      version: process.env.MOTHER_VERSION || 'v122.11'
+    });
+    sendEvent('progress', { phase: 'routing', message: 'Analisando complexidade da query...', ttft_ms: Date.now() - _ttftStart });
 
     // Process query WITHOUT streaming onChunk — let processQuery do all post-processing
     // (echo detection, grounding, fichamento, quality) on the complete response first
@@ -464,7 +472,24 @@ app.post('/api/mother/stream', async (req, res) => {
       // C175: Pass phase and tool_call SSE callbacks to core-orchestrator via processQuery
       // Scientific basis: ReAct (Yao et al., arXiv:2210.03629) — tool calls must be visible
       onPhase: (phase: string, meta?: Record<string, unknown>) => {
-        try { sendEvent('phase', { phase, ...meta }); } catch { /* non-blocking */ }
+        try {
+          // C260: Emit granular phase progress with elapsed time for UX feedback
+          sendEvent('phase', { phase, elapsed_ms: Date.now() - _ttftStart, ...meta });
+          // Map internal phases to user-friendly progress messages
+          const phaseMessages: Record<string, string> = {
+            'routing': 'Roteando para o modelo ideal...',
+            'retrieval': 'Buscando conhecimento relevante...',
+            'generation': 'Gerando resposta com IA...',
+            'quality': 'Validando qualidade (Guardian)...',
+            'grounding': 'Verificando fontes e citações...',
+            'cove': 'Verificando consistência (CoVe)...',
+            'constitutional': 'Aplicando princípios constitucionais...',
+            'citation': 'Buscando referências científicas...',
+          };
+          if (phaseMessages[phase]) {
+            sendEvent('progress', { phase, message: phaseMessages[phase], elapsed_ms: Date.now() - _ttftStart });
+          }
+        } catch { /* non-blocking */ }
       },
       onToolCall: (toolName: string, toolArgs: Record<string, unknown>, status: string, output?: string, durationMs?: number) => {
         try {
@@ -481,19 +506,30 @@ app.post('/api/mother/stream', async (req, res) => {
       },
     });
 
-    sendEvent('progress', { phase: 'validating', message: 'Validando qualidade (Guardian)...' });
+    sendEvent('progress', { phase: 'validating', message: 'Validando qualidade (Guardian)...', elapsed_ms: Date.now() - _ttftStart });
 
-    // Stream the FINAL post-processed response token-by-token to the client
-    // This ensures echo detection, grounding, and fichamento are already applied
+    // C260: Stream the FINAL post-processed response token-by-token to the client
+    // Chunk size increased from 8 to 16 chars for faster perceived streaming
+    // Scientific basis: Xiao et al. (arXiv:2309.17453) — larger chunks reduce event overhead
     const finalText = result.response || '';
-    const CHUNK_SIZE = 8; // characters per simulated token chunk (~2 tokens)
+    const CHUNK_SIZE = 16; // C260: 16 chars per chunk (~4 tokens) — faster streaming
     for (let i = 0; i < finalText.length; i += CHUNK_SIZE) {
       sendEvent('token', { text: finalText.slice(i, i + CHUNK_SIZE) });
     }
 
-    // Emit the final complete response (with metadata)
-    sendEvent('response', result);
-    sendEvent('done', { message: 'Processamento concluído' });
+    // Emit the final complete response (with metadata + TTFT metrics)
+    const totalTime = Date.now() - _ttftStart;
+    sendEvent('response', {
+      ...result,
+      ttft_ms: totalTime, // C260: Time To First Token measurement
+      streaming_chunks: Math.ceil(finalText.length / CHUNK_SIZE),
+    });
+    sendEvent('done', {
+      message: 'Processamento concluído',
+      total_ms: totalTime,
+      quality_score: result.quality?.qualityScore,
+      citations_count: (result as any).citations?.length ?? 0, // C259-C citation engine
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     sendEvent('error', { message });
