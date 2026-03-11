@@ -148,7 +148,7 @@ const AgentTaskBodySchema = z.object({
 const LongFormStreamBodySchema = z.object({
   title: z.string().min(1).max(500),
   topic: z.string().min(1).max(10000),
-  format: z.enum(['markdown', 'scientific', 'report', 'book_chapter', 'technical_spec']).optional().default('markdown'),
+  format: z.enum(['markdown', 'scientific', 'report', 'book_chapter', 'technical_spec', 'programming_book']).optional().default('markdown'), // C305: programming_book added for code generation support
   targetWordCount: z.number().int().min(500).max(100000).optional().default(3000),
   language: z.string().max(20).optional().default('pt-BR'),
   sections: z.array(z.string().max(200)).optional(),
@@ -382,9 +382,11 @@ a2aRouter.get('/api/a2a/knowledge', authenticateA2A, async (req: Request, res: R
     // ISSUE: /api/a2a/knowledge capped at 300 entries — maintenance agent cannot load full BD
     // FIX: Add offset pagination + increase cap to 1000 + add domain filter alias
     // Scientific basis: REST API pagination best practices (Fielding, 2000 — REST dissertation)
-    // AWAKE V304 R549 (C304 Conselho V105): maintenance agent MUST load ALL BD knowledge before ANY output
-    // Protocol: paginate with offset=0,100,200,...,N until total exhausted (see AWAKE V304 Passo 1)
+    // AWAKE V305 R549 (C306 Conselho V106): maintenance agent MUST load ALL BD knowledge before ANY output
+    // Protocol: paginate with offset=0,100,200,...,N until total exhausted (see AWAKE V305 Passo 1)
     // CRITICAL: Zero output permitted before full BD load. Violation = protocol breach.
+    // AWAKE V305 R8 (C305-C306): LFSA must generate real code for programming book requests
+    //   Verify: isProgrammingRequest() + buildCodeAwareSectionPrompt() active in long-form-engine-v3.ts
     const limit = Math.min(Number(req.query.limit) || 100, 1000); // v81.1: cap 300 → 1000
     const offset = Math.max(Number(req.query.offset) || 0, 0);    // v81.1: pagination offset
     const category = (req.query.category || req.query.domain) as string | undefined; // v81.1: domain alias
