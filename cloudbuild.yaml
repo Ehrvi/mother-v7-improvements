@@ -88,7 +88,7 @@ steps:
       # C241: Long-Form Sequential Architecture (Plan→Execute→Assemble→Review)
       # C242: Output-Length-Aware Routing (OLAR) — output_length as routing variable
       # C236: Cloud Run concurrency=5, max-instances=20, cpu=4, memory=8Gi, timeout=600
-      - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA,VITE_APP_ID=mother-interface,NODE_OPTIONS=--max-old-space-size=6144,DPO_FINE_TUNED_MODEL=ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v8e:DFay6MHy,MOTHER_VERSION=v122.10,MOTHER_CYCLE=257'
+      - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA,VITE_APP_ID=mother-interface,NODE_OPTIONS=--max-old-space-size=6144,DPO_FINE_TUNED_MODEL=ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v8e:DFay6MHy,MOTHER_VERSION=v122.11,MOTHER_CYCLE=259'
 
   # v74.5: DGM-2 FIX — Migrate 100% traffic to new revision after deploy
   # gcloud run deploy does not have --traffic flag; use update-traffic separately
