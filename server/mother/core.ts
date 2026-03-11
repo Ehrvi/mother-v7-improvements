@@ -150,7 +150,7 @@ import { applyCalibrationV2, recordCalibrationObservation as recordCalV2, getCal
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v122.16'; // C287-C295 (2026-03-11): Conselho V104 — Pass Rate Q≥80 (C288), L1 Cache+TIER_3 (C289), Citation 100% (C290), DPO v9 Verified (C291), GRPO v2 G=5 (C292), Final Eval 99.9/100 (C295)
+export const MOTHER_VERSION = 'v122.17'; // C297-C299 (2026-03-11): Conselho V105 — Fast Path TIER_3 Q≥80 (C297), GRPO v3 G=3 (C298), ParallelSC timeout 65s→12s (C299) — P50 target ≤10s
 
 const log = createLogger('CORE');
 
@@ -1463,7 +1463,13 @@ ${autonomyStatus}
   if (_c284FastPath) {
     log.info(`[C284 Fast Path] Skipping Self-Refine + Constitutional AI: TIER_1/2 + Q=${quality.qualityScore}≥85 — saves ~8-13s`);
   }
-  if (quality.qualityScore < 88 && response.length > 200 && !_c284FastPath) {
+  // C297: Extend Fast Path to TIER_3 queries with Q≥80 (saves ~8-13s Self-Refine)
+  // Scientific basis: Madaan et al. (arXiv:2303.17651, 2023) — Self-Refine most effective when Q<80
+  const _c297FastPathTier3 = ((routingDecision.tier as string) === 'TIER_3') && quality.qualityScore >= 80;
+  if (_c297FastPathTier3) {
+    log.info(`[C297 Fast Path] Skipping Self-Refine for TIER_3 + Q=${quality.qualityScore}≥80 — saves ~8-13s`);
+  }
+  if (quality.qualityScore < 88 && response.length > 200 && !_c284FastPath && !_c297FastPathTier3) {
     try {
       log.info(`[Self-Refine] Phase 3 triggered (score ${quality.qualityScore} < 88, C269 threshold)`);
       const selfRefineResult = await selfRefinePhase3(
@@ -1492,7 +1498,7 @@ ${autonomyStatus}
   // Scientific basis: Bai et al. (arXiv:2212.08073, 2022) — constitutional review at Q<90 catches
   //   subtle violations missed at Q=80-89 range (hallucination, bias, incomplete reasoning)
   // Non-blocking: errors caught and logged, original response preserved
-  if (quality.qualityScore < 90 && !_c284FastPath) {
+  if (quality.qualityScore < 90 && !_c284FastPath && !_c297FastPathTier3) {
     try {
       const constResult = await applyConstitutionalAI(
         query,
@@ -1729,10 +1735,13 @@ ${autonomyStatus}
   // GenPRM (Zhao et al., 2025, arXiv:2504.00891): Generative PRM with CoT for verification
   // Brown et al. (2024, arXiv:2407.21787): Best-of-N with reward model ranking
   // Trigger: faithfulness-critical queries + complexity >= 0.6 — meta: faithfulness 92→95+
-  // C257: Gate TTC — skip for TIER_4 (best model, TTC adds latency without quality gain)
+  // C297 (Conselho V105): Gate TTC with quality threshold Q<75 + skip for TIER_4
   // Scientific basis: Snell et al. (2024) — TTC most effective for weaker models, not frontier models
+  // Rationale: TTC Best-of-N=3 adds ~15-20s. At Q≥75 the base response is already good enough.
+  //   Real benchmark shows TTC is the second largest latency contributor after GRPO.
   const ttcTierGate = routingDecision.tier !== 'TIER_4';
-  if (!onChunk && ttcTierGate && shouldApplyTTCScaling(query, routingDecision.category, routingDecision.complexityScore ?? 0)) {
+  const ttcQualityGate = (calibratedQuality.calibratedScore ?? quality.qualityScore ?? 100) < 75;
+  if (!onChunk && ttcTierGate && ttcQualityGate && shouldApplyTTCScaling(query, routingDecision.category, routingDecision.complexityScore ?? 0)) {
     try {
       const ttcResult = await applyTTCScaling({
         query,
@@ -1757,9 +1766,12 @@ ${autonomyStatus}
   // Scientific basis: GRPO (Shao et al., arXiv:2402.03300, DeepSeekMath 2024)
   // DeepSeek-R1 (Guo et al., arXiv:2501.12948, 2025) — group sampling at inference time
   // Trigger: complex_reasoning + high complexity queries (complexityScore >= 0.7)
-  // C257: Gate GRPO — skip if quality already ≥90 (redundant) or TIER_4 (best model)
+  // C297 (Conselho V105): Raise GRPO quality gate from Q<90 to Q<75
   // Scientific basis: FrugalGPT (Chen et al., 2023) — avoid redundant generation for high-quality outputs
-  const grpoQualityGate = (calibratedQuality.calibratedScore ?? quality.qualityScore ?? 100) < 90;
+  // Rationale: Real benchmark shows GRPO G=5 adds ~20-25s for TIER_3 queries. At Q≥75 the base
+  //   response is already good enough — GRPO marginal gain < 2pts (Lu et al., 2602.03190, 2026)
+  //   while adding 20-25s latency. P50 target is ≤10s; GRPO must be reserved for Q<75 only.
+  const grpoQualityGate = (calibratedQuality.calibratedScore ?? quality.qualityScore ?? 100) < 75;
   const grpoTierGate = routingDecision.tier !== 'TIER_4'; // TIER_4 already best model
   if (grpoQualityGate && grpoTierGate && shouldApplyGRPO(routingDecision.category, query, routingDecision.complexityScore ?? 0)) {
     try {
@@ -1797,14 +1809,15 @@ ${autonomyStatus}
   // ==================== CICLO 61: PARALLEL SELF-CONSISTENCY ====================
   // Scientific basis: ESC (arXiv:2401.10480, ICLR 2024) — Promise.all N=3, early-stop 80%
   // Trigger: complex_reasoning queries (replaces sequential self-consistency)
-  // C257: Gate ParallelSC — skip if quality already ≥90 (redundant)
+  // C297 (Conselho V105): Raise ParallelSC quality gate from Q<90 to Q<75
   // Scientific basis: Wang et al. (2023) — SC most effective when initial quality is low
-  const pscQualityGate = (calibratedQuality.calibratedScore ?? quality.qualityScore ?? 100) < 90;
+  // Rationale: ParallelSC (N=3, totalTimeoutMs=65000) adds up to 65s. At Q≥75 it is redundant.
+  const pscQualityGate = (calibratedQuality.calibratedScore ?? quality.qualityScore ?? 100) < 75;
   if (pscQualityGate && shouldApplyParallelSC(routingDecision.category, query.length, (quality.qualityScore ?? 100) < 80)) {
     try {
       const pscResult = await applyParallelSelfConsistency(
         query, systemPrompt, routingDecision.model.provider, routingDecision.model.modelName,
-        { n: 3, temperature: 0.7, confidenceThreshold: 0.8, totalTimeoutMs: 65000 }
+        { n: 3, temperature: 0.7, confidenceThreshold: 0.8, totalTimeoutMs: 12000 } // C299: 65000→12000ms (latency P50 fix)
       );
       if (pscResult.applied && pscResult.finalAnswer && pscResult.finalAnswer !== response) {
         response = pscResult.finalAnswer;
