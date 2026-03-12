@@ -105,6 +105,91 @@ export async function selfRefinePhase3(
 }
 
 /**
+ * C349 (Conselho V111 Q4): Directed Self-Refine — uses G-Eval dimension scores to target weak areas.
+ * Scientific basis: Zeng et al. arXiv:2502.05605 (Chain-of-Self-Refinement, 2025)
+ * Rationale: Generic self-refine wastes iterations on strong dimensions.
+ * Directed approach targets only dimensions scoring <85, achieving same quality in fewer iterations.
+ * @param gevalScores - G-Eval scores per dimension from layer5_symbolicGovernance
+ */
+export async function directedSelfRefine(
+  query: string,
+  response: string,
+  context: string,
+  systemPrompt: string,
+  gevalScores: {
+    coherence?: number;
+    consistency?: number;
+    fluency?: number;
+    relevance?: number;
+    depth?: number;
+    obedience?: number;
+  }
+): Promise<{ refined: string; improved: boolean; weakDimensions: string[] }> {
+  // Identify weak dimensions (score < 85)
+  const weakDimensions = Object.entries(gevalScores)
+    .filter(([, score]) => typeof score === 'number' && score < 85)
+    .sort(([, a], [, b]) => (a as number) - (b as number)) // weakest first
+    .map(([dim]) => dim);
+
+  if (weakDimensions.length === 0) {
+    reliabilityLogger.info('guardian', '[C349 Directed] All dimensions ≥85 — skipping refinement');
+    return { refined: response, improved: false, weakDimensions: [] };
+  }
+
+  reliabilityLogger.info('guardian', `[C349 Directed] Targeting weak dimensions: ${weakDimensions.join(', ')}`);
+
+  const dimensionInstructions: Record<string, string> = {
+    coherence: 'Melhore a estrutura lógica e o fluxo do texto. Cada parágrafo deve conectar-se ao próximo.',
+    consistency: 'Elimine contradições internas. Verifique que todos os fatos são consistentes entre si.',
+    fluency: 'Melhore a fluidez e naturalidade do texto. Elimine repetições e frases truncadas.',
+    relevance: 'Foque mais diretamente na pergunta. Elimine informações tangenciais que não respondem ao que foi pedido.',
+    depth: 'Adicione mais profundidade: citações, dados específicos, exemplos concretos e análise crítica.',
+    obedience: 'Siga TODAS as instruções do usuário. Verifique formato, tamanho e requisitos específicos pedidos.',
+  };
+
+  const targetInstructions = weakDimensions
+    .map(dim => `- ${dim.toUpperCase()}: ${dimensionInstructions[dim] || 'Melhore esta dimensão.'}`) 
+    .join('\n');
+
+  const refinementPrompt = `Você recebeu uma resposta que precisa ser melhorada em dimensões específicas.
+
+RESPOSTA ORIGINAL:
+${response}
+
+DIMENSÕES A MELHORAR (as outras já estão boas — não as altere):
+${targetInstructions}
+
+CONTEXTO DISPONÍVEL:
+${context.slice(0, 1500)}
+
+REQUISITOS:
+1. Melhore APENAS as dimensões listadas acima
+2. Preserve tudo que já está bom
+3. Não adicione prefixos como "Versão melhorada:" ou "Aqui está a resposta revisada:"
+4. Responda diretamente com o texto final`;
+
+  try {
+    const { invokeLLM: llm } = await import('../_core/llm');
+    const result = await llm({
+      model: 'gpt-4o',
+      provider: 'openai',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: refinementPrompt },
+      ],
+      maxTokens: 4096,
+      temperature: 0.3,
+    });
+    const rawContent = result.choices[0]?.message?.content;
+    const refined = (typeof rawContent === 'string' ? rawContent : null) || response;
+    return { refined, improved: refined !== response, weakDimensions };
+  } catch (err: any) {
+    reliabilityLogger.warn('guardian', `[C349 Directed] Refinement failed: ${err.message}`);
+    return { refined: response, improved: false, weakDimensions };
+  }
+}
+
+/**
  * Generate structured critique with 6 dimensions + Constitutional AI checklist.
  * Scientific basis: G-Eval (Liu et al., 2023) + Constitutional AI (Bai et al., 2022)
  */

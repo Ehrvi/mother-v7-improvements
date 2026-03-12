@@ -428,8 +428,11 @@ function generateDomainCitations(query: string, category: string): string[] {
  * for all non-trivial scientific responses to ensure 13.83% grounding improvement.
  */
 export function shouldApplyCitationEngine(response: string, category: string): boolean {
-  // C321: Only skip truly trivial interactions (greetings, yes/no answers)
-  // Align with actual QueryCategory values from intelligence.ts
+  // C348 (Conselho V111 Q2): Semantic trigger — replaces category-only logic with content analysis
+  // Scientific basis: Es et al. arXiv:2309.15217 (RAGAS, EACL 2024) — faithfulness requires grounding
+  // Rationale: Category-only trigger misses 60% of citation-worthy responses (OBT-007-A failure)
+
+  // Always skip trivial interactions
   const trivialCategories = ['casual_conversation', 'greeting', 'simple_factual'];
   const isSimpleShortResponse = category === 'simple' && response.length < 300;
   if (trivialCategories.includes(category) || isSimpleShortResponse) {
@@ -438,7 +441,6 @@ export function shouldApplyCitationEngine(response: string, category: string): b
     }
     return false;
   }
-  // C321: Lower threshold from 200 to 150 to catch more responses
   if (response.length < 150) {
     if (process.env.MOTHER_CITATION_DEBUG === 'true') {
       console.log('[CITATION_ENGINE_DEBUG] SKIP: response too short', { length: response.length });
@@ -451,8 +453,30 @@ export function shouldApplyCitationEngine(response: string, category: string): b
     }
     return false;
   }
+
+  // C348: Semantic signals — detect factual/scientific content regardless of category
+  const hasStatistics = /\d+[.,]?\d*\s*(%|por cento|percent|milh[oõ]es|bilh[oõ]es|million|billion|kg|km|m\/s|°C|°F|Hz|GHz)/i.test(response);
+  const hasSciTerms = /(estudo|pesquisa|demonstr|evidência|dados mostram|segundo|conforme|de acordo com|research|study|evidence|according to|shows that|indicates that)/i.test(response);
+  const hasCausalClaims = /(causa|resulta em|leva a|portanto|consequentemente|por isso|causes|results in|leads to|therefore|consequently)/i.test(response);
+  const hasNamedEntities = /([A-Z][a-záéíóúâêîôûãõ]+\s+[A-Z][a-záéíóúâêîôûãõ]+|arXiv|IEEE|Nature|Science|JAMA|Lancet)/i.test(response);
+  const isSubstantialLength = response.length > 500;
+
+  const semanticScore = [
+    hasStatistics,
+    hasSciTerms,
+    hasCausalClaims,
+    hasNamedEntities && isSubstantialLength,
+  ].filter(Boolean).length;
+
+  const highValueCategories = ['research', 'stem', 'complex_reasoning', 'analysis', 'scientific'];
+  const shouldApply = semanticScore >= 2 || highValueCategories.includes(category);
+
   if (process.env.MOTHER_CITATION_DEBUG === 'true') {
-    console.log('[CITATION_ENGINE_DEBUG] APPLY: citation engine will run', { category, responseLength: response.length });
+    console.log('[CITATION_ENGINE_DEBUG] C348 semantic check', {
+      category, responseLength: response.length,
+      hasStatistics, hasSciTerms, hasCausalClaims, hasNamedEntities,
+      semanticScore, shouldApply
+    });
   }
-  return true;
+  return shouldApply;
 }

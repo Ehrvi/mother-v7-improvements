@@ -162,7 +162,7 @@ import { estimateOutputLength } from './output-length-estimator'; // C241/C242: 
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v122.24'; // C335 (2026-03-12): Anti-version-hallucination fix in core-orchestrator (OBT-003), ORCHESTRATOR_VERSION sync, anti-auto-reference rules in buildSystemPrompt
+export const MOTHER_VERSION = 'v122.25'; // C347-C349 (2026-03-12): APQS Coherence Verifier (C347), Semantic Citation trigger (C348), Budget Reserve 0.35 + Directed Self-Refine (C349)
 
 const log = createLogger('CORE');
 
@@ -2084,6 +2084,49 @@ ${autonomyStatus}
             })
             .catch(nsvifErr => log.warn('[NSVIF] Failed (non-blocking):', (nsvifErr as Error).message)),
           3000, 'NSVIF'
+        )
+      : Promise.resolve(),
+    // C347 APQS Checker 6: Coherence Verifier — adaptive activation for TIER_3+ responses
+    // Scientific basis: Conselho V111 Q1 (2026-03-12): APQS — Adaptive Parallel Quality Stack
+    // Basis: Zeng et al. arXiv:2502.05605 (Chain-of-Self-Refinement, 2025)
+    // Activates when: (a) response > 1000 chars AND (b) category is complex/research/LFSA
+    // Non-blocking: logs coherence issues for DGM self-improvement signal
+    (['research', 'complex_reasoning', 'stem', 'analysis', 'scientific'].includes(routingDecision.category) && response.length > 1000)
+      ? withTimeout(
+          Promise.resolve().then(() => {
+            try {
+              // Structural coherence check: detect abrupt endings, orphaned sections, repetition
+              const paragraphs = response.split(/\n\n+/).filter(p => p.trim().length > 50);
+              const issues: string[] = [];
+              // Check 1: Abrupt ending (last paragraph < 80 chars and doesn't end with punctuation)
+              const lastPara = paragraphs[paragraphs.length - 1]?.trim() || '';
+              if (lastPara.length < 80 && !/[.!?]$/.test(lastPara)) {
+                issues.push('abrupt_ending');
+              }
+              // Check 2: Repetition (same sentence appears 2+ times)
+              const sentences = response.split(/[.!?]+/).map(s => s.trim().toLowerCase()).filter(s => s.length > 30);
+              const sentenceSet = new Set<string>();
+              for (const s of sentences) {
+                if (sentenceSet.has(s)) { issues.push('repetition'); break; }
+                sentenceSet.add(s);
+              }
+              // Check 3: Orphaned section header (## Header with no content following)
+              const orphanedHeaders = (response.match(/^##\s+.+$/gm) || []).filter(h => {
+                const idx = response.indexOf(h);
+                const after = response.slice(idx + h.length, idx + h.length + 100).trim();
+                return after.startsWith('##') || after.length < 10;
+              });
+              if (orphanedHeaders.length > 0) issues.push('orphaned_headers');
+              if (issues.length > 0) {
+                log.warn(`[C347-APQS] Coherence issues detected: ${issues.join(', ')} (response=${response.length}chars, category=${routingDecision.category})`);
+              } else {
+                log.debug(`[C347-APQS] Coherence OK: ${paragraphs.length} paragraphs, no issues`);
+              }
+            } catch (coherenceErr) {
+              log.warn('[C347-APQS] Coherence check failed (non-blocking):', (coherenceErr as Error).message);
+            }
+          }),
+          2000, 'C347-APQS-Coherence'
         )
       : Promise.resolve(),
   ]);

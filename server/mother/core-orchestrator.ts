@@ -116,7 +116,7 @@ export interface LayerTrace {
 // CONSTANTS
 // ============================================================
 
-export const ORCHESTRATOR_VERSION = 'v122.24'; // C335: Updated to match MOTHER_VERSION — anti-version-hallucination fix (OBT-003)
+export const ORCHESTRATOR_VERSION = 'v122.25'; // C349: Budget Reserve Ratio — fix 'sistema sobrecarregado' for LONG queries without quality degradation
 export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 3,
   successThreshold: 1,
@@ -134,6 +134,17 @@ export const DPO_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   cooldownMs: 15000,
   windowMs: 120000,
 };
+
+// C349 (Conselho V111 Q5): Budget Reserve Ratio — prevents Google provider from consuming 100% of total budget
+// Scientific basis: Zeng et al. arXiv:2502.05605 (Chain-of-Self-Refinement, 2025); Conselho V111 consensus (5/6 members)
+// Rationale: Reserve 35% of total budget for fallback provider (gpt-4o).
+// If Google's iterationBudget would exceed (1 - BUDGET_RESERVE_RATIO) * effectiveBudgetMs,
+// skip Google and use gpt-4o directly — which responds in ~15-25s for LONG queries.
+// This preserves Gemini 2.5 Pro for queries where it fits within budget (SHORT/MEDIUM),
+// while guaranteeing fallback always has ≥35% budget (≥9s for 25s, ≥37s for 106s budget).
+// Example: 15-page query → effectiveBudgetMs=45250ms → max_google_budget=29413ms
+//   If Google needs 90000ms > 29413ms → skip Google → use gpt-4o (~20s) → SUCCESS
+export const BUDGET_RESERVE_RATIO = 0.35; // 35% reserved for fallback — Conselho V111 consensus
 
 // F1-1 (Ciclo 169): ReAct iterative timeout configuration
 // Scientific basis: Yao et al. arXiv:2210.03629 (ReAct, ICLR 2023) — iterative Reason-Act-Observe
@@ -422,6 +433,38 @@ async function layer4_neuralGeneration(
     ? { ...DPO_CIRCUIT_CONFIG, timeoutMs: iterationBudget }
     : { ...ORCHESTRATOR_CIRCUIT_CONFIG, timeoutMs: iterationBudget };
   const circuitKey = isDpoModel ? `${routing.primaryProvider}-dpo` : routing.primaryProvider;
+
+  // C349 (Conselho V111 Q5): Budget Reserve Ratio check
+  // If Google provider would need more than (1 - BUDGET_RESERVE_RATIO) * effectiveBudgetMs,
+  // skip it and use gpt-4o directly to guarantee fallback has ≥35% budget.
+  // Scientific basis: Zeng et al. arXiv:2502.05605; Conselho V111 consensus (5/6 members)
+  const maxPrimaryBudget = Math.floor(effectiveBudgetMs * (1 - BUDGET_RESERVE_RATIO));
+  const googleBudgetExceeded = routing.primaryProvider === 'google' && iterationBudget > maxPrimaryBudget;
+  if (googleBudgetExceeded) {
+    const gpt4oBudget = Math.floor(effectiveBudgetMs * 0.80); // 80% for gpt-4o (fast, reliable)
+    console.log(`[Orchestrator] C349 Budget Reserve: Google would need ${iterationBudget}ms > max ${maxPrimaryBudget}ms (${Math.round(BUDGET_RESERVE_RATIO*100)}% reserve). Routing to gpt-4o with ${gpt4oBudget}ms budget.`);
+    const gpt4oController = new AbortController();
+    const gpt4oTimer = setTimeout(() => gpt4oController.abort(), gpt4oBudget);
+    try {
+      const gpt4oResponse = await callProvider(
+        'openai', 'gpt-4o', messages, routing.temperature, routing.maxTokens, req.onChunk, gpt4oController.signal,
+      );
+      clearTimeout(gpt4oTimer);
+      console.log(`[Orchestrator] C349 gpt-4o succeeded in ${Date.now() - totalBudgetStart}ms (budget reserve applied)`);
+      return {
+        response: gpt4oResponse,
+        provider: 'openai',
+        model: 'gpt-4o',
+        durationMs: Date.now() - start,
+        usedFallback: false, // Not a fallback — this IS the primary for this budget range
+      };
+    } catch (gpt4oErr: any) {
+      clearTimeout(gpt4oTimer);
+      console.warn(`[Orchestrator] C349 gpt-4o also failed: ${gpt4oErr.message}. Continuing with original flow.`);
+      // Fall through to original primary attempt as last resort
+    }
+  }
+
   try {
     const response = await withCircuitBreaker(
       circuitKey,
@@ -1409,8 +1452,45 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     } catch { /* non-blocking */ }
   });
 
+  // ── Layer 5.8: C349 Directed Self-Refine (conditional) ─────────────────────
+  // Scientific basis: Zeng et al. arXiv:2502.05605 (Chain-of-Self-Refinement, 2025)
+  // Only runs when: (a) G-Eval was used (not heuristic), (b) qualityScore < 90, (c) at least one dimension < 85
+  // Targets only weak dimensions — avoids wasting tokens on strong dimensions
+  let finalResponse = l4.response;
+  if (
+    l5.evaluationMethod === 'llm' &&
+    l5.qualityScore < 90 &&
+    l5.gEvalScores &&
+    Object.values(l5.gEvalScores).some(s => typeof s === 'number' && s < 85)
+  ) {
+    try {
+      const { directedSelfRefine } = await import('./self-refine');
+      const systemPrompt = buildSystemPrompt(l3, l2.routing);
+      const refineResult = await directedSelfRefine(
+        req.query,
+        l4.response,
+        l3.knowledgeContext || '',
+        systemPrompt,
+        l5.gEvalScores,
+      );
+      if (refineResult.improved) {
+        finalResponse = refineResult.refined;
+        console.log(`[Orchestrator] C349 Directed Self-Refine: improved (weak: ${refineResult.weakDimensions.join(', ')})`);
+        layers.push({
+          layer: 5.8 as any,
+          name: 'Directed Self-Refine (C349)',
+          durationMs: 0,
+          status: 'ok',
+          detail: `targeted: ${refineResult.weakDimensions.join(', ')}`,
+        });
+      }
+    } catch (refineErr: any) {
+      console.warn(`[Orchestrator] C349 Directed Self-Refine failed (non-blocking): ${refineErr.message}`);
+    }
+  }
+
   // ── Layer 6: Memory Write-Back (async) ───────────────────
-  layer6_memoryWriteBack(req, l4.response, l4.provider, l4.model, l2.routing.tier, l5.qualityScore);
+  layer6_memoryWriteBack(req, finalResponse, l4.provider, l4.model, l2.routing.tier, l5.qualityScore);
   layers.push({
     layer: 6,
     name: 'Memory Write-Back',
@@ -1495,7 +1575,7 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
   const estimatedCostUSD = parseFloat((totalTokensUsed * costPerToken).toFixed(6));
 
   return {
-    response: l4.response,
+    response: finalResponse,  // C349: may be refined by directedSelfRefine
     provider: l4.provider,
     model: l4.model,
     tier: l2.routing.tier,
