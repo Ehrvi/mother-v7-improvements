@@ -95,6 +95,11 @@ const SEMANTIC_ARTIFACT_NOUNS: readonly string[] = [
   'report', 'analysis', 'comparative study', 'action plan', 'methodology',
   'architecture', 'diagram', 'comparative table', 'executive summary',
   'specification', 'evaluation', 'proposal', 'document', 'guide',
+  // C329 BUG 7: 'livro' and 'book' were in VERY_LONG_SIGNALS but NOT in ARTIFACT_NOUNS
+  // This caused CS=0 for "escreva um livro" (no artifact noun detected) — Conselho V109 diagnosis
+  // Fix: add to ARTIFACT_NOUNS so semantic detector scores them correctly (weight 1.5)
+  'livro', 'book', 'manual', 'novel', 'romance', 'tese', 'thesis', 'monografia',
+  'monograph', 'dissertação', 'dissertacao', 'dissertation',
 ] as const;
 
 // Multi-task patterns (peso 2.0 — highest: explicit enumeration of parallel tasks)
@@ -322,13 +327,18 @@ export function estimateOutputLength(query: string): OutputLengthEstimate {
   // ─── Heuristic 4: Keyword signals ────────────────────────────────────────────
   for (const signal of VERY_LONG_SIGNALS) {
     if (q.includes(signal)) {
+      // C329 BUG 9: H4 path was returning without complexitySignals
+      // Fix: compute and include complexitySignals so core.ts can log them
+      // Scientific basis: C325 telemetry requires complexitySignals on ALL LFSA paths
+      const h4Signals = computeSemanticComplexity(query);
       return {
         category: 'VERY_LONG',
         estimatedTokens: 27000, // 60 pages avg
         estimatedPages: 60,
         confidence: 0.70,
         requiresLFSA: true,
-        detectedSignal: `VERY_LONG keyword: "${signal}"`,
+        detectedSignal: `VERY_LONG keyword: "${signal}" (CS=${h4Signals.totalScore.toFixed(1)})`,
+        complexitySignals: h4Signals, // C329 BUG 9: include for C325 telemetry
       };
     }
   }

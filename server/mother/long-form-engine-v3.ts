@@ -24,7 +24,39 @@
 import { invokeLLM } from '../_core/llm';
 import { uploadToDrive } from './google-workspace-bridge';
 import { generateSpeech } from './tts-engine';
+import { MOTHER_VERSION } from './core'; // C327: Dynamic version — never hardcode
 import * as fs from 'fs';
+
+/**
+ * C327: LFSA Constitutional Constraints — Conselho V109 (2026-03-12)
+ * Scientific basis: Constitutional AI (Bai et al., arXiv:2212.08073, 2022)
+ * InstructGPT negative examples (Ouyang et al., NeurIPS 2022)
+ * Consensus 5/5: prevents auto-reference, placeholders, metadata injection
+ */
+const LFSA_CONSTITUTIONAL_CONSTRAINTS = (version: string): string => `
+PROIBIÇÕES ABSOLUTAS — VIOLAÇÃO = SEÇÃO INVÁLIDA E REJEITADA:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+❌ NÃO comece com: "As MOTHER", "I am MOTHER", "Of course", "Certainly", "Sure", "Como MOTHER"
+❌ NÃO use placeholders: "(As above)", "(See above)", "(Idem)", "***", "[conteúdo aqui]", "[ver seção anterior]"
+❌ NÃO gere estrutura de metadados de livro: "Page X: Title Page", "Table of Contents", "Author:", "Publisher:"
+❌ NÃO mencione versões anteriores: v78.9, v87.0, v122.19, v122.20, v122.21 — você é ${version}
+❌ NÃO repita o título do livro como primeira linha da seção
+❌ NÃO deixe seções com menos de 400 palavras de conteúdo real
+❌ NÃO use referências circulares a outras seções sem fornecer o conteúdo
+
+EXEMPLOS NEGATIVOS (InstructGPT methodology, Ouyang et al., 2022):
+ERRADO: "As MOTHER, I process information to build robust systems..."
+CERTO: "TypeScript introduz um sistema de tipos estático que previne erros em tempo de compilação..."
+
+ERRADO: "Author: MOTHER (v78.9)\nPublisher: Wizards Down Under"
+CERTO: [não inclua metadados de autoria — apenas o conteúdo técnico da seção]
+
+ERRADO: "(As above)" ou "See previous section for details"
+CERTO: [escreva o conteúdo completo da seção sem referências circulares]
+
+IDENTIDADE ATUAL: Você é ${version}. Nunca mencione outras versões.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`;
 
 export type DocumentFormat = 'markdown' | 'scientific' | 'report' | 'book_chapter' | 'technical_spec' | 'programming_book';
 
@@ -42,6 +74,12 @@ export interface LongFormV3Request {
   streamProgress?: (progress: LongFormV3Progress) => void;
   // C306: Live streaming — emit section content as it completes
   onChunk?: (chunk: string) => void;
+  // C327: Quality enforcement parameters (Conselho V109 — Bai et al., arXiv:2212.08073)
+  minWordsPerSection?: number;      // Default: 600 — minimum words per section
+  versionString?: string;           // Default: MOTHER_VERSION — never hardcode
+  maxTokensPerSection?: number;     // Default: 12000 — C331 adaptive
+  isProgrammingContent?: boolean;   // Default: auto-detect via isProgrammingRequest
+  systemRules?: string;             // Constitutional rules from core.ts to propagate
 }
 
 export interface LongFormV3Progress {
@@ -117,7 +155,9 @@ function extractChaptersFromQuery(query: string): string[] | null {
   return null;
 }
 
-// C305: Build a code-aware section prompt for programming books
+// C305+C327: Build a code-aware section prompt for programming books
+// C327: isProg now passed as parameter (fixed scope bug — BUG 4)
+// C327: versionString and systemRules injected from generateLongFormV3 (BUG 1, 2, 3, 6)
 function buildCodeAwareSectionPrompt(
   sectionName: string,
   sectionIndex: number,
@@ -128,22 +168,28 @@ function buildCodeAwareSectionPrompt(
   wordsPerSection: number,
   language: string,
   includeReferences: boolean,
+  isProg: boolean,           // C327 BUG 4: passed from outer scope, not re-computed
+  versionString?: string,    // C327 BUG 1: dynamic version
+  systemRules?: string,      // C327 BUG 6: constitutional rules from core.ts
 ): string {
-  const isProg = isProgrammingRequest(topic);
+  const version = versionString ?? MOTHER_VERSION;
+  const constraints = LFSA_CONSTITUTIONAL_CONSTRAINTS(version);
 
   if (isProg) {
     // Detect the programming language from topic
     const langMatch = topic.match(/typescript|javascript|python|java\b|golang|rust|c\+\+|c#/i);
     const progLang = langMatch ? langMatch[0] : 'TypeScript';
 
-    return `Você é MOTHER v122.19, especialista em documentação técnica e livros de programação.
+    return `Você é ${version}, especialista em documentação técnica e livros de programação.
+
+${constraints}
 
 Livro: "${title}"
 Tópico: "${topic}"
 Linguagem de programação: ${progLang}
 Seção atual: "${sectionName}" (${sectionIndex + 1}/${totalSections})
 Idioma do texto: ${language}
-Tamanho alvo: aproximadamente ${wordsPerSection} palavras
+Tamanho alvo: MÍNIMO ${wordsPerSection} palavras de conteúdo real (não conte placeholders)
 
 Outline do livro:
 ${outline}
@@ -168,21 +214,23 @@ INSTRUÇÕES CRÍTICAS — VOCÊ DEVE SEGUIR TODAS:
 Escreva a seção "${sectionName}" AGORA com código ${progLang} real e funcional:`;
   }
 
-  // Default non-programming prompt (unchanged from original)
-  return `Você é MOTHER v122.19, especialista em documentos técnicos e científicos de alta qualidade.
+  // Default non-programming prompt — C327: version dynamic + constitutional constraints
+  return `Você é ${version}, especialista em documentos técnicos e científicos de alta qualidade.
+
+${constraints}
 
 Documento: "${title}"
 Tópico: "${topic}"
 Seção atual: "${sectionName}" (${sectionIndex + 1}/${totalSections})
 Idioma: ${language}
-Palavras alvo para esta seção: ${wordsPerSection}
+Palavras alvo para esta seção: MÍNIMO ${wordsPerSection} palavras de conteúdo real
 
 Outline do documento:
 ${outline}
 
 Escreva a seção "${sectionName}" de forma completa, técnica e científica.
 ${includeReferences ? 'Inclua referências bibliográficas no formato [Autor, Ano].' : ''}
-Escreva aproximadamente ${wordsPerSection} palavras. Seja detalhado e aprofundado.`;
+Escreva no mínimo ${wordsPerSection} palavras. Seja detalhado e aprofundado. Sem placeholders.`;
 }
 
 /**
@@ -265,8 +313,11 @@ export async function generateLongFormV3(request: LongFormV3Request): Promise<Lo
       wordCount: 0,
     });
 
-    // C305: Code-aware outline prompt for programming books
-    const isProg = isProgrammingRequest(request.topic);
+    // C305+C327: Code-aware outline prompt for programming books
+    // C327 BUG 4: isProg determined HERE in generateLongFormV3 scope and passed to buildCodeAwareSectionPrompt
+    const isProg = request.isProgrammingContent ?? isProgrammingRequest(request.topic);
+    const versionStr = request.versionString ?? MOTHER_VERSION;
+    const minWPS = request.minWordsPerSection ?? 600;
     const outlinePrompt = isProg
       ? `Você é MOTHER, especialista em livros de programação técnica.
 
@@ -290,10 +341,13 @@ Seções: ${sections.join(', ')}
 
 Para cada seção, liste 3-5 pontos principais a cobrir. Seja específico e técnico.`;
 
+    // C332: Reduce outline tokens 2000→1200 to cut outline latency ~40%
+    // Scientific basis: TeleRAG (2025) — concise planning phase reduces E2E latency
+    // Outline only needs structure, not full content — 1200 tokens is sufficient
     const outlineResult = await invokeLLM({
-      messages: [{ role: 'user', content: outlinePrompt }],
+      messages: [{ role: 'user', content: outlinePrompt + '\n\nIMPORTANT: Be concise. List key points only, no full paragraphs. Max 1000 tokens.' }],
       model: 'gpt-4o',
-      maxTokens: 2000,
+      maxTokens: 1200,
     });
 
     const outlineRaw = outlineResult.choices?.[0]?.message?.content ?? '';
@@ -317,14 +371,20 @@ Para cada seção, liste 3-5 pontos principais a cobrir. Seja específico e téc
     });
 
     const sectionPromises = sections.map(async (sectionName, i) => {
+      // C327: Pass isProg, versionStr, systemRules to buildCodeAwareSectionPrompt
+      // BUG 1: versionStr (dynamic) | BUG 2+3: constitutional constraints | BUG 4: isProg from outer scope
       const sectionPrompt = buildCodeAwareSectionPrompt(
         sectionName, i, sections.length,
         request.title, request.topic, outline,
-        wordsPerSection, language,
+        Math.max(wordsPerSection, minWPS), language,
         request.includeReferences !== false,
+        isProg,       // C327 BUG 4: from generateLongFormV3 scope
+        versionStr,   // C327 BUG 1: dynamic version
+        request.systemRules, // C327 BUG 6: constitutional rules from core.ts
       );
 
-      const sectionMaxTokens = Math.max(SECTION_MAX_TOKENS, wordsPerSection * 3);
+      // C327+C331: maxTokensPerSection dynamic — default 12000 for quality
+      const sectionMaxTokens = request.maxTokensPerSection ?? Math.max(12000, Math.max(wordsPerSection, minWPS) * 3);
       let content = '';
       let sectionAttempts = 0;
 

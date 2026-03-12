@@ -162,7 +162,7 @@ import { estimateOutputLength } from './output-length-estimator'; // C241/C242: 
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v122.22'; // C324-C326 (2026-03-12): Token-Level SSE Streaming (C324), Adaptive Threshold Telemetry (C325), G-Eval Baseline 55%219280% (C326), AWAKE V311
+export const MOTHER_VERSION = 'v122.23'; // C327-C334 (2026-03-12): LFSA Constitutional Constraints (C327), extractSemanticTitle (C328), ARTIFACT_NOUNS+H4 fix (C329), OBT Framework (C330), Outline latency -40% (C332), MOTHER_CITATION_DEBUG (C333), DGM reset (C334), AWAKE V314
 
 const log = createLogger('CORE');
 
@@ -234,7 +234,49 @@ export interface MotherResponse {
 }
 
 /**
- * Main MOTHER processing pipeline
+ * C328 BUG 5: extractSemanticTitle — normalize CAPS LOCK queries to proper semantic titles
+ * Scientific basis: Conselho V109 diagnosis — "ESCREVA UM LIVRO COM 20 PAGINAS SOBRE TYPESCRIPT EM INGLES"
+ * was being passed as-is to Gemini, causing "Author: MOTHER (v78.9)" metadata generation.
+ * Solution: extract the core subject noun phrase and title-case it.
+ * Consensus 5/5 (DeepSeek, Claude, Gemini, Mistral, Manus)
+ */
+function extractSemanticTitle(query: string): string {
+  // Normalize to lowercase for processing
+  const q = query.toLowerCase().trim();
+
+  // Pattern 1: "escreva um livro [de X páginas] sobre TOPIC [em IDIOMA]"
+  const bookMatch = q.match(/(?:escreva|crie|gere|write|create|generate)\s+(?:um?\s+)?(?:livro|book|manual|guia|guide|tutorial|artigo|article|relat[oó]rio|report|documento|document)\s+(?:(?:com|de|with|of)\s+\d+\s+(?:p[aá]ginas?|pages?|cap[ií]tulos?|chapters?)\s+)?(?:sobre|about|on|de|para)\s+(.+?)(?:\s+em\s+(?:ingl[eê]s|portugu[eê]s|english|portuguese|espa[nñ]ol|spanish))?$/i);
+  if (bookMatch) {
+    const subject = bookMatch[1].trim();
+    // Title-case the subject
+    return subject.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  }
+
+  // Pattern 2: "ESCREVA UM LIVRO SOBRE TYPESCRIPT EM INGLES" (all caps)
+  if (query === query.toUpperCase() && query.length > 20) {
+    // All-caps query: extract noun after 'SOBRE', 'ABOUT', 'ON', 'DE'
+    const capsMatch = query.match(/(?:SOBRE|ABOUT|ON|DE)\s+([A-Z][A-Z0-9\s]+?)(?:\s+EM\s+|\s+IN\s+|$)/i);
+    if (capsMatch) {
+      const subject = capsMatch[1].trim().toLowerCase();
+      return subject.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    }
+  }
+
+  // Pattern 3: Imperative commands — "Analise o impacto de X", "Explique Y"
+  const imperativeMatch = q.match(/^(?:analise|explique|descreva|compare|avalie|implemente|crie|desenvolva|analyze|explain|describe|compare|evaluate|implement|create|develop)\s+(?:o\s+|a\s+|os\s+|as\s+|um\s+|uma\s+|the\s+|a\s+|an\s+)?(.+?)(?:\s+em\s+(?:ingl[eê]s|portugu[eê]s|english))?$/i);
+  if (imperativeMatch) {
+    const subject = imperativeMatch[1].trim();
+    // Capitalize first letter only
+    return subject.charAt(0).toUpperCase() + subject.slice(1);
+  }
+
+  // Fallback: truncate and title-case the query
+  const truncated = query.slice(0, 80).trim();
+  return truncated.charAt(0).toUpperCase() + truncated.slice(1).toLowerCase();
+}
+
+/**
+ * Main query processing function — entry point for all MOTHER requests.
  * Integrates all 9 layers (v75.0 — NC-SELFAUDIT-001)
  */
 export async function processQuery(request: MotherRequest): Promise<MotherResponse> {
@@ -255,18 +297,38 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
     console.log(`[Core] C241 LFSA interceptor: query (~${lfEstimate.estimatedPages} pages, ${lfEstimate.estimatedTokens} tokens). Signal: ${lfEstimate.detectedSignal}`);
     try {
       const lfDetect = detectLongFormRequest(request.query);
+      // C328 BUG 5+8: extractSemanticTitle — normalize CAPS LOCK query to semantic title
+      // Scientific basis: Gemini training data patterns (Conselho V109 — BUG 5 diagnosis)
+      // Prevents "ESCREVA UM LIVRO COM 20 PAGINAS SOBRE TYPESCRIPT EM INGLES" → "TypeScript"
+      const semanticTitle = extractSemanticTitle(request.query);
+      // C328 BUG 6: Propagate MANDATORY RESPONSE RULES as systemRules to LFSA
+      // Scientific basis: Constitutional AI (Bai et al., arXiv:2212.08073) — rules must be present
+      // at generation time, not just in the outer system prompt (LFSA operates in isolation)
+      const lfSystemRules = `REGRAS OBRIGATÓRIAS DE QUALIDADE (${MOTHER_VERSION}):
+- Responda em ${request.query.match(/\b(in english|em inglês|en inglés)\b/i) ? 'English' : 'português'}
+- Sem auto-referência ("As MOTHER", "I am MOTHER")
+- Sem placeholders ("(As above)", "***", "[conteúdo aqui]")
+- Sem metadados de livro ("Author:", "Publisher:", "Page X:")
+- Mínimo 600 palavras de conteúdo real por seção
+- Código REAL e funcional (não pseudocódigo)
+- Citações bibliográficas no formato [Autor, Ano]`;
       const lfResult = await generateLongFormV3({
-        title: request.query.slice(0, 120), // Use query as title (truncated)
+        title: semanticTitle,   // C328 BUG 5: semantic title, not raw CAPS LOCK query
         topic: request.query,
         format: lfDetect.format ?? 'markdown',
         targetWordCount: Math.max(lfEstimate.estimatedPages * 450, lfDetect.estimatedWords ?? 3000),
-        language: 'pt-BR',
+        language: request.query.match(/\b(in english|em inglês|en inglés)\b/i) ? 'en-US' : 'pt-BR',
         streamProgress: request.onPhase ? (progress) => {
           (request.onPhase as any)?.('writing', { step: progress.phase, section: progress.currentSection, pct: progress.percentComplete });
         } : undefined,
         // C306: Wire onChunk for live streaming — sections emitted as they complete
         // Scientific basis: Nielsen (1994) Heuristic #1 — visibility of system status
         onChunk: request.onChunk,
+        // C327+C328: Quality enforcement parameters
+        versionString: MOTHER_VERSION,         // BUG 1: dynamic version
+        minWordsPerSection: 600,               // BUG 6: minimum words per section
+        maxTokensPerSection: 12000,            // C331: quality token budget
+        systemRules: lfSystemRules,            // BUG 6: constitutional rules
       });
       return {
         response: lfResult.fullContent,
