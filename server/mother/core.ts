@@ -162,7 +162,7 @@ import { estimateOutputLength } from './output-length-estimator'; // C241/C242: 
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v122.23'; // C327-C334 (2026-03-12): LFSA Constitutional Constraints (C327), extractSemanticTitle (C328), ARTIFACT_NOUNS+H4 fix (C329), OBT Framework (C330), Outline latency -40% (C332), MOTHER_CITATION_DEBUG (C333), DGM reset (C334), AWAKE V314
+export const MOTHER_VERSION = 'v122.24'; // C335 (2026-03-12): Anti-version-hallucination fix in core-orchestrator (OBT-003), ORCHESTRATOR_VERSION sync, anti-auto-reference rules in buildSystemPrompt
 
 const log = createLogger('CORE');
 

@@ -90,10 +90,11 @@ steps:
       # C236: Cloud Run concurrency=5, max-instances=20, cpu=4, memory=8Gi, timeout=600
       # C316 (Conselho V108): SHMS_SIMULATION_ONLY=true enforced permanently in CI/CD
       # Per user directive 2026-03-12: SHMS must ONLY use simulation data until explicitly authorized
-      # C327-C334 (Conselho V109): MOTHER_VERSION updated to v122.23, MOTHER_CYCLE=334
+      # C335 (2026-03-12): MOTHER_VERSION updated to v122.24, MOTHER_CYCLE=335
+      # C335: Anti-version-hallucination fix in core-orchestrator (OBT-003 gate)
+      # C335: ORCHESTRATOR_VERSION synced to v122.24, anti-auto-reference rules in buildSystemPrompt
       # C333: MOTHER_CITATION_DEBUG=true for 48h production monitoring (citation rate 40%→80%)
-      # C334: DGM rejection_count reset handled via DB migration in post-deploy step
-      - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA,VITE_APP_ID=mother-interface,NODE_OPTIONS=--max-old-space-size=6144,DPO_FINE_TUNED_MODEL=ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v8e:DFay6MHy,MOTHER_VERSION=v122.23,MOTHER_CYCLE=334,SHMS_SIMULATION_ONLY=true,MOTHER_CITATION_DEBUG=true,MOTHER_COMPLEXITY_THRESHOLD=4'
+      - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA,VITE_APP_ID=mother-interface,NODE_OPTIONS=--max-old-space-size=6144,DPO_FINE_TUNED_MODEL=ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v8e:DFay6MHy,MOTHER_VERSION=v122.24,MOTHER_CYCLE=335,SHMS_SIMULATION_ONLY=true,MOTHER_CITATION_DEBUG=true,MOTHER_COMPLEXITY_THRESHOLD=4'
 
   # v74.5: DGM-2 FIX — Migrate 100% traffic to new revision after deploy
   # gcloud run deploy does not have --traffic flag; use update-traffic separately

@@ -85,6 +85,21 @@ def query_mother(q: str, timeout: int = 70) -> tuple:
     except Exception as e:
         return None, time.time()-start, False
 
+def _smart_sample(text: str, max_chars: int = 6000) -> str:
+    """Smart sampling for long responses: beginning + middle + end.
+    Scientific basis: G-Eval (Liu et al., 2023) requires representative sampling
+    for long-form responses to avoid truncation bias.
+    """
+    if len(text) <= max_chars:
+        return text
+    # For LFSA responses (>6000 chars), sample beginning + middle + end
+    chunk = max_chars // 3
+    beginning = text[:chunk]
+    mid_start = len(text) // 2 - chunk // 2
+    middle = text[mid_start:mid_start + chunk]
+    end = text[-chunk:]
+    return f"{beginning}\n\n[...{len(text) - max_chars} chars omitted for brevity...]\n\n{middle}\n\n[...continued...]\n\n{end}"
+
 def judge_response(q: str, r: str) -> tuple:
     """Score response using GPT-4o-mini as G-Eval judge via requests."""
     try:
@@ -92,7 +107,7 @@ def judge_response(q: str, r: str) -> tuple:
             "model": "gpt-4o-mini",
             "messages": [
                 {"role": "system", "content": JUDGE_SYS},
-                {"role": "user", "content": f"Query: {q}\n\nResponse: {r[:2500]}"}
+                {"role": "user", "content": f"Query: {q}\n\nResponse: {_smart_sample(r, 6000)}"}
             ],
             "temperature": 0,
             "max_tokens": 80,

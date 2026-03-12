@@ -165,9 +165,10 @@ def query_mother(query: str, timeout: int = 90) -> tuple[str, float]:
                 try:
                     data = json.loads(line[5:].strip())
                     event_type = data.get("type", "")
-                    if event_type == "token":
+                    # Handle tokens: either type=="token" OR has "text" field (no type)
+                    if event_type == "token" or ("text" in data and not event_type):
                         full_text += data.get("text", "")
-                    elif event_type in ("done", "response", "complete"):
+                    elif event_type in ("done", "response", "complete") or data.get("done"):
                         break
                     elif event_type == "error":
                         break
