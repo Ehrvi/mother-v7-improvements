@@ -119,14 +119,14 @@ steps:
         echo "C367 Pre-deploy quality gate: testing 3 TIER_1 smoke queries..."
         sleep 15
         PASS=0; FAIL=0
-        for QUERY in "O que e machine learning" "Quanto e 15 por cento de 200" "O que e API REST"; do
+        for q in "O que e machine learning" "Quanto e 15 por cento de 200" "O que e API REST"; do
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
             https://mother-interface-qtvghovzxa-ts.a.run.app/api/mother/stream \
             -H "Content-Type: application/json" \
-            -d "{\"query\":\"$QUERY\",\"tier\":\"TIER_1\",\"conversationHistory\":[]}" \
+            -d "{\"query\":\"${q}\",\"tier\":\"TIER_1\",\"conversationHistory\":[]}" \
             --max-time 30 2>/dev/null)
-          if [ "$STATUS" = "200" ]; then PASS=$((PASS+1)); echo "PASS ($STATUS): $QUERY";
-          else FAIL=$((FAIL+1)); echo "FAIL ($STATUS): $QUERY"; fi
+          if [ "$STATUS" = "200" ]; then PASS=$((PASS+1)); echo "PASS ($STATUS): ${q}";
+          else FAIL=$((FAIL+1)); echo "FAIL ($STATUS): ${q}"; fi
         done
         echo "Quality gate result: $PASS/3 passed"
         if [ "$PASS" -lt 2 ]; then echo "QUALITY GATE FAILED - aborting"; exit 1; fi
