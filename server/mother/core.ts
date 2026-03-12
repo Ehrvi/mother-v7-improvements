@@ -329,78 +329,59 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
     }
   }
 
-  // ==================== CICLO 73: A/B CANARY — core-orchestrator.ts (50% traffic) ====================
-  // Scientific basis:
-  // - Canary Deployment (Oracle Medium, 2025): route 1-10% traffic to candidate, compare P95 latency + error rate
-  // - Google SRE (2016): progressive rollout with automatic rollback on SLO breach
-  // - ACAR (arXiv:2602.21231, 2026): adaptive complexity routing — Tier-1 (simple) 1.2s, Tier-3 (complex) 5-15s
-  // - Render.com Best Practices (Jan 2026): sticky sessions + probabilistic routing for A/B LLM tests
-  // Feature toggle: MOTHER_ORCHESTRATOR_AB_RATE (default 1.00 = 100%) — Ciclo 74 FULL ROLLOUT (Google SRE: 10%→50%→100% progressive rollout COMPLETE)
-  const AB_RATE = parseFloat(process.env.MOTHER_ORCHESTRATOR_AB_RATE ?? '1.00');
-  const AB_ENABLED = process.env.MOTHER_ORCHESTRATOR_AB !== 'false'; // default enabled
-  if (AB_ENABLED && Math.random() < AB_RATE) {
-    try {
-      const orchResult = await coreOrchestrate({
-        query: request.query,
-        userId: request.userId != null ? String(request.userId) : undefined,
-        conversationHistory: request.conversationHistory ?? [],
-        metadata: { useCache: request.useCache ?? true, userEmail: request.userEmail },
-        // C175: Pass SSE callbacks through to core-orchestrator
-        onPhase: request.onPhase as any,
-        onToolCall: request.onToolCall,
-        // C267: Pass onChunk for real-time token streaming in core-orchestrator path
-        onChunk: request.onChunk,
-      });
-      // Map OrchestratorResponse → MotherResponse (Ciclo 70 A/B)
-      // Ciclo 75 BUG-FIX: include quality + all MotherResponse fields to prevent downstream crashes
-      // Root cause: a2a-server.ts accessed result.quality.qualityScore without optional chaining
-      // Scientific basis: Defensive Programming (McConnell, Code Complete 2004, Chapter 8)
-      return {
-        response: orchResult.response,
-        tier: orchResult.tier ?? 'TIER_2',
-        complexityScore: 0.5,
-        confidenceScore: 0.8,
-        provider: orchResult.provider ?? 'openai',
-        modelName: orchResult.model ?? 'gpt-4o',
-        queryCategory: 'general',
-        quality: {
-          qualityScore: orchResult.qualityScore ?? 80,
-          passed: (orchResult.qualityScore ?? 80) >= 70,
-          completenessScore: 80,
-          accuracyScore: 80,
-          relevanceScore: 80,
-          coherenceScore: 80,
-          safetyScore: 95,
-          cacheEligible: (orchResult.qualityScore ?? 80) >= 75,
-        } as GuardianResult,
-        responseTime: orchResult.latencyMs ?? 0,
-        // R572 (AWAKE V238 Ciclo 166): Map tokensUsed and layout_hint from core-orchestrator
-        // Scientific basis: Defensive Programming (McConnell 2004) — all MotherResponse fields must be populated
-        // Root cause: tokensUsed was hardcoded to 0; layout_hint was missing entirely
-        tokensUsed: orchResult.tokensUsed ?? 0,
-        cost: orchResult.estimatedCostUSD ?? 0,
-        costReduction: 0,
-        cacheHit: orchResult.fromCache ?? false,
-        queryId: 0,
-        layout_hint: orchResult.layout_hint, // R548 (AWAKE V236 Ciclo 164)
-        metadata: {
-          abTest: 'core-orchestrator-v76.0',
-          abTier: orchResult.tier,
-          abLatencyMs: orchResult.latencyMs,
-          abProvider: orchResult.provider,
-          abModel: orchResult.model,
-          abFromCache: orchResult.fromCache,
-          abQualityScore: orchResult.qualityScore,
-          abVersion: orchResult.version,
-          abTokensUsed: orchResult.tokensUsed,
-          abEstimatedCostUSD: orchResult.estimatedCostUSD,
-          abLayoutHint: orchResult.layout_hint,
-        },
-      } as unknown as MotherResponse;
-    } catch (orchErr) {
-      // Automatic rollback on error — fall through to legacy core.ts pipeline
-      log.warn('[A/B] core-orchestrator error — falling back to core.ts', { error: String(orchErr) });
-    }
+  // ==================== Fase 2.3: Unified Pipeline — always use core-orchestrator.ts ====================
+  // Canary A/B rollout completed (Ciclo 74: 10%→50%→100%). A/B wrapper removed.
+  // core-orchestrator.ts is now the sole production pipeline for all standard queries.
+  // Legacy pipeline below kept as emergency fallback (never reached in normal operation).
+  try {
+    const orchResult = await coreOrchestrate({
+      query: request.query,
+      userId: request.userId != null ? String(request.userId) : undefined,
+      conversationHistory: request.conversationHistory ?? [],
+      metadata: { useCache: request.useCache ?? true, userEmail: request.userEmail },
+      onPhase: request.onPhase as any,
+      onToolCall: request.onToolCall,
+      onChunk: request.onChunk,
+    });
+    return {
+      response: orchResult.response,
+      tier: orchResult.tier ?? 'TIER_2',
+      complexityScore: 0.5,
+      confidenceScore: 0.8,
+      provider: orchResult.provider ?? 'openai',
+      modelName: orchResult.model ?? 'gpt-4o',
+      queryCategory: 'general',
+      quality: {
+        qualityScore: orchResult.qualityScore ?? 80,
+        passed: (orchResult.qualityScore ?? 80) >= 70,
+        completenessScore: 80,
+        accuracyScore: 80,
+        relevanceScore: 80,
+        coherenceScore: 80,
+        safetyScore: 95,
+        cacheEligible: (orchResult.qualityScore ?? 80) >= 75,
+      } as GuardianResult,
+      responseTime: orchResult.latencyMs ?? 0,
+      tokensUsed: orchResult.tokensUsed ?? 0,
+      cost: orchResult.estimatedCostUSD ?? 0,
+      costReduction: 0,
+      cacheHit: orchResult.fromCache ?? false,
+      queryId: 0,
+      layout_hint: orchResult.layout_hint,
+      metadata: {
+        orchestrator: 'core-orchestrator',
+        tier: orchResult.tier,
+        latencyMs: orchResult.latencyMs,
+        provider: orchResult.provider,
+        model: orchResult.model,
+        fromCache: orchResult.fromCache,
+        qualityScore: orchResult.qualityScore,
+        version: orchResult.version,
+      },
+    } as unknown as MotherResponse;
+  } catch (orchErr) {
+    // Emergency fallback to legacy pipeline — should be rare
+    log.warn('[Core] core-orchestrator error — falling back to legacy pipeline', { error: String(orchErr) });
   }
 
   // ==================== LAYER 2: ORCHESTRATION ====================
