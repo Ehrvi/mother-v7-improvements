@@ -72,6 +72,21 @@ import { applyCitationEngine, shouldApplyCitationEngine } from './citation-engin
 // MAD R2 consensus: PRM as budget-allocator (not G-Eval replacement) — complementary, not redundant
 // Activation: TIER_3/4 only + complex_reasoning/stem categories (NC-TTFT-001 compliance)
 import { applyProcessRewardVerification } from './process-reward-verifier';
+// Fases 1-5: New quality modules (MANUS-level improvements, 2026-03)
+// Fase 1.1 — Pre-generation planning (planning-first quality, MANUS insight)
+import { planResponse, formatPlanForPrompt } from './response-planner';
+// Fase 1.3 — Output normalization (remove provider artifacts)
+import { normalizeResponse } from './response-normalizer';
+// Fase 3.1 — Conversation compression for long histories (MemGPT, arXiv:2310.08560)
+import { compressConversation, formatCompressedHistory } from './conversation-compressor';
+// Fase 3.2 — Context relevance scoring (Self-RAG, arXiv:2310.11511)
+import { scoreAndFilterContexts, formatScoredContexts } from './context-scorer';
+// Fase 3.3 — Proactive episodic memory recall (implicit past-reference detection)
+import { proactiveRecall } from './memory-recall';
+// Fase 5.2 — Adaptive response depth control
+import { determineDepth, formatDepthInstructions } from './depth-controller';
+// Fase 5.1 — Inline response verification (hallucination + filler detection)
+import { verifyChunk, fixVerificationIssues } from './inline-verifier';
 
 // ============================================================
 // TYPES
@@ -296,11 +311,15 @@ interface ContextBundle {
   episodicContext: string;
   conversationContext: string;
   durationMs: number;
+  responsePlan?: string;       // Fase 1.1: pre-generation plan
+  depthInstructions?: string;  // Fase 5.2: adaptive depth target
 }
 
 async function layer3_contextAssembly(
   req: OrchestratorRequest,
   routing: AdaptiveRoutingDecision,
+  responsePlan?: string,
+  depthInstructions?: string,
 ): Promise<ContextBundle> {
   const start = Date.now();
 
@@ -311,20 +330,63 @@ async function layer3_contextAssembly(
       episodicContext: '',
       conversationContext: buildConversationContext(req.conversationHistory),
       durationMs: Date.now() - start,
+      responsePlan,
+      depthInstructions,
     };
   }
 
-  // Parallel context assembly for TIER_2+
-  const [knowledgeContext, episodicContext] = await Promise.allSettled([
+  // Fase 3.3 (proactive recall) + parallel context assembly for TIER_2+
+  const [knowledgeResult, episodicResult, memoryRecallResult, conversationResult] = await Promise.allSettled([
     fetchKnowledgeContext(req.query, routing.tier),
     fetchEpisodicContext(req.userId, req.query),
+    // Fase 3.3: Proactive recall — detects implicit past-conversation references
+    proactiveRecall(req.query, req.userId as unknown as number | undefined),
+    // Fase 3.1: Async conversation compression for long histories
+    buildCompressedConversationContext(req.conversationHistory),
   ]);
 
+  const rawKnowledge = knowledgeResult.status === 'fulfilled' ? knowledgeResult.value : '';
+  const rawEpisodic = episodicResult.status === 'fulfilled' ? episodicResult.value : '';
+  const memoryRecall = memoryRecallResult.status === 'fulfilled' ? memoryRecallResult.value : null;
+  const conversationContext = conversationResult.status === 'fulfilled' ? conversationResult.value : buildConversationContext(req.conversationHistory);
+
+  // Fase 3.3: Append proactive recall context if triggered
+  const episodicWithRecall = memoryRecall?.triggered && memoryRecall.contextSnippet
+    ? `${rawEpisodic}\n${memoryRecall.contextSnippet}`
+    : rawEpisodic;
+
+  // Fase 3.2 (Self-RAG, arXiv:2310.11511): Score and filter contexts by relevance
+  // Only inject context above relevance threshold (0.4), respecting token budget (8000)
+  const contextsToScore = [
+    ...(rawKnowledge ? [{ source: 'knowledge_graph' as const, content: rawKnowledge }] : []),
+    ...(episodicWithRecall ? [{ source: 'episodic' as const, content: episodicWithRecall }] : []),
+  ];
+
+  let finalKnowledge = rawKnowledge;
+  let finalEpisodic = episodicWithRecall;
+
+  if (contextsToScore.length > 0) {
+    try {
+      const scored = scoreAndFilterContexts(req.query, contextsToScore);
+      const knowledgeScored = scored.scoredContexts.find(c => c.source === 'knowledge_graph');
+      const episodicScored = scored.scoredContexts.find(c => c.source === 'episodic');
+      if (knowledgeScored) finalKnowledge = knowledgeScored.included ? knowledgeScored.content : '';
+      if (episodicScored) finalEpisodic = episodicScored.included ? episodicScored.content : '';
+      if (scored.contextReductionPercent > 0) {
+        console.log(`[Orchestrator] Fase3.2 CtxScorer: ${scored.contextReductionPercent}% token reduction (${scored.totalTokensExcluded} tokens excluded)`);
+      }
+    } catch {
+      // Non-blocking — fall back to original contexts
+    }
+  }
+
   return {
-    knowledgeContext: knowledgeContext.status === 'fulfilled' ? knowledgeContext.value : '',
-    episodicContext: episodicContext.status === 'fulfilled' ? episodicContext.value : '',
-    conversationContext: buildConversationContext(req.conversationHistory),
+    knowledgeContext: finalKnowledge,
+    episodicContext: finalEpisodic,
+    conversationContext,
     durationMs: Date.now() - start,
+    responsePlan,
+    depthInstructions,
   };
 }
 
@@ -434,10 +496,25 @@ function buildConversationContext(
   history?: Array<{ role: 'user' | 'assistant'; content: string }>,
 ): string {
   if (!history || history.length === 0) return '';
+  // Fase 3.1: For long histories, keep last 6 intact (async compression handled in layer3)
   return history
     .slice(-6)  // last 3 turns
     .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content.slice(0, 500)}`)
     .join('\n');
+}
+
+async function buildCompressedConversationContext(
+  history?: Array<{ role: 'user' | 'assistant'; content: string }>,
+): Promise<string> {
+  // Fase 3.1 (MemGPT, arXiv:2310.08560): Compress long histories; keep last 6 intact
+  if (!history || history.length === 0) return '';
+  if (history.length <= 10) return buildConversationContext(history);
+  try {
+    const compressed = await compressConversation(history as Array<{ role: 'user' | 'assistant'; content: string; timestamp?: Date }>);
+    return formatCompressedHistory(compressed);
+  } catch {
+    return buildConversationContext(history);
+  }
 }
 
 // ============================================================
@@ -791,7 +868,7 @@ async function streamAnthropicResponse(body: ReadableStream<Uint8Array>, onChunk
   return fullResponse;
 }
 
-function buildSystemPrompt(context: ContextBundle, routing: AdaptiveRoutingDecision): string {
+function buildSystemPrompt(context: ContextBundle, routing: AdaptiveRoutingDecision, overridePlan?: string): string {
   // Fix 3 (NC-IDENTITY-001 Ciclo 106): Strong MOTHER identity — Council consensus (5/5 models)
   // Claude: "System prompt must establish identity BEFORE any context, with no ambiguity."
   // DeepSeek: "Identity anchoring prevents generic responses for off-topic queries."
@@ -836,6 +913,19 @@ function buildSystemPrompt(context: ContextBundle, routing: AdaptiveRoutingDecis
     `Begin your response IMMEDIATELY after this internal plan — do not output the plan itself.`,
     `</plan>`,
   ];
+
+  // Fase 5.2: Adaptive depth instructions (depth-controller)
+  const activeDepth = context.depthInstructions;
+  if (activeDepth) {
+    parts.push(`\n## Response Depth Guidance\n${activeDepth}`);
+  }
+
+  // Fase 1.1: Response planner output — pre-generated strategy (overridePlan > context.responsePlan)
+  const activePlan = overridePlan ?? context.responsePlan;
+  if (activePlan) {
+    parts.push(`\n## Pre-Generation Response Plan (follow this strategy)\n${activePlan}`);
+  }
+
   if (context.knowledgeContext) {
     parts.push(`\n## Knowledge from bd_central\n${context.knowledgeContext}`);
   }
@@ -1367,10 +1457,44 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     detail: l2.routing.primaryModel.startsWith('ft:') ? `DPO active: ${l2.routing.primaryModel}` : 'DPO not triggered',
   });
 
+  // ── Layer 2.6: Response Planner + Depth Controller (Fases 1.1, 5.2) ──────
+  // Fase 1.1 (planning-first): Plan response strategy BEFORE context assembly
+  // Scientific basis: MANUS insight — generate quality on first attempt via planning
+  // Fase 5.2 (depth-controller): Determine adaptive depth before generation
+  let responsePlan: string | undefined;
+  let depthInstructions: string | undefined;
+  if (l2.routing.tier !== 'TIER_1') {
+    const [plannerResult, depthResult] = await Promise.allSettled([
+      // Fase 1.1: Response planner (async LLM call, TIER_2+ only)
+      planResponse(req.query, l2.routing.tier === 'TIER_4' ? 'analysis' : 'factual', 3, true),
+      // Fase 5.2: Depth controller (synchronous heuristic, always fast)
+      Promise.resolve(determineDepth(
+        req.query,
+        l2.routing.tier === 'TIER_4' ? 'analysis' : 'factual',
+        l2.routing.tier === 'TIER_3' || l2.routing.tier === 'TIER_4' ? 7 : 3,
+        req.conversationHistory?.length ?? 0,
+      )),
+    ]);
+    if (plannerResult.status === 'fulfilled') {
+      responsePlan = formatPlanForPrompt(plannerResult.value);
+      console.log(`[Orchestrator] Fase1.1 Planner: strategy=${plannerResult.value.strategy}, lang=${plannerResult.value.language} (+${plannerResult.value.planningTimeMs}ms)`);
+    }
+    if (depthResult.status === 'fulfilled') {
+      depthInstructions = formatDepthInstructions(depthResult.value);
+    }
+  }
+  layers.push({
+    layer: 2.5 as any,
+    name: 'Response Planner + Depth Controller',
+    durationMs: 0,
+    status: 'ok',
+    detail: responsePlan ? `planned (${l2.routing.tier})` : 'skipped (TIER_1)',
+  });
+
   // ── Layer 3: Context Assembly ──────────────────────────────────────────
   emitPhase('searching', { step: 'context_assembly', tier: l2.routing.tier });
   const l3Span = startSpan('layer3_context', rootSpan.spanId, { tier: l2.routing.tier }); // F2-2
-  const l3 = await layer3_contextAssembly(req, l2.routing);
+  const l3 = await layer3_contextAssembly(req, l2.routing, responsePlan, depthInstructions);
   endSpan(l3Span.spanId, 'OK'); // F2-2
   layers.push({
     layer: 3,
@@ -1410,6 +1534,35 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     });
     throw err;
   }
+
+  // ── Layer 4.1: Response Normalization (Fase 1.3) ──────────────────────────
+  // Remove provider-specific artifacts: filler phrases, excessive bold, meta-commentary
+  // Scientific basis: Output normalization as MANUS-parity improvement (provider-agnostic UX)
+  let normalizedResponse = l4.response;
+  try {
+    const normResult = normalizeResponse(l4.response, l4.provider);
+    if (normResult.changed) {
+      normalizedResponse = normResult.normalized;
+      console.log(`[Orchestrator] Fase1.3 Normalizer: removed ${normResult.removals.length} artifacts (${l4.provider})`);
+    }
+  } catch { /* Non-blocking — normalization failure is never fatal */ }
+
+  // ── Layer 4.2: Inline Verification (Fase 5.1) ─────────────────────────────
+  // Detect hallucinations, self-references, filler phrases during pre-delivery check
+  // Scientific basis: Closed-loop verification (Ji et al., TACL 2023, arXiv:2305.14251)
+  try {
+    const verifyResult = verifyChunk(normalizedResponse, '', l3.knowledgeContext ? [l3.knowledgeContext] : []);
+    if (verifyResult.issues.length > 0) {
+      const fixed = fixVerificationIssues(normalizedResponse, verifyResult.issues);
+      if (fixed !== normalizedResponse) {
+        normalizedResponse = fixed;
+        console.log(`[Orchestrator] Fase5.1 InlineVerifier: fixed ${verifyResult.issues.length} issues`);
+      }
+    }
+  } catch { /* Non-blocking */ }
+
+  // Propagate normalized response back to l4 for downstream layers
+  l4.response = normalizedResponse;
 
   // ── Layers 4.5 + 5: Parallel Tool Detection + Symbolic Governance ────────
   // QW-1 (Ciclo 168): Promise.all parallelization — arXiv:2309.09793 (Async Orchestration)
