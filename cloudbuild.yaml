@@ -118,18 +118,18 @@ steps:
       - |
         echo "C367 Pre-deploy quality gate: testing 3 TIER_1 smoke queries..."
         sleep 15
-        PASS=0; FAIL=0
+        pass=0; fail=0
         for q in "O que e machine learning" "Quanto e 15 por cento de 200" "O que e API REST"; do
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+          http_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
             https://mother-interface-qtvghovzxa-ts.a.run.app/api/mother/stream \
             -H "Content-Type: application/json" \
             -d "{\"query\":\"${q}\",\"tier\":\"TIER_1\",\"conversationHistory\":[]}" \
             --max-time 30 2>/dev/null)
-          if [ "$STATUS" = "200" ]; then PASS=$((PASS+1)); echo "PASS ($STATUS): ${q}";
-          else FAIL=$((FAIL+1)); echo "FAIL ($STATUS): ${q}"; fi
+          if [ "${http_code}" = "200" ]; then pass=$((pass+1)); echo "PASS (${http_code}): ${q}";
+          else fail=$((fail+1)); echo "FAIL (${http_code}): ${q}"; fi
         done
-        echo "Quality gate result: $PASS/3 passed"
-        if [ "$PASS" -lt 2 ]; then echo "QUALITY GATE FAILED - aborting"; exit 1; fi
+        echo "Quality gate result: ${pass}/3 passed"
+        if [ "${pass}" -lt 2 ]; then echo "QUALITY GATE FAILED - aborting"; exit 1; fi
         echo "Quality gate PASSED - proceeding to traffic migration"
     timeout: 120s
   # v74.5: DGM-2 FIX — Migrate 100% traffic to new revision after deploy
