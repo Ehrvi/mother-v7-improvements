@@ -72,6 +72,17 @@ const MAX_EXACT_ENTRIES = 500;
 // ACAR warning applies to RAG retrieval (0.167 similarity), NOT to cache lookup (0.75 is safe)
 const SIMILARITY_THRESHOLD = 0.75;  // v120.0 C223: 0.78 → 0.75 (Conselho v98, GPTCache 2023)
 const MAX_MEMORY_ENTRIES = 1000;    // LRU limit for in-memory cache
+// C356 (NC-TTFT-001): Adaptive Thresholding — tier-aware dynamic threshold
+// Scientific basis: Zeng et al. (GPTCache 2023) — optimal threshold varies by query complexity
+// Conselho V110 MAD R2 consensus: TIER_1 can use lower threshold (0.70) for speed;
+// TIER_3/4 must use higher threshold (0.82) to avoid false-positive cache hits on complex queries
+// Dong et al. (arXiv:2502.06258, 2025) — complex queries have higher semantic variance
+export function getAdaptiveThreshold(tier?: string): number {
+  if (tier === 'TIER_1') return 0.70;  // speed-optimized: simple queries are semantically stable
+  if (tier === 'TIER_3') return 0.82;  // quality-critical: avoid false-positive cache hits
+  if (tier === 'TIER_4') return 0.85;  // ultra-complex: highest threshold (rarely cached)
+  return SIMILARITY_THRESHOLD;         // TIER_2 default: 0.75
+}
 
 /// C223/C234 — Sub-question coverage check (DAP v2)
 // C223: cache semântico omitia sub-perguntas de prompts multi-parte
@@ -244,14 +255,16 @@ export async function lookupCache(
     }
   }
 
-  if (bestEntry && bestSimilarity >= SIMILARITY_THRESHOLD) {
+  // C356: Use adaptive threshold based on tier
+  const adaptiveThreshold = getAdaptiveThreshold(tier);
+  if (bestEntry && bestSimilarity >= adaptiveThreshold) {
     bestEntry.hitCount++;
     cacheStats.hits++;
     return {
       hit: true,
       entry: bestEntry,
       similarity: bestSimilarity,
-      reason: `Cache hit (similarity=${bestSimilarity.toFixed(4)}, threshold=${SIMILARITY_THRESHOLD})`,
+      reason: `Cache hit (similarity=${bestSimilarity.toFixed(4)}, threshold=${adaptiveThreshold} [C356 adaptive])`,
     };
   }
 
@@ -260,7 +273,7 @@ export async function lookupCache(
     hit: false,
     similarity: bestSimilarity,
     reason: bestSimilarity > 0
-      ? `Cache miss (best similarity=${bestSimilarity.toFixed(4)} < threshold=${SIMILARITY_THRESHOLD})`
+      ? `Cache miss (best similarity=${bestSimilarity.toFixed(4)} < threshold=${adaptiveThreshold} [C356 adaptive])`
       : 'No similar entries found',
   };
 }

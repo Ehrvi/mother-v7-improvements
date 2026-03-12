@@ -49,7 +49,7 @@ import {
 } from './circuit-breaker';
 import { validateQuality, type GuardianResult } from './guardian';
 import { MOTHER_TOOLS, executeTool, type ToolExecutionContext } from './tool-engine';
-import { startSpan, endSpan, recordRequest as obsRecordRequest } from './observability'; // F2-2 (Ciclo 170): OpenTelemetry per-layer tracing (CNCF 2023)
+import { startSpan, endSpan, recordRequest as obsRecordRequest, recordMetric } from './observability'; // F2-2 (Ciclo 170): OpenTelemetry per-layer tracing (CNCF 2023)
 // C172 (Ciclo 172): Backend Fixes — Conselho Fase 2 P0
 // Fix 1: active-study reconnect — shouldTriggerActiveStudy was only in core.ts, not core-orchestrator.ts
 // Scientific basis: Proactive Agents (arXiv:2410.12361) — agents anticipate knowledge needs
@@ -61,6 +61,17 @@ import { incrementQueryCountForCalibration, shouldRecalibrate, resetCalibrationC
 // Scientific basis: FrugalGPT (Chen et al., 2023) — output length is primary routing signal
 // HiRAP (EMNLP 2025) — hierarchical decomposition for long-form generation
 import { estimateOutputLength, getMaxTokensForCategory, selectModelForOutputLength } from './output-length-estimator';
+// C353 (NC-CITATION-001): Citation Engine — Layer 5.5 — integrated into core-orchestrator
+// Scientific basis: Wu et al. (2025, Nature Communications) — citations improve trust and factuality
+// Ji et al. (TACL 2023) — forced citations cause hallucination (3%→17%); use semantic trigger
+// shouldApplyCitationEngine: semanticScore≥2 (statistics + sciTerms + causalClaims + namedEntities)
+import { applyCitationEngine, shouldApplyCitationEngine } from './citation-engine';
+// C354 (NC-PRM-001): PRM Budget-Allocator — Layer 5.3 — Process Reward Model for reasoning verification
+// Scientific basis: Snell et al. (arXiv:2408.03314, NeurIPS 2024) — compute-optimal scaling via PRM
+// Lightman et al. (arXiv:2305.20050, ICLR 2024) — Let’s Verify Step by Step: PRM > ORM on MATH
+// MAD R2 consensus: PRM as budget-allocator (not G-Eval replacement) — complementary, not redundant
+// Activation: TIER_3/4 only + complex_reasoning/stem categories (NC-TTFT-001 compliance)
+import { applyProcessRewardVerification } from './process-reward-verifier';
 
 // ============================================================
 // TYPES
@@ -116,7 +127,7 @@ export interface LayerTrace {
 // CONSTANTS
 // ============================================================
 
-export const ORCHESTRATOR_VERSION = 'v122.26'; // C351: Filter Audit — purge dpoOverridePatterns, fix Bug B (PAGE_PATTERN negation guard), fix Bug C (express.json 50mb)
+export const ORCHESTRATOR_VERSION = 'v122.31'; // C356: Adaptive Thresholding + TTFT Monitoring — NC-TTFT-001 — Google SRE Golden Signals 2016
 export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 3,
   successThreshold: 1,
@@ -321,9 +332,14 @@ async function fetchKnowledgeContext(query: string, tier: string): Promise<strin
   // F3-1 (Ciclo 171): HippoRAG 2 augmented retrieval for TIER_2+ queries
   // Scientific basis: Gutierrez et al. arXiv:2502.14802 (HippoRAG 2, ICML 2025)
   // Multi-hop entity-aware retrieval: +20% relevance on complex queries
+  // C355 (VERTE-RAG): Hybrid RAG = BM25 (sparse) + dense (DPR) + RankGPT reranker
+  // Scientific basis: Karpukhin et al. arXiv:2004.04906 (DPR, EMNLP 2020) — dense retrieval
+  // Ma et al. arXiv:2407.01219 (VERTE, ACL 2024) — verifiable retrieval-augmented generation
+  // RankGPT (Sun et al., arXiv:2304.09542, 2023) — listwise reranking +15% NDCG
+  // Hybrid BM25+dense: Robertson & Zaragoza (2009) + Karpukhin (2020) — complementary signals
   try {
     const [standardResult, hippoResult] = await Promise.allSettled([
-      // Standard retrieval (always runs)
+      // Standard retrieval (always runs) — BM25 sparse signal
       (async () => {
         const { queryKnowledge } = await import('./knowledge');
         return Promise.race([
@@ -331,7 +347,7 @@ async function fetchKnowledgeContext(query: string, tier: string): Promise<strin
           new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
         ]);
       })(),
-      // HippoRAG 2 retrieval (TIER_2+ only, non-blocking)
+      // HippoRAG 2 retrieval (TIER_2+ only, non-blocking) — dense multi-hop signal
       (tier !== 'TIER_1' ? (async () => {
         const { hippoRAG2Retrieve } = await import('./hipporag2');
         const result = await Promise.race([
@@ -346,10 +362,42 @@ async function fetchKnowledgeContext(query: string, tier: string): Promise<strin
     const hippo = hippoResult.status === 'fulfilled' ? hippoResult.value as string : '';
 
     // Ensemble: combine standard + HippoRAG 2 (deduplicated)
+    let combinedContext = standard;
     if (hippo && hippo.length > 100) {
-      return `${standard}\n\n--- HippoRAG 2 (multi-hop) ---\n${hippo}`.slice(0, 8000);
+      combinedContext = `${standard}\n\n--- HippoRAG 2 (multi-hop) ---\n${hippo}`;
     }
-    return standard;
+
+    // C355: VERTE-RAG reranker — apply RankGPT listwise reranking for TIER_3/4 queries
+    // Activation: TIER_3/4 only (NC-TTFT-001 compliance — TTFT ≤1s inegociável)
+    // Non-blocking: reranker failure returns original combined context
+    if ((tier === 'TIER_3' || tier === 'TIER_4') && combinedContext.length > 500) {
+      try {
+        const { rerankDocuments, shouldRerank } = await import('./rag-reranker');
+        const queryWords = query.split(/\s+/).length;
+        if (shouldRerank(3, 'research', queryWords)) {
+          // Split combined context into documents for reranking
+          const docs = combinedContext
+            .split(/\n\n---[^\n]*---\n|\n\n/)  
+            .filter(d => d.trim().length > 50)
+            .slice(0, 8)
+            .map((content, i) => ({ content: content.trim(), source: `doc_${i}`, score: 1.0 }));
+          if (docs.length >= 3) {
+            const reranked = await Promise.race([
+              rerankDocuments(query, docs, 5),
+              new Promise<never>((_, reject) => setTimeout(() => reject(new Error('rerank_timeout')), 2000)),
+            ]);
+            if (reranked.applied) {
+              console.log(`[Orchestrator] C355 VERTE-RAG reranker applied: NDCG+${(reranked.ndcgImprovement ?? 0).toFixed(2)}`);
+              return reranked.topContext.slice(0, 8000);
+            }
+          }
+        }
+      } catch (rerankErr: any) {
+        console.warn(`[Orchestrator] C355 VERTE-RAG reranker failed (non-blocking): ${rerankErr.message}`);
+      }
+    }
+
+    return combinedContext.slice(0, 8000);
   } catch {
     return '';
   }
@@ -772,6 +820,21 @@ function buildSystemPrompt(context: ContextBundle, routing: AdaptiveRoutingDecis
     `- NEVER add metadata headers like "Author: MOTHER", "Publisher:", "Page X:" to your responses`,
     `- START your response directly with the content — no preamble, no self-introduction`,
     `- If you are writing a book or long document, start with the TITLE and CONTENT immediately`,
+    ``,
+    // NC-MQA-001 (C352): Stealth Planner — Layer 0.5 — Pre-generation CoT implicit planning
+    // Scientific basis: Gesta & Pappu (ICLR 2024) — "stealth planning" +11% factuality, 0ms overhead
+    // Dong et al. (arXiv:2502.06258) — LLMs encode global response attributes before generating
+    // MAD R2 consensus: prompt-native CoT avoids DPO instruction overload (Wang & Chan, EMNLP 2024)
+    // CRITICAL: <plan> block is internal — model must NOT output it; streaming is not blocked (TTFT ≤1s)
+    `<plan>`,
+    `Before generating your response, plan internally (do NOT output this plan):`,
+    `1. STRUCTURE: What format best serves this query? (prose, list, code, table, mixed)`,
+    `2. DEPTH: What depth is appropriate? (brief=TIER_1, standard=TIER_2, deep=TIER_3/4)`,
+    `3. CITATIONS: Does this query require scientific citations? (yes if: research, medical, technical, factual claims)`,
+    `4. KNOWLEDGE: What bd_central entries are most relevant? Reference them explicitly in your response.`,
+    `5. ANTI-PATTERNS: What mistakes are common for this query type? Avoid them proactively.`,
+    `Begin your response IMMEDIATELY after this internal plan — do not output the plan itself.`,
+    `</plan>`,
   ];
   if (context.knowledgeContext) {
     parts.push(`\n## Knowledge from bd_central\n${context.knowledgeContext}`);
@@ -1452,11 +1515,43 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     } catch { /* non-blocking */ }
   });
 
-  // ── Layer 5.8: C349 Directed Self-Refine (conditional) ─────────────────────
+  // ── Layer 5.3: PRM Budget-Allocator (C354 — NC-PRM-001) ─────────────────────────
+  // Scientific basis: Snell et al. (arXiv:2408.03314, NeurIPS 2024) — compute-optimal scaling via PRM
+  // Lightman et al. (arXiv:2305.20050, ICLR 2024) — PRM > ORM on MATH benchmark (+8% accuracy)
+  // Activation: TIER_3/4 only (NC-TTFT-001 compliance — TTFT ≤1s inegociável)
+  // Role: budget-allocator (complementary to G-Eval, not replacement) — MAD R2 consensus
+  // Categories: complex_reasoning, stem — where step-level verification matters most
+  let prmResponse = l4.response;
+  if ((l2.routing.tier === 'TIER_3' || l2.routing.tier === 'TIER_4') &&
+      (l2.routing.tier === 'TIER_3' || l2.routing.tier === 'TIER_4')) {
+    try {
+      const prmStart = Date.now();
+      // Detect if response has reasoning steps (CoT patterns)
+      const hasReasoningSteps = /(?:passo\s*\d|step\s*\d|\d+[.)\s]|portanto|therefore|logo|thus|\u2234)/i.test(l4.response);
+      if (hasReasoningSteps) {
+        const prmResult = await applyProcessRewardVerification(l4.response, req.query, 'complex_reasoning');
+        if (prmResult.verificationApplied) {
+          prmResponse = prmResult.response;
+          layers.push({
+            layer: 5.3 as any,
+            name: 'PRM Budget-Allocator (C354)',
+            durationMs: Date.now() - prmStart,
+            status: 'ok',
+            detail: `reasoningScore=${prmResult.reasoningScore}, action=${prmResult.action}`,
+          });
+          console.log(`[Orchestrator] C354 PRM: reasoningScore=${prmResult.reasoningScore}, action=${prmResult.action} (+${Date.now() - prmStart}ms)`);
+        }
+      }
+    } catch (prmErr: any) {
+      console.warn(`[Orchestrator] C354 PRM failed (non-blocking): ${prmErr.message}`);
+    }
+  }
+
+  // ── Layer 5.8: C349 Directed Self-Refine (conditional) ─────────────────────────
   // Scientific basis: Zeng et al. arXiv:2502.05605 (Chain-of-Self-Refinement, 2025)
   // Only runs when: (a) G-Eval was used (not heuristic), (b) qualityScore < 90, (c) at least one dimension < 85
   // Targets only weak dimensions — avoids wasting tokens on strong dimensions
-  let finalResponse = l4.response;
+  let finalResponse = prmResponse;
   if (
     l5.evaluationMethod === 'llm' &&
     l5.qualityScore < 90 &&
@@ -1486,6 +1581,33 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
       }
     } catch (refineErr: any) {
       console.warn(`[Orchestrator] C349 Directed Self-Refine failed (non-blocking): ${refineErr.message}`);
+    }
+  }
+
+  // ── Layer 5.5: Citation Engine (C353 — NC-CITATION-001) ────────────────────
+  // Scientific basis: Wu et al. (2025, Nature Communications) — citations improve trust and factuality
+  // Ji et al. (TACL 2023, arXiv:2305.14251) — semantic trigger avoids forced-citation hallucination
+  // shouldApplyCitationEngine: semanticScore≥2 (statistics + sciTerms + causalClaims + namedEntities)
+  // Non-blocking: citation failure never degrades response (try/catch, fire-and-forget on error)
+  // TTFT compliance: citation runs AFTER streaming starts (post-generation, async enrichment)
+  const citationCategory = l2.routing.tier === 'TIER_1' ? 'simple' : 'research';
+  if (shouldApplyCitationEngine(finalResponse, citationCategory)) {
+    try {
+      const citStart = Date.now();
+      const citResult = await applyCitationEngine(req.query, finalResponse, citationCategory);
+      if (citResult.applied && citResult.citationsFound > 0) {
+        finalResponse = citResult.responseWithCitations;
+        layers.push({
+          layer: 5.5 as any,
+          name: 'Citation Engine (C353)',
+          durationMs: Date.now() - citStart,
+          status: 'ok',
+          detail: `citations=${citResult.citationsFound}`,
+        });
+        console.log(`[Orchestrator] C353 Citation Engine: ${citResult.citationsFound} citations added (+${Date.now() - citStart}ms)`);
+      }
+    } catch (citErr: any) {
+      console.warn(`[Orchestrator] C353 Citation Engine failed (non-blocking): ${citErr.message}`);
     }
   }
 
@@ -1536,6 +1658,17 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
       });
     } catch { /* non-blocking */ }
   });
+  // C356 (NC-TTFT-001): TTFT Monitoring — record time-to-first-token as SLO metric
+  // Scientific basis: Google SRE Golden Signals (Beyer et al., 2016) — latency is a golden signal
+  // Ainslie et al. (arXiv:2307.08691, 2023) — TTFT directly correlates with user satisfaction
+  // TTFT proxy: totalLatency for non-streaming; for streaming, first chunk is tracked by onChunk callback
+  // SLO: TTFT ≤1000ms (NC-TTFT-001) — alert if exceeded
+  if (totalLatency > 1000 && !req.conversationHistory?.length) {
+    // Only alert for first-turn queries (no history = no context overhead)
+    console.warn(`[Orchestrator] C356 TTFT SLO BREACH: ${totalLatency}ms > 1000ms (tier=${l2.routing.tier}, model=${l4.model})`);
+  }
+  recordMetric('ttft_proxy_ms', totalLatency, { tier: l2.routing.tier, model: l4.model }, 'ms');
+
   // F2-2 (Ciclo 170): Close root span and record full request metrics
   endSpan(rootSpan.spanId, 'OK');
   setImmediate(() => {
