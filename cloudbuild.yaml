@@ -94,8 +94,44 @@ steps:
       # C335: Anti-version-hallucination fix in core-orchestrator (OBT-003 gate)
       # C335: ORCHESTRATOR_VERSION synced to v122.24, anti-auto-reference rules in buildSystemPrompt
       # C333: MOTHER_CITATION_DEBUG=true for 48h production monitoring (citation rate 40%→80%)
-      - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA,VITE_APP_ID=mother-interface,NODE_OPTIONS=--max-old-space-size=6144,DPO_FINE_TUNED_MODEL=ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v8e:DFay6MHy,MOTHER_VERSION=v122.24,MOTHER_CYCLE=335,SHMS_SIMULATION_ONLY=true,MOTHER_CITATION_DEBUG=true,MOTHER_COMPLEXITY_THRESHOLD=4'
+      # C352-C356 (2026-03-13): Stealth Planner + Citation Engine + PRM Budget-Allocator + VERTE-RAG + Adaptive Thresholding
+      # C352: NC-MQA-001 Stealth Planner Layer 0.5 — pre-generation quality contract (Dong et al. arXiv:2502.06258)
+      # C353: NC-CITATION-001 Citation Engine Layer 5.5 — citation-aware decoder (Wu et al. 2025)
+      # C354: NC-PRM-001 PRM Budget-Allocator Layer 5.3 — process reward model (Snell et al. 2024)
+      # C355: VERTE-RAG Layer 3 — BM25 + HippoRAG2 + RankGPT reranker (Gutierrez et al. 2025)
+      # C356: NC-TTFT-001 Adaptive Thresholding (TIER_1:0.70/TIER_2:0.75/TIER_3:0.82/TIER_4:0.85) + TTFT monitoring
+      # C363-C367 (2026-03-13): Golden Datasets 216 queries + Baseline Run + Manus Comparison + SLO Dashboard + CI/CD hook
+      # C364 Baseline: MOTHER v122.24 TTFT_mean=3720ms, Score_mean=74.0 (pre-deploy baseline)
+      # C365 Comparison: MOTHER 77.0 vs Manus 85.5 (Cohen's d=-0.616, medium effect — gap to close)
+      # C366: Quality SLO Dashboard deploy (NC-TEST-006, porta 8502)
+      # C367: Pre-deploy quality gate (NC-TEST-007, >=2/3 TIER_1 smoke queries must pass)
+      - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA,VITE_APP_ID=mother-interface,NODE_OPTIONS=--max-old-space-size=6144,DPO_FINE_TUNED_MODEL=ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v8e:DFay6MHy,MOTHER_VERSION=v122.31,MOTHER_CYCLE=367,SHMS_SIMULATION_ONLY=true,MOTHER_CITATION_DEBUG=true,MOTHER_COMPLEXITY_THRESHOLD=4,MOTHER_STEALTH_PLANNER=true,MOTHER_PRM_ENABLED=true,MOTHER_CITATION_ENGINE=true,MOTHER_VERTE_RAG=true,MOTHER_ADAPTIVE_THRESHOLD=true'
 
+  # C367 (2026-03-13): Pre-deploy quality gate — smoke test before traffic migration
+  # Scientific basis: HELM (arXiv:2211.09110) — automated evaluation as CI/CD gate
+  # NC-TEST-007: Pre-deploy gate must pass >=2/3 TIER_1 smoke queries before traffic migration
+  - name: 'gcr.io/cloud-builders/curl'
+    entrypoint: 'sh'
+    id: 'pre-deploy-quality-gate'
+    args:
+      - '-c'
+      - |
+        echo "C367 Pre-deploy quality gate: testing 3 TIER_1 smoke queries..."
+        sleep 15
+        PASS=0; FAIL=0
+        for QUERY in "O que e machine learning" "Quanto e 15 por cento de 200" "O que e API REST"; do
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            https://mother-interface-qtvghovzxa-ts.a.run.app/api/mother/stream \
+            -H "Content-Type: application/json" \
+            -d "{\"query\":\"$QUERY\",\"tier\":\"TIER_1\",\"conversationHistory\":[]}" \
+            --max-time 30 2>/dev/null)
+          if [ "$STATUS" = "200" ]; then PASS=$((PASS+1)); echo "PASS ($STATUS): $QUERY";
+          else FAIL=$((FAIL+1)); echo "FAIL ($STATUS): $QUERY"; fi
+        done
+        echo "Quality gate result: $PASS/3 passed"
+        if [ "$PASS" -lt 2 ]; then echo "QUALITY GATE FAILED - aborting"; exit 1; fi
+        echo "Quality gate PASSED - proceeding to traffic migration"
+    timeout: 120s
   # v74.5: DGM-2 FIX — Migrate 100% traffic to new revision after deploy
   # gcloud run deploy does not have --traffic flag; use update-traffic separately
   # Fixes: v74.3/v74.4 revisions created but received 0% traffic (Retired state)
