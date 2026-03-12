@@ -231,6 +231,14 @@ const MICRO_SIGNALS = [
  * This fixes CR1: queries like "criar framework de avaliação UI/UX" (350 chars, score ~8)
  * were classified as MEDIUM/SHORT, missing LFSA activation entirely.
  */
+// C325: Adaptive threshold telemetry — log all scores for production calibration
+// Scientific basis: Moslem & Kelleher (2026, arXiv:2603.04445) — dynamic model routing
+// requires empirical distribution data to set optimal thresholds.
+// After 7 days of production data, analyze [C325-TELEMETRY] logs to calibrate
+// MOTHER_COMPLEXITY_THRESHOLD via env var (default: 4).
+// Target: false-positive rate < 5% (simple queries NOT promoted to LFSA)
+const _C325_TELEMETRY_ENABLED = process.env.MOTHER_COMPLEXITY_TELEMETRY !== 'false';
+
 export function estimateOutputLength(query: string): OutputLengthEstimate {
   const q = query.toLowerCase();
 
@@ -238,6 +246,13 @@ export function estimateOutputLength(query: string): OutputLengthEstimate {
   // Scientific basis: HELM (Liang et al., 2022, arXiv:2211.09110)
   // Fixes CR1: short queries with high semantic complexity were missing LFSA activation
   const complexitySignals = computeSemanticComplexity(query);
+
+  // C325: Emit telemetry for every query — enables adaptive threshold calibration
+  // Disable with MOTHER_COMPLEXITY_TELEMETRY=false in production if log volume is too high
+  if (_C325_TELEMETRY_ENABLED) {
+    console.log(`[C325-TELEMETRY] score=${complexitySignals.totalScore.toFixed(2)} threshold=${COMPLEXITY_THRESHOLD} lfsa=${complexitySignals.requiresLFSA} verbs=${complexitySignals.actionVerbCount} refs=${complexitySignals.externalRefCount} artifacts=${complexitySignals.artifactNounCount} patterns=${complexitySignals.multiTaskPatternCount} qlen=${query.length}`);
+  }
+
   if (complexitySignals.requiresLFSA) {
     // Determine category based on score magnitude
     const cs = complexitySignals.totalScore;

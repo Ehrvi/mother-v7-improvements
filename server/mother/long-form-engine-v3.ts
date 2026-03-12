@@ -328,11 +328,29 @@ Para cada seção, liste 3-5 pontos principais a cobrir. Seja específico e téc
       let content = '';
       let sectionAttempts = 0;
 
+      // C324: Token-level streaming — emit section header immediately, then stream tokens
+      // Scientific basis: Nielsen (1994) Heuristic #1 — 0.1s limit for immediate perception
+      // Tolia et al. (2006) — streaming reduces perceived latency 60%
+      // Strategy: on first attempt (Gemini), pass onChunk to invokeLLM for real token streaming.
+      // Accumulated tokens serve as content; on retry (GPT-4o fallback), use non-streaming.
+      if (request.onChunk) {
+        request.onChunk(`\n\n## ${sectionName}\n\n`);
+      }
+
       while (sectionAttempts < 2) {
         const useGemini = sectionAttempts === 0;
         const model = useGemini ? SECTION_MODEL_PRIMARY : SECTION_MODEL_FALLBACK;
         const provider = useGemini ? 'google' : 'openai';
         const maxTokens = useGemini ? sectionMaxTokens : Math.min(sectionMaxTokens, 16000);
+
+        // C324: Accumulate streamed tokens for content validation and retry logic
+        let streamedContent = '';
+        const tokenAccumulator = request.onChunk && useGemini
+          ? (chunk: string) => {
+              streamedContent += chunk;
+              request.onChunk!(chunk);
+            }
+          : undefined;
 
         try {
           const sectionResult = await invokeLLM({
@@ -340,28 +358,42 @@ Para cada seção, liste 3-5 pontos principais a cobrir. Seja específico e téc
             model,
             provider: provider as any,
             maxTokens,
+            // C324: Pass onChunk only on first attempt (Gemini) for real token streaming
+            ...(tokenAccumulator ? { onChunk: tokenAccumulator } : {}),
           });
-          const rawCandidate = sectionResult.choices?.[0]?.message?.content ?? '';
+
+          // C324: Use streamed content if available; otherwise use result content
+          const rawCandidate = streamedContent.length > 50
+            ? streamedContent
+            : (sectionResult.choices?.[0]?.message?.content ?? '');
           const text = typeof rawCandidate === 'string' ? rawCandidate : JSON.stringify(rawCandidate);
 
           if (text.trim().length > 50) {
             content = text;
             sectionModelUsed = model;
+            // C324: If we streamed successfully, content is already emitted token-by-token
+            // If fallback (no streaming), emit the full content block now
+            if (!tokenAccumulator && request.onChunk) {
+              request.onChunk(content);
+            }
             break;
           }
           sectionAttempts++;
         } catch (sectionErr) {
           sectionAttempts++;
           if (sectionAttempts >= 2) throw sectionErr;
-          console.warn(`[LongFormV3] ${model} failed for section "${sectionName}", retrying with ${SECTION_MODEL_FALLBACK}:`, sectionErr);
+          console.warn(`[LongFormV3-C324] ${model} failed for section "${sectionName}", retrying with ${SECTION_MODEL_FALLBACK}:`, sectionErr);
+          // C324: On retry, re-emit section header since streaming was interrupted
+          if (request.onChunk && streamedContent.length > 0) {
+            // Streaming was partially done; fallback will emit the complete version
+            // No need to re-emit header — it was already sent
+          }
         }
       }
 
-      // C306: Emit section content as it completes (live streaming)
-      // Scientific basis: Nielsen (1994) Heuristic #1 — visibility of system status
-      if (request.onChunk && content) {
-        request.onChunk(`\n\n## ${sectionName}\n\n${content}`);
-      }
+      // C324: Section content already streamed token-by-token (or emitted in fallback block above)
+      // No additional emit needed here — C306 section-complete emit replaced by C324 token streaming
+      console.log(`[LongFormV3-C324] Section "${sectionName}" streamed: ${content.length} chars, model=${sectionModelUsed}`);
 
       // C306: Emit progress for this section
       request.streamProgress?.({

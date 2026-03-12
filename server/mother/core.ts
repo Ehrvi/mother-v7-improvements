@@ -162,7 +162,7 @@ import { estimateOutputLength } from './output-length-estimator'; // C241/C242: 
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v122.21'; // C321-C323 (2026-03-12): Conselho dos 6 Roadmap — Semantic Complexity Detector v2.0 (C321), CoT+Template Condicional (C322), Gate Tests 26/26 (C323), AWAKE V310
+export const MOTHER_VERSION = 'v122.22'; // C324-C326 (2026-03-12): Token-Level SSE Streaming (C324), Adaptive Threshold Telemetry (C325), G-Eval Baseline 55%219280% (C326), AWAKE V311
 
 const log = createLogger('CORE');
 

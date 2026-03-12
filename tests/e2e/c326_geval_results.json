@@ -1,0 +1,400 @@
+{
+  "timestamp": "2026-03-11T20:11:01.832469",
+  "mother_version": "v122.21",
+  "cycle": "C326",
+  "judge_model": "gpt-4o",
+  "gate_score": 80,
+  "gate_pass_rate": 0.8,
+  "total_queries": 20,
+  "passed_queries": 11,
+  "pass_rate": 0.55,
+  "avg_geval_score": 80.2,
+  "median_geval_score": 82.0,
+  "gate_c326_passed": false,
+  "by_category": {
+    "factual": {
+      "pass_rate": 0.0,
+      "avg_score": 72.0
+    },
+    "reasoning": {
+      "pass_rate": 1.0,
+      "avg_score": 92.0
+    },
+    "coding": {
+      "pass_rate": 0.3333,
+      "avg_score": 85.0
+    },
+    "scientific": {
+      "pass_rate": 1.0,
+      "avg_score": 84.0
+    },
+    "shms": {
+      "pass_rate": 1.0,
+      "avg_score": 84.0
+    },
+    "analysis": {
+      "pass_rate": 1.0,
+      "avg_score": 82.0
+    },
+    "creative": {
+      "pass_rate": 0.0,
+      "avg_score": 67.0
+    },
+    "multilingual": {
+      "pass_rate": 0.0,
+      "avg_score": 0
+    },
+    "complex": {
+      "pass_rate": 0.0,
+      "avg_score": 64.0
+    }
+  },
+  "results": [
+    {
+      "id": "Q01",
+      "category": "factual",
+      "query": "O que é aprendizado por reforço com feedback humano (RLHF) e como ele difere do DPO?",
+      "response_length": 5584,
+      "elapsed_s": 36.9,
+      "geval_score": 78.0,
+      "geval_details": {
+        "G1_relevancia": 9,
+        "G2_coerencia": 8,
+        "G3_fundamentacao": 7,
+        "G4_completude": 6,
+        "G5_ausencia_alucinacao": 9,
+        "justificativa": "A resposta foi cortada antes de concluir a explicação sobre DPO, afetando a completude."
+      },
+      "passed": false,
+      "method": "geval_gpt4o"
+    },
+    {
+      "id": "Q02",
+      "category": "factual",
+      "query": "Explique o teorema de Bayes e dê um exemplo prático de aplicação.",
+      "response_length": 5635,
+      "elapsed_s": 33.7,
+      "geval_score": 70,
+      "geval_details": {
+        "G1_relevancia": 8,
+        "G2_coerencia": 7,
+        "G3_fundamentacao": 6,
+        "G4_completude": 5,
+        "G5_ausencia_alucinacao": 9,
+        "justificativa": "A resposta não conclui o exemplo prático, deixando a explicação incompleta."
+      },
+      "passed": false,
+      "method": "geval_gpt4o"
+    },
+    {
+      "id": "Q03",
+      "category": "factual",
+      "query": "Quais são as diferenças entre SQL e NoSQL? Quando usar cada um?",
+      "response_length": 6069,
+      "elapsed_s": 30.7,
+      "geval_score": 68.0,
+      "geval_details": {
+        "G1_relevancia": 8,
+        "G2_coerencia": 7,
+        "G3_fundamentacao": 6,
+        "G4_completude": 5,
+        "G5_ausencia_alucinacao": 8,
+        "justificativa": "A resposta não conclui a seção sobre quando usar SQL, deixando a explicação incompleta."
+      },
+      "passed": false,
+      "method": "geval_gpt4o"
+    },
+    {
+      "id": "Q04",
+      "category": "reasoning",
+      "query": "Se todos os A são B, e alguns B são C, podemos concluir que alguns A são C? Justifique.",
+      "response_length": 2708,
+      "elapsed_s": 20.8,
+      "geval_score": 96.0,
+      "geval_details": {
+        "G1_relevancia": 10,
+        "G2_coerencia": 9,
+        "G3_fundamentacao": 9,
+        "G4_completude": 10,
+        "G5_ausencia_alucinacao": 10,
+        "justificativa": "A resposta poderia ser mais concisa para melhorar a coerência."
+      },
+      "passed": true,
+      "method": "geval_gpt4o"
+    },
+    {
+      "id": "Q05",
+      "category": "reasoning",
+      "query": "Um trem parte de A às 8h a 80km/h. Outro parte de B às 9h a 100km/h. A distância AB é 500km. Quando se encontram?",
+      "response_length": 1427,
+      "elapsed_s": 19.5,
+      "geval_score": 98.0,
+      "geval_details": {
+        "G1_relevancia": 10,
+        "G2_coerencia": 9,
+        "G3_fundamentacao": 10,
+        "G4_completude": 10,
+        "G5_ausencia_alucinacao": 10,
+        "justificativa": "A resposta tem um pequeno erro de codificação de caracteres, afetando a coerência."
+      },
+      "passed": true,
+      "method": "geval_gpt4o"
+    },
+    {
+      "id": "Q06",
+      "category": "reasoning",
+      "query": "Analise os prós e contras de microserviços vs monólito para uma startup com 5 desenvolvedores.",
+      "response_length": 8771,
+      "elapsed_s": 60.4,
+      "geval_score": 82.0,
+      "geval_details": {
+        "G1_relevancia": 9,
+        "G2_coerencia": 8,
+        "G3_fundamentacao": 7,
+        "G4_completude": 8,
+        "G5_ausencia_alucinacao": 9,
+        "justificativa": "A fundamentação poderia ser mais robusta com exemplos práticos adicionais."
+      },
+      "passed": true,
+      "method": "geval_gpt4o"
+    },
+    {
+      "id": "Q07",
+      "category": "coding",
+      "query": "Escreva uma função TypeScript que detecta se uma string é um palíndromo, ignorando espaços e case.",
+      "response_length": 4878,
+      "elapsed_s": 31.4,
+      "geval_score": 96.0,
+      "geval_details": {
+        "G1_relevancia": 10,
+        "G2_coerencia": 9,
+        "G3_fundamentacao": 9,
+        "G4_completude": 10,
+        "G5_ausencia_alucinacao": 10,
+        "justificativa": "A resposta tem alguns caracteres incorretos que afetam a coerência."
+      },
+      "passed": true,
+      "method": "geval_gpt4o"
+    },
+    {
+      "id": "Q08",
+      "category": "coding",
+      "query": "Como implementar debounce em JavaScript? Mostre o código.",
+      "response_length": 0,
+      "elapsed_s": 45.9,
+      "geval_score": 0,
+      "geval_details": null,
+      "passed": false,
+      "method": "no_response"
+    },
+    {
+      "id": "Q09",
+      "category": "coding",
+      "query": "Explique Big O notation com exemplos de O(1), O(n), O(n²) e O(log n).",
+      "response_length": 7107,
+      "elapsed_s": 35.5,
+      "geval_score": 74.0,
+      "geval_details": {
+        "G1_relevancia": 8,
+        "G2_coerencia": 7,
+        "G3_fundamentacao": 8,
+        "G4_completude": 5,
+        "G5_ausencia_alucinacao": 9,
+        "justificativa": "A resposta não cobre todos os exemplos solicitados (O(n²) e O(log n))."
+      },
+      "passed": false,
+      "method": "geval_gpt4o"
+    },
+    {
+      "id": "Q10",
+      "category": "scientific",
+      "query": "O que é Chain-of-Thought prompting e qual é sua base científica?",
+      "response_length": 2132,
+      "elapsed_s": 20.7,
+      "geval_score": 82.0,
+      "geval_details": {
+        "G1_relevancia": 9,
+        "G2_coerencia": 8,
+        "G3_fundamentacao": 7,
+        "G4_completude": 8,
+        "G5_ausencia_alucinacao": 9,
+        "justificativa": "A fundamentação poderia ser mais robusta com referências específicas a estudos ou autores."
+      },
+      "passed": true,
+      "method": "geval_gpt4o"
+    },
+    {
+      "id": "Q11",
+      "category": "scientific",
+      "query": "Explique o mecanismo de atenção (attention mechanism) em transformers.",
+      "response_length": 2753,
+      "elapsed_s": 39.2,
+      "geval_score": 86.0,
+      "geval_details": {
+        "G1_relevancia": 9,
+        "G2_coerencia": 8,
+        "G3_fundamentacao": 9,
+        "G4_completude": 7,
+        "G5_ausencia_alucinacao": 10,
+        "justificativa": "A resposta não conclui o processo passo a passo do mecanismo de atenção."
+      },
+      "passed": true,
+      "method": "geval_gpt4o"
+    },
+    {
+      "id": "Q12",
+      "category": "scientific",
+      "query": "Quais são os principais métodos de avaliação de modelos de linguagem (LLMs)?",
+      "response_length": 6942,
+      "elapsed_s": 39.1,
+      "geval_score": 84.0,
+      "geval_details": {
+        "G1_relevancia": 9,
+        "G2_coerencia": 8,
+        "G3_fundamentacao": 9,
+        "G4_completude": 7,
+        "G5_ausencia_alucinacao": 9,
+        "justificativa": "A resposta não foi concluída, o que afeta a completude."
+      },
+      "passed": true,
+      "method": "geval_gpt4o"
+    },
+    {
+      "id": "Q13",
+      "category": "shms",
+      "query": "O que é monitoramento geotécnico e quais sensores são usados em barragens?",
+      "response_length": 6328,
+      "elapsed_s": 35.5,
+      "geval_score": 82.0,
+      "geval_details": {
+        "G1_relevancia": 9,
+        "G2_coerencia": 8,
+        "G3_fundamentacao": 9,
+        "G4_completude": 8,
+        "G5_ausencia_alucinacao": 7,
+        "justificativa": "A resposta menciona sistemas SHMS e Intelltech sem explicação clara, o que pode ser confuso."
+      },
+      "passed": true,
+      "method": "geval_gpt4o"
+    },
+    {
+      "id": "Q14",
+      "category": "shms",
+      "query": "Explique o conceito de fator de segurança em geotecnia.",
+      "response_length": 5151,
+      "elapsed_s": 32.3,
+      "geval_score": 86.0,
+      "geval_details": {
+        "G1_relevancia": 9,
+        "G2_coerencia": 8,
+        "G3_fundamentacao": 9,
+        "G4_completude": 8,
+        "G5_ausencia_alucinacao": 9,
+        "justificativa": "A resposta foi cortada no final, o que afeta a completude."
+      },
+      "passed": true,
+      "method": "geval_gpt4o"
+    },
+    {
+      "id": "Q15",
+      "category": "analysis",
+      "query": "Compare as arquiteturas GPT (decoder-only) e BERT (encoder-only). Quando usar cada uma?",
+      "response_length": 5759,
+      "elapsed_s": 30.1,
+      "geval_score": 82.0,
+      "geval_details": {
+        "G1_relevancia": 9,
+        "G2_coerencia": 8,
+        "G3_fundamentacao": 7,
+        "G4_completude": 8,
+        "G5_ausencia_alucinacao": 9,
+        "justificativa": "A resposta é bem estruturada, mas a fundamentação poderia incluir mais exemplos concretos."
+      },
+      "passed": true,
+      "method": "geval_gpt4o"
+    },
+    {
+      "id": "Q16",
+      "category": "analysis",
+      "query": "Quais são os principais desafios de segurança em sistemas de IA generativa?",
+      "response_length": 5364,
+      "elapsed_s": 34.6,
+      "geval_score": 82.0,
+      "geval_details": {
+        "G1_relevancia": 9,
+        "G2_coerencia": 8,
+        "G3_fundamentacao": 9,
+        "G4_completude": 8,
+        "G5_ausencia_alucinacao": 7,
+        "justificativa": "A resposta menciona 'bd_central' e 'MOTHER', que não são conceitos amplamente reconhecidos em IA."
+      },
+      "passed": true,
+      "method": "geval_gpt4o"
+    },
+    {
+      "id": "Q17",
+      "category": "creative",
+      "query": "Crie um plano de estudos de 4 semanas para aprender Python do zero ao intermediário.",
+      "response_length": 56133,
+      "elapsed_s": 81.7,
+      "geval_score": 60,
+      "geval_details": {
+        "G1_relevancia": 5,
+        "G2_coerencia": 6,
+        "G3_fundamentacao": 7,
+        "G4_completude": 4,
+        "G5_ausencia_alucinacao": 8,
+        "justificativa": "A resposta não fornece um plano de estudos completo de 4 semanas, apenas uma introdução e exemplo básico."
+      },
+      "passed": false,
+      "method": "geval_gpt4o"
+    },
+    {
+      "id": "Q18",
+      "category": "creative",
+      "query": "Escreva um e-mail profissional solicitando uma reunião para apresentar uma proposta de consultoria.",
+      "response_length": 4783,
+      "elapsed_s": 26.4,
+      "geval_score": 74.0,
+      "geval_details": {
+        "G1_relevancia": 8,
+        "G2_coerencia": 7,
+        "G3_fundamentacao": 6,
+        "G4_completude": 7,
+        "G5_ausencia_alucinacao": 9,
+        "justificativa": "A resposta apresenta uma estrutura lógica, mas falta um exemplo concreto de e-mail completo."
+      },
+      "passed": false,
+      "method": "geval_gpt4o"
+    },
+    {
+      "id": "Q19",
+      "category": "multilingual",
+      "query": "Qual é a diferença entre 'mau' e 'mal' em português? Dê exemplos de uso correto.",
+      "response_length": 0,
+      "elapsed_s": 13.4,
+      "geval_score": 0,
+      "geval_details": null,
+      "passed": false,
+      "method": "no_response"
+    },
+    {
+      "id": "Q20",
+      "category": "complex",
+      "query": "Descreva o processo completo de fine-tuning de um LLM, desde a coleta de dados até a avaliação.",
+      "response_length": 9777,
+      "elapsed_s": 41.0,
+      "geval_score": 64.0,
+      "geval_details": {
+        "G1_relevancia": 8,
+        "G2_coerencia": 7,
+        "G3_fundamentacao": 6,
+        "G4_completude": 5,
+        "G5_ausencia_alucinacao": 6,
+        "justificativa": "A resposta não cobre todas as fases do fine-tuning, faltando detalhes sobre a avaliação final."
+      },
+      "passed": false,
+      "method": "geval_gpt4o"
+    }
+  ]
+}
