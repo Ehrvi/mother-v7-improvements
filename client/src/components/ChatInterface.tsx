@@ -70,9 +70,9 @@ export default function ChatInterface() {
             <Brain className="w-10 h-10 text-white" />
           </div>
 
-          {/* C228: Correct version string */}
+          {/* C340 UX-4: Updated version string to match production */}
           <div>
-            <h2 className="text-2xl font-bold text-foreground">MOTHER v120.0</h2>
+            <h2 className="text-2xl font-bold text-foreground">MOTHER v122.24</h2>
             <p className="text-sm text-muted-foreground mt-1">
               Sistema de Inteligência Artificial Autônoma — IntellTech
             </p>
@@ -119,6 +119,20 @@ export default function ChatInterface() {
             <MessageBubble key={message.id} message={message} />
           ))}
           {isTyping && <TypingIndicator />}
+          {/* C340 UX-4: Quick suggestion chips — shown after last message when not typing */}
+          {!isTyping && messages.length > 0 && messages.length <= 3 && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {CAPABILITY_CARDS.map((card) => (
+                <button
+                  key={card.title}
+                  onClick={() => sendMessage(card.example)}
+                  className="text-xs px-3 py-1.5 rounded-full border border-border bg-card/60 hover:bg-accent hover:border-blue-300 text-muted-foreground hover:text-foreground transition-all"
+                >
+                  {card.title}
+                </button>
+              ))}
+            </div>
+          )}
         </>
       )}
       <div ref={messagesEndRef} />

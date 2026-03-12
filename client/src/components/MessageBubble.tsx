@@ -6,7 +6,7 @@
 import { Message } from '@/contexts/MotherContext';
 import { Streamdown } from 'streamdown';
 import type { MermaidConfig } from 'mermaid';
-import { Bot, User, Copy, Check } from 'lucide-react';
+import { Bot, User, Copy, Check, BookOpen } from 'lucide-react';
 import { useState, useCallback } from 'react';
 
 // Mermaid dark theme aligned with MOTHER cyberpunk design system
@@ -95,6 +95,13 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
           </div>
         </div>
 
+        {/* C340 UX-5: Citation indicator — shown when response contains academic citations */}
+        {!isUser && /arXiv:|et al\.|\[\d+\]|doi\.org/.test(message.content) && (
+          <div className="flex items-center gap-1 mt-1 px-1">
+            <BookOpen className="w-3 h-3 text-cyan-400/70" />
+            <span className="text-xs text-cyan-400/70 font-medium">Citações científicas</span>
+          </div>
+        )}
         {/* Timestamp */}
         <span className="text-xs text-muted-foreground/50 mt-1 px-1">
           {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

@@ -483,6 +483,8 @@ function ProposalActionButtons({ p, onAction }: { p: any; onAction: () => void }
 
 function ProposalsSection() {
   const [expanded, setExpanded] = React.useState<number | null>(null);
+  // C340 UX-3: Filter toggle — hide failed/cancelled by default to reduce sidebar density
+  const [showArchived, setShowArchived] = React.useState(false);
   const { data: proposals, isLoading, refetch } = trpc.proposals.listWithReproposal.useQuery(undefined, {
     refetchInterval: 30_000,
   });
@@ -594,9 +596,25 @@ function ProposalsSection() {
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-400 font-bold">{pending.length}</span>
           )}
         </div>
-        <button onClick={() => refetch()} className="text-[11px] text-[#55556a] hover:text-[#a78bfa] transition-colors" title="Atualizar">
-          <RefreshCw className="w-3 h-3" />
-        </button>
+        <div className="flex items-center gap-1.5">
+          {/* C340 UX-3: Archive filter — reduces sidebar density by hiding failed/cancelled */}
+          {(failed.length > 0 || cancelled.length > 0) && (
+            <button
+              onClick={() => setShowArchived(v => !v)}
+              className={`text-[9px] px-1.5 py-0.5 rounded border transition-colors ${
+                showArchived
+                  ? 'bg-[rgba(255,255,255,0.06)] border-[rgba(255,255,255,0.12)] text-[#8888aa]'
+                  : 'bg-transparent border-[rgba(255,255,255,0.04)] text-[#44445a] hover:text-[#8888aa]'
+              }`}
+              title={showArchived ? 'Ocultar arquivadas' : 'Mostrar arquivadas'}
+            >
+              {showArchived ? 'Ocultar' : `+${failed.length + cancelled.length} arquivadas`}
+            </button>
+          )}
+          <button onClick={() => refetch()} className="text-[11px] text-[#55556a] hover:text-[#a78bfa] transition-colors" title="Atualizar">
+            <RefreshCw className="w-3 h-3" />
+          </button>
+        </div>
       </div>
       {isLoading ? (
         <div className="text-[10px] text-[#55556a] text-center py-3 animate-pulse">Carregando propostas...</div>
@@ -634,22 +652,27 @@ function ProposalsSection() {
               <div className="flex flex-col gap-1.5">{rejected.map(renderProposal)}</div>
             </div>
           )}
-          {cancelled.length > 0 && (
-            <div>
-              <div className="text-[11px] text-[#55556a] font-semibold mb-1.5 flex items-center gap-1">
-                <XCircle className="w-2.5 h-2.5" /> Canceladas Definitivamente ({cancelled.length})
-              </div>
-              <div className="flex flex-col gap-1.5">{cancelled.map(renderProposal)}</div>
-            </div>
-          )}
-          {/* v69.14: Bug fix — 'failed' proposals were invisible (not in any group) */}
-          {failed.length > 0 && (
-            <div>
-              <div className="text-[11px] text-orange-400 font-semibold mb-1.5 flex items-center gap-1">
-                <AlertCircle className="w-2.5 h-2.5" /> Falhou na Implementação ({failed.length})
-              </div>
-              <div className="flex flex-col gap-1.5">{failed.map(renderProposal)}</div>
-            </div>
+          {/* C340 UX-3: Archived proposals (failed/cancelled) — hidden by default to reduce density */}
+          {showArchived && (
+            <>
+              {cancelled.length > 0 && (
+                <div>
+                  <div className="text-[11px] text-[#55556a] font-semibold mb-1.5 flex items-center gap-1">
+                    <XCircle className="w-2.5 h-2.5" /> Canceladas Definitivamente ({cancelled.length})
+                  </div>
+                  <div className="flex flex-col gap-1.5">{cancelled.map(renderProposal)}</div>
+                </div>
+              )}
+              {/* v69.14: Bug fix — 'failed' proposals were invisible (not in any group) */}
+              {failed.length > 0 && (
+                <div>
+                  <div className="text-[11px] text-orange-400 font-semibold mb-1.5 flex items-center gap-1">
+                    <AlertCircle className="w-2.5 h-2.5" /> Falhou na Implementação ({failed.length})
+                  </div>
+                  <div className="flex flex-col gap-1.5">{failed.map(renderProposal)}</div>
+                </div>
+              )}
+            </>
           )}
           {/* v69.14: Fix empty state — only show when truly no proposals exist */}
           {(!proposals || proposals.length === 0) && (
