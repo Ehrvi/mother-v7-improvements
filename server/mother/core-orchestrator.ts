@@ -116,7 +116,7 @@ export interface LayerTrace {
 // CONSTANTS
 // ============================================================
 
-export const ORCHESTRATOR_VERSION = 'v122.25'; // C346: Sync with MOTHER_VERSION — gemini-2.5-pro timeout hotfix
+export const ORCHESTRATOR_VERSION = 'v122.24'; // C335: Updated to match MOTHER_VERSION — anti-version-hallucination fix (OBT-003)
 export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 3,
   successThreshold: 1,
@@ -249,18 +249,15 @@ function layer2_adaptiveRouting(
     (routing as any).maxTokens = olarMaxTokens;
   }
 
-  // C346 (2026-03-12): OLAR upgrade for LONG/VERY_LONG — gpt-4o replaces gemini-2.5-pro
-  // Root cause: gemini-2.5-pro timed out at 90s consuming entire budget, leaving 0ms for fallback
-  // This caused 'sistema sobrecarregado' on all LONG/VERY_LONG queries (book summaries, articles, etc.)
-  // selectModelForOutputLength now returns 'gpt-4o' for LONG/VERY_LONG (C346 fix in output-length-estimator.ts)
+  // For LONG/VERY_LONG: upgrade model to gemini-2.5-pro if not already TIER_3+
   const olarModel = selectModelForOutputLength(outputEst.category);
   if ((outputEst.category === 'LONG' || outputEst.category === 'VERY_LONG') &&
-      (routing.tier === 'TIER_1' || routing.tier === 'TIER_2')) {
-    // C346: gpt-4o via openai — reliable, 128K context, no timeout issues
-    (routing as any).primaryModel = olarModel.primary; // 'gpt-4o' (C346)
-    (routing as any).primaryProvider = 'openai';       // C346: openai (was 'google')
+      routing.tier === 'TIER_1' || routing.tier === 'TIER_2') {
+    // Quality-first: upgrade to gemini-2.5-pro for long outputs
+    (routing as any).primaryModel = olarModel.primary;
+    (routing as any).primaryProvider = 'google';
     (routing as any).tier = 'TIER_3';
-    console.log(`[Orchestrator] C346 OLAR: upgraded to ${olarModel.primary} (openai) for ${outputEst.category} output (~${outputEst.estimatedTokens} tokens)`);
+    console.log(`[Orchestrator] C242 OLAR: upgraded to ${olarModel.primary} for ${outputEst.category} output (~${outputEst.estimatedTokens} tokens)`);
   }
 
   console.log(`[Orchestrator] C241 DynTimeout: ${dynamicTimeoutMs}ms for ${outputEst.category} (~${outputEst.estimatedTokens} tok, ${outputEst.estimatedPages} pages). Signal: ${outputEst.detectedSignal}`);

@@ -162,7 +162,7 @@ import { estimateOutputLength } from './output-length-estimator'; // C241/C242: 
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v122.25'; // C346 (2026-03-12): HOTFIX 'sistema sobrecarregado' — gemini-2.5-pro 90s timeout fix, OLAR now uses gpt-4o for LONG/VERY_LONG queries
+export const MOTHER_VERSION = 'v122.24'; // C335 (2026-03-12): Anti-version-hallucination fix in core-orchestrator (OBT-003), ORCHESTRATOR_VERSION sync, anti-auto-reference rules in buildSystemPrompt
 
 const log = createLogger('CORE');
 

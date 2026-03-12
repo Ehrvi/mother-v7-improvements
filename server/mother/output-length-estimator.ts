@@ -461,16 +461,13 @@ export function selectModelForOutputLength(
 ): { primary: string; requiresLFSA: boolean } {
   switch (category) {
     case 'VERY_LONG':
-      // C346 (2026-03-12): gpt-4o for VERY_LONG — LFSA handles 60+ pages via Plan→Execute→Assemble
-      // gemini-2.5-pro was timing out at 90s (Cloud Run AbortSignal) causing 'sistema sobrecarregado'
-      // Root cause: ORCHESTRATOR_CIRCUIT_CONFIG.timeoutMs=90s consumed all budget, leaving 0ms for fallback
-      // Scientific basis: LFSA pipeline is model-agnostic; gpt-4o 128K context is sufficient per section
-      return { primary: 'gpt-4o', requiresLFSA: true };
+      // Only Gemini 2.5 Pro can generate 60+ pages in a single call
+      // But LFSA (Plan→Execute→Assemble) is preferred for quality
+      return { primary: 'gemini-2.5-pro', requiresLFSA: true };
 
     case 'LONG':
-      // C346 (2026-03-12): gpt-4o for LONG — gemini-2.5-pro timeout fix
-      // gpt-4o 128K context handles LONG outputs (≤36 pages = ~16K tokens) reliably
-      return { primary: 'gpt-4o', requiresLFSA: false };
+      // Gemini 2.5 Pro preferred for long-form (65K output vs 16K for GPT-4o)
+      return { primary: 'gemini-2.5-pro', requiresLFSA: false };
 
     case 'MEDIUM':
       // gpt-4o for medium complexity (quality > cost per Conselho directive)
