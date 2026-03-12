@@ -116,7 +116,7 @@ export interface LayerTrace {
 // CONSTANTS
 // ============================================================
 
-export const ORCHESTRATOR_VERSION = 'v122.25'; // C349: Budget Reserve Ratio — fix 'sistema sobrecarregado' for LONG queries without quality degradation
+export const ORCHESTRATOR_VERSION = 'v122.26'; // C351: Filter Audit — purge dpoOverridePatterns, fix Bug B (PAGE_PATTERN negation guard), fix Bug C (express.json 50mb)
 export const ORCHESTRATOR_CIRCUIT_CONFIG: CircuitBreakerConfig = {
   failureThreshold: 3,
   successThreshold: 1,

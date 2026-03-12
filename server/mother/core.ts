@@ -162,7 +162,7 @@ import { estimateOutputLength } from './output-length-estimator'; // C241/C242: 
 //        LEARNING-1 (AgenticLearning threshold confirmed correct at 75%; trigger verified)
 //        Scientific basis: SWE-bench (Jimenez et al., 2024, arXiv:2310.06770)
 //        Gödel Machine (Schmidhuber, 2003) — self-modification requires direct execution
-export const MOTHER_VERSION = 'v122.25'; // C347-C349 (2026-03-12): APQS Coherence Verifier (C347), Semantic Citation trigger (C348), Budget Reserve 0.35 + Directed Self-Refine (C349)
+export const MOTHER_VERSION = 'v122.26'; // C351 (2026-03-12): Filter Audit — purge dpoOverridePatterns (epistemologicamente falho, duplicata do DPO Universal Default), purge 2 padrões genéricos SELF_REPORTING, fix Bug B (PAGE_PATTERN negation guard), fix Bug C (express.json 50mb limit)
 
 const log = createLogger('CORE');
 
@@ -475,7 +475,10 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
     /\b(audit|auditoria|camadas?|layers?|arquitetura|architecture|pipeline|vers[\u00e3a]o|version)\b/i,
     /\b(m[\u00e9e]trica|metric|qualidade|quality|cache|desempenho|performance|latencia|latency)\b/i,
     /\b(aba de conhecimento|knowledge tab|como voc[\u00ea] funciona|how do you work)\b/i,
-    /\b(tem alguma coisa errada|something wrong|o que vc acha|what do you think)\b/i,
+    // C351 PURGE: 'o que vc acha' e 'something wrong' removidos — padrões genéricos demais que ativam
+    // bypass de cache para queries não relacionadas a self-audit (ex: 'o que vc acha da situação climática?').
+    // Sem justificativa científica específica aprovada pelo Conselho. Fowler PEAA 2002: cache bypass
+    // deve ser cirúrgico, baseado em estado dinâmico verificado, não em heurística de texto livre.
     /\b(status|sa[\u00fau]de|health|diagn[\u00f3o]stico|diagnostic)\b/i,
     // Ciclo 105: DPO identity queries must bypass cache — stale cache prevents DPO model activation
     // Scientific basis: Cache coherence (Fowler PEAA 2002) — DPO queries need fresh routing decision
@@ -632,63 +635,23 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
     };
     log.info(`[MOTHER] CREATOR BYPASS: '${prevCategory}' → complex_reasoning/gpt-4o`);
   }
-  // ==================== CICLO 72: DPO FINE-TUNED MODEL OVERRIDE (NC-IDENTITY-001 + NC-ARCHITECTURE-001) ====================
-  // Scientific basis: DPO (Rafailov et al., arXiv:2305.18290, NeurIPS 2023)
-  // Job: ftjob-CSfkN1jaB2KwqANkgsVzTEFD (status: succeeded, 2026-03-01)
-  // Trigger: identity/architecture/how-it-works queries that are NOT research category
-  // (research category needs gpt-4o for tool use — DPO model doesn't have tools)
-  const DPO_MODEL = ENV.dpoFineTunedModel;
-  // Ciclo 104: Expanded DPO override patterns to cover all 6 benchmark dimensions
-  // Root cause fix: previous patterns only covered identity queries, missing 5 other dimensions
-  // DPO v7 (185 SPIN on-policy pairs) covers: identity, faithfulness, IF, architecture, reasoning, depth
-  // Scientific basis: SPIN (Chen et al., arXiv:2401.01335, ICML 2024) — on-policy self-play
-  const dpoOverridePatterns = [
-    // IDENTITY dimension
-    'quem e voce', 'quem es voce', 'o que e voce', 'o que voce e',
-    'como voce funciona', 'me fale sobre voce',
-    'sua identidade', 'sua arquitetura', 'seus modulos', 'suas camadas',
-    'who are you', 'what are you', 'how do you work', 'your architecture',
-    'your identity', 'your modules', 'your layers',
-    'mother e', 'o que e mother', 'what is mother',
-    'descreva voce', 'descreva a mother', 'describe yourself',
-    'sua historia', 'your history', 'como voce foi criado', 'how were you created',
-    'nome completo', 'nome por extenso', 'full name',
-    'criador do mother', 'empresa proprietaria', 'wizards down under',
-    'missao do mother', 'missao principal',
-    // SHMS / Intelltech
-    'shms', 'slope health monitoring', 'monitoramento geotecnico', 'intelltech',
-    'sistema de monitoramento', 'health monitoring system',
-    // ARCHITECTURE dimension  
-    'cloud run', 'australia-southeast', 'google cloud', 'regiao geografica',
-    'guardian', 'componente guardian', 'bd_central', 'banco de conhecimento',
-    'plataforma de nuvem', 'hospedado', 'deployado', 'infraestrutura',
-    // INSTRUCTION FOLLOWING dimension
-    'fine-tuning dpo', 'usa fine-tuning', 'usa dpo', 'uses dpo', 'uses fine-tuning',
-    'lista numerada', 'numbered list', 'em exatamente', 'exactly one sentence',
-    // COMPLEX REASONING dimension
-    'dpo funciona', 'dpo loss', 'direct preference optimization',
-    'spin on-policy', 'self-play fine-tuning', 'on-policy superior',
-    'matematicamente', 'matematica', 'matematica do dpo',
-    // DEPTH dimension
-    'mcc no contexto', 'minimum competency', 'criterios avaliados', 'benchmark criterios',
-    'adensamento primario', 'adensamento secundario', 'geotecnia', 'piezometro',
-    'inclinometro', 'talude', 'slope monitoring',
-    // FAITHFULNESS dimension
-    'baseado no contexto', 'de acordo com o documento', 'based on the context',
-    'according to the document', 'contexto fornecido',
-  ];
-  const isDpoQuery = dpoOverridePatterns.some(p =>
-    query.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(p)
-  );
-  if (isDpoQuery && routingDecision.category !== 'research' && !isCreatorEarly) {
-    routingDecision = {
-      ...routingDecision,
-      model: { provider: 'openai', modelName: DPO_MODEL },
-      tier: 'gpt-4o-mini',
-      reasoning: `DPO OVERRIDE (Ciclo 104): query matches DPO v7 training domain → fine-tuned model (SPIN arXiv:2401.01335, DPO arXiv:2305.18290)`,
-    };
-    log.info(`[MOTHER] Ciclo 104 DPO Override: query matches DPO v7 domain → ${DPO_MODEL}`);
-  }
+  // ==================== C351: DPO ROUTING — DELEGADO AO DPO UNIVERSAL DEFAULT (core-orchestrator.ts) ====================
+  // C351 PURGE: dpoOverridePatterns (Ciclo 104) REMOVIDO.
+  //
+  // Motivo: Pattern-matching por lista de strings é epistemologicamente falho — não é possível
+  // enumerar a priori todas as queries válidas (conforme documentado no próprio core-orchestrator.ts:
+  // 'Pattern-matching is epistemologically flawed: cannot enumerate all valid queries a priori').
+  //
+  // Problemas identificados:
+  // 1. Colisaão com DPO Universal Default (NC-DPO-UNIVERSAL-001 C106) em core-orchestrator.ts
+  // 2. Sobrescrevia decisões do tier-gate com modelo errado (gpt-4o-mini em vez de DPO v8e)
+  // 3. Padrões genéricos como 'matematicamente', 'talude', 'guardian' ativavam DPO para queries
+  //    que não são de identidade/arquitetura (ex: 'como funciona o guardian pattern em software?')
+  // 4. Duplicata funcional: DPO_CACHE_BYPASS_PATTERNS em core-orchestrator.ts já cobre todos os casos
+  //
+  // Decisão: DPO routing é responsabilidade exclusiva do DPO Universal Default (Layer 2.5)
+  // em core-orchestrator.ts, que usa tier-gate (TIER_3/4) sem pattern-matching.
+  // Aprovado: C351 Filter Audit (2026-03-12).
   log.info(`[MOTHER] Routing: category=${routingDecision.category}, provider=${routingDecision.model.provider}, model=${routingDecision.model.modelName}, confidence=${routingDecision.confidence.toFixed(2)}`);
   
   // ==================== LAYERS 5.0–5.6: PARALLEL CONTEXT BUILDING (v68.9 Opt #1) ====================

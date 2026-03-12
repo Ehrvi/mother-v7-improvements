@@ -276,9 +276,21 @@ export function estimateOutputLength(query: string): OutputLengthEstimate {
   }
 
   // ─── Heuristic 1: Explicit page count (highest confidence) ──────────────
+  // C351 Bug B FIX: Negation guard — ignora contagem de páginas quando precedida por negação
+  // Problema: 'NAO TEM 60 PAGINAS' ativava LFSA com 60 páginas (regex capturava sem contexto)
+  // Solução: verificar se há padrão de negação na janela de 40 chars antes do match
+  // Scientific basis: Joshi et al. (arXiv:2012.15784, 2021) NegEx — negation detection in NLP;
+  //   Morante & Daelemans (2012) CoNLL: negation scope detection critical for intent parsing.
+  const NEGATION_PATTERN = /\b(não|nao|sem|sem ter|não tem|nao tem|não é|nao e|não é para|not|no|without|doesn't have|does not have|is not|isn't|shouldn't|should not)\b/i;
   const pageMatches = [...query.matchAll(PAGE_PATTERN), ...query.matchAll(PAGE_PATTERN_EN)];
-  if (pageMatches.length > 0) {
-    const pageCount = Math.max(...pageMatches.map(m => parseInt(m[1])));
+  const validPageMatches = pageMatches.filter(m => {
+    const matchIndex = m.index ?? 0;
+    const windowStart = Math.max(0, matchIndex - 40);
+    const precedingText = query.slice(windowStart, matchIndex);
+    return !NEGATION_PATTERN.test(precedingText);
+  });
+  if (validPageMatches.length > 0) {
+    const pageCount = Math.max(...validPageMatches.map(m => parseInt(m[1])));
     const estimatedTokens = pageCount * TOKENS_PER_PAGE_AVG;
     const category = tokensToCategory(estimatedTokens);
     return {

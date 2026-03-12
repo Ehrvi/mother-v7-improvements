@@ -240,8 +240,13 @@ app.use((_req, res, next) => {
   res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
   next();
 }); // NC-SEC-002: CSP Headers — OWASP A03:2021 + MDN CSP (2024)
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// C351 Bug C FIX: HTTP 413 PayloadTooLargeError — conversationHistory com respostas LFSA (>100KB)
+// Problema: express.json() sem limite usa default 100KB; respostas LFSA chegam a 150-300KB
+// Solução: alinhar com index.ts que já usa 50mb (linha 42)
+// Scientific basis: Express.js docs (2024) — body-parser limit parameter;
+//   RFC 7231 §6.5.11 (HTTP 413): servidor deve retornar 413 quando payload excede limite configurado.
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 /**
  * C188: Phase 4.1 — Latency Telemetry Middleware
@@ -460,7 +465,7 @@ app.post('/api/mother/stream', async (req, res) => {
     sendEvent('thinking', {
       message: '\ud83e\udde0 MOTHER est\u00e1 processando...',
       timestamp: _ttftStart,
-      version: process.env.MOTHER_VERSION || 'v122.19' // C308: updated fallback (2026-03-11)
+      version: process.env.MOTHER_VERSION || 'v122.26' // C351: updated fallback (2026-03-12)
     });
     sendEvent('progress', { phase: 'routing', message: 'Analisando complexidade da query...', ttft_ms: Date.now() - _ttftStart });
 
