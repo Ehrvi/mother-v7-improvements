@@ -33,8 +33,7 @@ import { invokeLLM } from '../_core/llm';
 import { assessComplexity, classifyQuery, getModelForTier, calculateCost, calculateCostForModel, calculateBaselineCost, calculateCostReduction, type LLMTier } from './intelligence';
 import { validateQuality, type GuardianResult } from './guardian';
 import { getKnowledgeContext } from './knowledge';
-// C319 hygiene: cragRetrieve removed (unused in core.ts; cragV2Retrieve used instead)
-import { cragV2Retrieve } from './crag-v2'; // NC-QUALITY-006: CRAG v2 with query expansion + hybrid search
+import { cragV2Retrieve } from './crag-v2';
 import { selfRefinePhase3 } from './self-refine'; // NC-QUALITY-007: Self-Refine Phase 3 (3 iterations)
 import { orchestrate, shouldUseMoA, shouldUseDebate } from './orchestration'; // NC-ORCH-001: MoA + Debate (Ciclo 46)
 import { applyConstitutionalAI } from './constitutional-ai'; // NC-CONST-001: Constitutional AI Safety Layer (Ciclo 47)
@@ -89,8 +88,6 @@ import { evaluateInstructionFollowing as ifEvalV2 } from './ifeval-verifier-v2';
 import { calibrateFaithfulness, shouldApplyFDPO } from './fdpo-faithfulness-calibrator'; // Ciclo 64: F-DPO (arXiv:2601.03027, 2026)
 import { enhanceDepth, shouldActivateLongCoT } from './long-cot-depth-enhancer'; // Ciclo 64: Long CoT (arXiv:2503.09567, 2025)
 import { verifyInstructionFollowing as nsvifVerify, shouldApplyNSVIF } from './nsvif-instruction-verifier'; // Ciclo 64: NSVIF CSP (arXiv:2601.17789, 2026)
-// ─── CICLO 67: Arquitetura SOTA v76.0 ────────────────────────────────────────
-// C319 hygiene: circuit-breaker imported via other modules; withCircuitBreaker/cbRecord* unused in core.ts (module live in 3 other files)
 import { recordObservation as guardianObserve } from './guardian-agent'; // Ciclo 67: Guardian SLO monitoring (Google SRE 2016, Four Golden Signals)
 import { observeAndLearn as dgmObserve } from './dgm-agent'; // Ciclo 67: Darwin Gödel Machine (arXiv:2505.22954, Sakana AI 2025)
 import { recordRequest as obsRecordRequest } from './observability'; // Ciclo 67: OpenTelemetry observability (CNCF 2023, DORA Metrics 2018)
@@ -105,38 +102,8 @@ import { applyCreativeConstraintValidation } from './creative-constraint-validat
 import { calibrateCognitiveScore, calibrateCognitiveScoreAdaptive } from './cognitive-calibrator'; // NC-COG-007+012 (C210+C211): Cognitive Calibrator + Adaptive History (arXiv:2207.05221 + arXiv:2510.16374)
 import { enhanceSystemPromptWithLockFree } from './lock-free-explainer'; // NC-COG-008 (C210): Lock-Free Explainer (Herlihy & Wing 1990 + arXiv:2106.04422)
 import { applyZ3Verification } from './z3-subprocess-verifier'; // NC-COG-013 (C212): Z3 Subprocess Verifier (de Moura & Bjorner 2008 TACAS + arXiv:2006.01847)
-// ─── CICLO C213: Conselho dos 6 — NC-COG-015 a NC-COG-017 (SGM + Shell + Slow Thinking) ─────────────────
-// C319 hygiene: sgm-proof-engine validateModificationWithSGM/generateSGMValidationReport unused in core.ts (module live in dgm-full-autonomy.ts)
-// C319 hygiene: persistent-shell createShellSession/executeInShell/destroyShellSession unused in core.ts (module live in dgm-full-autonomy.ts)
-// C319 hygiene: slow-thinking-engine unused in core.ts (0 uses in codebase; file preserved for future use)
-// ─── CICLO C214: Conselho dos 6 — NC-SENS-004 a NC-SENS-007 (MCP + Scheduler + Map + STT) ─────────────────
-// C319 hygiene: mcp-gateway imported but never called in core.ts — wiring pending in a2a-server.ts (C320)
-// import { detectMCPRequirement, generateMCPToolsDescription, callMCPTool } from './mcp-gateway';
-// C319 hygiene: user-scheduler imported but never called in core.ts — wiring pending in a2a-server.ts (C320)
-// import { detectSchedulingRequest, parseScheduleExpression, createScheduledTask, generateScheduleConfirmation } from './user-scheduler';
-// C319 hygiene: parallel-map-engine imported but never called in core.ts — wiring pending in a2a-server.ts (C320)
-// import { detectMapRequest, executeMapJob, formatMapJobResults } from './parallel-map-engine';
-// C319 hygiene: whisper-stt imported but never called in core.ts — wiring pending in a2a-server.ts (C320)
-// import { detectAudioInput, transcribeAudio, generateSTTDescription } from './whisper-stt';
-// ─── CICLO C215: Conselho dos 6 — NC-SHMS-001 a NC-SHMS-003 (EKF + Alerting + Digital Twin) ─────────────────
-// C319 hygiene: shms-neural-ekf unused in core.ts body (live in shms-alert-engine-v2.ts + shms-digital-twin-v2.ts)
-// import { runEKFCycle, processBatchEKF, generateEKFReport } from './shms-neural-ekf';
-// C319 hygiene: shms-alert-engine-v2 unused in core.ts body (live in shms-digital-twin-v2.ts)
-// import { processEKFAlerts, classifyEKFAlert, generateAlertSummary, sendFCMNotification } from './shms-alert-engine-v2';
-// C319 hygiene: shms-digital-twin-v2 unused in core.ts body — SHMS pipeline runs via mqtt-connector startup task
-// import { updateDigitalTwin, getDigitalTwinState, generateDigitalTwinReport } from './shms-digital-twin-v2';
-// ─── CICLO C216: Conselho dos 6 — NC-GWS-001 + NC-TTS-001 + NC-LF-001 (GWS + TTS + LongForm) ─────────────────
-// C319 hygiene: google-workspace-bridge unused in core.ts body (live in long-form-engine-v3.ts)
-// import { detectGWSRequest, uploadToDrive, createGoogleDoc, listDriveFiles, generateGWSDescription } from './google-workspace-bridge';
-// C319 hygiene: tts-engine unused in core.ts body (live in long-form-engine-v3.ts)
-// import { detectTTSRequest, generateSpeech, generateSHMSVoiceAlert, generateTTSDescription } from './tts-engine';
 import { detectLongFormRequest, generateLongFormV3 } from './long-form-engine-v3'; // NC-LF-001 (C216): Long-Form V3 (Gao arXiv:2312.10997 + Lewis arXiv:2005.11401)
 import { estimateOutputLength } from './output-length-estimator'; // C241/C242: OLAR routing (Conselho v100) | C321: Semantic Complexity Detector v2.0 (complexitySignals now embedded in OutputLengthEstimate)
-// ─── CICLO C217: Conselho dos 6 — NC-DGM-002 + NC-CAL-002 (DGM Full Autonomy + Calibration V2) ─────────────────
-// C319 hygiene: dgm-full-autonomy unused in core.ts body — DGM runs via startup-tasks-c207.ts scheduler
-// import { runAutonomyCycle, getDGMAutonomyStatus, detectCapabilityGaps } from './dgm-full-autonomy';
-// C319 hygiene: adaptive-calibration-v2 unused in core.ts body — calibration runs via calibratedQuality pipeline
-// import { applyCalibrationV2, recordCalibrationObservation as recordCalV2, getCalibrationReport, detectCalibrationDrift } from './adaptive-calibration-v2';
 
 // ─── MOTHER Version (single source of truth) ─────────────────────────────────
 // v74.0: NC-010 (tier3 fix) + NC-008 (cache TTL 72h) + NC-011 (self-diagnosis routing)
