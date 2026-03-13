@@ -145,7 +145,7 @@ function generateSyntheticDashboard(): DashboardData {
 
 // ─── Mini Chart Component ─────────────────────────────────────────────────────
 interface MiniChartProps {
-  data: Array<{ x: string; actual?: number; predicted?: number; isAnomaly?: boolean }>;
+  data: Array<{ x: string; actual?: number; predicted?: number; confidence?: number; isAnomaly?: boolean }>;
   title: string;
   unit: string;
   color: string;
@@ -168,6 +168,21 @@ function MiniChart({ data, title, unit, color }: MiniChartProps) {
     .filter(d => d.actual !== undefined)
     .map((d, i) => `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toY(d.actual!)}`)
     .join(' ');
+
+  const predictedWithConf = data.filter(d => d.predicted !== undefined && d.confidence !== undefined);
+  const confBandPath = predictedWithConf.length >= 2 ? (() => {
+    // Aviation HF / calibrated trust: shaded band = predicted ± (1-confidence) * range * 2
+    // High confidence → narrow band; low confidence → wider band
+    const upper = predictedWithConf.map((d, i) => {
+      const halfW = (1 - d.confidence!) * range * 2;
+      return `${i === 0 ? 'M' : 'L'} ${toX(data.indexOf(d))} ${toY(d.predicted! + halfW)}`;
+    }).join(' ');
+    const lower = [...predictedWithConf].reverse().map((d) => {
+      const halfW = (1 - d.confidence!) * range * 2;
+      return `L ${toX(data.indexOf(d))} ${toY(d.predicted! - halfW)}`;
+    }).join(' ');
+    return `${upper} ${lower} Z`;
+  })() : null;
 
   const predictedPath = data
     .filter(d => d.predicted !== undefined)
@@ -194,6 +209,10 @@ function MiniChart({ data, title, unit, color }: MiniChartProps) {
         {data.map((d, i) => d.isAnomaly && d.actual !== undefined ? (
           <circle key={i} cx={toX(i)} cy={toY(d.actual)} r={4} fill="#ef4444" opacity={0.8} />
         ) : null)}
+        {/* LSTM confidence band — aviation HF calibrated trust (arXiv:2306.05685 §4.2) */}
+        {confBandPath && (
+          <path d={confBandPath} fill="rgba(96,165,250,0.12)" stroke="none" />
+        )}
         {/* Predicted line (dashed) */}
         {predictedPath && (
           <path d={predictedPath} stroke="#60a5fa" strokeWidth={1.5} fill="none" strokeDasharray="4,2" />
@@ -209,6 +228,7 @@ function MiniChart({ data, title, unit, color }: MiniChartProps) {
       <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
         <span style={{ fontSize: 10, color: color }}>— Leitura real</span>
         <span style={{ fontSize: 10, color: '#60a5fa' }}>--- LSTM pred.</span>
+        <span style={{ fontSize: 10, color: 'rgba(96,165,250,0.5)' }}>▬ IC 95%</span>
         <span style={{ fontSize: 10, color: '#ef4444' }}>● Anomalia</span>
       </div>
     </div>
@@ -890,6 +910,7 @@ export default function SHMSDashboardV3() {
     x: new Date(p.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     actual: data.recentReadings[i]?.value,
     predicted: p.predicted,
+    confidence: p.confidence,
     isAnomaly: data.recentReadings[i]?.isAnomaly,
   }));
 

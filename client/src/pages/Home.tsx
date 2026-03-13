@@ -108,6 +108,27 @@ function renderMarkdown(text: string): string {
   return result.replace(/\n/g, '<br />');
 }
 
+// NN/G Prompt Controls (2024): contextual follow-up chips reduce interaction cost vs blank text input
+// Scientific basis: Nielsen Norman Group — "AI Chat Interface Design" (2023/2024)
+function getFollowUpChips(content: string): string[] {
+  const c = content.toLowerCase();
+  if (c.includes('arquitetura') || c.includes('camada') || c.includes('layer'))
+    return ['Como cada camada interage?', 'Mostre um diagrama', 'Comparar com transformers'];
+  if (c.includes('memória') || c.includes('a-mem') || c.includes('zettelkasten'))
+    return ['Como a memória evolui?', 'Exemplo de link semântico', 'Qual o limite de memória?'];
+  if (c.includes('evolui') || c.includes('darwin') || c.includes('gödel') || c.includes('fitness'))
+    return ['Como o fitness é calculado?', 'Frequência de auto-evolução', 'Exemplo de mutação'];
+  if (c.includes('shms') || c.includes('sensor') || c.includes('estrutural') || c.includes('lstm'))
+    return ['Ver histórico de anomalias', 'Configurar alertas', 'Explicar previsão LSTM'];
+  if (c.includes('código') || c.includes('code') || c.includes('implementa') || c.includes('função'))
+    return ['Adicionar testes', 'Otimizar performance', 'Explicar o código'];
+  if (c.includes('erro') || c.includes('falha') || c.includes('exception') || c.includes('bug'))
+    return ['Como reproduzir?', 'Sugerir correção', 'Ver stack trace completo'];
+  if (c.includes('custo') || c.includes('cost') || c.includes('token') || c.includes('preço'))
+    return ['Como reduzir custo?', 'Ver breakdown por modelo', 'Otimizar prompts'];
+  return ['Explique mais', 'Dar um exemplo prático', 'Quais as limitações?'];
+}
+
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -777,7 +798,7 @@ export default function Home() {
 
           {/* Message list — NC-PERF-001/002: Uses memoized visibleMessages (avoids re-filtering on every render) */}
           {/* NC-PERF-002: For large message lists (>100), consider react-window virtualization */}
-          {visibleMessages.map((msg) => (
+          {visibleMessages.map((msg, msgIdx) => (
             <div key={msg.id} className={`msg-bubble flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
               {/* Avatar */}
               <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0 ${
@@ -804,11 +825,21 @@ export default function Home() {
                     <span className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-[rgba(124,58,237,0.12)] border border-[rgba(124,58,237,0.25)] text-[#a78bfa]" title={`Provider: ${msg.provider || 'openai'} | Category: ${msg.queryCategory || msg.tier}`}>
                       <Brain className="w-2.5 h-2.5" />{msg.modelName || msg.tier}
                     </span>
-                    {msg.qualityScore && (
-                      <span className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-[rgba(16,185,129,0.1)] border border-[rgba(16,185,129,0.25)] text-emerald-400">
-                        <Shield className="w-2.5 h-2.5" />{msg.qualityScore}%
-                      </span>
-                    )}
+                    {msg.qualityScore && (() => {
+                      const q = msg.qualityScore;
+                      const qStyle = q >= 80
+                        ? { bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.25)', cls: 'text-emerald-400', prefix: '' }
+                        : q >= 70
+                        ? { bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.25)', cls: 'text-amber-400', prefix: '' }
+                        : { bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.3)', cls: 'text-red-400', prefix: '⚠ ' };
+                      return (
+                        <span className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded-md border ${qStyle.cls}`}
+                              style={{ background: qStyle.bg, borderColor: qStyle.border }}
+                              title={q < 70 ? 'Qualidade baixa — verifique a resposta' : q < 80 ? 'Qualidade moderada' : 'Qualidade alta'}>
+                          <Shield className="w-2.5 h-2.5" />{qStyle.prefix}{q}%
+                        </span>
+                      );
+                    })()}
                     {msg.cost !== undefined && (
                       <span className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-[rgba(245,158,11,0.1)] border border-[rgba(245,158,11,0.25)] text-amber-400">
                         <TrendingDown className="w-2.5 h-2.5" />${msg.cost.toFixed(6)}
@@ -828,6 +859,18 @@ export default function Home() {
                 )}
 
                 <span className="text-[10px] text-[#55556a]">{msg.timestamp.toLocaleTimeString()}</span>
+
+                {/* NN/G Prompt Controls: contextual follow-up chips on last completed MOTHER message */}
+                {msg.role === 'mother' && msg.content && msgIdx === visibleMessages.length - 1 && !isStreaming && (
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {getFollowUpChips(msg.content).map((chip) => (
+                      <button key={chip} onClick={() => sendMessage(chip)}
+                              className="text-[11px] px-2.5 py-1 rounded-full border border-[rgba(124,58,237,0.3)] bg-[rgba(124,58,237,0.06)] text-[#a78bfa] hover:bg-[rgba(124,58,237,0.15)] hover:border-[rgba(124,58,237,0.5)] transition-colors cursor-pointer">
+                        {chip}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ))}
