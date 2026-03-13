@@ -21,13 +21,19 @@
  */
 
 import type { User } from '../../drizzle/schema';
+import { ENV } from '../_core/env';
 
 // ─── Role Definitions ──────────────────────────────────────────────────────────
 
 export type UserRole = 'creator' | 'admin' | 'user' | 'guest';
 
-/** The canonical creator email — single source of truth */
-export const CREATOR_EMAIL = 'elgarcia.eng@gmail.com';
+/**
+ * The canonical creator email — read from env var to avoid hardcoding in source.
+ * Security: OWASP A02 — sensitive identifiers should not be in source code.
+ * Set via Cloud Run secret: CREATOR_EMAIL env var.
+ * Falls back to default if not set (backwards compatible).
+ */
+export const CREATOR_EMAIL = ENV.creatorEmail;
 
 /**
  * Numeric trust levels for comparison.

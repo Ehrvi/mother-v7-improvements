@@ -72,8 +72,28 @@ router.get("/", async (_req: Request, res: Response) => {
     dbStatus = "error";
   }
 
+  // Check primary LLM provider (OpenAI) — fast model listing ping
+  // Observability best practice: health must reflect LLM availability, not just DB
+  let llmStatus: "ok" | "error" | "unconfigured" = "unconfigured";
+  let llmLatencyMs: number | null = null;
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (openaiKey) {
+    try {
+      const llmStart = Date.now();
+      const resp = await fetch("https://api.openai.com/v1/models?limit=1", {
+        headers: { Authorization: `Bearer ${openaiKey}` },
+        signal: AbortSignal.timeout(3000),
+      });
+      llmLatencyMs = Date.now() - llmStart;
+      llmStatus = resp.ok ? "ok" : "error";
+    } catch {
+      llmStatus = "error";
+    }
+  }
+
+  const anyError = dbStatus === "error";
   const health = {
-    status: dbStatus === "error" ? "degraded" : "ok",
+    status: anyError ? "degraded" : "ok",
     version: getVersion(),
     motherVersion: getMotherVersion(),
     cycle: parseInt(process.env.MOTHER_CYCLE ?? "205"),
@@ -85,6 +105,11 @@ router.get("/", async (_req: Request, res: Response) => {
     db: {
       status: dbStatus,
       latencyMs: dbLatencyMs,
+    },
+    llm: {
+      status: llmStatus,
+      latencyMs: llmLatencyMs,
+      provider: "openai",
     },
     environment: process.env.NODE_ENV ?? "production",
     timestamp: new Date().toISOString(),

@@ -73,4 +73,7 @@ export const ENV = {
   shmsAlertWebhook: process.env.SHMS_ALERT_WEBHOOK ?? "",
   // C189: TimescaleDB for SHMS time-series data (Phase 6 target)
   timescaleDbUrl: process.env.TIMESCALE_DB_URL ?? "",
+  // Security: CREATOR_EMAIL via env var instead of hardcoded string (OWASP A02)
+  // Set via: gcloud secrets create creator-email --data-file=<(echo -n "user@example.com")
+  creatorEmail: process.env.CREATOR_EMAIL ?? 'elgarcia.eng@gmail.com',
 };

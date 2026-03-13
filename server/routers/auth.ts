@@ -17,7 +17,10 @@
 
 import { z } from "zod";
 import bcrypt from "bcrypt";
-import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import { COOKIE_NAME } from "@shared/const";
+import { ENV } from "../_core/env";
+// NIST SP 800-63B §7.3: sessions max 30 days with periodic re-auth
+const SESSION_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 import { getSessionCookieOptions } from "../_core/cookies";
 import { adminProcedure, publicProcedure, router } from "../_core/trpc";
 import { sdk } from "../_core/sdk";
@@ -25,10 +28,11 @@ import { getDb } from "../db";
 import { users } from "../../drizzle/schema";
 import { eq, count } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+// Security: CREATOR_EMAIL from env var via user-hierarchy, not hardcoded (OWASP A02)
+import { CREATOR_EMAIL } from '../mother/user-hierarchy';
 
 // v63.0: Creator email always gets admin role + active status
 // Req #6: Only the creator can authorize updates — they must always have admin access
-const CREATOR_EMAIL = 'elgarcia.eng@gmail.com';
 
 // OWASP ASVS 2.4.1: bcrypt cost factor >= 10; 12 gives ~250ms — good balance
 const BCRYPT_ROUNDS = 12;
@@ -126,10 +130,10 @@ export const nativeAuthRouter = router({
         // First user OR creator: create session and log them in immediately
         const sessionToken = await sdk.createSessionToken(openId, {
           name: input.name,
-          expiresInMs: ONE_YEAR_MS,
+          expiresInMs: SESSION_EXPIRY_MS,
         });
         const cookieOptions = getSessionCookieOptions(ctx.req);
-        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: SESSION_EXPIRY_MS });
 
         const welcomeMsg = isCreator
           ? "Bem-vindo, Everton! Sua conta de criador foi ativada com privilégios de administrador."
@@ -217,10 +221,10 @@ export const nativeAuthRouter = router({
       // Create JWT session
       const sessionToken = await sdk.createSessionToken(userOpenId, {
         name: user.name || user.email || "",
-        expiresInMs: ONE_YEAR_MS,
+        expiresInMs: SESSION_EXPIRY_MS,
       });
       const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+      ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: SESSION_EXPIRY_MS });
 
       return {
         success: true,
