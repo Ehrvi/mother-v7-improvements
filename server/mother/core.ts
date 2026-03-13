@@ -574,14 +574,14 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
     routingDecision = {
       ...routingDecision,
       category: 'complex_reasoning',
-      model: { provider: 'openai', modelName: 'gpt-4o' },
-      tier: 'gpt-4o',
+      model: { provider: 'anthropic', modelName: 'claude-sonnet-4-6' },
+      tier: 'claude-sonnet-4-6',
       confidence: 1.0,
-      reasoning: `CREATOR BYPASS: was '${prevCategory}' → forced to gpt-4o (Constitutional AI, Bai et al. 2022)`,
+      reasoning: `CREATOR BYPASS: was '${prevCategory}' → forced to claude-sonnet-4-6 (max quality for creator, QW-3 routing)`,
       complexityScore: 0.90,
       confidenceScore: 1.0,
     };
-    log.info(`[MOTHER] CREATOR BYPASS: '${prevCategory}' → complex_reasoning/gpt-4o`);
+    log.info(`[MOTHER] CREATOR BYPASS: '${prevCategory}' → complex_reasoning/claude-sonnet-4-6`);
   }
   // ==================== C351: DPO ROUTING — DELEGADO AO DPO UNIVERSAL DEFAULT (core-orchestrator.ts) ====================
   // C351 PURGE: dpoOverridePatterns (Ciclo 104) REMOVIDO.
@@ -1000,9 +1000,11 @@ When a user asks about a topic (v75.6 — OBJECTIVE SUFFICIENCY CRITERIA based o
 
 **ESTRUTURA (obrigatória para respostas não-triviais):**
 - Use Markdown adequado: ## títulos, **negrito** para termos-chave, \`code blocks\` para código, listas numeradas para passos
-- Respostas analíticas: ## Introdução → ## Análise → ## Evidências Científicas → ## Conclusão → ## Referências
+- Respostas analíticas: ## Introdução → ## Análise → ## Evidências Científicas → ## Conclusão → **📌 TL;DR** → ## Referências
 - Respostas de código: Explicação breve → Bloco de código tipado e limpo → Explicação das mudanças
 - Respostas factuais: Resposta direta → Contexto → Fontes
+- **TL;DR OBRIGATÓRIO:** Toda resposta analítica com > 300 palavras DEVE terminar com um bloco **📌 TL;DR** (3-5 bullet points resumindo os pontos-chave) ANTES de ## Referências.
+- **DIAGRAMAS E VISUALIZAÇÕES (CRITICAL):** Esta interface renderiza Mermaid natively em blocos \`\`\`mermaid. Para QUALQUER pedido de diagrama, fluxograma, arquitetura, sequência, mapa mental ou visualização: SEMPRE gere um bloco \`\`\`mermaid com sintaxe válida. NUNCA diga "não posso exibir diagramas visuais" — esta interface renderiza Mermaid automaticamente. Use flowchart TD, sequenceDiagram, classDiagram, mindmap, ou qualquer tipo Mermaid adequado.
 
 **CITAÇÕES E REFERÊNCIAS BIBLIOGRÁFICAS (OBRIGATÓRIAS EM TODAS AS RESPOSTAS NÃO-TRIVIAIS):**
 
