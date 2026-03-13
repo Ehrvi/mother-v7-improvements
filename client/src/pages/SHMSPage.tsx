@@ -14,12 +14,13 @@
  * - Nielsen (1994) H1: Visibility of system status
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, Activity, AlertTriangle, CheckCircle2, XCircle,
   Wifi, WifiOff, RefreshCw, Shield, Clock, Building,
   TrendingUp, TrendingDown, Minus,
+  MessageSquare, X, Send, Bot, User, Box,
 } from 'lucide-react';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -548,6 +549,210 @@ function AlertsPanel({ alerts }: { alerts: AlertItem[] }) {
   );
 }
 
+// ─── Chat AI ──────────────────────────────────────────────────────────────────
+
+interface ChatMsg { role: 'user' | 'assistant'; text: string; ts: Date; }
+
+function generateSHMSReport(input: string, data: SHMSDashboardAll | null): string {
+  const q = input.toLowerCase();
+  const structs = data?.structures ?? [];
+
+  if (q.includes('relatório') || q.includes('relatorio') || q.includes('report') || q.includes('resumo')) {
+    if (!data) return '⚠️ Nenhum dado disponível. Aguarde o carregamento do dashboard.';
+    const critical = structs.filter(s => s.overallStatus === 'RED').length;
+    const attention = structs.filter(s => s.overallStatus === 'YELLOW').length;
+    const ok = structs.filter(s => s.overallStatus === 'GREEN').length;
+    const totalSensors = structs.reduce((a, s) => a + (s.sensors?.length ?? 0), 0);
+    const totalAlerts = structs.reduce((a, s) => a + (s.activeAlerts ?? 0), 0);
+    return `## Relatório de Saúde Estrutural — SHMS MOTHER v7
+**Gerado em:** ${new Date().toLocaleString('pt-BR')}
+**Referência:** ISO 13374-1:2003 · GISTM 2020 · ICOLD Bulletin 158
+
+### Status Geral
+- Estruturas monitoradas: **${structs.length}**
+- Normal (GREEN): **${ok}**
+- Atenção (YELLOW): **${attention}**
+- Crítico (RED): **${critical}**
+- Total de sensores ativos: **${totalSensors}**
+- Alertas ativos: **${totalAlerts}**
+
+### Por Estrutura
+${structs.map(s => `**${s.structureName ?? s.structureId}** — ${s.overallStatus} | ${s.activeAlerts ?? 0} alertas | ${s.sensors?.length ?? 0} sensores | LSTM: ${s.lstmPrediction?.trend ?? 'N/A'} (conf. ${((s.lstmPrediction?.confidence ?? 0) * 100).toFixed(0)}%)`).join('\n')}
+
+### Recomendação
+${critical > 0 ? '🔴 Inspeção imediata requerida nas estruturas em nível CRÍTICO.' : attention > 0 ? '🟡 Monitoramento intensificado recomendado para estruturas em ATENÇÃO.' : '🟢 Todas as estruturas dentro dos limites operacionais normais.'}`;
+  }
+
+  if (q.includes('alert') || q.includes('alerta') || q.includes('crítico') || q.includes('critico')) {
+    type AlertRow = { structureName: string; sensorId?: unknown; icoldLevel?: unknown; message?: unknown };
+    const alerts: AlertRow[] = structs.flatMap(s => ((s as unknown as Record<string, unknown[]>)['activeAlertDetails'] ?? []).map((a) => ({ ...(a as Record<string, unknown>), structureName: s.structureName ?? s.structureId } as AlertRow)));
+    if (alerts.length === 0) return '✅ Nenhum alerta ativo no momento. Todas as estruturas estão dentro dos parâmetros normais (IEC 62682:2014 P4 — Nível Normal).';
+    return `## Alertas Ativos (${alerts.length} total)\n\n${alerts.slice(0, 10).map((a) => `🔴 **${a.structureName}** — Sensor: ${String(a.sensorId ?? '?')} | Nível: ${String(a.icoldLevel ?? '?')} | ${String(a.message ?? '')}`).join('\n')}`;
+  }
+
+  if (q.includes('piezômetro') || q.includes('piezometro') || q.includes('piezo') || q.includes('poropressão')) {
+    const piezoSensors = structs.flatMap(s => (s.sensors ?? []).filter(sen => sen.sensorType?.toLowerCase().includes('piezom') || sen.sensorType?.toLowerCase().includes('piezo') || sen.sensorType?.toLowerCase().includes('pore')).map(sen => ({ ...sen, struct: s.structureName ?? s.structureId })));
+    if (piezoSensors.length === 0) return 'Nenhum dado de piezômetro encontrado. Verifique se os sensores estão ativos.';
+    return `## Piezômetros — Dados de Poropressão\n**Base científica:** Terzaghi (1943) — Teoria da consolidação | GISTM 2020 §4.2\n\n${piezoSensors.map(p => `- **${p['struct']}** | ${p.sensorId}: ${p.lastReading} ${p.unit} | Status: ${p.icoldLevel}`).join('\n')}`;
+  }
+
+  if (q.includes('tendência') || q.includes('tendencia') || q.includes('lstm') || q.includes('previsão') || q.includes('previsao')) {
+    return `## Tendências LSTM (Hochreiter & Schmidhuber, 1997)\n\n${structs.map(s => {
+      const p = s.lstmPrediction;
+      if (!p) return `**${s.structureName ?? s.structureId}** — sem modelo LSTM ativo`;
+      const icon = p.trend === 'INCREASING' ? '📈' : p.trend === 'DECREASING' ? '📉' : '➡️';
+      return `${icon} **${s.structureName ?? s.structureId}** — Tendência: ${p.trend} | RMSE: ${p.rmse?.toFixed(4) ?? 'N/A'} | Confiança: ${((p.confidence ?? 0) * 100).toFixed(0)}%`;
+    }).join('\n')}`;
+  }
+
+  if (q.includes('3d') || q.includes('ambiente') || q.includes('nuvem de ponto')) {
+    return `Para visualizar o modelo 3D com nuvem de pontos, acesse: **[/shms/3d](/shms/3d)**\n\nFuncionalidades:\n- Orbitar: clique + arrastar\n- Zoom: scroll\n- Pan: clique direito + arrastar\n- Nuvem de ~50.000 pontos gerados por modelo IFC (ISO 16739)\n- Coloração por elevação e tipo de elemento`;
+  }
+
+  if (q.includes('ajuda') || q.includes('help') || q.includes('comandos') || q === '' || q.length < 3) {
+    return `## SHMS AI Assistant — Comandos disponíveis
+Você pode me perguntar sobre:
+
+📊 **Relatórios**
+- "gerar relatório de saúde"
+- "resumo de todas as estruturas"
+
+🚨 **Alertas**
+- "alertas críticos"
+- "mostrar alertas ativos"
+
+📡 **Sensores**
+- "dados de piezômetros"
+- "tendência LSTM"
+
+🌍 **Visualização**
+- "abrir ambiente 3D"
+- "nuvem de pontos"
+
+Digite sua pergunta em linguagem natural!`;
+  }
+
+  return `Desculpe, não entendi completamente. Tente perguntar sobre:\n- **relatório** — saúde geral das estruturas\n- **alertas** — alarmes ativos\n- **piezômetros** — dados de poropressão\n- **tendência** — previsões LSTM\n\n(Dados em tempo real via MOTHER SHMS · ISO 13374-1:2003)`;
+}
+
+function ChatPanel({ data, onClose }: { data: SHMSDashboardAll | null; onClose: () => void }) {
+  const [msgs, setMsgs] = useState<ChatMsg[]>([
+    { role: 'assistant', text: '## SHMS AI Assistant\nOlá! Sou o assistente inteligente do MOTHER SHMS. Posso gerar relatórios, analisar alertas, mostrar tendências LSTM e muito mais.\n\nDigite **ajuda** para ver os comandos disponíveis.', ts: new Date() },
+  ]);
+  const [input, setInput] = useState('');
+  const [thinking, setThinking] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
+
+  const send = () => {
+    const text = input.trim();
+    if (!text || thinking) return;
+    setInput('');
+    setMsgs(m => [...m, { role: 'user', text, ts: new Date() }]);
+    setThinking(true);
+    setTimeout(() => {
+      const reply = generateSHMSReport(text, data);
+      setMsgs(m => [...m, { role: 'assistant', text: reply, ts: new Date() }]);
+      setThinking(false);
+    }, 400);
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', right: 0, top: 0, bottom: 0, width: 420, zIndex: 50,
+      background: 'oklch(9% 0.02 220)', borderLeft: '1px solid oklch(18% 0.03 220)',
+      display: 'flex', flexDirection: 'column', boxShadow: '-8px 0 32px oklch(0% 0 0 / 0.5)',
+    }}>
+      {/* Header */}
+      <div style={{ padding: '16px 20px', borderBottom: '1px solid oklch(18% 0.03 220)', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <Bot size={18} style={{ color: 'oklch(68% 0.18 220)' }} />
+        <div style={{ flex: 1 }}>
+          <div style={{ color: 'oklch(88% 0.01 220)', fontWeight: 600, fontSize: 14 }}>SHMS AI Assistant</div>
+          <div style={{ color: 'oklch(52% 0.02 220)', fontSize: 10 }}>MOTHER v7 · ISO 13374-1:2003 · RAG local</div>
+        </div>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'oklch(52% 0.02 220)', padding: 4 }}>
+          <X size={16} />
+        </button>
+      </div>
+
+      {/* Messages */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {msgs.map((m, i) => (
+          <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexDirection: m.role === 'user' ? 'row-reverse' : 'row' }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              background: m.role === 'assistant' ? 'oklch(14% 0.05 220)' : 'oklch(14% 0.06 145)',
+              border: `1px solid ${m.role === 'assistant' ? 'oklch(22% 0.07 220)' : 'oklch(22% 0.08 145)'}`,
+            }}>
+              {m.role === 'assistant' ? <Bot size={14} style={{ color: 'oklch(68% 0.18 220)' }} /> : <User size={14} style={{ color: 'oklch(72% 0.18 145)' }} />}
+            </div>
+            <div style={{
+              background: m.role === 'assistant' ? 'oklch(12% 0.02 220)' : 'oklch(14% 0.06 145)',
+              border: `1px solid ${m.role === 'assistant' ? 'oklch(18% 0.03 220)' : 'oklch(22% 0.08 145)'}`,
+              borderRadius: m.role === 'assistant' ? '4px 12px 12px 12px' : '12px 4px 12px 12px',
+              padding: '10px 14px', maxWidth: '85%',
+              color: 'oklch(85% 0.01 220)', fontSize: 12, lineHeight: 1.6,
+              whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+            }}>
+              {m.text}
+              <div style={{ color: 'oklch(38% 0.02 220)', fontSize: 9, marginTop: 4 }}>
+                {m.ts.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+              </div>
+            </div>
+          </div>
+        ))}
+        {thinking && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'oklch(14% 0.05 220)', border: '1px solid oklch(22% 0.07 220)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Bot size={14} style={{ color: 'oklch(68% 0.18 220)' }} />
+            </div>
+            <div style={{ background: 'oklch(12% 0.02 220)', border: '1px solid oklch(18% 0.03 220)', borderRadius: '4px 12px 12px 12px', padding: '10px 16px' }}>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {[0, 1, 2].map(d => <span key={d} style={{ width: 6, height: 6, borderRadius: '50%', background: 'oklch(52% 0.02 220)', animation: `pulse 1.2s ${d * 0.2}s infinite` }} />)}
+              </div>
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Quick actions */}
+      <div style={{ padding: '8px 16px', borderTop: '1px solid oklch(18% 0.03 220)', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {['Relatório geral', 'Alertas ativos', 'Piezômetros', 'Tendência LSTM'].map(q => (
+          <button key={q} onClick={() => { setInput(q); }}
+            style={{ fontSize: 10, padding: '4px 8px', borderRadius: 6, border: '1px solid oklch(22% 0.04 220)', background: 'oklch(13% 0.02 220)', color: 'oklch(68% 0.18 220)', cursor: 'pointer' }}>
+            {q}
+          </button>
+        ))}
+      </div>
+
+      {/* Input */}
+      <div style={{ padding: '12px 16px', borderTop: '1px solid oklch(18% 0.03 220)', display: 'flex', gap: 8 }}>
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+          placeholder="Pergunte sobre sensores, alertas, relatórios…"
+          style={{
+            flex: 1, background: 'oklch(13% 0.02 220)', border: '1px solid oklch(22% 0.04 220)',
+            borderRadius: 8, padding: '8px 12px', color: 'oklch(88% 0.01 220)', fontSize: 12,
+            outline: 'none',
+          }}
+        />
+        <button onClick={send} disabled={thinking || !input.trim()}
+          style={{
+            width: 36, height: 36, borderRadius: 8, border: 'none', cursor: 'pointer',
+            background: thinking || !input.trim() ? 'oklch(16% 0.02 220)' : 'oklch(68% 0.18 220)',
+            color: 'oklch(8% 0.02 220)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+          <Send size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function SHMSPage() {
@@ -559,11 +764,12 @@ export default function SHMSPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
   const fetchDashboard = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true);
     try {
-      const res = await fetch('/api/a2a/shms/dashboard/all', { credentials: 'include' });
+      const res = await fetch('/api/shms/v2/dashboard/all', { credentials: 'include' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json() as SHMSDashboardAll;
       setData(json);
@@ -768,6 +974,24 @@ export default function SHMSPage() {
             onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = T.accent}>
             <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
             {refreshing ? 'Atualizando…' : 'Atualizar'}
+          </button>
+
+          {/* 3D Environment button */}
+          <button onClick={() => navigate('/shms/3d')}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all"
+            style={{ background: 'oklch(14% 0.05 260)', border: '1px solid oklch(22% 0.07 260)', color: 'oklch(68% 0.16 260)' }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'oklch(18% 0.06 260)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'oklch(14% 0.05 260)')}>
+            <Box className="w-3 h-3" />
+            3D
+          </button>
+
+          {/* AI Chat button */}
+          <button onClick={() => setChatOpen(v => !v)}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all"
+            style={{ background: chatOpen ? 'oklch(14% 0.06 145)' : 'oklch(14% 0.05 220)', border: `1px solid ${chatOpen ? 'oklch(22% 0.08 145)' : 'oklch(22% 0.04 220)'}`, color: chatOpen ? 'oklch(72% 0.18 145)' : T.accent }}>
+            <MessageSquare className="w-3 h-3" />
+            AI Chat
           </button>
         </div>
       </header>
@@ -1025,6 +1249,9 @@ export default function SHMSPage() {
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: oklch(22% 0.02 220); border-radius: 4px; }
       `}</style>
+
+      {/* AI Chat panel */}
+      {chatOpen && <ChatPanel data={data} onClose={() => setChatOpen(false)} />}
     </div>
   );
 }
