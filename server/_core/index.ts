@@ -13,7 +13,7 @@ import healthRouter from "../routes/health.js";
 import monitorRouter from "../routes/monitor-routes.js";
 import longFormRouter from "../routes/long-form-routes.js";
 // Sprint 2 C201: HippoRAG2 indexing + Reflexion engine
-import { scheduleC201Indexing } from "../mother/hipporag2-indexer-c201.js";
+import { scheduleKGBuild as scheduleC201Indexing } from "../mother/hipporag2.js";
 // Vite imports moved to dynamic imports to avoid bundling in production
 
 function isPortAvailable(port: number): Promise<boolean> {

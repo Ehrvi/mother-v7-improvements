@@ -899,7 +899,8 @@ app.listen(PORT, '0.0.0.0', async () => {
       initMQTTDigitalTwinBridgeC206,
       initLSTMPredictorC207,
       runHourlyAggregation,
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
     log.info('[C207] NC-ARCH-001 COMPLETO ✅ — production-entry.ts God Object eliminado | Fowler (1999) + Martin (2003) SRP');
   } catch (err) {
     log.error('[C207] registerAllStartupTasks falhou (non-critical):', (err as Error).message);

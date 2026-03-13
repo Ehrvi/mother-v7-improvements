@@ -73,7 +73,7 @@ Return JSON:
       max_tokens: 300,
     });
 
-    const content = result.choices?.[0]?.message?.content || '';
+    const content = String(result.choices?.[0]?.message?.content || '');
     // Extract JSON from response (may have markdown wrapping)
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {

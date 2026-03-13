@@ -20,63 +20,76 @@ const shmsToolPlugin: ToolPlugin = {
   id: 'shms-tools',
   name: 'SHMS Geotechnical Tools',
   domain: 'shms',
+  version: '1.0.0',
   tools: [
     {
-      name: 'shms_sensor_status',
-      description: 'Get current status of SHMS monitoring sensors for a structure',
-      parameters: {
-        type: 'object',
-        properties: {
-          structureId: { type: 'string', description: 'Structure identifier' },
+      type: 'function',
+      function: {
+        name: 'shms_sensor_status',
+        description: 'Get current status of SHMS monitoring sensors for a structure',
+        parameters: {
+          type: 'object',
+          properties: {
+            structureId: { type: 'string', description: 'Structure identifier' },
+          },
+          required: ['structureId'],
         },
-        required: ['structureId'],
       },
     },
     {
-      name: 'shms_alert_history',
-      description: 'Get alert history for a monitored structure',
-      parameters: {
-        type: 'object',
-        properties: {
-          structureId: { type: 'string', description: 'Structure identifier' },
-          days: { type: 'number', description: 'Number of days to look back (default: 7)' },
+      type: 'function',
+      function: {
+        name: 'shms_alert_history',
+        description: 'Get alert history for a monitored structure',
+        parameters: {
+          type: 'object',
+          properties: {
+            structureId: { type: 'string', description: 'Structure identifier' },
+            limit: { type: 'number', description: 'Max number of alerts to return (default: 50)' },
+          },
+          required: ['structureId'],
         },
-        required: ['structureId'],
       },
     },
     {
-      name: 'shms_digital_twin_state',
-      description: 'Get current digital twin state for a dam or slope structure',
-      parameters: {
-        type: 'object',
-        properties: {
-          structureId: { type: 'string', description: 'Structure identifier' },
+      type: 'function',
+      function: {
+        name: 'shms_digital_twin_state',
+        description: 'Get current digital twin state for a dam or slope structure',
+        parameters: {
+          type: 'object',
+          properties: {
+            structureId: { type: 'string', description: 'Structure identifier' },
+          },
+          required: ['structureId'],
         },
-        required: ['structureId'],
       },
     },
     {
-      name: 'shms_analyze_reading',
-      description: 'Analyze a sensor reading against ICOLD safety thresholds',
-      parameters: {
-        type: 'object',
-        properties: {
-          sensorType: { type: 'string', description: 'Sensor type (piezometer, inclinometer, etc.)' },
-          value: { type: 'number', description: 'Sensor reading value' },
-          unit: { type: 'string', description: 'Measurement unit' },
-          structureId: { type: 'string', description: 'Structure identifier' },
+      type: 'function',
+      function: {
+        name: 'shms_analyze_reading',
+        description: 'Analyze a sensor reading against ICOLD safety thresholds',
+        parameters: {
+          type: 'object',
+          properties: {
+            sensorType: { type: 'string', description: 'Sensor type (piezometer, inclinometer, etc.)' },
+            value: { type: 'number', description: 'Sensor reading value' },
+            unit: { type: 'string', description: 'Measurement unit' },
+            structureId: { type: 'string', description: 'Structure identifier' },
+          },
+          required: ['sensorType', 'value', 'unit', 'structureId'],
         },
-        required: ['sensorType', 'value', 'unit', 'structureId'],
       },
     },
   ],
 
-  async execute(toolName: string, args: Record<string, unknown>) {
+  async execute(toolName: string, args: Record<string, any>) {
     switch (toolName) {
       case 'shms_sensor_status': {
         try {
           const { getTwinState } = await import('./shms-digital-twin.js');
-          const state = await getTwinState(String(args.structureId));
+          const state = getTwinState();
           return { success: true, data: state, source: 'digital-twin' };
         } catch (err) {
           return { success: false, error: (err as Error).message };
@@ -86,7 +99,7 @@ const shmsToolPlugin: ToolPlugin = {
       case 'shms_alert_history': {
         try {
           const { getAlerts } = await import('./shms-digital-twin.js');
-          const alerts = await getAlerts(String(args.structureId));
+          const alerts = getAlerts(Number(args.limit) || 50);
           return { success: true, data: alerts, count: alerts?.length ?? 0 };
         } catch (err) {
           return { success: false, error: (err as Error).message };
@@ -96,7 +109,7 @@ const shmsToolPlugin: ToolPlugin = {
       case 'shms_digital_twin_state': {
         try {
           const { getTwinState } = await import('./shms-digital-twin.js');
-          const state = await getTwinState(String(args.structureId));
+          const state = getTwinState();
           return { success: true, data: state };
         } catch (err) {
           return { success: false, error: (err as Error).message };
