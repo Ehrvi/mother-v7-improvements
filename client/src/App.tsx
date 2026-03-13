@@ -2,10 +2,11 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary'; // NC-ARCH-004 FIX: Error Boundaries — React docs (2024) + Nygard (2007) §4.1 Bulkheads
 import { ThemeProvider } from '@/contexts/ThemeContext'; // C239: WCAG AA — Theme toggle (NC-WCAG-001)
 import { trpc } from '@/lib/trpc';
-import Home from './pages/Home';
+import HomeV2 from './pages/HomeV2';
 import DgmLineage from './pages/DgmLineage';
 import Login from './pages/Login';
 import Admin from './pages/Admin';
+import SHMSPage from './pages/SHMSPage';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { data: user, isLoading } = trpc.auth.me.useQuery();
@@ -36,7 +37,8 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<GuestGuard><Login /></GuestGuard>} />
-            <Route path="/" element={<AuthGuard><Home /></AuthGuard>} />
+            <Route path="/" element={<AuthGuard><HomeV2 /></AuthGuard>} />
+            <Route path="/shms" element={<AuthGuard><SHMSPage /></AuthGuard>} />
             <Route path="/lineage" element={<AuthGuard><DgmLineage /></AuthGuard>} />
             <Route path="/dgm" element={<AuthGuard><DgmLineage /></AuthGuard>} />
             <Route path="/admin" element={<AuthGuard><Admin /></AuthGuard>} />
