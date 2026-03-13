@@ -630,3 +630,149 @@ shmsRouter.post('/bi/push', authenticateA2A, async (req: Request, res: Response)
     res.status(500).json({ error: 'BI integration unavailable' });
   }
 });
+
+/**
+ * GET /shms/3d/:structureId — 3D scene data (mesh, DEM, sensor markers)
+ * Module 5 — Environment3DManager
+ */
+shmsRouter.get('/3d/:structureId', async (req: Request, res: Response) => {
+  try {
+    const { environment3DManager, generateDamScene } = await import('../../shms/environment-3d.js');
+    let scene = environment3DManager.getScene(req.params.structureId);
+    if (!scene) {
+      // Generate a default dam scene as fallback
+      scene = generateDamScene(req.params.structureId, {
+        crestElevation: 850, baseElevation: 760, crestLength: 400,
+        upstreamSlope: 0.35, downstreamSlope: 0.4,
+      });
+      environment3DManager.registerScene(scene);
+    }
+    res.json(scene);
+  } catch (err) {
+    log.error('[SHMSRouter] 3d error:', err);
+    res.status(500).json({ error: '3D environment service unavailable' });
+  }
+});
+
+/**
+ * GET /shms/files/:structureId — list files for structure
+ * Module 8 — FileDriveManager
+ */
+shmsRouter.get('/files/:structureId', async (req: Request, res: Response) => {
+  try {
+    const { fileDriveManager } = await import('../../shms/file-drive.js');
+    const files = fileDriveManager.getFilesForStructure(req.params.structureId);
+    res.json({ structureId: req.params.structureId, files, count: files.length, timestamp: new Date().toISOString() });
+  } catch (err) {
+    log.error('[SHMSRouter] files error:', err);
+    res.status(500).json({ error: 'File drive service unavailable' });
+  }
+});
+
+/**
+ * POST /shms/files — register a file upload
+ * Module 8 — FileDriveManager
+ */
+shmsRouter.post('/files', authenticateA2A, async (req: Request, res: Response) => {
+  try {
+    const { fileDriveManager, validateFileUpload } = await import('../../shms/file-drive.js');
+    const validation = validateFileUpload(req.body);
+    if (!validation.valid) {
+      res.status(400).json({ error: 'Validation failed', errors: validation.errors });
+      return;
+    }
+    const file = fileDriveManager.registerFile(req.body);
+    res.status(201).json(file);
+  } catch (err) {
+    log.error('[SHMSRouter] files/register error:', err);
+    res.status(500).json({ error: 'File registration unavailable' });
+  }
+});
+
+/**
+ * GET /shms/documents/:structureId — list documents for structure
+ * Module 9 — DocumentManagementSystem
+ */
+shmsRouter.get('/documents/:structureId', async (req: Request, res: Response) => {
+  try {
+    const { documentManagementSystem } = await import('../../shms/document-management.js');
+    const documents = documentManagementSystem.getDocumentsByStructure(req.params.structureId);
+    res.json({ structureId: req.params.structureId, documents, count: documents.length, timestamp: new Date().toISOString() });
+  } catch (err) {
+    log.error('[SHMSRouter] documents error:', err);
+    res.status(500).json({ error: 'Document management unavailable' });
+  }
+});
+
+/**
+ * GET /shms/bank/:structureId — budget summary for structure
+ * Module 10 — BankReconciliationManager
+ */
+shmsRouter.get('/bank/:structureId', async (req: Request, res: Response) => {
+  try {
+    const { bankReconciliationManager } = await import('../../shms/bank-reconciliation.js');
+    const year = parseInt(req.query.year as string ?? String(new Date().getFullYear()), 10);
+    const summary = bankReconciliationManager.getBudgetSummary(req.params.structureId, year);
+    res.json(summary);
+  } catch (err) {
+    log.error('[SHMSRouter] bank error:', err);
+    res.status(500).json({ error: 'Bank reconciliation service unavailable' });
+  }
+});
+
+/**
+ * GET /shms/sirens/:structureId — list sirens for structure
+ * Module 13 — SirenManager
+ */
+shmsRouter.get('/sirens/:structureId', async (req: Request, res: Response) => {
+  try {
+    const { sirenManager } = await import('../../shms/sirens.js');
+    const sirens = sirenManager.getSirensForStructure(req.params.structureId);
+    res.json({ structureId: req.params.structureId, sirens, count: sirens.length, timestamp: new Date().toISOString() });
+  } catch (err) {
+    log.error('[SHMSRouter] sirens error:', err);
+    res.status(500).json({ error: 'Siren service unavailable' });
+  }
+});
+
+/**
+ * POST /shms/sirens/:structureId/activate — activate emergency alert
+ * Module 13 — SirenManager
+ */
+shmsRouter.post('/sirens/:structureId/activate', authenticateA2A, async (req: Request, res: Response) => {
+  try {
+    const { sirenManager } = await import('../../shms/sirens.js');
+    const { alertLevel, triggeredBy, message } = req.body as { alertLevel: string; triggeredBy: string; message?: string };
+    if (!alertLevel || !triggeredBy) {
+      res.status(400).json({ error: 'Required: alertLevel, triggeredBy' });
+      return;
+    }
+    const event = sirenManager.activateAlert(
+      req.params.structureId,
+      alertLevel as import('../../shms/sirens.js').SirenAlertLevel,
+      triggeredBy,
+      message
+    );
+    res.json(event);
+  } catch (err) {
+    log.error('[SHMSRouter] sirens/activate error:', err);
+    res.status(500).json({ error: 'Siren activation unavailable' });
+  }
+});
+
+/**
+ * GET /shms/tarp/:structureId — TARP matrix and compliance status
+ * Module 17 — TARPManager
+ */
+shmsRouter.get('/tarp/:structureId', async (req: Request, res: Response) => {
+  try {
+    const { tarpManager } = await import('../../shms/tarp.js');
+    const matrix = tarpManager.getMatrix(req.params.structureId);
+    const compliance = tarpManager.getComplianceStatus(req.params.structureId);
+    const activeActivations = tarpManager.getActiveActivations(req.params.structureId);
+    res.json({ structureId: req.params.structureId, matrix, compliance, activeActivations, timestamp: new Date().toISOString() });
+  } catch (err) {
+    log.error('[SHMSRouter] tarp error:', err);
+    res.status(500).json({ error: 'TARP service unavailable' });
+  }
+});

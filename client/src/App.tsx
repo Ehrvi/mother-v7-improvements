@@ -8,6 +8,7 @@ import Login from './pages/Login';
 import Admin from './pages/Admin';
 import SHMSPage from './pages/SHMSPage';
 import SHMS2DEnvironment from './pages/SHMS2DEnvironment';
+import SHMS3DEnvironment from './pages/SHMS3DEnvironment';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { data: user, isLoading } = trpc.auth.me.useQuery();
@@ -41,6 +42,7 @@ function App() {
             <Route path="/" element={<AuthGuard><HomeV2 /></AuthGuard>} />
             <Route path="/shms" element={<AuthGuard><SHMSPage /></AuthGuard>} />
             <Route path="/shms/2d" element={<AuthGuard><SHMS2DEnvironment /></AuthGuard>} />
+            <Route path="/shms/3d" element={<AuthGuard><SHMS3DEnvironment /></AuthGuard>} />
             <Route path="/lineage" element={<AuthGuard><DgmLineage /></AuthGuard>} />
             <Route path="/dgm" element={<AuthGuard><DgmLineage /></AuthGuard>} />
             <Route path="/admin" element={<AuthGuard><Admin /></AuthGuard>} />
