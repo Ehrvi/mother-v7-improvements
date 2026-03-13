@@ -52,18 +52,12 @@ import { recordLatency, getLatencyReport } from '../mother/latency-telemetry.js'
 import { shmsHealthCheck } from '../mother/shms-auth-middleware.js'; // C188: Phase 4.4 — SHMS auth + billing middleware
 import { shmsAlertsRouter } from '../shms/shms-alerts-endpoint.js'; // C196-0 ORPHAN FIX: Sprint 3 — GET /api/shms/v2/alerts/:structureId (ICOLD Bulletin 158 §4.3)
 import { initRedisSHMSCache } from '../shms/redis-shms-cache.js'; // C197-1 ORPHAN FIX: Sprint 4 — Redis Cache-aside P50 < 100ms (Dean & Barroso 2013 CACM 56(2))
-import { indexPapersC193C196 } from '../mother/hipporag2-indexer-c196.js'; // C197-2 ORPHAN FIX: Sprint 4 — HippoRAG2 10 papers C193-C196 (Gutierrez et al. 2025 arXiv:2405.14831v2)
 import { runDGMSprint14, getSprint14Config } from '../dgm/dgm-sprint14-autopilot.js'; // C197-3 ORPHAN FIX: Sprint 4 — DGM Sprint 14 auto-PR (arXiv:2505.22954 + HELM arXiv:2211.09110)
 import { runCurriculumLearningPipeline } from '../shms/curriculum-learning-shms.js'; // C198-1 ORPHAN FIX: Sprint 5 — Curriculum Learning 3 fases (Bengio 2009 ICML + ICOLD 158)
-import { runDPOTrainingPipeline } from '../mother/dpo-training-pipeline-c197.js'; // C198-2 ORPHAN FIX: Sprint 5 — DPO Training Pipeline dry_run (Rafailov 2023 arXiv:2305.18290)
-import { runGRPOOptimizer } from '../mother/grpo-optimizer-c198.js'; // C198-3 ORPHAN FIX: Sprint 5 — GRPO Optimizer benchmark vs DPO (DeepSeek-R1 arXiv:2501.12948)
 import { runDGMSprint15 } from '../dgm/dgm-sprint15-score90.js'; // C198-4: DGM Sprint 15 — Score ≥ 90/100 validation (HELM + ISO/IEC 25010:2011)
-import { listDemoTenants, getDemoTenantStatus } from '../mother/multi-tenant-demo.js'; // C199 COMERCIAL: Multi-tenant SHMS (ISO/IEC 27001:2022 A.8.3 + NIST SP 800-53 AC-4) — APROVADO Everton Garcia C199
-import { listDemoPlans, getDemoMRRProjection } from '../mother/stripe-billing-demo.js'; // C199 COMERCIAL: Stripe billing demo (PCI DSS v4.0 + ISO/IEC 27001:2022 A.5.14) — APROVADO Everton Garcia C199
-import { getSLAReport } from '../mother/sla-monitor-demo.js'; // C199 COMERCIAL: SLA Monitor 99.9% (Google SRE Book 2016 + ISO/IEC 20000-1:2018) — APROVADO Everton Garcia C199
 import { scheduleDGMLoopC203, getDGMLoopC203Status } from '../dgm/dgm-loop-startup-c203.js'; // C203 Sprint 4: DGM Loop Activator conectado ao startup (arXiv:2505.22954 — função MORTA → VIVA R32)
-import { scheduleHippoRAG2IndexingC204 } from '../mother/hipporag2-indexer-c204.js'; // C204-2: HippoRAG2 indexer Sprint 5 — 6 papers (G-EVAL, HELM, MemGPT, Dean&Barroso, ISO25010, Reflexion)
-import { scheduleBenchmarkRunnerC204 } from '../mother/longform-benchmark-runner-c204.js'; // C204-3: Benchmark real LongFormV2 + DGM first cycle validator (G-EVAL arXiv:2303.16634 + HELM arXiv:2211.09110)
+// Fase 4 (plugin platform): Application Registry — MOTHER as platform hosting child apps
+import { applicationRegistry } from '../mother/application-registry.js';
 // C190 P0 CRÍTICO: Conectar lora-trainer.ts — Conselho C188 Seção 3.2.1 (função MORTA → VIVA)
 // Base científica: Hu et al. (2025) LoRA-XS arXiv:2405.09673 — 98.7% desempenho com 0.3% custo
 import { scheduleLoRAPipeline } from '../mother/lora-trainer.js';
@@ -87,9 +81,8 @@ import { startupScheduler } from './startup-scheduler.js'; // C206 NC-ARCH-001: 
 import { moduleRegistry } from './module-registry.js'; // C206 NC-ARCH-001: ModuleRegistry — Gamma et al. (1994) Registry Pattern
 import { digitalTwinRoutesC206 } from '../shms/digital-twin-routes-c206.js'; // C206-1: SHMS Phase 2 REST API — REST Fielding (2000) + ISO 13374-1:2003
 import { initMQTTDigitalTwinBridgeC206 } from '../shms/mqtt-digital-twin-bridge-c206.js'; // C206-2: MQTT → Digital Twin Bridge — ISO/IEC 20922:2016 + ICOLD 158
-import { scheduleGEvalIntegrationTestC206 } from '../mother/geval-integration-test-c206.js'; // C206-5: G-EVAL Integration Test — Liu et al. (2023) arXiv:2303.16634 + ISO/IEC 25010:2011
 import { initLSTMPredictorC207 } from '../shms/lstm-predictor-c207.js'; // C207-1: LSTM Predictor Real — Hochreiter & Schmidhuber (1997) + Figueiredo (2009) OSTI:961604
-import { scheduleHippoRAG2IndexingC207 } from '../mother/hipporag2-indexer-c207.js'; // C207-3: HippoRAG2 Indexer C207 — 5 papers Sprint 7 (arXiv:2502.14902)
+// Fase 0 cleanup: geval-integration-test-c206.ts and hipporag2-indexer-c207.ts removed (dead cycle files)
 import { registerAllStartupTasks } from './startup-tasks-c207.js'; // C207-2: NC-ARCH-001 COMPLETO — centraliza 25 tarefas de startup (Fowler 1999 + Martin 2003 SRP)
 const log = createLogger('PROD_ENTRY');
 
@@ -860,6 +853,23 @@ app.listen(PORT, '0.0.0.0', async () => {
   log.info('[MOTHER] Daily self-audit scheduler started (first run in 5 min)');
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Fase 4 (plugin platform): Initialize Application Registry — MOTHER as platform
+  // SHMS is registered as the first child application.
+  // Future apps register here and share: memory, learning, quality pipeline, LLM providers.
+  // Scientific basis: Plugin architecture (Fowler, PEAA 2002)
+  // ─────────────────────────────────────────────────────────────────────────
+  setImmediate(async () => {
+    try {
+      const { shmsApplication } = await import('../mother/shms-application.js');
+      await applicationRegistry.register(shmsApplication);
+      const stats = applicationRegistry.getStats();
+      log.info(`[AppRegistry] Fase4 initialized: ${stats.applicationCount} app(s), ${stats.totalTools} tools`);
+    } catch (err) {
+      log.warn('[AppRegistry] Fase4 init failed (non-critical):', (err as Error).message);
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
   // C207-2: NC-ARCH-001 COMPLETO — StartupScheduler centraliza 25 tarefas
   // Substitui 18+ setTimeout/setInterval espalhados (God Object anti-pattern)
   // Base científica: Fowler (1999) Refactoring + Martin (2003) SRP
@@ -878,28 +888,16 @@ app.listen(PORT, '0.0.0.0', async () => {
       },
       injectSprintKnowledge,
       initRedisSHMSCache,
-      indexPapersC193C196: async () => { await indexPapersC193C196(); },
       runDGMSprint14,
       getSprint14Config,
       runCurriculumLearningPipeline,
-      runDPOTrainingPipeline,
-      runGRPOOptimizer,
       runDGMSprint15,
-      listDemoTenants,
-      getDemoTenantStatus,
-      listDemoPlans,
-      getDemoMRRProjection,
-      getSLAReport,
       warmCache,
       schedulePrefetchRefresh, // C276: Prefetch top-50 frequent queries every 6h — P50 latency 37s→10s
       scheduleDGMLoopC203,
       getDGMLoopC203Status,
-      scheduleHippoRAG2IndexingC204,
-      scheduleBenchmarkRunnerC204,
       initMQTTDigitalTwinBridgeC206,
-      scheduleGEvalIntegrationTestC206,
       initLSTMPredictorC207,
-      scheduleHippoRAG2IndexingC207: async () => { await scheduleHippoRAG2IndexingC207(); },
       runHourlyAggregation,
     });
     log.info('[C207] NC-ARCH-001 COMPLETO ✅ — production-entry.ts God Object eliminado | Fowler (1999) + Martin (2003) SRP');

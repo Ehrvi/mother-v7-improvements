@@ -26,7 +26,13 @@ export default defineConfig({
       'tests/**/*.spec.ts',
       'tests/**/*.test.ts',
     ],
-    exclude: ['node_modules/**', 'dist/**', 'client/**'],
+    exclude: [
+      'node_modules/**',
+      'dist/**',
+      'client/**',
+      'tests/e2e/cognitive-benchmark-c212.spec.ts', // requires @playwright/test (not installed)
+      'tests/e2e/mother-sprint10.spec.ts',           // requires @playwright/test (not installed)
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
