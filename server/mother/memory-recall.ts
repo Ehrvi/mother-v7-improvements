@@ -16,7 +16,7 @@ export interface MemoryRecallResult {
     query: string;
     response: string;
     similarity: number;
-    qualityScore: number | null;
+    qualityScore: string | null;
   }>;
   contextSnippet: string;
   recallTimeMs: number;

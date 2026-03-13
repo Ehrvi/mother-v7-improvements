@@ -1535,9 +1535,9 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
   let normalizedResponse = l4.response;
   try {
     const normResult = normalizeResponse(l4.response, l4.provider);
-    if (normResult.changed) {
+    if (normResult.changes.length > 0) {
       normalizedResponse = normResult.normalized;
-      console.log(`[Orchestrator] Fase1.3 Normalizer: removed ${normResult.removals.length} artifacts (${l4.provider})`);
+      console.log(`[Orchestrator] Fase1.3 Normalizer: removed ${normResult.changes.length} artifacts (${l4.provider})`);
     }
   } catch { /* Non-blocking — normalization failure is never fatal */ }
 
