@@ -1022,8 +1022,12 @@ export default function Home() {
           </p>
         </div>
       </div>
+      {/* Wickens (2002) Multiple Resource Theory: mute non-primary panels during streaming */}
+      {/* Reduces cognitive competition — 40% opacity prevents distraction without hiding state */}
       <ErrorBoundary componentName="RightPanel">
-        <RightPanel />
+        <div className={isStreaming ? 'mother-panel-muted' : 'mother-panel-active'}>
+          <RightPanel />
+        </div>
       </ErrorBoundary>
 
       {/* C172: ArtifactsPanel — slide-in overlay from right */}

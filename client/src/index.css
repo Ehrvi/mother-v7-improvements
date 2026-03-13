@@ -713,3 +713,141 @@ code, pre {
 @keyframes mother-auth-spin {
   to { transform: rotate(360deg); }
 }
+
+/* ================================================================
+ * CONSELHO DOS 5 ROUND 2 — RESPONSIVE MOTHER LAYOUT GRID
+ * Conselheiro 1 (DeepSeek R1): Wickens Multiple Resource Theory (2002)
+ * Mobile-first 3-zone layout: left rail + conversation + right panel
+ * Breakpoints: sm=640, md=768, lg=1024, xl=1280, 2xl=1536
+ * ================================================================ */
+
+/* Mobile: single column, off-canvas panels */
+.mother-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr auto;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* md: 768px — right panel appears */
+@media (min-width: 768px) {
+  .mother-layout {
+    grid-template-columns: 1fr 280px;
+  }
+  .mother-left-rail {
+    display: none;  /* still off-canvas at md */
+  }
+}
+
+/* lg: 1024px — left rail appears (collapsed 64px) */
+@media (min-width: 1024px) {
+  .mother-layout {
+    grid-template-columns: 64px 1fr 300px;
+  }
+  .mother-left-rail {
+    display: flex;
+  }
+}
+
+/* xl: 1280px — left rail expanded (240px per Conselheiro 1 spec) */
+@media (min-width: 1280px) {
+  .mother-layout {
+    grid-template-columns: 248px 1fr 320px;
+  }
+}
+
+/* 2xl: 1536px — center conversation max-width for readability */
+/* Per Bringhurst (1992): optimal measure 45-75 characters */
+@media (min-width: 1536px) {
+  .mother-conversation {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+}
+
+/* Panel muting during streaming — Wickens (2002) Multiple Resource Theory */
+/* Reduces cognitive competition from non-primary visual channels */
+.mother-panel-muted {
+  opacity: 0.4;
+  pointer-events: none;
+  transition: opacity 300ms var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
+}
+.mother-panel-muted:hover {
+  opacity: 0.6;
+}
+
+/* Panel restore on stream complete */
+.mother-panel-active {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 300ms var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
+}
+
+/* ================================================================
+ * CONSELHO DOS 5 ROUND 2 — SHMS SENSOR ANOMALY PULSE
+ * Conselheiro 1 (DeepSeek R1): Wickens et al. (2003) Human Factors
+ * Redundant encoding: color + shape + animation for anomaly detection
+ * Flash rate: 2s period (0.5Hz) — NUREG-0700 §6.4.6 + WCAG 2.3.1
+ * ================================================================ */
+
+@keyframes sensor-pulse-critical {
+  0%   { filter: drop-shadow(0 0 0px oklch(55% 0.22 25)); opacity: 1; }
+  50%  { filter: drop-shadow(0 0 6px oklch(55% 0.22 25 / 0.8)); opacity: 0.85; }
+  100% { filter: drop-shadow(0 0 0px oklch(55% 0.22 25)); opacity: 1; }
+}
+
+@keyframes sensor-pulse-warning {
+  0%   { filter: drop-shadow(0 0 0px oklch(75% 0.18 70)); opacity: 1; }
+  50%  { filter: drop-shadow(0 0 5px oklch(75% 0.18 70 / 0.7)); opacity: 0.85; }
+  100% { filter: drop-shadow(0 0 0px oklch(75% 0.18 70)); opacity: 1; }
+}
+
+.sensor-anomaly-critical { animation: sensor-pulse-critical 2s ease-in-out infinite; }
+.sensor-anomaly-warning  { animation: sensor-pulse-warning 2s ease-in-out infinite; }
+
+/* ================================================================
+ * CONSELHO DOS 5 ROUND 2 — BANG WONG (2011) COLORBLIND-SAFE PALETTE
+ * Bang Wong (2011) "Points of View: Color Blindness" Nature Methods
+ * 7-color categorical: safe for protanopia, deuteranopia, tritanopia
+ * For SHMS data visualization (chart series, correlation matrices)
+ * ================================================================ */
+:root {
+  /* Bang Wong (2011) palette — 7 universal colors */
+  --bw-blue:       #0072B2;  /* series 1 — actual readings */
+  --bw-orange:     #E69F00;  /* series 2 — predicted */
+  --bw-green:      #009E73;  /* series 3 — normal range */
+  --bw-yellow:     #F0E442;  /* series 4 — warning band */
+  --bw-sky-blue:   #56B4E9;  /* series 5 — confidence interval */
+  --bw-vermillion: #D55E00;  /* series 6 — critical threshold */
+  --bw-pink:       #CC79A7;  /* series 7 — secondary sensor */
+  --bw-black:      #000000;  /* base reference */
+
+  /* Applied to SHMS chart defaults */
+  --shms-chart-actual:     var(--bw-blue);
+  --shms-chart-predicted:  var(--bw-sky-blue);
+  --shms-chart-threshold-critical: var(--bw-vermillion);
+  --shms-chart-threshold-warning:  var(--bw-orange);
+  --shms-chart-normal-band: var(--bw-green);
+}
+
+/* Stale data indicator — WebSocket disconnection warning */
+/* Per Conselheiro 1: show when data is >10s old */
+.shms-stale-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: oklch(30% 0.06 70);
+  border: 1px solid oklch(75% 0.18 70 / 0.5);
+  color: oklch(75% 0.18 70);
+  font-size: 10px;
+  font-weight: 600;
+  animation: stale-blink 2s ease-in-out infinite;
+}
+
+@keyframes stale-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.65; }
+}

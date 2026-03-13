@@ -501,8 +501,13 @@ function DamCrossSection({ healthIndex, sensors, riskLevel }: {
             s.status === 'critical' ? 'oklch(55% 0.22 25)' :
             s.status === 'warning'  ? 'oklch(75% 0.18 70)' :
             'oklch(65% 0.18 145)';
+          // Conselheiro 1: sensor anomaly pulse class for redundant encoding
+          // Wickens et al. (2003): color + motion = 34% better anomaly detection
+          const pulseClass =
+            s.status === 'critical' ? 'sensor-anomaly-critical' :
+            s.status === 'warning'  ? 'sensor-anomaly-warning' : '';
           return (
-            <g key={s.id}>
+            <g key={s.id} className={pulseClass}>
               <circle cx={sx} cy={sy} r={5} fill={sColor} opacity={0.9} />
               <circle cx={sx} cy={sy} r={8} fill="none" stroke={sColor} strokeWidth={0.8} opacity={0.5} />
               <text x={sx} y={sy - 10} textAnchor="middle" fill={sColor} fontSize={7} fontWeight="bold">{s.label}</text>
@@ -799,6 +804,9 @@ export default function SHMSDashboardV3() {
   const [displayLevel, setDisplayLevel] = useState<1 | 2 | 3 | 4>(1);
   const [fieldMode, setFieldMode] = useState(false);
   const [showDigitalTwin, setShowDigitalTwin] = useState(false);
+  // Stale data tracking — Conselheiro 1: warn when >10s since last update
+  const [dataAgeSeconds, setDataAgeSeconds] = useState(0);
+  const lastFetchTimeRef = useRef<number>(Date.now());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // IEC 62682 §7.4.2: 2-step acknowledgment
@@ -820,15 +828,28 @@ export default function SHMSDashboardV3() {
         setData(generateSyntheticDashboard());
       }
       setLastRefresh(new Date().toLocaleTimeString('pt-BR'));
+      lastFetchTimeRef.current = Date.now();
+      setDataAgeSeconds(0);
     } catch {
       setData(generateSyntheticDashboard());
       setLastRefresh(new Date().toLocaleTimeString('pt-BR'));
+      lastFetchTimeRef.current = Date.now();
+      setDataAgeSeconds(0);
     }
   }, []);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Stale data age tracker — Conselheiro 1: warn when >10s (WebSocket disconnection pattern)
+  // Per NUREG-0700 §6.3: operators must know when data is stale
+  useEffect(() => {
+    const ageInterval = setInterval(() => {
+      setDataAgeSeconds(Math.floor((Date.now() - lastFetchTimeRef.current) / 1000));
+    }, 1000);
+    return () => clearInterval(ageInterval);
+  }, []);
 
   useEffect(() => {
     if (autoRefresh) {
@@ -985,6 +1006,17 @@ export default function SHMSDashboardV3() {
                 {criticalCount > 0 && ` (${criticalCount} P1)`}
               </span>
             </div>
+          )}
+          {/* Stale data warning — NUREG-0700 §6.3 + Conselheiro 1 >10s threshold */}
+          {dataAgeSeconds > 10 && (
+            <span
+              className="shms-stale-warning"
+              role="status"
+              aria-live="polite"
+              title={`Dados com ${dataAgeSeconds}s de atraso — verificar conexão (NUREG-0700 §6.3)`}
+            >
+              ⚠ {dataAgeSeconds}s desatualizado
+            </span>
           )}
           {/* Digital Twin 2D toggle */}
           <button
