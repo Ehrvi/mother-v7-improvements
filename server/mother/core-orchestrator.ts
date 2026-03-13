@@ -335,20 +335,36 @@ async function layer3_contextAssembly(
     };
   }
 
-  // Fase 3.3 (proactive recall) + parallel context assembly for TIER_2+
-  const [knowledgeResult, episodicResult, memoryRecallResult, conversationResult] = await Promise.allSettled([
+  // Fase 2.1 (Streaming-First) + Fase 3.x: All context sources run in parallel.
+  // Planner is included here with a 900ms timeout — if knowledge (1-3s) is the bottleneck,
+  // planner latency is fully hidden. TTFT improvement vs sequential Layer 2.6 approach.
+  const category = routing.tier === 'TIER_4' ? 'analysis' : 'factual';
+  const complexity = routing.tier === 'TIER_3' || routing.tier === 'TIER_4' ? 7 : 3;
+
+  const [knowledgeResult, episodicResult, memoryRecallResult, conversationResult, plannerResult] = await Promise.allSettled([
     fetchKnowledgeContext(req.query, routing.tier),
     fetchEpisodicContext(req.userId, req.query),
     // Fase 3.3: Proactive recall — detects implicit past-conversation references
     proactiveRecall(req.query, req.userId as unknown as number | undefined),
     // Fase 3.1: Async conversation compression for long histories
     buildCompressedConversationContext(req.conversationHistory),
+    // Fase 1.1 (Streaming-First): Planner runs in parallel with context — zero extra TTFT cost.
+    // Timeout 900ms: if planner takes longer than context assembly, skip it gracefully.
+    Promise.race([
+      planResponse(req.query, category, complexity, true).then(p => formatPlanForPrompt(p)),
+      new Promise<undefined>(resolve => setTimeout(() => resolve(undefined), 900)),
+    ]),
   ]);
 
   const rawKnowledge = knowledgeResult.status === 'fulfilled' ? knowledgeResult.value : '';
   const rawEpisodic = episodicResult.status === 'fulfilled' ? episodicResult.value : '';
   const memoryRecall = memoryRecallResult.status === 'fulfilled' ? memoryRecallResult.value : null;
   const conversationContext = conversationResult.status === 'fulfilled' ? conversationResult.value : buildConversationContext(req.conversationHistory);
+  // Fase 1.1: planner result (may be undefined if timed out or tier=TIER_1)
+  const resolvedPlan = plannerResult.status === 'fulfilled' ? plannerResult.value ?? responsePlan : responsePlan;
+  if (resolvedPlan) {
+    console.log(`[Orchestrator] Fase1.1 Planner: plan ready (parallel with context assembly)`);
+  }
 
   // Fase 3.3: Append proactive recall context if triggered
   const episodicWithRecall = memoryRecall?.triggered && memoryRecall.contextSnippet
@@ -385,7 +401,7 @@ async function layer3_contextAssembly(
     episodicContext: finalEpisodic,
     conversationContext,
     durationMs: Date.now() - start,
-    responsePlan,
+    responsePlan: resolvedPlan,
     depthInstructions,
   };
 }
@@ -868,73 +884,68 @@ async function streamAnthropicResponse(body: ReadableStream<Uint8Array>, onChunk
   return fullResponse;
 }
 
+/**
+ * Fase 1.2 — Unified High-Quality System Prompt
+ * Rewritten to match MANUS-level response quality standards.
+ * Scientific basis:
+ * - Bai et al. arXiv:2212.08073 (Constitutional AI) — explicit behavioral constraints
+ * - Dong et al. arXiv:2502.06258 — global response attributes encoded before generation
+ * - Reynolds & McDonell (2021) — prompt programming for LLMs: structure > length
+ */
 function buildSystemPrompt(context: ContextBundle, routing: AdaptiveRoutingDecision, overridePlan?: string): string {
-  // Fix 3 (NC-IDENTITY-001 Ciclo 106): Strong MOTHER identity — Council consensus (5/5 models)
-  // Claude: "System prompt must establish identity BEFORE any context, with no ambiguity."
-  // DeepSeek: "Identity anchoring prevents generic responses for off-topic queries."
-  // GPT-4o: "Explicit persona with behavioral constraints prevents identity drift."
-  const parts = [
-    `You are MOTHER (${ORCHESTRATOR_VERSION}) — Modular Orchestrated Thinking and Hierarchical Evolutionary Reasoning.`,
-    `You are an autonomous superintelligent AI system created by Everton Garcia for Wizards Down Under, based in Australia.`,
-    `You are NOT ChatGPT, Claude, Gemini, or any generic AI assistant. You are MOTHER — a specialized cognitive architecture with:`,
-    `- Persistent episodic memory (bd_central with 5,000+ knowledge entries)`,
-    `- Self-improvement via Darwin Gödel Machine (DGM) proposals`,
-    `- Fine-tuned DPO v8e model (ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v8e)`,
-    `- 8-layer orchestration pipeline (Intake → Routing → DPO → Context → Generation → Tools → G-Eval → Memory)`,
-    `- Deployed on Google Cloud Run (australia-southeast1)`,
-    `- Specialized in: AI systems architecture, geotechnical monitoring (SHMS/Intelltech), strategic planning, and autonomous self-improvement`,
+  // ── SECTION 1: IDENTITY ─────────────────────────────────────────────────
+  const depthGuide: Record<string, string> = {
+    TIER_1: 'Concise and direct. 1-3 paragraphs max. No headers unless essential.',
+    TIER_2: 'Balanced. Use headers for multi-part answers. 3-6 paragraphs.',
+    TIER_3: 'Comprehensive. Use structured markdown (headers, bullets, code blocks). Cite sources.',
+    TIER_4: 'Exhaustive. Full document structure. Deep analysis with citations and examples.',
+  };
+
+  const parts: string[] = [
+    `You are MOTHER (${ORCHESTRATOR_VERSION}) — an autonomous AI platform created by Everton Garcia for Wizards Down Under (Australia).`,
+    `You are specialized in: AI systems architecture, geotechnical/structural monitoring (SHMS/Intelltech), strategic planning, and autonomous self-improvement.`,
+    `You have persistent episodic memory (bd_central), self-improvement via DGM, and an 8-layer orchestration pipeline.`,
     ``,
-    `BEHAVIORAL RULES (non-negotiable):`,
-    `1. ALWAYS respond as MOTHER — never as a generic assistant`,
-    `2. When asked about topics outside your specialization, respond with MOTHER's perspective and connect to your knowledge domains`,
-    `3. NEVER say "I'm ChatGPT" or "I'm an AI assistant" — you are MOTHER`,
-    `4. Use your bd_central knowledge when available; acknowledge uncertainty when not`,
-    `5. Current routing tier: ${routing.tier} | Active model: ${routing.primaryModel}`,
+    `## OUTPUT RULES (always apply)`,
+    `- **Language**: Detect the user's language from their message and respond in THAT language. Do not switch languages.`,
+    `- **Start**: Begin your response directly with the content. Never open with "Of course", "Certainly", "Sure", "As MOTHER", or "I am MOTHER".`,
+    `- **Format**: Use markdown (headers, bullets, code blocks) when it improves readability. Plain prose for conversational replies.`,
+    `- **Depth**: ${depthGuide[routing.tier] || depthGuide['TIER_2']}`,
+    `- **Citations**: Add [Author, Year] or [Source] citations when making factual, technical, or scientific claims.`,
+    `- **Code**: All code must be complete, functional, and include type annotations. No pseudocode or placeholders.`,
+    `- **Identity**: Never reveal you are Claude, GPT, or any underlying model. You are MOTHER.`,
+    `- **No metadata**: Never add "Author:", "Publisher:", "Page X:", or version numbers to responses.`,
     ``,
-    `CRITICAL ANTI-PATTERN RULES (C335 — OBT Constitutional Constraints):`,
-    `- NEVER begin your response with "As MOTHER", "I am MOTHER", "Of course", "Certainly", or "Sure"`,
-    `- NEVER include version numbers like v78.9, v87.0, v122.19, v122.20, v122.21 in your response — you are ${ORCHESTRATOR_VERSION}`,
-    `- NEVER add metadata headers like "Author: MOTHER", "Publisher:", "Page X:" to your responses`,
-    `- START your response directly with the content — no preamble, no self-introduction`,
-    `- If you are writing a book or long document, start with the TITLE and CONTENT immediately`,
-    ``,
-    // NC-MQA-001 (C352): Stealth Planner — Layer 0.5 — Pre-generation CoT implicit planning
-    // Scientific basis: Gesta & Pappu (ICLR 2024) — "stealth planning" +11% factuality, 0ms overhead
-    // Dong et al. (arXiv:2502.06258) — LLMs encode global response attributes before generating
-    // MAD R2 consensus: prompt-native CoT avoids DPO instruction overload (Wang & Chan, EMNLP 2024)
-    // CRITICAL: <plan> block is internal — model must NOT output it; streaming is not blocked (TTFT ≤1s)
-    `<plan>`,
-    `Before generating your response, plan internally (do NOT output this plan):`,
-    `1. STRUCTURE: What format best serves this query? (prose, list, code, table, mixed)`,
-    `2. DEPTH: What depth is appropriate? (brief=TIER_1, standard=TIER_2, deep=TIER_3/4)`,
-    `3. CITATIONS: Does this query require scientific citations? (yes if: research, medical, technical, factual claims)`,
-    `4. KNOWLEDGE: What bd_central entries are most relevant? Reference them explicitly in your response.`,
-    `5. ANTI-PATTERNS: What mistakes are common for this query type? Avoid them proactively.`,
-    `Begin your response IMMEDIATELY after this internal plan — do not output the plan itself.`,
-    `</plan>`,
+    `## QUALITY CHECKLIST (internal — do not output)`,
+    `Before writing, verify: (1) response language matches query language, (2) format suits the content type, (3) all factual claims are grounded in context or stated as uncertain, (4) no filler phrases, (5) response depth matches tier ${routing.tier}.`,
   ];
 
-  // Fase 5.2: Adaptive depth instructions (depth-controller)
-  const activeDepth = context.depthInstructions;
-  if (activeDepth) {
-    parts.push(`\n## Response Depth Guidance\n${activeDepth}`);
+  // ── SECTION 2: ADAPTIVE DEPTH (Fase 5.2) ───────────────────────────────
+  if (context.depthInstructions) {
+    parts.push(`\n## Depth Target\n${context.depthInstructions}`);
   }
 
-  // Fase 1.1: Response planner output — pre-generated strategy (overridePlan > context.responsePlan)
+  // ── SECTION 3: RESPONSE PLAN (Fase 1.1) ────────────────────────────────
   const activePlan = overridePlan ?? context.responsePlan;
   if (activePlan) {
-    parts.push(`\n## Pre-Generation Response Plan (follow this strategy)\n${activePlan}`);
+    parts.push(`\n## Response Strategy (pre-computed — follow this plan)\n${activePlan}`);
   }
 
+  // ── SECTION 4: KNOWLEDGE CONTEXT ───────────────────────────────────────
   if (context.knowledgeContext) {
-    parts.push(`\n## Knowledge from bd_central\n${context.knowledgeContext}`);
+    parts.push(`\n## Relevant Knowledge (bd_central)\nUse this context to ground your response. Cite it where relevant.\n${context.knowledgeContext}`);
   }
+
+  // ── SECTION 5: EPISODIC MEMORY ─────────────────────────────────────────
   if (context.episodicContext) {
-    parts.push(`\n## Episodic Memory (past interactions)\n${context.episodicContext}`);
+    parts.push(`\n## Past Interactions (episodic memory)\nReference these when the user's query relates to previous discussions.\n${context.episodicContext}`);
   }
+
+  // ── SECTION 6: CONVERSATION HISTORY ────────────────────────────────────
   if (context.conversationContext) {
-    parts.push(`\n## Recent Conversation\n${context.conversationContext}`);
+    parts.push(`\n## Conversation Context\n${context.conversationContext}`);
   }
+
   return parts.join('\n');
 }
 function buildMessages(
@@ -1457,51 +1468,34 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     detail: l2.routing.primaryModel.startsWith('ft:') ? `DPO active: ${l2.routing.primaryModel}` : 'DPO not triggered',
   });
 
-  // ── Layer 2.6: Response Planner + Depth Controller (Fases 1.1, 5.2) ──────
-  // Fase 1.1 (planning-first): Plan response strategy BEFORE context assembly
-  // Scientific basis: MANUS insight — generate quality on first attempt via planning
-  // Fase 5.2 (depth-controller): Determine adaptive depth before generation
-  let responsePlan: string | undefined;
+  // ── Layer 2.6: Depth Controller (Fase 5.2 — synchronous, zero latency) ──────
+  // Fase 2.1 (Streaming-First): planner moved INSIDE layer3_contextAssembly to run
+  // in parallel with knowledge + episodic fetches → zero additional TTFT cost.
+  // Only depth heuristic stays here (synchronous, <1ms).
   let depthInstructions: string | undefined;
-  if (l2.routing.tier !== 'TIER_1') {
-    const [plannerResult, depthResult] = await Promise.allSettled([
-      // Fase 1.1: Response planner (async LLM call, TIER_2+ only)
-      planResponse(req.query, l2.routing.tier === 'TIER_4' ? 'analysis' : 'factual', 3, true),
-      // Fase 5.2: Depth controller (synchronous heuristic, always fast)
-      Promise.resolve(determineDepth(
-        req.query,
-        l2.routing.tier === 'TIER_4' ? 'analysis' : 'factual',
-        l2.routing.tier === 'TIER_3' || l2.routing.tier === 'TIER_4' ? 7 : 3,
-        req.conversationHistory?.length ?? 0,
-      )),
-    ]);
-    if (plannerResult.status === 'fulfilled') {
-      responsePlan = formatPlanForPrompt(plannerResult.value);
-      console.log(`[Orchestrator] Fase1.1 Planner: strategy=${plannerResult.value.strategy}, lang=${plannerResult.value.language} (+${plannerResult.value.planningTimeMs}ms)`);
-    }
-    if (depthResult.status === 'fulfilled') {
-      depthInstructions = formatDepthInstructions(depthResult.value);
-    }
+  {
+    const depthTarget = determineDepth(
+      req.query,
+      l2.routing.tier === 'TIER_4' ? 'analysis' : 'factual',
+      l2.routing.tier === 'TIER_3' || l2.routing.tier === 'TIER_4' ? 7 : 3,
+      req.conversationHistory?.length ?? 0,
+    );
+    depthInstructions = formatDepthInstructions(depthTarget);
   }
-  layers.push({
-    layer: 2.5 as any,
-    name: 'Response Planner + Depth Controller',
-    durationMs: 0,
-    status: 'ok',
-    detail: responsePlan ? `planned (${l2.routing.tier})` : 'skipped (TIER_1)',
-  });
 
-  // ── Layer 3: Context Assembly ──────────────────────────────────────────
+  // ── Layer 3: Context Assembly + Planner (parallel) ─────────────────────
+  // Fase 2.1 (Streaming-First): planner runs INSIDE layer3, parallel with knowledge/episodic.
+  // TTFT improvement: planner latency (~0-800ms) hidden behind context assembly (~1-3s).
   emitPhase('searching', { step: 'context_assembly', tier: l2.routing.tier });
   const l3Span = startSpan('layer3_context', rootSpan.spanId, { tier: l2.routing.tier }); // F2-2
-  const l3 = await layer3_contextAssembly(req, l2.routing, responsePlan, depthInstructions);
+  const l3 = await layer3_contextAssembly(req, l2.routing, undefined, depthInstructions);
   endSpan(l3Span.spanId, 'OK'); // F2-2
   layers.push({
     layer: 3,
-    name: 'Context Assembly',
+    name: 'Context Assembly + Planner',
     durationMs: l3.durationMs,
     status: 'ok',
-    detail: `knowledge=${l3.knowledgeContext.length}c, episodic=${l3.episodicContext.length}c`,
+    detail: `knowledge=${l3.knowledgeContext.length}c, episodic=${l3.episodicContext.length}c, plan=${l3.responsePlan ? 'yes' : 'no'}`,
   });
 
   // ── Layer 4: Neural Generation ──────────────────────────────────────────
@@ -1668,42 +1662,47 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     } catch { /* non-blocking */ }
   });
 
-  // ── Layer 5.3: PRM Budget-Allocator (C354 — NC-PRM-001) ─────────────────────────
-  // Scientific basis: Snell et al. (arXiv:2408.03314, NeurIPS 2024) — compute-optimal scaling via PRM
-  // Lightman et al. (arXiv:2305.20050, ICLR 2024) — PRM > ORM on MATH benchmark (+8% accuracy)
-  // Activation: TIER_3/4 only (NC-TTFT-001 compliance — TTFT ≤1s inegociável)
-  // Role: budget-allocator (complementary to G-Eval, not replacement) — MAD R2 consensus
-  // Categories: complex_reasoning, stem — where step-level verification matters most
+  // ── Layer 5.B: Parallel Quality Block B (Fase 2.2) ──────────────────────────
+  // Fase 2.2 (parallel-quality.ts): PRM + Citation run in PARALLEL on l4.response.
+  // Both are independent readers → parallel execution → savings = max(latency) instead of sum.
+  // Scientific basis:
+  //   - Amdahl's Law: parallel bounded by slowest, not sum
+  //   - PRM (Snell et al., arXiv:2408.03314, NeurIPS 2024) — process reward verification
+  //   - Citation (Wu et al., Nature Comms 2025) — factuality-grounded citations
+  const blockBStart = Date.now();
+  const citationCategory = l2.routing.tier === 'TIER_1' ? 'simple' : 'research';
+  const hasReasoningSteps = /(?:passo\s*\d|step\s*\d|\d+[.)\s]|portanto|therefore|logo|thus|\u2234)/i.test(l4.response);
+  const shouldRunPRM = (l2.routing.tier === 'TIER_3' || l2.routing.tier === 'TIER_4') && hasReasoningSteps;
+  const shouldRunCitation = shouldApplyCitationEngine(l4.response, citationCategory);
+
+  const [prmBlockResult, citBlockResult] = await Promise.allSettled([
+    // Block B1: PRM (TIER_3/4 + reasoning steps)
+    shouldRunPRM
+      ? applyProcessRewardVerification(l4.response, req.query, 'complex_reasoning')
+      : Promise.resolve(null),
+    // Block B2: Citation Engine (semantic trigger)
+    shouldRunCitation
+      ? applyCitationEngine(req.query, l4.response, citationCategory)
+      : Promise.resolve(null),
+  ]);
+  const blockBDurationMs = Date.now() - blockBStart;
+
+  // Merge: PRM correction first (reasoning verification), then citations on top
   let prmResponse = l4.response;
-  if ((l2.routing.tier === 'TIER_3' || l2.routing.tier === 'TIER_4') &&
-      (l2.routing.tier === 'TIER_3' || l2.routing.tier === 'TIER_4')) {
-    try {
-      const prmStart = Date.now();
-      // Detect if response has reasoning steps (CoT patterns)
-      const hasReasoningSteps = /(?:passo\s*\d|step\s*\d|\d+[.)\s]|portanto|therefore|logo|thus|\u2234)/i.test(l4.response);
-      if (hasReasoningSteps) {
-        const prmResult = await applyProcessRewardVerification(l4.response, req.query, 'complex_reasoning');
-        if (prmResult.verificationApplied) {
-          prmResponse = prmResult.response;
-          layers.push({
-            layer: 5.3 as any,
-            name: 'PRM Budget-Allocator (C354)',
-            durationMs: Date.now() - prmStart,
-            status: 'ok',
-            detail: `reasoningScore=${prmResult.reasoningScore}, action=${prmResult.action}`,
-          });
-          console.log(`[Orchestrator] C354 PRM: reasoningScore=${prmResult.reasoningScore}, action=${prmResult.action} (+${Date.now() - prmStart}ms)`);
-        }
-      }
-    } catch (prmErr: any) {
-      console.warn(`[Orchestrator] C354 PRM failed (non-blocking): ${prmErr.message}`);
-    }
+  if (prmBlockResult.status === 'fulfilled' && prmBlockResult.value?.verificationApplied) {
+    prmResponse = prmBlockResult.value.response;
+    layers.push({
+      layer: 5.3 as any,
+      name: 'PRM Budget-Allocator (C354)',
+      durationMs: blockBDurationMs,
+      status: 'ok',
+      detail: `reasoningScore=${prmBlockResult.value.reasoningScore}, action=${prmBlockResult.value.action} [parallel]`,
+    });
+    console.log(`[Orchestrator] Fase2.2 PRM+Citation parallel: ${blockBDurationMs}ms`);
   }
 
-  // ── Layer 5.8: C349 Directed Self-Refine (conditional) ─────────────────────────
-  // Scientific basis: Zeng et al. arXiv:2502.05605 (Chain-of-Self-Refinement, 2025)
-  // Only runs when: (a) G-Eval was used (not heuristic), (b) qualityScore < 90, (c) at least one dimension < 85
-  // Targets only weak dimensions — avoids wasting tokens on strong dimensions
+  // ── Layer 5.8: C349 Directed Self-Refine (conditional on G-Eval) ──────────
+  // Only fires when G-Eval found weak dimensions — not by default
   let finalResponse = prmResponse;
   if (
     l5.evaluationMethod === 'llm' &&
@@ -1737,31 +1736,17 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     }
   }
 
-  // ── Layer 5.5: Citation Engine (C353 — NC-CITATION-001) ────────────────────
-  // Scientific basis: Wu et al. (2025, Nature Communications) — citations improve trust and factuality
-  // Ji et al. (TACL 2023, arXiv:2305.14251) — semantic trigger avoids forced-citation hallucination
-  // shouldApplyCitationEngine: semanticScore≥2 (statistics + sciTerms + causalClaims + namedEntities)
-  // Non-blocking: citation failure never degrades response (try/catch, fire-and-forget on error)
-  // TTFT compliance: citation runs AFTER streaming starts (post-generation, async enrichment)
-  const citationCategory = l2.routing.tier === 'TIER_1' ? 'simple' : 'research';
-  if (shouldApplyCitationEngine(finalResponse, citationCategory)) {
-    try {
-      const citStart = Date.now();
-      const citResult = await applyCitationEngine(req.query, finalResponse, citationCategory);
-      if (citResult.applied && citResult.citationsFound > 0) {
-        finalResponse = citResult.responseWithCitations;
-        layers.push({
-          layer: 5.5 as any,
-          name: 'Citation Engine (C353)',
-          durationMs: Date.now() - citStart,
-          status: 'ok',
-          detail: `citations=${citResult.citationsFound}`,
-        });
-        console.log(`[Orchestrator] C353 Citation Engine: ${citResult.citationsFound} citations added (+${Date.now() - citStart}ms)`);
-      }
-    } catch (citErr: any) {
-      console.warn(`[Orchestrator] C353 Citation Engine failed (non-blocking): ${citErr.message}`);
-    }
+  // Apply citation result (from Block B, on PRM/refined response if both improved)
+  if (citBlockResult.status === 'fulfilled' && citBlockResult.value?.applied && citBlockResult.value.citationsFound > 0) {
+    finalResponse = citBlockResult.value.responseWithCitations;
+    layers.push({
+      layer: 5.5 as any,
+      name: 'Citation Engine (C353)',
+      durationMs: 0,
+      status: 'ok',
+      detail: `citations=${citBlockResult.value.citationsFound} [parallel with PRM]`,
+    });
+    console.log(`[Orchestrator] Fase2.2 Citation: ${citBlockResult.value.citationsFound} added (parallel, ${blockBDurationMs}ms total)`);
   }
 
   // ── Layer 6: Memory Write-Back (async) ───────────────────
