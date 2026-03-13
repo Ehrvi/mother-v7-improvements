@@ -527,7 +527,9 @@ async function buildCompressedConversationContext(
   if (history.length <= 10) return buildConversationContext(history);
   try {
     const compressed = await compressConversation(history as Array<{ role: 'user' | 'assistant'; content: string; timestamp?: Date }>);
-    return formatCompressedHistory(compressed);
+    return formatCompressedHistory(compressed)
+      .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content.slice(0, 500)}`)
+      .join('\n');
   } catch {
     return buildConversationContext(history);
   }
