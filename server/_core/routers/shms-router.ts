@@ -428,3 +428,205 @@ shmsRouter.post('/alerts/:alertId/notify', authenticateA2A, async (req: Request,
     res.status(500).json({ error: 'Notification dispatch unavailable' });
   }
 });
+
+/**
+ * GET /shms/instrumentation/:structureId — virtual tags, alarm levels, unit conversion
+ * Module 1 — InstrumentationManager
+ */
+shmsRouter.get('/instrumentation/:structureId', async (req: Request, res: Response) => {
+  try {
+    const { InstrumentationManager } = await import('../../shms/instrumentation.js');
+    const mgr = new InstrumentationManager();
+    const allTags = mgr.getAllTags();
+    const tags = allTags.filter((t) => t.structureId === req.params.structureId);
+    res.json({ structureId: req.params.structureId, tags, count: tags.length, timestamp: new Date().toISOString() });
+  } catch (err) {
+    log.error('[SHMSRouter] instrumentation error:', err);
+    res.status(500).json({ error: 'Instrumentation service unavailable' });
+  }
+});
+
+/**
+ * GET /shms/big-data/:structureId — behavior classification, correlation, autocorrelation
+ * Module 2 — BigDataAnalysis
+ */
+shmsRouter.get('/big-data/:structureId', async (req: Request, res: Response) => {
+  try {
+    const { classifyBehavior, computeCorrelation } = await import('../../shms/big-data-analysis.js');
+    // Return available analysis capabilities
+    res.json({
+      structureId: req.params.structureId,
+      capabilities: ['classifyBehavior', 'computeCorrelation', 'computeAutocorrelation', 'computeMechanicalProperties'],
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    log.error('[SHMSRouter] big-data error:', err);
+    res.status(500).json({ error: 'Big data analysis service unavailable' });
+  }
+});
+
+/**
+ * GET /shms/risk-map/:structureId — geotechnical risk polygons, ICOLD colors
+ * Module 3 — RiskMapsManager
+ */
+shmsRouter.get('/risk-map/:structureId', async (req: Request, res: Response) => {
+  try {
+    const { RiskMapsManager } = await import('../../shms/risk-maps.js');
+    const mgr = new RiskMapsManager();
+    const zones = mgr.getPolygonsByStructure(req.params.structureId);
+    const snapshot = mgr.createSnapshot(req.params.structureId, new Map());
+    res.json({ structureId: req.params.structureId, zones, snapshot, count: zones.length, timestamp: new Date().toISOString() });
+  } catch (err) {
+    log.error('[SHMSRouter] risk-map error:', err);
+    res.status(500).json({ error: 'Risk map service unavailable' });
+  }
+});
+
+/**
+ * GET /shms/cross-section/:structureId — geological cross-section SVG
+ * Module 6 — CrossSectionManager
+ */
+shmsRouter.get('/cross-section/:structureId', async (req: Request, res: Response) => {
+  try {
+    const { CrossSectionManager } = await import('../../shms/cross-section.js');
+    const mgr = new CrossSectionManager();
+    const sections = mgr.getSectionsByStructure(req.params.structureId);
+    res.json({ structureId: req.params.structureId, sections, count: sections.length, timestamp: new Date().toISOString() });
+  } catch (err) {
+    log.error('[SHMSRouter] cross-section error:', err);
+    res.status(500).json({ error: 'Cross-section service unavailable' });
+  }
+});
+
+/**
+ * GET /shms/stability/:structureId — Bishop method FOS, Monte Carlo failure probability
+ * Module 7 — StabilityAnalysisEngine
+ */
+shmsRouter.get('/stability/:structureId', async (req: Request, res: Response) => {
+  try {
+    const { StabilityAnalysisEngine } = await import('../../shms/stability-analysis.js');
+    const engine = new StabilityAnalysisEngine();
+    const analyses = engine.getModelsByStructure(req.params.structureId);
+    res.json({ structureId: req.params.structureId, analyses, count: analyses.length, timestamp: new Date().toISOString() });
+  } catch (err) {
+    log.error('[SHMSRouter] stability error:', err);
+    res.status(500).json({ error: 'Stability analysis service unavailable' });
+  }
+});
+
+/**
+ * GET /shms/fault-tree/:structureId — fault tree analysis, event trees
+ * Module 11 — FaultTreeEngine
+ */
+shmsRouter.get('/fault-tree/:structureId', async (req: Request, res: Response) => {
+  try {
+    const { FaultTreeEngine } = await import('../../shms/fault-tree.js');
+    const engine = new FaultTreeEngine();
+    const trees = engine.getTreesByStructure(req.params.structureId);
+    res.json({ structureId: req.params.structureId, trees, count: trees.length, timestamp: new Date().toISOString() });
+  } catch (err) {
+    log.error('[SHMSRouter] fault-tree error:', err);
+    res.status(500).json({ error: 'Fault tree service unavailable' });
+  }
+});
+
+/**
+ * GET /shms/boreholes/:structureId — lithologic profiles, deviation survey
+ * Module 12 — BoreholesManager
+ */
+shmsRouter.get('/boreholes/:structureId', async (req: Request, res: Response) => {
+  try {
+    const { BoreholesManager } = await import('../../shms/boreholes.js');
+    const mgr = new BoreholesManager();
+    const boreholes = mgr.getBoreholesForStructure(req.params.structureId);
+    res.json({ structureId: req.params.structureId, boreholes, count: boreholes.length, timestamp: new Date().toISOString() });
+  } catch (err) {
+    log.error('[SHMSRouter] boreholes error:', err);
+    res.status(500).json({ error: 'Boreholes service unavailable' });
+  }
+});
+
+/**
+ * GET /shms/boreholes/:structureId/:boreholeId/svg — lithologic profile SVG
+ */
+shmsRouter.get('/boreholes/:structureId/:boreholeId/svg', async (req: Request, res: Response) => {
+  try {
+    const { BoreholesManager } = await import('../../shms/boreholes.js');
+    const mgr = new BoreholesManager();
+    const profile = mgr.renderProfiles(req.params.structureId).get(req.params.boreholeId);
+    if (!profile) {
+      res.status(404).json({ error: 'Borehole not found' });
+      return;
+    }
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.send(profile.svgProfile);
+  } catch (err) {
+    log.error('[SHMSRouter] borehole-svg error:', err);
+    res.status(500).json({ error: 'Borehole SVG service unavailable' });
+  }
+});
+
+/**
+ * GET /shms/events/:structureId — event timeline
+ * Module 16 — EventsModule
+ */
+shmsRouter.get('/events/:structureId', async (req: Request, res: Response) => {
+  try {
+    const { EventsModule } = await import('../../shms/events-module.js');
+    const mod = new EventsModule();
+    const daysBack = parseInt(req.query.days as string ?? '30', 10);
+    const to = new Date();
+    const from = new Date(to.getTime() - daysBack * 24 * 60 * 60 * 1000);
+    const timeline = mod.getTimeline(req.params.structureId, from, to);
+    res.json({ structureId: req.params.structureId, events: timeline.events, count: timeline.totalCount, periodStart: timeline.periodStart, periodEnd: timeline.periodEnd, timestamp: new Date().toISOString() });
+  } catch (err) {
+    log.error('[SHMSRouter] events error:', err);
+    res.status(500).json({ error: 'Events module unavailable' });
+  }
+});
+
+/**
+ * POST /shms/export — export sensor data (CSV/JSON/Excel/Word)
+ * Module 14 — OfficeConnector
+ */
+shmsRouter.post('/export', authenticateA2A, async (req: Request, res: Response) => {
+  try {
+    const { exportReadings } = await import('../../shms/office-connector.js');
+    const { readings, options } = req.body as {
+      readings: import('../../shms/office-connector.js').SensorReading[];
+      options: import('../../shms/office-connector.js').ExportOptions;
+    };
+    if (!readings || !options?.format || !options?.structureId) {
+      res.status(400).json({ error: 'Required: readings, options.format, options.structureId' });
+      return;
+    }
+    const result = exportReadings(readings, options);
+    res.setHeader('Content-Type', result.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.send(result.content);
+  } catch (err) {
+    log.error('[SHMSRouter] export error:', err);
+    res.status(500).json({ error: 'Export service unavailable' });
+  }
+});
+
+/**
+ * POST /shms/bi/push — push KPIs to BI sinks (Power BI, Tableau, Grafana)
+ * Module 15 — BIIntegration
+ */
+shmsRouter.post('/bi/push', authenticateA2A, async (req: Request, res: Response) => {
+  try {
+    const { biIntegrationManager, computeSHMSKpis } = await import('../../shms/bi-integration.js');
+    const { kpis } = req.body as { kpis: import('../../shms/bi-integration.js').SHMSKpi[] };
+    if (!Array.isArray(kpis) || kpis.length === 0) {
+      res.status(400).json({ error: 'Required: kpis (non-empty array)' });
+      return;
+    }
+    const results = await biIntegrationManager.pushKpis(kpis);
+    const successCount = results.filter((r) => r.success).length;
+    res.json({ pushed: results.length, successCount, failCount: results.length - successCount, results, timestamp: new Date().toISOString() });
+  } catch (err) {
+    log.error('[SHMSRouter] bi/push error:', err);
+    res.status(500).json({ error: 'BI integration unavailable' });
+  }
+});
