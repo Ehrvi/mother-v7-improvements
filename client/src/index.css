@@ -595,6 +595,74 @@ code, pre {
 .measure-wide  { max-width: 80ch; }
 .measure-narrow { max-width: 45ch; }
 
+/* ================================================================
+ * CONSELHO DOS 5 ROUND 2 — COLOR VISION DEFICIENCY ALTERNATES
+ * Machado et al. (2009) "A Physiologically-based Model for Simulation
+ *   of Color Vision Deficiency" IEEE TVCG
+ * Brettel et al. (1997): CVD dichromat simulation
+ * WCAG 2.1 SC 1.4.11: Non-text contrast
+ * Usage: <html data-colorblind="deuteranopia"> or "tritanopia"
+ * ================================================================ */
+
+/* Deuteranopia / Protanopia (red-green blind, ~8% male population) */
+:root[data-colorblind="deuteranopia"],
+:root[data-colorblind="protanopia"] {
+  /* Shift alarm colors away from red/green confusion zone */
+  --alarm-p1-fg: oklch(60% 0.20 50);   /* Orange replaces red — distinguishable */
+  --alarm-p1-bg: oklch(28% 0.07 50);
+  --alarm-ok-fg: oklch(72% 0.14 230);  /* Blue replaces green — unambiguous */
+  --alarm-ok-bg: oklch(25% 0.05 230);
+  /* Phase colors — avoid red/green ambiguity */
+  --alarm-p3-fg: oklch(85% 0.15 70);   /* Retain amber (safe) */
+  /* MOTHER accent stays violet — unaffected by red-green CVD */
+}
+
+/* Tritanopia (blue-yellow blind, ~0.01% population) */
+:root[data-colorblind="tritanopia"] {
+  /* Shift away from blue/yellow confusion zone */
+  --alarm-p4-fg: oklch(65% 0.20 350);  /* Magenta replaces blue */
+  --alarm-p4-bg: oklch(25% 0.07 350);
+  --alarm-p3-fg: oklch(80% 0.20 30);   /* Orange-red replaces yellow */
+  --alarm-p3-bg: oklch(30% 0.07 30);
+  --cyan-base:   oklch(72% 0.20 330);  /* Magenta replaces cyan */
+  --cyan-bright: oklch(82% 0.18 325);
+}
+
+/* ================================================================
+ * CONSELHO DOS 5 ROUND 2 — AMBIENT STATUS BAR UTILITIES
+ * Ambient peripheral display (Weiser & Brown 1997: Calm Technology)
+ * Nielsen (1994) H1: Visibility of System Status
+ * 32px height — below primary focus, above OS taskbar
+ * ================================================================ */
+.status-bar-ambient {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  background: oklch(9% 0.015 280 / 0.95);
+  border-top: 1px solid oklch(22% 0.025 275);
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  color: oklch(40% 0.02 270);
+  overflow: hidden;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.status-bar-ambient .status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.status-bar-ambient .status-item.active {
+  color: oklch(65% 0.15 290);
+}
+.status-bar-ambient .status-sep {
+  color: oklch(28% 0.02 270);
+  user-select: none;
+}
+
 
 
 /* ============================================================

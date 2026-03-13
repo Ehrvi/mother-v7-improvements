@@ -886,6 +886,55 @@ export default function Home() {
           </div>
         )}
 
+        {/* Ambient status bar — Weiser & Brown (1997) Calm Technology + Nielsen H1 */}
+        {/* 32px peripheral display: model · phase · latency · quality · speed · messages */}
+        <div className="status-bar-ambient" role="status" aria-label="Status do sistema">
+          <span className={`status-item${isStreaming ? ' active' : ''}`}>
+            <span aria-hidden="true">{isStreaming ? '◉' : '○'}</span>
+            <span>{messages.filter(m => m.role === 'mother' && m.modelName).slice(-1)[0]?.modelName ?? 'MOTHER'}</span>
+          </span>
+          <span className="status-sep">·</span>
+          {isStreaming && currentPhase && (
+            <>
+              <span className="status-item active">
+                <span aria-hidden="true">⚙</span>
+                <span className="capitalize">{currentPhase}</span>
+              </span>
+              <span className="status-sep">·</span>
+            </>
+          )}
+          {phaseLatencyMs > 0 && !isStreaming && (
+            <>
+              <span className="status-item">
+                <span aria-hidden="true">⏱</span>
+                <span>{(phaseLatencyMs / 1000).toFixed(1)}s</span>
+              </span>
+              <span className="status-sep">·</span>
+            </>
+          )}
+          {stats.qualityScores.length > 0 && (
+            <>
+              <span className="status-item">
+                <span aria-hidden="true">◆</span>
+                <span>Q={Math.round(stats.qualityScores.reduce((a,b)=>a+b,0)/stats.qualityScores.length)}%</span>
+              </span>
+              <span className="status-sep">·</span>
+            </>
+          )}
+          <span className="status-item">
+            <span aria-hidden="true">↯</span>
+            <span>{streamSpeed}×</span>
+          </span>
+          <span className="status-sep">·</span>
+          <span className="status-item">
+            <span aria-hidden="true">✉</span>
+            <span>{stats.msgCount} msg</span>
+          </span>
+          <span style={{ marginLeft: 'auto', color: 'oklch(28% 0.05 300)' }}>
+            {motherVersion} · DGM
+          </span>
+        </div>
+
         {/* Input area */}
         <div className="px-6 pb-5 pt-3 border-t border-[rgba(255,255,255,0.05)] bg-[rgba(15,15,26,0.8)]">
           {/* v74.6: Drag-and-drop drop zone (expanded mode) */}
