@@ -81,9 +81,8 @@ import { startupScheduler } from './startup-scheduler.js'; // C206 NC-ARCH-001: 
 import { moduleRegistry } from './module-registry.js'; // C206 NC-ARCH-001: ModuleRegistry — Gamma et al. (1994) Registry Pattern
 import { digitalTwinRoutesC206 } from '../shms/digital-twin-routes-c206.js'; // C206-1: SHMS Phase 2 REST API — REST Fielding (2000) + ISO 13374-1:2003
 import { initMQTTDigitalTwinBridgeC206 } from '../shms/mqtt-digital-twin-bridge-c206.js'; // C206-2: MQTT → Digital Twin Bridge — ISO/IEC 20922:2016 + ICOLD 158
-import { scheduleGEvalIntegrationTestC206 } from '../mother/geval-integration-test-c206.js'; // C206-5: G-EVAL Integration Test — Liu et al. (2023) arXiv:2303.16634 + ISO/IEC 25010:2011
 import { initLSTMPredictorC207 } from '../shms/lstm-predictor-c207.js'; // C207-1: LSTM Predictor Real — Hochreiter & Schmidhuber (1997) + Figueiredo (2009) OSTI:961604
-import { scheduleHippoRAG2IndexingC207 } from '../mother/hipporag2-indexer-c207.js'; // C207-3: HippoRAG2 Indexer C207 — 5 papers Sprint 7 (arXiv:2502.14902)
+// Fase 0 cleanup: geval-integration-test-c206.ts and hipporag2-indexer-c207.ts removed (dead cycle files)
 import { registerAllStartupTasks } from './startup-tasks-c207.js'; // C207-2: NC-ARCH-001 COMPLETO — centraliza 25 tarefas de startup (Fowler 1999 + Martin 2003 SRP)
 const log = createLogger('PROD_ENTRY');
 
@@ -898,9 +897,7 @@ app.listen(PORT, '0.0.0.0', async () => {
       scheduleDGMLoopC203,
       getDGMLoopC203Status,
       initMQTTDigitalTwinBridgeC206,
-      scheduleGEvalIntegrationTestC206,
       initLSTMPredictorC207,
-      scheduleHippoRAG2IndexingC207: async () => { await scheduleHippoRAG2IndexingC207(); },
       runHourlyAggregation,
     });
     log.info('[C207] NC-ARCH-001 COMPLETO ✅ — production-entry.ts God Object eliminado | Fowler (1999) + Martin (2003) SRP');

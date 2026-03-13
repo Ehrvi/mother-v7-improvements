@@ -138,7 +138,16 @@ describe('C321 — Regression: Simple queries not promoted to LFSA', () => {
 // ─── GATE-3 & GATE-4: Citation Engine fix ─────────────────────────────────────
 describe('C321 — Citation Engine shouldApplyCitationEngine fix', () => {
 
-  const longResponse = 'A'.repeat(300); // 300 chars = above threshold
+  // C348 semantic trigger: requires actual scientific/causal content (not just length)
+  // Simple string repetition has no semantic signals → correctly returns false
+  const longResponse = 'A'.repeat(300); // 300 chars, but no semantic content
+
+  // Realistic response with semantic signals (statistics + causal claims + sci terms)
+  const semanticResponse = `According to recent research, transformer models demonstrate
+    significant improvements in NLP tasks. Studies show that attention mechanisms cause
+    better performance, with results indicating 15% accuracy gains. The evidence suggests
+    that pre-training on large corpora therefore leads to better generalization.
+    Multiple papers confirm these findings with datasets of millions of samples.`.repeat(2);
 
   it('GATE-3a: Returns true for research category with long response', () => {
     expect(shouldApplyCitationEngine(longResponse, 'research')).toBe(true);
@@ -148,16 +157,18 @@ describe('C321 — Citation Engine shouldApplyCitationEngine fix', () => {
     expect(shouldApplyCitationEngine(longResponse, 'complex_reasoning')).toBe(true);
   });
 
-  it('GATE-3c: Returns true for general category', () => {
-    expect(shouldApplyCitationEngine(longResponse, 'general')).toBe(true);
+  it('GATE-3c: Returns true for general category with semantic content', () => {
+    // C348: general category needs semantic signals (statistics/causal/sci terms) to trigger
+    expect(shouldApplyCitationEngine(semanticResponse, 'general')).toBe(true);
   });
 
-  it('GATE-3d: Returns true for coding category', () => {
-    expect(shouldApplyCitationEngine(longResponse, 'coding')).toBe(true);
+  it('GATE-3d: Returns true for coding category with semantic content', () => {
+    // C348: semantic trigger applies regardless of category when content warrants it
+    expect(shouldApplyCitationEngine(semanticResponse, 'coding')).toBe(true);
   });
 
-  it('GATE-3e: Returns true for creative category', () => {
-    expect(shouldApplyCitationEngine(longResponse, 'creative')).toBe(true);
+  it('GATE-3e: Returns true for creative category with semantic content', () => {
+    expect(shouldApplyCitationEngine(semanticResponse, 'creative')).toBe(true);
   });
 
   it('GATE-4a: Returns false for greeting category', () => {
