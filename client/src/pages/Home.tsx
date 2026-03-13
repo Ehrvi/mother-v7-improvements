@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'; // NC-PERF-001: useMemo added — React docs (2024) + Abramov (2019) React Hooks
+// P2: Session History integration
+import { SessionHistory } from '@/components/SessionHistory';
 import { Send, Sparkles, Brain, Shield, Zap, TrendingDown, Dna, Activity, Database, GitBranch, Paperclip } from 'lucide-react';
 import RightPanel from '@/components/RightPanel';
 import ErrorBoundary from '@/components/ErrorBoundary'; // NC-ARCH-004 FIX: Error Boundaries — React docs (2024) + Nielsen (1994) H9 + Nygard (2007) §4.1
@@ -106,6 +108,27 @@ function renderMarkdown(text: string): string {
   return result.replace(/\n/g, '<br />');
 }
 
+// NN/G Prompt Controls (2024): contextual follow-up chips reduce interaction cost vs blank text input
+// Scientific basis: Nielsen Norman Group — "AI Chat Interface Design" (2023/2024)
+function getFollowUpChips(content: string): string[] {
+  const c = content.toLowerCase();
+  if (c.includes('arquitetura') || c.includes('camada') || c.includes('layer'))
+    return ['Como cada camada interage?', 'Mostre um diagrama', 'Comparar com transformers'];
+  if (c.includes('memória') || c.includes('a-mem') || c.includes('zettelkasten'))
+    return ['Como a memória evolui?', 'Exemplo de link semântico', 'Qual o limite de memória?'];
+  if (c.includes('evolui') || c.includes('darwin') || c.includes('gödel') || c.includes('fitness'))
+    return ['Como o fitness é calculado?', 'Frequência de auto-evolução', 'Exemplo de mutação'];
+  if (c.includes('shms') || c.includes('sensor') || c.includes('estrutural') || c.includes('lstm'))
+    return ['Ver histórico de anomalias', 'Configurar alertas', 'Explicar previsão LSTM'];
+  if (c.includes('código') || c.includes('code') || c.includes('implementa') || c.includes('função'))
+    return ['Adicionar testes', 'Otimizar performance', 'Explicar o código'];
+  if (c.includes('erro') || c.includes('falha') || c.includes('exception') || c.includes('bug'))
+    return ['Como reproduzir?', 'Sugerir correção', 'Ver stack trace completo'];
+  if (c.includes('custo') || c.includes('cost') || c.includes('token') || c.includes('preço'))
+    return ['Como reduzir custo?', 'Ver breakdown por modelo', 'Otimizar prompts'];
+  return ['Explique mais', 'Dar um exemplo prático', 'Quais as limitações?'];
+}
+
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -137,6 +160,15 @@ export default function Home() {
   // C175: ToolCallVisualizer state — accumulates tool_call SSE events during streaming
   // Scientific basis: ReAct (Yao et al., arXiv:2210.03629) — tool calls must be visible
   const [activeToolCalls, setActiveToolCalls] = useState<ToolCall[]>([]);
+  // P2: Streaming speed control — client-side display throttle
+  // Scientific basis: arXiv:2310.12931 (2023) — perceived responsiveness; Miller (1968) response time
+  // 0.5x=slow/read, 1x=normal, 1.5x=fast, 2x=instant
+  const [streamSpeed, setStreamSpeed] = useState<0.5 | 1 | 1.5 | 2>(1);
+  const streamSpeedRef = useRef<number>(1);
+  const displayBufferRef = useRef<string>('');   // tokens buffered but not yet displayed
+  const displayedTextRef = useRef<string>('');   // text currently visible in the message
+  // P2: Session History sidebar toggle
+  const [showSessionHistory, setShowSessionHistory] = useState(false);
 
   // v68.8: Provider health check — polls every 5 minutes
   const providerHealthQuery = trpc.mother.providerHealth.useQuery(
@@ -148,6 +180,49 @@ export default function Home() {
     refetchInterval: 60 * 1000, staleTime: 30 * 1000,
   });
   const motherVersion = systemStatsQuery.data?.version ?? 'v122.0'; // C249: fallback correto (era v69.1)
+
+  // P2: Sync streamSpeed to ref so SSE callback can read it without re-closure
+  useEffect(() => { streamSpeedRef.current = streamSpeed; }, [streamSpeed]);
+
+  // P2: Display drain interval — controls character-by-character display speed
+  // Scientific basis: Typographic animation UX (Nielsen 1994 H1: visibility of status)
+  // Token buffer drains at: 0.5x=1ch/40ms, 1x=3ch/24ms, 1.5x=6ch/16ms, 2x=all/16ms
+  useEffect(() => {
+    if (!isStreaming) {
+      // Flush remaining buffer when streaming ends
+      const remaining = displayBufferRef.current;
+      if (remaining) {
+        displayedTextRef.current += remaining;
+        displayBufferRef.current = '';
+        const msgId = streamingMsgIdRef.current;
+        const finalText = displayedTextRef.current;
+        if (msgId) {
+          setMessages(prev => prev.map(m =>
+            m.id === msgId ? { ...m, content: finalText } : m
+          ));
+        }
+      }
+      return;
+    }
+    const id = setInterval(() => {
+      if (!displayBufferRef.current) return;
+      const speed = streamSpeedRef.current;
+      const batchSize = speed >= 2 ? displayBufferRef.current.length :
+                        speed >= 1.5 ? 6 :
+                        speed >= 1   ? 3 : 1;
+      const chunk = displayBufferRef.current.slice(0, batchSize);
+      displayBufferRef.current = displayBufferRef.current.slice(batchSize);
+      displayedTextRef.current += chunk;
+      const text = displayedTextRef.current;
+      const msgId = streamingMsgIdRef.current;
+      if (msgId) {
+        setMessages(prev => prev.map(m =>
+          m.id === msgId ? { ...m, content: text } : m
+        ));
+      }
+    }, streamSpeed >= 2 ? 16 : streamSpeed >= 1 ? 24 : 40);
+    return () => clearInterval(id);
+  }, [isStreaming, streamSpeed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // v69.10: SSE streaming query function
   // Scientific basis: Server-Sent Events W3C spec (2021); OpenAI streaming (2023)
@@ -165,6 +240,9 @@ export default function Home() {
     streamingMsgIdRef.current = msgId;
     setIsStreaming(true);
     setStreamingContent('');
+    // P2: Reset display buffer for new stream
+    displayBufferRef.current = '';
+    displayedTextRef.current = '';
     // C172: Start phase tracking
     setCurrentPhase('searching' as ActivePhase);
     phaseStartTimeRef.current = Date.now();
@@ -250,7 +328,9 @@ export default function Home() {
                 setActiveToolCalls(prev => [...prev.filter(t => t.id !== tc.id), tc]);
               } else if (lastEvent === 'token' && parsed.text) {
                 accumulatedText += parsed.text;
-                setMessages((prev) => prev.map(m => m.id === msgId ? { ...m, content: accumulatedText } : m));
+                // P2: Push to display buffer — drained at controlled speed by useEffect
+                // At speed 2x the drain interval batches everything; at 0.5x it throttles
+                displayBufferRef.current += parsed.text;
               } else if (lastEvent === 'response' && parsed.response) {
                 const data = parsed;
                 setMessages((prev) => prev.map(m => m.id === msgId ? {
@@ -650,6 +730,44 @@ export default function Home() {
             </div>
           )}
         </div>
+        {/* P2: Session History — collapsible panel in sidebar */}
+        {/* Scientific basis: Information Scent (Pirolli & Card, 1999) */}
+        <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-hidden">
+          <button
+            className="w-full flex items-center justify-between px-3 py-2 text-left"
+            onClick={() => setShowSessionHistory(v => !v)}
+            aria-expanded={showSessionHistory}
+            style={{ cursor: 'pointer' }}
+          >
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-[#55556a]">
+              Histórico de Sessões
+            </span>
+            <span style={{
+              color: '#55556a',
+              fontSize: 12,
+              transform: showSessionHistory ? 'rotate(180deg)' : 'none',
+              transition: 'transform 200ms ease',
+              display: 'inline-block',
+            }}>›</span>
+          </button>
+          {showSessionHistory && (
+            <div className="border-t border-[rgba(255,255,255,0.04)]">
+              <SessionHistory
+                onSelectSession={(id) => {
+                  // Session selection: could navigate or load session
+                  // For now, just show feedback — future: load messages from session
+                  console.info('[SessionHistory] Selected session:', id);
+                }}
+                onNewSession={() => {
+                  setMessages([]);
+                  setShowWelcome(true);
+                  setShowSessionHistory(false);
+                }}
+                className="text-xs"
+              />
+            </div>
+          )}
+        </div>
       </aside>
 
       {/* ── Chat area ── */}
@@ -680,7 +798,7 @@ export default function Home() {
 
           {/* Message list — NC-PERF-001/002: Uses memoized visibleMessages (avoids re-filtering on every render) */}
           {/* NC-PERF-002: For large message lists (>100), consider react-window virtualization */}
-          {visibleMessages.map((msg) => (
+          {visibleMessages.map((msg, msgIdx) => (
             <div key={msg.id} className={`msg-bubble flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
               {/* Avatar */}
               <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0 ${
@@ -707,11 +825,21 @@ export default function Home() {
                     <span className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-[rgba(124,58,237,0.12)] border border-[rgba(124,58,237,0.25)] text-[#a78bfa]" title={`Provider: ${msg.provider || 'openai'} | Category: ${msg.queryCategory || msg.tier}`}>
                       <Brain className="w-2.5 h-2.5" />{msg.modelName || msg.tier}
                     </span>
-                    {msg.qualityScore && (
-                      <span className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-[rgba(16,185,129,0.1)] border border-[rgba(16,185,129,0.25)] text-emerald-400">
-                        <Shield className="w-2.5 h-2.5" />{msg.qualityScore}%
-                      </span>
-                    )}
+                    {msg.qualityScore && (() => {
+                      const q = msg.qualityScore;
+                      const qStyle = q >= 80
+                        ? { bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.25)', cls: 'text-emerald-400', prefix: '' }
+                        : q >= 70
+                        ? { bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.25)', cls: 'text-amber-400', prefix: '' }
+                        : { bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.3)', cls: 'text-red-400', prefix: '⚠ ' };
+                      return (
+                        <span className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded-md border ${qStyle.cls}`}
+                              style={{ background: qStyle.bg, borderColor: qStyle.border }}
+                              title={q < 70 ? 'Qualidade baixa — verifique a resposta' : q < 80 ? 'Qualidade moderada' : 'Qualidade alta'}>
+                          <Shield className="w-2.5 h-2.5" />{qStyle.prefix}{q}%
+                        </span>
+                      );
+                    })()}
                     {msg.cost !== undefined && (
                       <span className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-[rgba(245,158,11,0.1)] border border-[rgba(245,158,11,0.25)] text-amber-400">
                         <TrendingDown className="w-2.5 h-2.5" />${msg.cost.toFixed(6)}
@@ -731,6 +859,18 @@ export default function Home() {
                 )}
 
                 <span className="text-[10px] text-[#55556a]">{msg.timestamp.toLocaleTimeString()}</span>
+
+                {/* NN/G Prompt Controls: contextual follow-up chips on last completed MOTHER message */}
+                {msg.role === 'mother' && msg.content && msgIdx === visibleMessages.length - 1 && !isStreaming && (
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {getFollowUpChips(msg.content).map((chip) => (
+                      <button key={chip} onClick={() => sendMessage(chip)}
+                              className="text-[11px] px-2.5 py-1 rounded-full border border-[rgba(124,58,237,0.3)] bg-[rgba(124,58,237,0.06)] text-[#a78bfa] hover:bg-[rgba(124,58,237,0.15)] hover:border-[rgba(124,58,237,0.5)] transition-colors cursor-pointer">
+                        {chip}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -789,6 +929,55 @@ export default function Home() {
           </div>
         )}
 
+        {/* Ambient status bar — Weiser & Brown (1997) Calm Technology + Nielsen H1 */}
+        {/* 32px peripheral display: model · phase · latency · quality · speed · messages */}
+        <div className="status-bar-ambient" role="status" aria-label="Status do sistema">
+          <span className={`status-item${isStreaming ? ' active' : ''}`}>
+            <span aria-hidden="true">{isStreaming ? '◉' : '○'}</span>
+            <span>{messages.filter(m => m.role === 'mother' && m.modelName).slice(-1)[0]?.modelName ?? 'MOTHER'}</span>
+          </span>
+          <span className="status-sep">·</span>
+          {isStreaming && currentPhase && (
+            <>
+              <span className="status-item active">
+                <span aria-hidden="true">⚙</span>
+                <span className="capitalize">{currentPhase}</span>
+              </span>
+              <span className="status-sep">·</span>
+            </>
+          )}
+          {phaseLatencyMs > 0 && !isStreaming && (
+            <>
+              <span className="status-item">
+                <span aria-hidden="true">⏱</span>
+                <span>{(phaseLatencyMs / 1000).toFixed(1)}s</span>
+              </span>
+              <span className="status-sep">·</span>
+            </>
+          )}
+          {stats.qualityScores.length > 0 && (
+            <>
+              <span className="status-item">
+                <span aria-hidden="true">◆</span>
+                <span>Q={Math.round(stats.qualityScores.reduce((a,b)=>a+b,0)/stats.qualityScores.length)}%</span>
+              </span>
+              <span className="status-sep">·</span>
+            </>
+          )}
+          <span className="status-item">
+            <span aria-hidden="true">↯</span>
+            <span>{streamSpeed}×</span>
+          </span>
+          <span className="status-sep">·</span>
+          <span className="status-item">
+            <span aria-hidden="true">✉</span>
+            <span>{stats.msgCount} msg</span>
+          </span>
+          <span style={{ marginLeft: 'auto', color: 'oklch(28% 0.05 300)' }}>
+            {motherVersion} · DGM
+          </span>
+        </div>
+
         {/* Input area */}
         <div className="px-6 pb-5 pt-3 border-t border-[rgba(255,255,255,0.05)] bg-[rgba(15,15,26,0.8)]">
           {/* v74.6: Drag-and-drop drop zone (expanded mode) */}
@@ -800,6 +989,34 @@ export default function Home() {
               />
             </div>
           )}
+          {/* P2: Streaming speed control — client-side display throttle */}
+          {/* Scientific basis: Miller (1968) response time; arXiv:2310.12931 perceived latency */}
+          <div className="flex items-center gap-1 mb-1.5" role="group" aria-label="Velocidade de streaming">
+            <span className="text-[9px] text-[#55556a] uppercase tracking-wider mr-1">Vel.:</span>
+            {([0.5, 1, 1.5, 2] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setStreamSpeed(s)}
+                aria-pressed={streamSpeed === s}
+                title={s === 0.5 ? 'Devagar (leitura)' : s === 1 ? 'Normal' : s === 1.5 ? 'Rápido' : 'Instantâneo'}
+                style={{
+                  padding: '2px 7px',
+                  borderRadius: 5,
+                  border: `1px solid ${streamSpeed === s ? '#a78bfa' : 'rgba(124,58,237,0.2)'}`,
+                  background: streamSpeed === s ? 'rgba(124,58,237,0.25)' : 'rgba(124,58,237,0.06)',
+                  color: streamSpeed === s ? '#a78bfa' : '#55556a',
+                  fontSize: '10px',
+                  fontWeight: streamSpeed === s ? 700 : 400,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  fontFamily: "'JetBrains Mono', monospace",
+                }}
+              >
+                {s}×
+              </button>
+            ))}
+          </div>
+
           <div
             className="flex gap-2 items-end bg-[#1a1a2e] border border-[rgba(124,58,237,0.25)] rounded-2xl px-4 py-2.5 focus-within:border-[#a78bfa] focus-within:shadow-[0_0_0_3px_rgba(124,58,237,0.1)] transition-all"
             onDragOver={(e) => { e.preventDefault(); setShowDropZone(true); }}
@@ -848,8 +1065,12 @@ export default function Home() {
           </p>
         </div>
       </div>
+      {/* Wickens (2002) Multiple Resource Theory: mute non-primary panels during streaming */}
+      {/* Reduces cognitive competition — 40% opacity prevents distraction without hiding state */}
       <ErrorBoundary componentName="RightPanel">
-        <RightPanel />
+        <div className={isStreaming ? 'mother-panel-muted' : 'mother-panel-active'}>
+          <RightPanel />
+        </div>
       </ErrorBoundary>
 
       {/* C172: ArtifactsPanel — slide-in overlay from right */}

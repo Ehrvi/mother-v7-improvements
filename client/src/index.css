@@ -57,45 +57,132 @@
 }
 
 @theme inline {
-  /* Mother Neo-Organic Cyberpunk Design System */
-  
-  /* Core Colors */
-  --deep-void: oklch(20% 0.05 270);           /* #0A0E1A */
-  --neon-violet: oklch(60% 0.35 300);         /* #B026FF */
-  --cyan-pulse: oklch(80% 0.20 200);          /* #00F5FF */
-  --soft-lavender: oklch(85% 0.15 300);       /* #E0B3FF */
-  --warm-amber: oklch(75% 0.15 60);           /* #FFB84D */
-  
-  /* Theme Variables */
-  --background: var(--deep-void);
-  --foreground: oklch(95% 0.02 300);
-  --card: oklch(25% 0.05 270);
-  --card-foreground: oklch(95% 0.02 300);
-  --popover: oklch(22% 0.05 270);
-  --popover-foreground: oklch(95% 0.02 300);
-  --primary: var(--neon-violet);
-  --primary-foreground: oklch(95% 0.02 300);
-  --secondary: var(--cyan-pulse);
-  --secondary-foreground: var(--deep-void);
-  --muted: oklch(30% 0.05 270);
-  --muted-foreground: oklch(70% 0.05 300);
+  /* ================================================================
+   * CONSELHO DOS 5 — DEFINITIVE DESIGN SYSTEM
+   * Delphi + MAD Synthesis | C1 (Engineering) + C2 (Cognitive) +
+   * C3 (Visual/OKLCH) + C4 (Safety-Critical)
+   *
+   * Scientific basis:
+   * - CIECAM02/OKLab (Ottosson 2020): perceptually uniform OKLCH space
+   * - Weber-Fechner Law: lightness steps ΔL≈5-6 = equal perceptual diff
+   * - Tractinsky et al. (2000): aesthetic quality correlates with usability
+   * - IEC 60073: color semantics for industrial control systems
+   * - Brettel et al. (1997): CVD-safe color simulation
+   * - Wickens SEEV model: salience optimization for preattentive features
+   * ================================================================ */
+
+  /* ── MOTHER: Perceptually-Uniform Void Spectrum (Weber-Fechner: ΔL≈5-6) ── */
+  --void-deepest:  oklch(8%  0.02 280);   /* true depth — primary background */
+  --void-deep:     oklch(12% 0.02 280);   /* elevated bg */
+  --void-mid:      oklch(18% 0.025 275);  /* cards, surfaces */
+  --void-elevated: oklch(24% 0.03 270);   /* modals, dropdowns */
+  --void-surface:  oklch(30% 0.03 265);   /* hover states */
+
+  /* ── MOTHER: Violet Accent — reduced chroma for extended session comfort ── */
+  --violet-dim:    oklch(45% 0.15 300);   /* disabled, inactive */
+  --violet-base:   oklch(58% 0.18 295);   /* primary actions — AA 4.8:1 */
+  --violet-bright: oklch(68% 0.20 290);   /* hover states */
+  --violet-glow:   oklch(75% 0.16 285);   /* active, focus rings */
+
+  /* ── MOTHER: Cyan Secondary — complement to violet ── */
+  --cyan-dim:      oklch(50% 0.12 200);   /* muted secondary */
+  --cyan-base:     oklch(72% 0.14 195);   /* secondary actions */
+  --cyan-bright:   oklch(82% 0.12 190);   /* highlights */
+
+  /* ── MOTHER: Semantic warm — amber for warnings & human warmth ── */
+  --amber-dim:     oklch(55% 0.12 75);
+  --amber-base:    oklch(75% 0.14 70);
+  --amber-bright:  oklch(85% 0.12 65);
+
+  /* ── MOTHER: Text hierarchy ── */
+  --text-primary:   oklch(92% 0.01 280);  /* main content */
+  --text-secondary: oklch(72% 0.02 275);  /* secondary */
+  --text-tertiary:  oklch(52% 0.02 270);  /* captions, labels */
+  --text-disabled:  oklch(38% 0.02 270);  /* disabled */
+
+  /* ── Legacy aliases (kept for backwards compat) ── */
+  --deep-void:      var(--void-deepest);
+  --neon-violet:    var(--violet-base);
+  --cyan-pulse:     var(--cyan-base);
+  --soft-lavender:  oklch(85% 0.15 300);
+  --warm-amber:     var(--amber-base);
+
+  /* ── SHMS: IEC 60073 Compliant + CVD-Safe (Brettel 1997) ── */
+  /* Redundant coding: color + shape (triangle/diamond/square/circle) required */
+  --alarm-p1-fg:     oklch(55% 0.22 25);  /* danger red — distinguishable in protanopia */
+  --alarm-p1-bg:     oklch(25% 0.08 25);
+  --alarm-p2-fg:     oklch(75% 0.18 70);  /* warning amber */
+  --alarm-p2-bg:     oklch(30% 0.06 70);
+  --alarm-p3-fg:     oklch(85% 0.15 95);  /* caution yellow */
+  --alarm-p3-bg:     oklch(35% 0.05 95);
+  --alarm-p4-fg:     oklch(65% 0.15 250); /* advisory blue */
+  --alarm-p4-bg:     oklch(25% 0.05 250);
+  --alarm-ok-fg:     oklch(65% 0.18 145); /* healthy green */
+  --alarm-ok-bg:     oklch(25% 0.06 145);
+
+  /* ── Typography Scale — Major Third 1.25 (Bringhurst §8.2) ── */
+  --text-xs:   0.64rem;   /* 10.24px — timestamps, captions */
+  --text-sm:   0.8rem;    /* 12.8px — labels, metadata */
+  --text-base: 1rem;      /* 16px — body */
+  --text-md:   1.25rem;   /* 20px — subheadings */
+  --text-lg:   1.563rem;  /* 25px — section headers */
+  --text-xl:   1.953rem;  /* 31px — page titles */
+  --text-2xl:  2.441rem;  /* 39px — hero */
+  --text-3xl:  3.052rem;  /* 49px — display */
+
+  /* ── Spacing — 8px base grid (Refactoring UI §5) ── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ── Motion — Material Design 3 duration curves ── */
+  --duration-instant:   50ms;
+  --duration-fast:      100ms;
+  --duration-normal:    200ms;
+  --duration-slow:      300ms;
+  --duration-xslow:     500ms;
+  --ease-standard:      cubic-bezier(0.2, 0, 0, 1);
+  --ease-decelerate:    cubic-bezier(0, 0, 0, 1);
+  --ease-accelerate:    cubic-bezier(0.3, 0, 1, 1);
+  --ease-spring:        cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ── Theme Variables ── */
+  --background: var(--void-deepest);
+  --foreground: var(--text-primary);
+  --card: var(--void-mid);
+  --card-foreground: var(--text-primary);
+  --popover: var(--void-elevated);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--violet-base);
+  --primary-foreground: var(--text-primary);
+  --secondary: var(--cyan-base);
+  --secondary-foreground: var(--void-deepest);
+  --muted: var(--void-surface);
+  --muted-foreground: var(--text-tertiary);
   --accent: var(--soft-lavender);
-  --accent-foreground: var(--deep-void);
-  --destructive: oklch(60% 0.25 20);
-  --destructive-foreground: oklch(95% 0.02 300);
+  --accent-foreground: var(--void-deepest);
+  --destructive: var(--alarm-p1-fg);
+  --destructive-foreground: var(--text-primary);
   --border: oklch(35% 0.10 300);
-  --input: oklch(30% 0.05 270);
-  --ring: var(--neon-violet);
-  
+  --input: var(--void-mid);
+  --ring: var(--violet-glow);
+
   /* Sidebar */
-  --sidebar: oklch(22% 0.05 270);
-  --sidebar-foreground: oklch(95% 0.02 300);
-  --sidebar-primary: var(--neon-violet);
-  --sidebar-primary-foreground: oklch(95% 0.02 300);
-  --sidebar-accent: var(--cyan-pulse);
-  --sidebar-accent-foreground: var(--deep-void);
+  --sidebar: var(--void-deep);
+  --sidebar-foreground: var(--text-primary);
+  --sidebar-primary: var(--violet-base);
+  --sidebar-primary-foreground: var(--text-primary);
+  --sidebar-accent: var(--cyan-base);
+  --sidebar-accent-foreground: var(--void-deepest);
   --sidebar-border: oklch(35% 0.10 300);
-  --sidebar-ring: var(--neon-violet);
+  --sidebar-ring: var(--violet-glow);
   
   /* Charts */
   --chart-1: var(--neon-violet);
@@ -334,6 +421,248 @@ code, pre {
   animation: neural-pulse 2s ease-in-out infinite;
 }
 
+/* ================================================================
+ * CONSELHO DOS 5 — STREAMING UX UTILITIES
+ * C1 (Engineering): Hybrid streaming — token-level + semantic pauses
+ * C2 (Cognitive): Reduces extraneous load during AI thinking phases
+ * Scientific basis:
+ * - Nielsen (1993): 100ms = instant, 1s = flow, 10s = attention limit
+ * - arXiv:2310.12931: Progress indicators reduce perceived wait 35%
+ * ================================================================ */
+
+/* Phase transition flash — Wickens SEEV preattentive salience boost */
+@keyframes phase-flash {
+  0%   { opacity: 1; transform: scale(1); }
+  20%  { opacity: 0.6; transform: scale(0.96); }
+  60%  { opacity: 1; transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Streaming cursor blink — indicates live token output */
+@keyframes stream-cursor {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+/* Phase indicator orbit — SEEV: unique motion for current phase */
+@keyframes phase-orbit {
+  0%   { box-shadow: 0 0 0 0 var(--phase-color, oklch(68% 0.20 290) / 0.6); }
+  70%  { box-shadow: 0 0 0 6px var(--phase-color, oklch(68% 0.20 290) / 0); }
+  100% { box-shadow: 0 0 0 0 var(--phase-color, oklch(68% 0.20 290) / 0); }
+}
+
+/* Token reveal animation */
+@keyframes token-fade-in {
+  from { opacity: 0; transform: translateY(1px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-phase-flash    { animation: phase-flash 350ms var(--ease-spring) forwards; }
+.animate-stream-cursor  { animation: stream-cursor 800ms step-end infinite; }
+.animate-phase-orbit    { animation: phase-orbit 1.5s ease-out infinite; }
+.animate-token-in       { animation: token-fade-in 80ms ease-out forwards; }
+
+/* Streaming message container */
+.streaming-content {
+  position: relative;
+}
+.streaming-content::after {
+  content: '▋';
+  display: inline-block;
+  color: var(--violet-bright);
+  animation: stream-cursor 800ms step-end infinite;
+  margin-left: 1px;
+  font-size: 0.85em;
+  vertical-align: baseline;
+}
+.streaming-content.complete::after {
+  display: none;
+}
+
+/* ================================================================
+ * CONSELHO DOS 5 — SHMS SAFETY-CRITICAL UTILITIES
+ * C4 (Safety): IEC 62682 + ISA-101 display hierarchy
+ * C3 (Visual): CVD-safe OKLCH + redundant coding
+ * Scientific basis:
+ * - IEC 62682:2014 §6.3: Alarm priority classification
+ * - ISA-101.01-2015: HMI display hierarchy (Level 1-4)
+ * - IEC 60073: Colours for safety-critical systems
+ * - ISO 11064-5: Redundant coding requirements
+ * ================================================================ */
+
+/* ISA-101 display level indicators */
+.shms-level-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+
+/* IEC 62682 Alarm Priority Classes with redundant coding */
+/* P1 — EMERGENCY: Red + Triangle shape */
+.alarm-p1 {
+  background: var(--alarm-p1-bg);
+  color: var(--alarm-p1-fg);
+  border: 1px solid var(--alarm-p1-fg);
+  border-left: 4px solid var(--alarm-p1-fg);
+}
+.alarm-p1-flash {
+  animation: alarm-critical-flash 500ms ease-in-out infinite;
+}
+@keyframes alarm-critical-flash {
+  0%, 100% { background: var(--alarm-p1-bg); }
+  50%       { background: oklch(35% 0.12 25); }
+}
+
+/* P2 — HIGH: Amber + Diamond shape */
+.alarm-p2 {
+  background: var(--alarm-p2-bg);
+  color: var(--alarm-p2-fg);
+  border: 1px solid var(--alarm-p2-fg);
+  border-left: 4px solid var(--alarm-p2-fg);
+}
+
+/* P3 — MEDIUM: Yellow + Square shape */
+.alarm-p3 {
+  background: var(--alarm-p3-bg);
+  color: var(--alarm-p3-fg);
+  border: 1px solid var(--alarm-p3-fg);
+  border-left: 4px solid var(--alarm-p3-fg);
+}
+
+/* P4 — LOW: Blue + Circle shape */
+.alarm-p4 {
+  background: var(--alarm-p4-bg);
+  color: var(--alarm-p4-fg);
+  border: 1px solid var(--alarm-p4-fg);
+  border-left: 4px solid var(--alarm-p4-fg);
+}
+
+/* Health status indicators */
+.health-critical { color: var(--alarm-p1-fg); }
+.health-high     { color: var(--alarm-p2-fg); }
+.health-medium   { color: var(--alarm-p3-fg); }
+.health-good     { color: var(--alarm-ok-fg); }
+
+/* SHMS sensor sparkline container */
+.sensor-sparkline {
+  width: 64px;
+  height: 24px;
+  overflow: hidden;
+}
+
+/* Situation Awareness zone labels (Endsley 1995) */
+.sa-level-1 { /* Perception */
+  border-left: 3px solid var(--cyan-base);
+  padding-left: 8px;
+}
+.sa-level-2 { /* Comprehension */
+  border-left: 3px solid var(--amber-base);
+  padding-left: 8px;
+}
+.sa-level-3 { /* Projection */
+  border-left: 3px solid var(--alarm-p1-fg);
+  padding-left: 8px;
+}
+
+/* ================================================================
+ * CONSELHO DOS 5 — TYPOGRAPHY UTILITIES
+ * C3 (Visual): IBM Plex + Inter + JetBrains Mono
+ * Scientific basis: Bringhurst "Elements of Typographic Style" 4th ed.
+ * ================================================================ */
+
+/* Tabular numeric display — critical for sensor readings (SHMS) */
+.tabular-nums {
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: 0.02em;
+}
+
+/* Sensor value display — high legibility under stress */
+.sensor-value {
+  font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Optimal line length container (45-75 chars per Bringhurst) */
+.measure-base  { max-width: 65ch; }
+.measure-wide  { max-width: 80ch; }
+.measure-narrow { max-width: 45ch; }
+
+/* ================================================================
+ * CONSELHO DOS 5 ROUND 2 — COLOR VISION DEFICIENCY ALTERNATES
+ * Machado et al. (2009) "A Physiologically-based Model for Simulation
+ *   of Color Vision Deficiency" IEEE TVCG
+ * Brettel et al. (1997): CVD dichromat simulation
+ * WCAG 2.1 SC 1.4.11: Non-text contrast
+ * Usage: <html data-colorblind="deuteranopia"> or "tritanopia"
+ * ================================================================ */
+
+/* Deuteranopia / Protanopia (red-green blind, ~8% male population) */
+:root[data-colorblind="deuteranopia"],
+:root[data-colorblind="protanopia"] {
+  /* Shift alarm colors away from red/green confusion zone */
+  --alarm-p1-fg: oklch(60% 0.20 50);   /* Orange replaces red — distinguishable */
+  --alarm-p1-bg: oklch(28% 0.07 50);
+  --alarm-ok-fg: oklch(72% 0.14 230);  /* Blue replaces green — unambiguous */
+  --alarm-ok-bg: oklch(25% 0.05 230);
+  /* Phase colors — avoid red/green ambiguity */
+  --alarm-p3-fg: oklch(85% 0.15 70);   /* Retain amber (safe) */
+  /* MOTHER accent stays violet — unaffected by red-green CVD */
+}
+
+/* Tritanopia (blue-yellow blind, ~0.01% population) */
+:root[data-colorblind="tritanopia"] {
+  /* Shift away from blue/yellow confusion zone */
+  --alarm-p4-fg: oklch(65% 0.20 350);  /* Magenta replaces blue */
+  --alarm-p4-bg: oklch(25% 0.07 350);
+  --alarm-p3-fg: oklch(80% 0.20 30);   /* Orange-red replaces yellow */
+  --alarm-p3-bg: oklch(30% 0.07 30);
+  --cyan-base:   oklch(72% 0.20 330);  /* Magenta replaces cyan */
+  --cyan-bright: oklch(82% 0.18 325);
+}
+
+/* ================================================================
+ * CONSELHO DOS 5 ROUND 2 — AMBIENT STATUS BAR UTILITIES
+ * Ambient peripheral display (Weiser & Brown 1997: Calm Technology)
+ * Nielsen (1994) H1: Visibility of System Status
+ * 32px height — below primary focus, above OS taskbar
+ * ================================================================ */
+.status-bar-ambient {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  background: oklch(9% 0.015 280 / 0.95);
+  border-top: 1px solid oklch(22% 0.025 275);
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  color: oklch(40% 0.02 270);
+  overflow: hidden;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.status-bar-ambient .status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.status-bar-ambient .status-item.active {
+  color: oklch(65% 0.15 290);
+}
+.status-bar-ambient .status-sep {
+  color: oklch(28% 0.02 270);
+  user-select: none;
+}
+
 
 
 /* ============================================================
@@ -383,4 +712,142 @@ code, pre {
 
 @keyframes mother-auth-spin {
   to { transform: rotate(360deg); }
+}
+
+/* ================================================================
+ * CONSELHO DOS 5 ROUND 2 — RESPONSIVE MOTHER LAYOUT GRID
+ * Conselheiro 1 (DeepSeek R1): Wickens Multiple Resource Theory (2002)
+ * Mobile-first 3-zone layout: left rail + conversation + right panel
+ * Breakpoints: sm=640, md=768, lg=1024, xl=1280, 2xl=1536
+ * ================================================================ */
+
+/* Mobile: single column, off-canvas panels */
+.mother-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr auto;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* md: 768px — right panel appears */
+@media (min-width: 768px) {
+  .mother-layout {
+    grid-template-columns: 1fr 280px;
+  }
+  .mother-left-rail {
+    display: none;  /* still off-canvas at md */
+  }
+}
+
+/* lg: 1024px — left rail appears (collapsed 64px) */
+@media (min-width: 1024px) {
+  .mother-layout {
+    grid-template-columns: 64px 1fr 300px;
+  }
+  .mother-left-rail {
+    display: flex;
+  }
+}
+
+/* xl: 1280px — left rail expanded (240px per Conselheiro 1 spec) */
+@media (min-width: 1280px) {
+  .mother-layout {
+    grid-template-columns: 248px 1fr 320px;
+  }
+}
+
+/* 2xl: 1536px — center conversation max-width for readability */
+/* Per Bringhurst (1992): optimal measure 45-75 characters */
+@media (min-width: 1536px) {
+  .mother-conversation {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+}
+
+/* Panel muting during streaming — Wickens (2002) Multiple Resource Theory */
+/* Reduces cognitive competition from non-primary visual channels */
+.mother-panel-muted {
+  opacity: 0.4;
+  pointer-events: none;
+  transition: opacity 300ms var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
+}
+.mother-panel-muted:hover {
+  opacity: 0.6;
+}
+
+/* Panel restore on stream complete */
+.mother-panel-active {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 300ms var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
+}
+
+/* ================================================================
+ * CONSELHO DOS 5 ROUND 2 — SHMS SENSOR ANOMALY PULSE
+ * Conselheiro 1 (DeepSeek R1): Wickens et al. (2003) Human Factors
+ * Redundant encoding: color + shape + animation for anomaly detection
+ * Flash rate: 2s period (0.5Hz) — NUREG-0700 §6.4.6 + WCAG 2.3.1
+ * ================================================================ */
+
+@keyframes sensor-pulse-critical {
+  0%   { filter: drop-shadow(0 0 0px oklch(55% 0.22 25)); opacity: 1; }
+  50%  { filter: drop-shadow(0 0 6px oklch(55% 0.22 25 / 0.8)); opacity: 0.85; }
+  100% { filter: drop-shadow(0 0 0px oklch(55% 0.22 25)); opacity: 1; }
+}
+
+@keyframes sensor-pulse-warning {
+  0%   { filter: drop-shadow(0 0 0px oklch(75% 0.18 70)); opacity: 1; }
+  50%  { filter: drop-shadow(0 0 5px oklch(75% 0.18 70 / 0.7)); opacity: 0.85; }
+  100% { filter: drop-shadow(0 0 0px oklch(75% 0.18 70)); opacity: 1; }
+}
+
+.sensor-anomaly-critical { animation: sensor-pulse-critical 2s ease-in-out infinite; }
+.sensor-anomaly-warning  { animation: sensor-pulse-warning 2s ease-in-out infinite; }
+
+/* ================================================================
+ * CONSELHO DOS 5 ROUND 2 — BANG WONG (2011) COLORBLIND-SAFE PALETTE
+ * Bang Wong (2011) "Points of View: Color Blindness" Nature Methods
+ * 7-color categorical: safe for protanopia, deuteranopia, tritanopia
+ * For SHMS data visualization (chart series, correlation matrices)
+ * ================================================================ */
+:root {
+  /* Bang Wong (2011) palette — 7 universal colors */
+  --bw-blue:       #0072B2;  /* series 1 — actual readings */
+  --bw-orange:     #E69F00;  /* series 2 — predicted */
+  --bw-green:      #009E73;  /* series 3 — normal range */
+  --bw-yellow:     #F0E442;  /* series 4 — warning band */
+  --bw-sky-blue:   #56B4E9;  /* series 5 — confidence interval */
+  --bw-vermillion: #D55E00;  /* series 6 — critical threshold */
+  --bw-pink:       #CC79A7;  /* series 7 — secondary sensor */
+  --bw-black:      #000000;  /* base reference */
+
+  /* Applied to SHMS chart defaults */
+  --shms-chart-actual:     var(--bw-blue);
+  --shms-chart-predicted:  var(--bw-sky-blue);
+  --shms-chart-threshold-critical: var(--bw-vermillion);
+  --shms-chart-threshold-warning:  var(--bw-orange);
+  --shms-chart-normal-band: var(--bw-green);
+}
+
+/* Stale data indicator — WebSocket disconnection warning */
+/* Per Conselheiro 1: show when data is >10s old */
+.shms-stale-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: oklch(30% 0.06 70);
+  border: 1px solid oklch(75% 0.18 70 / 0.5);
+  color: oklch(75% 0.18 70);
+  font-size: 10px;
+  font-weight: 600;
+  animation: stale-blink 2s ease-in-out infinite;
+}
+
+@keyframes stale-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.65; }
 }
