@@ -1,550 +1,1029 @@
 /**
- * MOTHER v7 — SHMS Monitor (Estado da Arte 2025)
+ * MOTHER v7 — SHMS Geo Inspector Dashboard
  * URL: /shms
  *
- * DIAGNÓSTICO E JUSTIFICATIVA CIENTÍFICA:
- *
- * Design baseado em:
- * - Farrar & Worden (2012) "Structural Health Monitoring: A Machine Learning Perspective" — SHM dashboard design principles
+ * Scientific basis:
+ * - Farrar & Worden (2012) "Structural Health Monitoring: A Machine Learning Perspective"
  * - ISO 13374-1:2003 §4.2 — Condition monitoring dashboard requirements
  * - IEC 62682:2014 §6.3 — Alarm priority management (P1–P4 hierarchy)
- * - IEC 60073 — Color coding for industrial control systems (redundant coding: color + shape + position)
+ * - IEC 60073 — Color coding for industrial control systems
  * - ICOLD Bulletin 158 (2017) §4.3 — Dam safety monitoring visualization
  * - GISTM 2020 §4.3 — Geotechnical Instrumentation and Monitoring
- * - Grieves (2014) "Digital Twin: Manufacturing Excellence" — Digital Twin visualization requirements
- * - Hochreiter & Schmidhuber (1997) LSTM — prediction visualization with confidence bands
+ * - Hochreiter & Schmidhuber (1997) LSTM — prediction with confidence bands
  * - ISO 9241-11:2018 — Usability: Effectiveness + Efficiency + Satisfaction
  * - Nielsen (1994) H1: Visibility of system status
- * - Dewesoft SHM (2024): Real-time preprocessing, data reduction, powerful visualization
- * - ResearchGate (2024): Designing real-time safety monitoring dashboards — simplicity, clarity, consistency
- *
- * ENDEREÇO PRÓPRIO: /shms
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, Activity, AlertTriangle, CheckCircle2, XCircle,
-  Wifi, WifiOff, RefreshCw, Bell, BellOff, TrendingUp, TrendingDown,
-  Thermometer, Gauge, BarChart3, Shield, Clock, Cpu, Zap,
+  Wifi, WifiOff, RefreshCw, Shield, Clock, Building,
+  TrendingUp, TrendingDown, Minus,
 } from 'lucide-react';
+
+// ─── Design tokens ────────────────────────────────────────────────────────────
+const T = {
+  bg: 'oklch(8% 0.02 220)',
+  surface: 'oklch(11% 0.02 220)',
+  surfaceHover: 'oklch(14% 0.03 220)',
+  border: 'oklch(18% 0.03 220)',
+  borderHover: 'oklch(24% 0.04 220)',
+  text: 'oklch(88% 0.01 220)',
+  muted: 'oklch(52% 0.02 220)',
+  dim: 'oklch(38% 0.02 220)',
+  accent: 'oklch(68% 0.18 220)',
+  green: 'oklch(72% 0.18 145)',
+  greenBg: 'oklch(14% 0.06 145)',
+  greenBorder: 'oklch(22% 0.08 145)',
+  yellow: 'oklch(78% 0.16 80)',
+  yellowBg: 'oklch(14% 0.06 80)',
+  yellowBorder: 'oklch(22% 0.08 80)',
+  red: 'oklch(65% 0.22 25)',
+  redBg: 'oklch(14% 0.06 25)',
+  redBorder: 'oklch(22% 0.08 25)',
+  orange: 'oklch(72% 0.18 50)',
+  orangeBg: 'oklch(14% 0.06 50)',
+  orangeBorder: 'oklch(22% 0.08 50)',
+  blue: 'oklch(68% 0.16 260)',
+  blueBg: 'oklch(14% 0.05 260)',
+  blueBorder: 'oklch(22% 0.07 260)',
+} as const;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface SensorReading {
-  timestamp: string;
+interface SensorSummary {
   sensorId: string;
+  sensorType: string;
+  lastReading: number;
+  unit: string;
+  icoldLevel: 'GREEN' | 'YELLOW' | 'RED';
+  lastUpdated: string;
+}
+
+interface StructureData {
+  structureId: string;
+  structureName: string;
+  timestamp: string;
+  overallStatus: 'GREEN' | 'YELLOW' | 'RED';
+  sensors: SensorSummary[];
+  activeAlerts: number;
+  lstmPrediction: {
+    rmse: number;
+    trend: 'STABLE' | 'INCREASING' | 'DECREASING';
+    confidence: number;
+  } | null;
+  digitalTwinStatus: 'ACTIVE' | 'STANDBY' | 'OFFLINE';
+  mqttConnected: boolean;
+  timescaleConnected: boolean;
+  scientificBasis?: string;
+  // Extended fields from getAllDashboardData
+  healthIndex?: number;
+  riskLevel?: 'low' | 'medium' | 'high' | 'critical';
+  shmsLevel?: 1 | 2 | 3 | 4;
+  structureType?: string;
+  recentReadings?: ReadingPoint[];
+  predictions?: PredictionPoint[];
+  signalAnalysis?: SignalAnalysisSummary;
+}
+
+interface ReadingPoint {
+  timestamp: string;
   value: number;
   unit: string;
   isAnomaly: boolean;
   zScore?: number;
+  sensorId?: string;
 }
 
-interface LSTMPrediction {
+interface PredictionPoint {
   timestamp: string;
-  sensorId: string;
   predicted: number;
-  actual?: number;
   confidence: number;
-  rmse: number;
 }
 
-interface StructureHealth {
+interface SignalAnalysisSummary {
+  fundamentalFreqHz: number;
+  damageLevel: 'healthy' | 'watch' | 'warning' | 'critical';
+  macValue: number;
+  rmsChangePct: number;
+  werChange: number;
+  compositeScore: number;
+}
+
+interface AlertItem {
+  id: string;
+  severity: 'info' | 'warning' | 'critical';
+  message: string;
+  sensorId: string;
   structureId: string;
-  structureName: string;
-  healthIndex: number;
-  riskLevel: 'low' | 'medium' | 'high' | 'critical';
-  anomalyCount: number;
+  timestamp: string;
+}
+
+interface SHMSDashboardAll {
+  structures: StructureData[];
+  totalReadings: number;
+  activeAlerts: number;
+  avgHealthScore: number;
+  mqttConnected: boolean;
   lastUpdated: string;
-  shmsLevel: 1 | 2 | 3 | 4;
+  alerts?: AlertItem[];
 }
 
-interface DashboardData {
-  structures: StructureHealth[];
-  recentReadings: SensorReading[];
-  lstmPredictions: LSTMPrediction[];
-  alerts: Array<{ id: string; severity: 'info' | 'warning' | 'critical'; message: string; sensorId: string; timestamp: string }>;
-  systemStatus: { lstmStatus: 'active' | 'training' | 'idle'; mqttConnected: boolean; lastIngestion: string; totalReadings: number };
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return `há ${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `há ${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `há ${h}h`;
+  return `há ${Math.floor(h / 24)}d`;
 }
 
-// ─── Synthetic data generator ──────────────────────────────────────────────────
-// Scientific basis: GISTM 2020 §4.3 — synthetic calibrated data for testing
-function generateSyntheticDashboard(): DashboardData {
-  const now = new Date();
-  const readings: SensorReading[] = [];
-  const predictions: LSTMPrediction[] = [];
+function healthColor(score: number): string {
+  if (score >= 85) return T.green;
+  if (score >= 70) return T.yellow;
+  return T.red;
+}
 
-  for (let i = 29; i >= 0; i--) {
-    const ts = new Date(now.getTime() - i * 60000).toISOString();
-    const baseValue = 125.4 + Math.sin(i * 0.3) * 5;
-    const noise = (Math.random() - 0.5) * 2;
-    const value = Math.round((baseValue + noise) * 10) / 10;
-    const isAnomaly = Math.abs(noise) > 1.7;
-    readings.push({ timestamp: ts, sensorId: 'WDU-PZ-001', value, unit: 'kPa', isAnomaly, zScore: isAnomaly ? Math.round(Math.abs(noise) * 10) / 10 : undefined });
-    const predicted = Math.round((baseValue + (Math.random() - 0.5) * 1.5) * 10) / 10;
-    predictions.push({ timestamp: ts, sensorId: 'WDU-PZ-001', predicted, actual: value, confidence: 0.92 + Math.random() * 0.06, rmse: 0.0434 });
+function icoldColor(level: 'GREEN' | 'YELLOW' | 'RED'): string {
+  return level === 'GREEN' ? T.green : level === 'YELLOW' ? T.yellow : T.red;
+}
+
+function riskColor(level?: string): string {
+  switch (level) {
+    case 'low': return T.green;
+    case 'medium': return T.yellow;
+    case 'high': return T.orange;
+    case 'critical': return T.red;
+    default: return T.muted;
+  }
+}
+
+function riskLabel(level?: string): string {
+  switch (level) {
+    case 'low': return 'BAIXO';
+    case 'medium': return 'MÉDIO';
+    case 'high': return 'ALTO';
+    case 'critical': return 'CRÍTICO';
+    default: return 'N/D';
+  }
+}
+
+function damageLevelColor(level?: string): string {
+  switch (level) {
+    case 'healthy': return T.green;
+    case 'watch': return T.blue;
+    case 'warning': return T.yellow;
+    case 'critical': return T.red;
+    default: return T.muted;
+  }
+}
+
+function statusFromIcold(status: 'GREEN' | 'YELLOW' | 'RED'): { label: string; color: string } {
+  switch (status) {
+    case 'GREEN': return { label: 'Normal', color: T.green };
+    case 'YELLOW': return { label: 'Atenção', color: T.yellow };
+    case 'RED': return { label: 'Alerta', color: T.red };
+  }
+}
+
+// ─── SVG Health Ring ──────────────────────────────────────────────────────────
+
+interface HealthRingProps { value: number; status: 'GREEN' | 'YELLOW' | 'RED' }
+
+function HealthRing({ value, status }: HealthRingProps) {
+  const color = icoldColor(status);
+  const r = 28, cx = 36, cy = 36, sw = 5;
+  const circ = 2 * Math.PI * r;
+  const safePct = Math.min(100, Math.max(0, value));
+  const dash = (safePct / 100) * circ;
+  return (
+    <svg width={72} height={72} viewBox="0 0 72 72" aria-label={`Health ${safePct.toFixed(0)}%`}>
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke={T.border} strokeWidth={sw} />
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={sw}
+        strokeDasharray={`${dash} ${circ}`} strokeDashoffset={circ * 0.25}
+        strokeLinecap="round" style={{ transition: 'stroke-dasharray 0.8s ease' }} />
+      <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="middle"
+        style={{ fontSize: 11, fill: color, fontWeight: 700, fontFamily: 'Inter, sans-serif' }}>
+        {safePct.toFixed(0)}%
+      </text>
+    </svg>
+  );
+}
+
+// ─── SVG Sensor Chart ─────────────────────────────────────────────────────────
+// Scientific basis: Hochreiter & Schmidhuber (1997) LSTM; arXiv:2306.05685 §4.2
+
+interface SensorChartProps {
+  readings: ReadingPoint[];
+  predictions?: PredictionPoint[];
+}
+
+function SensorChart({ readings, predictions = [] }: SensorChartProps) {
+  const W = 100, H = 60, PAD = 4;
+  if (readings.length === 0) {
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 140 }}>
+        <text x={W / 2} y={H / 2} textAnchor="middle" dominantBaseline="middle"
+          style={{ fontSize: 5, fill: T.muted, fontFamily: 'Inter, sans-serif' }}>
+          Sem dados de leituras
+        </text>
+      </svg>
+    );
   }
 
-  const anomalyCount = readings.filter(r => r.isAnomaly).length;
-
-  return {
-    structures: [
-      { structureId: 'wdu-dam-001', structureName: 'Barragem Norte', healthIndex: 94.2, riskLevel: 'low', anomalyCount, lastUpdated: now.toISOString(), shmsLevel: 3 },
-      { structureId: 'wdu-slope-001', structureName: 'Talude Sul', healthIndex: 87.5, riskLevel: 'medium', anomalyCount: 1, lastUpdated: new Date(now.getTime() - 5 * 60000).toISOString(), shmsLevel: 2 },
-      { structureId: 'wdu-pillar-001', structureName: 'Pilar A2', healthIndex: 98.1, riskLevel: 'low', anomalyCount: 0, lastUpdated: new Date(now.getTime() - 2 * 60000).toISOString(), shmsLevel: 4 },
-    ],
-    recentReadings: readings,
-    lstmPredictions: predictions,
-    alerts: readings.filter(r => r.isAnomaly).map(r => ({
-      id: `alert-${r.timestamp}`,
-      severity: 'warning' as const,
-      message: `Anomalia em ${r.sensorId}: ${r.value} kPa (z-score=${r.zScore?.toFixed(2)})`,
-      sensorId: r.sensorId,
-      timestamp: r.timestamp,
-    })).slice(0, 5),
-    systemStatus: { lstmStatus: 'active', mqttConnected: true, lastIngestion: new Date(now.getTime() - 30000).toISOString(), totalReadings: 22371 + Math.floor(Math.random() * 100) },
-  };
-}
-
-// ─── SVG Real-time Chart ───────────────────────────────────────────────────────
-// Scientific basis: Hochreiter & Schmidhuber (1997) LSTM; arXiv:2306.05685 §4.2 calibrated confidence bands
-interface ChartProps {
-  readings: SensorReading[];
-  predictions: LSTMPrediction[];
-  color: string;
-}
-function SensorChart({ readings, predictions, color }: ChartProps) {
-  const W = 100, H = 60, PAD = 4;
   const vals = readings.map(r => r.value);
   const preds = predictions.map(p => p.predicted);
-  const all = [...vals, ...preds];
-  const minV = Math.min(...all) - 0.5;
-  const maxV = Math.max(...all) + 0.5;
+  const allVals = [...vals, ...preds];
+  const minV = Math.min(...allVals) - 0.5;
+  const maxV = Math.max(...allVals) + 0.5;
   const range = maxV - minV || 1;
   const n = readings.length;
 
-  const tx = (i: number) => PAD + (i / (n - 1)) * (W - PAD * 2);
+  const tx = (i: number) => PAD + (i / Math.max(n - 1, 1)) * (W - PAD * 2);
   const ty = (v: number) => H - PAD - ((v - minV) / range) * (H - PAD * 2);
 
-  const actualPath = readings.map((r, i) => `${i === 0 ? 'M' : 'L'} ${tx(i).toFixed(1)} ${ty(r.value).toFixed(1)}`).join(' ');
-  const predPath = predictions.slice(0, n).map((p, i) => `${i === 0 ? 'M' : 'L'} ${tx(i).toFixed(1)} ${ty(p.predicted).toFixed(1)}`).join(' ');
+  // Threshold lines: use mean ± 2σ as proxy for warn/alert
+  const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+  const std = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length);
+  const warnThresh = mean + 2 * std;
+  const alertThresh = mean + 3 * std;
 
-  // Confidence band — calibrated trust (Aviation HF; arXiv:2306.05685)
+  const actualPath = readings
+    .map((r, i) => `${i === 0 ? 'M' : 'L'} ${tx(i).toFixed(1)} ${ty(r.value).toFixed(1)}`)
+    .join(' ');
+
+  const predPath = predictions.slice(0, n)
+    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${tx(i).toFixed(1)} ${ty(p.predicted).toFixed(1)}`)
+    .join(' ');
+
+  // Confidence band
   const confUpper = predictions.slice(0, n).map((p, i) => {
     const hw = (1 - p.confidence) * range * 1.5;
     return `${i === 0 ? 'M' : 'L'} ${tx(i).toFixed(1)} ${ty(p.predicted + hw).toFixed(1)}`;
   }).join(' ');
   const confLower = [...predictions.slice(0, n)].reverse().map((p, i) => {
     const hw = (1 - p.confidence) * range * 1.5;
-    const origIdx = n - 1 - i;
+    const origIdx = Math.min(n - 1 - i, n - 1);
     return `L ${tx(origIdx).toFixed(1)} ${ty(p.predicted - hw).toFixed(1)}`;
   }).join(' ');
-  const confBand = `${confUpper} ${confLower} Z`;
+  const confBand = predictions.length > 0 ? `${confUpper} ${confLower} Z` : '';
+
+  const alertY = ty(alertThresh);
+  const warnY = ty(warnThresh);
+  const showAlert = alertThresh <= maxV;
+  const showWarn = warnThresh <= maxV;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 120 }}>
-      {/* Grid */}
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 140 }}>
+      {/* Grid lines */}
       {[0.25, 0.5, 0.75].map(f => (
-        <line key={f} x1={PAD} y1={PAD + f * (H - PAD * 2)} x2={W - PAD} y2={PAD + f * (H - PAD * 2)} stroke="oklch(18% 0.02 280)" strokeWidth={0.5} />
+        <line key={f} x1={PAD} y1={PAD + f * (H - PAD * 2)} x2={W - PAD}
+          y2={PAD + f * (H - PAD * 2)} stroke={T.border} strokeWidth={0.4} />
       ))}
+      {/* Threshold: warn */}
+      {showWarn && (
+        <line x1={PAD} y1={warnY} x2={W - PAD} y2={warnY}
+          stroke={T.yellow} strokeWidth={0.6} strokeDasharray="2,1.5" opacity={0.6} />
+      )}
+      {/* Threshold: alert */}
+      {showAlert && (
+        <line x1={PAD} y1={alertY} x2={W - PAD} y2={alertY}
+          stroke={T.red} strokeWidth={0.6} strokeDasharray="1.5,1" opacity={0.7} />
+      )}
       {/* Confidence band */}
-      <path d={confBand} fill="rgba(96,165,250,0.10)" stroke="none" />
-      {/* Predicted */}
-      <path d={predPath} stroke="#60a5fa" strokeWidth={0.8} fill="none" strokeDasharray="2,1.5" opacity={0.7} />
-      {/* Actual */}
-      <path d={actualPath} stroke={color} strokeWidth={1.2} fill="none" />
+      {confBand && (
+        <path d={confBand} fill="rgba(96,165,250,0.08)" stroke="none" />
+      )}
+      {/* Prediction line */}
+      {predPath && (
+        <path d={predPath} stroke={T.orange} strokeWidth={0.8} fill="none"
+          strokeDasharray="2,1.5" opacity={0.75} />
+      )}
+      {/* Actual line */}
+      <path d={actualPath} stroke={T.accent} strokeWidth={1.2} fill="none" />
       {/* Anomaly markers */}
-      {readings.map((r, i) => r.isAnomaly ? (
-        <circle key={i} cx={tx(i)} cy={ty(r.value)} r={1.8} fill="#ef4444" opacity={0.9} />
-      ) : null)}
+      {readings.map((r, i) =>
+        r.isAnomaly ? (
+          <g key={i}>
+            <line x1={tx(i) - 1.5} y1={ty(r.value) - 1.5}
+              x2={tx(i) + 1.5} y2={ty(r.value) + 1.5}
+              stroke={T.red} strokeWidth={1.2} />
+            <line x1={tx(i) + 1.5} y1={ty(r.value) - 1.5}
+              x2={tx(i) - 1.5} y2={ty(r.value) + 1.5}
+              stroke={T.red} strokeWidth={1.2} />
+          </g>
+        ) : null
+      )}
     </svg>
   );
 }
 
-// ─── Health Ring ───────────────────────────────────────────────────────────────
-function HealthRing({ value, riskLevel }: { value: number; riskLevel: string }) {
-  const color = riskLevel === 'low' ? 'oklch(72% 0.18 145)' : riskLevel === 'medium' ? 'oklch(75% 0.14 70)' : 'oklch(65% 0.22 25)';
-  const r = 28, cx = 36, cy = 36, strokeW = 5;
-  const circ = 2 * Math.PI * r;
-  const dash = (value / 100) * circ;
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+function Skeleton({ className = '' }: { className?: string }) {
   return (
-    <svg width={72} height={72} viewBox="0 0 72 72">
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="oklch(18% 0.02 280)" strokeWidth={strokeW} />
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={strokeW}
-        strokeDasharray={`${dash} ${circ}`} strokeDashoffset={circ * 0.25}
-        strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s ease' }} />
-      <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="middle"
-        style={{ fontSize: 11, fill: color, fontWeight: 700, fontFamily: 'Inter, sans-serif' }}>
-        {value.toFixed(0)}%
-      </text>
-    </svg>
+    <div className={`rounded animate-pulse ${className}`}
+      style={{ background: 'oklch(15% 0.02 220)' }} />
+  );
+}
+
+function SkeletonCard() {
+  return (
+    <div className="rounded-2xl p-4 space-y-3" style={{ background: T.surface, border: `1px solid ${T.border}` }}>
+      <Skeleton className="h-3 w-24" />
+      <Skeleton className="h-8 w-16" />
+      <Skeleton className="h-2 w-32" />
+    </div>
+  );
+}
+
+// ─── KPI Card ─────────────────────────────────────────────────────────────────
+
+interface KpiCardProps {
+  label: string;
+  value: string | number;
+  sub?: string;
+  icon: React.ReactNode;
+  valueColor?: string;
+  highlight?: boolean;
+}
+
+function KpiCard({ label, value, sub, icon, valueColor = T.text, highlight = false }: KpiCardProps) {
+  return (
+    <div className="rounded-2xl p-4" style={{
+      background: highlight ? 'oklch(13% 0.06 80)' : T.surface,
+      border: `1px solid ${highlight ? 'oklch(22% 0.08 80)' : T.border}`,
+    }}>
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs font-medium" style={{ color: T.muted }}>{label}</span>
+        {icon}
+      </div>
+      <div className="text-2xl font-bold" style={{ color: valueColor }}>{value}</div>
+      {sub && <div className="text-[11px] mt-1" style={{ color: T.muted }}>{sub}</div>}
+    </div>
+  );
+}
+
+// ─── Signal Analysis Panel ────────────────────────────────────────────────────
+
+function SignalAnalysisPanel({ sig }: { sig: SignalAnalysisSummary }) {
+  const dlColor = damageLevelColor(sig.damageLevel);
+  const dlLabels: Record<string, string> = {
+    healthy: 'SAUDÁVEL', watch: 'MONITORAR', warning: 'ATENÇÃO', critical: 'CRÍTICO',
+  };
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{ background: T.surface, border: `1px solid ${T.border}` }}>
+      <div className="px-4 py-3 border-b flex items-center justify-between"
+        style={{ borderColor: T.border }}>
+        <div className="flex items-center gap-2">
+          <Activity className="w-4 h-4" style={{ color: T.accent }} />
+          <span className="text-sm font-semibold">Análise de Sinal</span>
+        </div>
+        <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase"
+          style={{ background: `${dlColor}20`, border: `1px solid ${dlColor}50`, color: dlColor }}>
+          {dlLabels[sig.damageLevel] ?? sig.damageLevel}
+        </span>
+      </div>
+      <div className="p-4 grid grid-cols-2 gap-3">
+        {[
+          { label: 'Freq. Fundamental', value: `${sig.fundamentalFreqHz.toFixed(2)} Hz` },
+          { label: 'MAC Value', value: sig.macValue.toFixed(3) },
+          { label: 'RMS Change', value: `${sig.rmsChangePct.toFixed(1)}%` },
+          { label: 'WER Change', value: sig.werChange.toFixed(3) },
+          { label: 'Score Composto', value: sig.compositeScore.toFixed(2) },
+        ].map(({ label, value }) => (
+          <div key={label} className="rounded-xl p-3"
+            style={{ background: 'oklch(9% 0.02 220)' }}>
+            <div className="text-[10px] mb-1" style={{ color: T.muted }}>{label}</div>
+            <div className="text-sm font-bold" style={{ color: T.text }}>{value}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Structure Card ───────────────────────────────────────────────────────────
+
+interface StructureCardProps {
+  s: StructureData;
+  selected: boolean;
+  onClick: () => void;
+}
+
+function StructureCard({ s, selected, onClick }: StructureCardProps) {
+  const healthPct = s.healthIndex ?? (s.overallStatus === 'GREEN' ? 92 : s.overallStatus === 'YELLOW' ? 75 : 55);
+  const risk = s.riskLevel ?? (s.overallStatus === 'GREEN' ? 'low' : s.overallStatus === 'YELLOW' ? 'medium' : 'high');
+  const rc = riskColor(risk);
+  const { label: statusLabel } = statusFromIcold(s.overallStatus);
+
+  // Sensor type presence
+  const sTypes = new Set(s.sensors.map(x => x.sensorType.toLowerCase()));
+  const hasType = (kw: string) => [...sTypes].some(t => t.includes(kw));
+
+  return (
+    <button onClick={onClick} className="w-full text-left rounded-2xl p-4 transition-all"
+      style={{
+        background: selected ? 'oklch(14% 0.04 220)' : T.surface,
+        border: `1px solid ${selected ? T.accent : T.border}`,
+        boxShadow: selected ? `0 0 0 1px ${T.accent}40` : 'none',
+      }}
+      onMouseEnter={e => { if (!selected) (e.currentTarget as HTMLButtonElement).style.borderColor = T.borderHover; }}
+      onMouseLeave={e => { if (!selected) (e.currentTarget as HTMLButtonElement).style.borderColor = T.border; }}>
+      <div className="flex items-start gap-3">
+        <HealthRing value={healthPct} status={s.overallStatus} />
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-semibold truncate" style={{ color: T.text }}>{s.structureName}</div>
+          <div className="text-[10px] mt-0.5 flex flex-wrap gap-1.5 items-center">
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase"
+              style={{ background: `${rc}20`, border: `1px solid ${rc}50`, color: rc }}>
+              {riskLabel(risk)}
+            </span>
+            {s.shmsLevel && (
+              <span className="px-1.5 py-0.5 rounded text-[9px]"
+                style={{ background: T.blueBg, border: `1px solid ${T.blueBorder}`, color: T.blue }}>
+                SHMS Nível {s.shmsLevel}
+              </span>
+            )}
+            <span style={{ color: T.dim }}>{s.structureType ?? s.sensors[0]?.sensorType ?? '—'}</span>
+          </div>
+          {/* Sensor type indicators */}
+          <div className="flex gap-1.5 mt-2 flex-wrap">
+            {[
+              { key: 'piezo', label: 'PZ' },
+              { key: 'inclin', label: 'INC' },
+              { key: 'gnss', label: 'GNSS' },
+              { key: 'accel', label: 'ACC' },
+            ].map(({ key, label }) => (
+              <span key={key} className="text-[9px] px-1.5 py-0.5 rounded"
+                style={{
+                  background: hasType(key) ? T.greenBg : 'oklch(10% 0.01 220)',
+                  border: `1px solid ${hasType(key) ? T.greenBorder : T.border}`,
+                  color: hasType(key) ? T.green : T.dim,
+                }}>
+                {label}
+              </span>
+            ))}
+          </div>
+          {/* Status + active alerts */}
+          <div className="flex items-center gap-2 mt-2 text-[10px]">
+            <span style={{ color: icoldColor(s.overallStatus) }}>● {statusLabel}</span>
+            {s.activeAlerts > 0 && (
+              <span style={{ color: T.yellow }}>⚠ {s.activeAlerts} alerta{s.activeAlerts > 1 ? 's' : ''}</span>
+            )}
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// ─── Alerts Panel ─────────────────────────────────────────────────────────────
+
+function AlertsPanel({ alerts }: { alerts: AlertItem[] }) {
+  if (alerts.length === 0) {
+    return (
+      <div className="rounded-2xl overflow-hidden" style={{ background: T.surface, border: `1px solid ${T.border}` }}>
+        <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: T.border }}>
+          <AlertTriangle className="w-4 h-4" style={{ color: T.yellow }} />
+          <span className="text-sm font-semibold">Alertas Recentes</span>
+        </div>
+        <div className="flex flex-col items-center justify-center py-10 gap-2">
+          <CheckCircle2 className="w-8 h-8" style={{ color: T.green }} />
+          <span className="text-sm" style={{ color: T.muted }}>Nenhum alerta ativo</span>
+        </div>
+      </div>
+    );
+  }
+
+  const sevStyle = (sev: string) => {
+    if (sev === 'critical') return { bg: T.redBg, border: T.redBorder, color: T.red };
+    if (sev === 'warning') return { bg: T.yellowBg, border: T.yellowBorder, color: T.yellow };
+    return { bg: T.blueBg, border: T.blueBorder, color: T.blue };
+  };
+
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{ background: T.surface, border: `1px solid ${T.border}` }}>
+      <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: T.border }}>
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4" style={{ color: T.yellow }} />
+          <span className="text-sm font-semibold">Alertas Recentes</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
+            style={{ background: T.yellowBg, border: `1px solid ${T.yellowBorder}`, color: T.yellow }}>
+            {alerts.length}
+          </span>
+        </div>
+        <span className="text-[10px]" style={{ color: T.dim }}>IEC 62682 P1–P4</span>
+      </div>
+      <div className="divide-y overflow-y-auto max-h-72" style={{ borderColor: T.border }}>
+        {alerts.map(alert => {
+          const st = sevStyle(alert.severity);
+          return (
+            <div key={alert.id} className="px-4 py-3 flex items-start gap-3"
+              style={{ animation: 'slideIn 0.3s ease' }}>
+              <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                style={{ background: st.bg, border: `1px solid ${st.border}`, color: st.color }}>
+                {alert.severity === 'critical'
+                  ? <XCircle className="w-3.5 h-3.5" />
+                  : <AlertTriangle className="w-3.5 h-3.5" />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs leading-relaxed" style={{ color: T.text }}>{alert.message}</p>
+                <div className="flex items-center gap-2 mt-1 text-[10px]" style={{ color: T.dim }}>
+                  <Clock className="w-3 h-3" />
+                  {relativeTime(alert.timestamp)}
+                  <span style={{ color: T.muted }}>{alert.sensorId}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
+
 export default function SHMSPage() {
   const navigate = useNavigate();
-  const [data, setData] = useState<DashboardData>(() => generateSyntheticDashboard());
-  const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [data, setData] = useState<SHMSDashboardAll | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [selectedStructure, setSelectedStructure] = useState<string>('wdu-dam-001');
-  const [muteAlerts, setMuteAlerts] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const refresh = useCallback(() => {
-    setData(generateSyntheticDashboard());
-    setLastUpdate(new Date());
+  const fetchDashboard = useCallback(async (manual = false) => {
+    if (manual) setRefreshing(true);
+    try {
+      const res = await fetch('/api/a2a/shms/dashboard/all', { credentials: 'include' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json() as SHMSDashboardAll;
+      setData(json);
+      setError(null);
+      setLastUpdated(new Date());
+      // Auto-select first structure if none selected
+      setSelectedId(prev => prev ?? json.structures?.[0]?.structureId ?? null);
+    } catch (err) {
+      setError(String(err));
+      // Keep last data (stale-while-revalidate)
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
   useEffect(() => {
-    if (autoRefresh) {
-      intervalRef.current = setInterval(refresh, 30000);
-    } else {
-      clearInterval(intervalRef.current);
+    fetchDashboard();
+    if (!autoRefresh) return;
+    const interval = setInterval(() => fetchDashboard(), 30000);
+    return () => clearInterval(interval);
+  }, [fetchDashboard, autoRefresh]);
+
+  const structures = useMemo(() => data?.structures ?? [], [data]);
+  const selectedStructure = useMemo(
+    () => structures.find(s => s.structureId === selectedId) ?? structures[0] ?? null,
+    [structures, selectedId]
+  );
+
+  const allAlerts = useMemo((): AlertItem[] => {
+    if (data?.alerts) return data.alerts;
+    // Synthesize alerts from structures
+    const out: AlertItem[] = [];
+    for (const s of structures) {
+      for (let i = 0; i < (s.activeAlerts ?? 0); i++) {
+        out.push({
+          id: `${s.structureId}-alert-${i}`,
+          severity: s.overallStatus === 'RED' ? 'critical' : 'warning',
+          message: `Alerta em ${s.structureName} — sensor ${s.sensors[i]?.sensorId ?? '?'}`,
+          sensorId: s.sensors[i]?.sensorId ?? 'UNKNOWN',
+          structureId: s.structureId,
+          timestamp: s.timestamp,
+        });
+      }
     }
-    return () => clearInterval(intervalRef.current);
-  }, [autoRefresh, refresh]);
+    return out;
+  }, [data, structures]);
 
-  const structure = data.structures.find(s => s.structureId === selectedStructure) ?? data.structures[0];
-  const avgConfidence = data.lstmPredictions.length > 0
-    ? Math.round(data.lstmPredictions.reduce((a, p) => a + p.confidence, 0) / data.lstmPredictions.length * 100)
-    : 0;
-  const latestReading = data.recentReadings[data.recentReadings.length - 1];
+  const avgHealthScore = useMemo(() => {
+    if (data?.avgHealthScore != null) return data.avgHealthScore;
+    if (structures.length === 0) return 0;
+    const sum = structures.reduce((a, s) => a + (s.healthIndex ?? 80), 0);
+    return sum / structures.length;
+  }, [data, structures]);
 
-  const RISK_COLOR = { low: 'oklch(72% 0.18 145)', medium: 'oklch(75% 0.14 70)', high: 'oklch(65% 0.22 25)', critical: 'oklch(60% 0.25 25)' };
-  const RISK_LABEL = { low: 'BAIXO', medium: 'MÉDIO', high: 'ALTO', critical: 'CRÍTICO' };
-  const RISK_BG = { low: 'oklch(14% 0.06 145)', medium: 'oklch(14% 0.06 70)', high: 'oklch(14% 0.06 25)', critical: 'oklch(16% 0.08 25)' };
-  const RISK_BORDER = { low: 'oklch(22% 0.08 145)', medium: 'oklch(22% 0.08 70)', high: 'oklch(22% 0.08 25)', critical: 'oklch(25% 0.10 25)' };
+  const totalReadings = data?.totalReadings ?? 0;
+  const mqttConnected = data?.mqttConnected ?? false;
+  const activeAlerts = data?.activeAlerts ?? allAlerts.length;
+
+  // Derive chart data from selected structure
+  const chartReadings = useMemo((): ReadingPoint[] => {
+    if (!selectedStructure) return [];
+    if (selectedStructure.recentReadings?.length) return selectedStructure.recentReadings;
+    // Synthesize from sensors
+    return selectedStructure.sensors.slice(0, 1).map(sen => ({
+      timestamp: sen.lastUpdated,
+      value: sen.lastReading,
+      unit: sen.unit,
+      isAnomaly: sen.icoldLevel !== 'GREEN',
+      sensorId: sen.sensorId,
+    }));
+  }, [selectedStructure]);
+
+  const chartPredictions = useMemo((): PredictionPoint[] => {
+    if (!selectedStructure) return [];
+    if (selectedStructure.predictions?.length) return selectedStructure.predictions;
+    if (selectedStructure.lstmPrediction) {
+      const p = selectedStructure.lstmPrediction;
+      return chartReadings.map(r => ({
+        timestamp: r.timestamp,
+        predicted: r.value * (1 + (p.trend === 'INCREASING' ? 0.01 : p.trend === 'DECREASING' ? -0.01 : 0)),
+        confidence: p.confidence,
+      }));
+    }
+    return [];
+  }, [selectedStructure, chartReadings]);
+
+  const trendIcon = (trend?: string) => {
+    if (trend === 'INCREASING') return <TrendingUp className="w-3 h-3" style={{ color: T.red }} />;
+    if (trend === 'DECREASING') return <TrendingDown className="w-3 h-3" style={{ color: T.yellow }} />;
+    return <Minus className="w-3 h-3" style={{ color: T.green }} />;
+  };
+
+  // ─── Loading skeleton ─────────────────────────────────────────────────────
+
+  if (loading) {
+    return (
+      <div className="min-h-screen" style={{ background: T.bg, color: T.text, fontFamily: 'Inter, system-ui, sans-serif' }}>
+        <header className="sticky top-0 z-10 flex items-center justify-between px-6 py-3 border-b"
+          style={{ background: 'oklch(9% 0.02 220)', borderColor: T.border }}>
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-5 w-px" />
+            <Skeleton className="h-4 w-40" />
+          </div>
+          <Skeleton className="h-7 w-24 rounded-lg" />
+        </header>
+        <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="rounded-2xl p-4" style={{ background: T.surface, border: `1px solid ${T.border}` }}>
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-16 w-16 rounded-full" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-3 w-32" />
+                      <Skeleton className="h-2 w-24" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="lg:col-span-2 rounded-2xl p-4" style={{ background: T.surface, border: `1px solid ${T.border}` }}>
+              <Skeleton className="h-4 w-48 mb-4" />
+              <Skeleton className="h-36 w-full rounded-xl" />
+            </div>
+          </div>
+        </div>
+        <style>{`@keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.4 } } .animate-pulse { animation: pulse 2s cubic-bezier(.4,0,.6,1) infinite }`}</style>
+      </div>
+    );
+  }
+
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen" style={{ background: 'oklch(8% 0.02 280)', color: 'oklch(92% 0.01 280)', fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div className="min-h-screen" style={{ background: T.bg, color: T.text, fontFamily: 'Inter, system-ui, sans-serif' }}>
 
-      {/* ═══ TOP HEADER ═══ */}
+      {/* ═══ HEADER ═══ */}
       <header className="sticky top-0 z-10 flex items-center justify-between px-6 py-3 border-b"
-        style={{ background: 'oklch(9% 0.02 280)', borderColor: 'oklch(16% 0.02 280)' }}>
+        style={{ background: 'oklch(9% 0.02 220)', borderColor: T.border }}>
         <div className="flex items-center gap-4">
           <button onClick={() => navigate('/')}
-            className="flex items-center gap-1.5 text-sm transition-all"
-            style={{ color: 'oklch(52% 0.02 280)' }}
-            onMouseEnter={e => (e.currentTarget.style.color = 'oklch(72% 0.02 280)')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'oklch(52% 0.02 280)')}>
+            className="flex items-center gap-1.5 text-sm transition-colors"
+            style={{ color: T.muted }}
+            onMouseEnter={e => (e.currentTarget.style.color = T.text)}
+            onMouseLeave={e => (e.currentTarget.style.color = T.muted)}>
             <ChevronLeft className="w-4 h-4" /> MOTHER
           </button>
-          <div className="w-px h-5" style={{ background: 'oklch(22% 0.02 280)' }} />
+          <div className="w-px h-5" style={{ background: T.border }} />
           <div>
-            <h1 className="text-sm font-semibold" style={{ color: 'oklch(92% 0.01 280)' }}>SHMS Monitor</h1>
-            <p className="text-[10px]" style={{ color: 'oklch(52% 0.02 280)' }}>
-              Structural Health Monitoring System · ISO 13374-1:2003
+            <h1 className="text-sm font-semibold" style={{ color: T.text }}>SHMS — Geo Inspector</h1>
+            <p className="text-[10px]" style={{ color: T.muted }}>
+              Structural Health Monitoring · ISO 13374-1:2003 · IEC 62682:2014
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           {/* MQTT status */}
           <div className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg"
-            style={data.systemStatus.mqttConnected
-              ? { background: 'oklch(14% 0.06 145)', border: '1px solid oklch(22% 0.08 145)', color: 'oklch(72% 0.18 145)' }
-              : { background: 'oklch(14% 0.06 25)', border: '1px solid oklch(22% 0.08 25)', color: 'oklch(65% 0.22 25)' }}>
-            {data.systemStatus.mqttConnected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-            MQTT
+            style={mqttConnected
+              ? { background: T.greenBg, border: `1px solid ${T.greenBorder}`, color: T.green }
+              : { background: T.redBg, border: `1px solid ${T.redBorder}`, color: T.red }}>
+            {mqttConnected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+            <span className="relative flex h-2 w-2">
+              {mqttConnected && (
+                <span className="absolute inline-flex h-full w-full rounded-full opacity-75"
+                  style={{ background: T.green, animation: 'ping 1.5s cubic-bezier(0,0,.2,1) infinite' }} />
+              )}
+              <span className="relative inline-flex rounded-full h-2 w-2"
+                style={{ background: mqttConnected ? T.green : T.red }} />
+            </span>
+            MQTT {mqttConnected ? 'Online' : 'Offline'}
           </div>
 
-          {/* LSTM status */}
-          <div className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg"
-            style={{ background: 'oklch(14% 0.06 260)', border: '1px solid oklch(22% 0.08 260)', color: 'oklch(65% 0.14 260)' }}>
-            <Cpu className="w-3 h-3" />
-            LSTM: {data.systemStatus.lstmStatus.toUpperCase()}
-          </div>
+          {/* Last updated */}
+          {lastUpdated && (
+            <span className="text-[11px]" style={{ color: T.dim }}>
+              {lastUpdated.toLocaleTimeString('pt-BR')}
+            </span>
+          )}
 
-          {/* Last update */}
-          <span className="text-[11px]" style={{ color: 'oklch(42% 0.02 280)' }}>
-            Atualizado: {lastUpdate.toLocaleTimeString()}
-          </span>
-
-          {/* Auto refresh toggle */}
+          {/* Auto-refresh toggle */}
           <button onClick={() => setAutoRefresh(v => !v)}
             className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg transition-all"
             style={autoRefresh
-              ? { background: 'oklch(14% 0.06 285)', border: '1px solid oklch(25% 0.08 285)', color: 'oklch(68% 0.16 285)' }
-              : { background: 'oklch(12% 0.02 280)', border: '1px solid oklch(20% 0.02 280)', color: 'oklch(42% 0.02 280)' }}>
+              ? { background: T.blueBg, border: `1px solid ${T.blueBorder}`, color: T.blue }
+              : { background: T.surface, border: `1px solid ${T.border}`, color: T.muted }}>
             <RefreshCw className="w-3 h-3" style={{ animation: autoRefresh ? 'spin 4s linear infinite' : 'none' }} />
             {autoRefresh ? 'Auto' : 'Manual'}
           </button>
 
-          {/* Mute alerts */}
-          <button onClick={() => setMuteAlerts(v => !v)}
-            className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg transition-all"
-            style={muteAlerts
-              ? { background: 'oklch(14% 0.06 70)', border: '1px solid oklch(25% 0.08 70)', color: 'oklch(75% 0.14 70)' }
-              : { background: 'oklch(12% 0.02 280)', border: '1px solid oklch(20% 0.02 280)', color: 'oklch(42% 0.02 280)' }}>
-            {muteAlerts ? <BellOff className="w-3 h-3" /> : <Bell className="w-3 h-3" />}
-          </button>
-
-          {/* Manual refresh */}
-          <button onClick={refresh}
+          {/* Refresh button */}
+          <button onClick={() => fetchDashboard(true)} disabled={refreshing}
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all"
-            style={{ background: 'oklch(55% 0.18 295)', color: 'white' }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'oklch(62% 0.20 290)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'oklch(55% 0.18 295)')}>
-            <RefreshCw className="w-3 h-3" /> Atualizar
+            style={{ background: T.accent, color: 'oklch(8% 0.02 220)', opacity: refreshing ? 0.6 : 1 }}
+            onMouseEnter={e => { if (!refreshing) (e.currentTarget as HTMLButtonElement).style.background = 'oklch(74% 0.20 220)'; }}
+            onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = T.accent}>
+            <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Atualizando…' : 'Atualizar'}
           </button>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
 
+        {/* ═══ ERROR BANNER ═══ */}
+        {error && (
+          <div className="rounded-xl px-4 py-3 flex items-center justify-between"
+            style={{ background: T.redBg, border: `1px solid ${T.redBorder}` }}>
+            <div className="flex items-center gap-2 text-sm" style={{ color: T.red }}>
+              <XCircle className="w-4 h-4 flex-shrink-0" />
+              <span>Erro ao buscar dados: {error}. Exibindo dados anteriores.</span>
+            </div>
+            <button onClick={() => fetchDashboard(true)}
+              className="text-xs px-3 py-1.5 rounded-lg transition-all"
+              style={{ background: T.redBorder, color: T.red }}
+              onMouseEnter={e => (e.currentTarget.style.background = T.red, e.currentTarget.style.color = '#000')}
+              onMouseLeave={e => (e.currentTarget.style.background = T.redBorder, e.currentTarget.style.color = T.red)}>
+              Tentar novamente
+            </button>
+          </div>
+        )}
+
         {/* ═══ KPI ROW ═══ */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-
-          {/* Total Readings */}
-          <div className="rounded-2xl p-4" style={{ background: 'oklch(11% 0.02 280)', border: '1px solid oklch(18% 0.02 280)' }}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium" style={{ color: 'oklch(52% 0.02 280)' }}>Total Leituras</span>
-              <Activity className="w-4 h-4" style={{ color: 'oklch(68% 0.16 285)' }} />
-            </div>
-            <div className="text-2xl font-bold" style={{ color: 'oklch(92% 0.01 280)' }}>
-              {data.systemStatus.totalReadings.toLocaleString('pt-BR')}
-            </div>
-            <div className="text-[11px] mt-1" style={{ color: 'oklch(52% 0.02 280)' }}>
-              +{Math.floor(Math.random() * 30 + 10)} na última hora
-            </div>
-          </div>
-
-          {/* Alertas Ativos */}
-          <div className="rounded-2xl p-4" style={{
-            background: data.alerts.length > 0 ? 'oklch(13% 0.06 70)' : 'oklch(11% 0.02 280)',
-            border: `1px solid ${data.alerts.length > 0 ? 'oklch(22% 0.08 70)' : 'oklch(18% 0.02 280)'}`,
-          }}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium" style={{ color: 'oklch(52% 0.02 280)' }}>Alertas Ativos</span>
-              <AlertTriangle className="w-4 h-4" style={{ color: data.alerts.length > 0 ? 'oklch(75% 0.14 70)' : 'oklch(52% 0.02 280)' }} />
-            </div>
-            <div className="text-2xl font-bold" style={{ color: data.alerts.length > 0 ? 'oklch(75% 0.14 70)' : 'oklch(72% 0.18 145)' }}>
-              {data.alerts.length}
-            </div>
-            <div className="text-[11px] mt-1" style={{ color: 'oklch(52% 0.02 280)' }}>
-              {data.alerts.filter(a => a.severity === 'critical').length} críticos
-            </div>
-          </div>
-
-          {/* LSTM Confiança */}
-          <div className="rounded-2xl p-4" style={{ background: 'oklch(11% 0.02 280)', border: '1px solid oklch(18% 0.02 280)' }}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium" style={{ color: 'oklch(52% 0.02 280)' }}>Confiança LSTM</span>
-              <BarChart3 className="w-4 h-4" style={{ color: 'oklch(65% 0.14 260)' }} />
-            </div>
-            <div className="text-2xl font-bold" style={{ color: 'oklch(65% 0.14 260)' }}>
-              {avgConfidence}%
-            </div>
-            <div className="text-[11px] mt-1" style={{ color: 'oklch(52% 0.02 280)' }}>
-              RMSE: {data.lstmPredictions[0]?.rmse.toFixed(4) ?? '—'}
-            </div>
-          </div>
-
-          {/* Último valor */}
-          <div className="rounded-2xl p-4" style={{ background: 'oklch(11% 0.02 280)', border: '1px solid oklch(18% 0.02 280)' }}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium" style={{ color: 'oklch(52% 0.02 280)' }}>Último Sensor</span>
-              <Gauge className="w-4 h-4" style={{ color: 'oklch(72% 0.14 195)' }} />
-            </div>
-            <div className="text-2xl font-bold" style={{ color: latestReading?.isAnomaly ? 'oklch(75% 0.14 70)' : 'oklch(92% 0.01 280)' }}>
-              {latestReading?.value.toFixed(1)} <span className="text-sm font-normal">{latestReading?.unit}</span>
-            </div>
-            <div className="text-[11px] mt-1" style={{ color: 'oklch(52% 0.02 280)' }}>
-              {latestReading?.sensorId} · {new Date(latestReading?.timestamp ?? Date.now()).toLocaleTimeString()}
-            </div>
-          </div>
+          <KpiCard
+            label="Total Leituras"
+            value={totalReadings.toLocaleString('pt-BR')}
+            sub="acumulado histórico"
+            icon={<Activity className="w-4 h-4" style={{ color: T.accent }} />}
+          />
+          <KpiCard
+            label="Alertas Ativos"
+            value={activeAlerts}
+            sub={`${allAlerts.filter(a => a.severity === 'critical').length} críticos`}
+            icon={<AlertTriangle className="w-4 h-4" style={{ color: activeAlerts > 0 ? T.yellow : T.muted }} />}
+            valueColor={activeAlerts > 0 ? T.yellow : T.green}
+            highlight={activeAlerts > 0}
+          />
+          <KpiCard
+            label="Health Score Médio"
+            value={`${avgHealthScore.toFixed(1)}%`}
+            sub={avgHealthScore >= 85 ? 'Operação normal' : avgHealthScore >= 70 ? 'Requer atenção' : 'Intervenção necessária'}
+            icon={<Shield className="w-4 h-4" style={{ color: healthColor(avgHealthScore) }} />}
+            valueColor={healthColor(avgHealthScore)}
+          />
+          <KpiCard
+            label="Estruturas Monitoradas"
+            value={structures.length}
+            sub={`${structures.filter(s => s.overallStatus === 'GREEN').length} normais · ${structures.filter(s => s.overallStatus !== 'GREEN').length} em atenção`}
+            icon={<Building className="w-4 h-4" style={{ color: T.blue }} />}
+            valueColor={T.blue}
+          />
         </div>
 
-        {/* ═══ STRUCTURE SELECTOR + MAIN CHART ═══ */}
+        {/* ═══ STRUCTURE GRID + CHART ═══ */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-          {/* Structures list */}
-          <div className="rounded-2xl overflow-hidden" style={{ background: 'oklch(11% 0.02 280)', border: '1px solid oklch(18% 0.02 280)' }}>
-            <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: 'oklch(16% 0.02 280)' }}>
-              <Shield className="w-4 h-4" style={{ color: 'oklch(68% 0.16 285)' }} />
-              <h2 className="text-sm font-semibold">Estruturas Monitoradas</h2>
+          {/* Structure cards (3-column grid within left column) */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 px-1">
+              <Shield className="w-4 h-4" style={{ color: T.accent }} />
+              <h2 className="text-sm font-semibold" style={{ color: T.text }}>Estruturas Monitoradas</h2>
+              <span className="ml-auto text-[10px]" style={{ color: T.dim }}>{structures.length} total</span>
             </div>
-            <div className="divide-y" style={{ borderColor: 'oklch(15% 0.02 280)' }}>
-              {data.structures.map(s => (
-                <button key={s.structureId}
-                  onClick={() => setSelectedStructure(s.structureId)}
-                  className="w-full px-4 py-3.5 flex items-center gap-3 text-left transition-all"
-                  style={{
-                    background: selectedStructure === s.structureId ? 'oklch(15% 0.04 285)' : 'transparent',
-                    borderLeft: selectedStructure === s.structureId ? `3px solid oklch(58% 0.18 295)` : '3px solid transparent',
-                  }}>
-                  <HealthRing value={s.healthIndex} riskLevel={s.riskLevel} />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium truncate" style={{ color: 'oklch(88% 0.02 280)' }}>{s.structureName}</div>
-                    <div className="text-[10px] mt-0.5 flex items-center gap-2">
-                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase"
-                        style={{ background: RISK_BG[s.riskLevel], border: `1px solid ${RISK_BORDER[s.riskLevel]}`, color: RISK_COLOR[s.riskLevel] }}>
-                        {RISK_LABEL[s.riskLevel]}
+            {structures.length === 0 && !loading && (
+              <div className="rounded-2xl p-6 text-center text-sm" style={{ background: T.surface, border: `1px solid ${T.border}`, color: T.muted }}>
+                Nenhuma estrutura disponível
+              </div>
+            )}
+            {structures.map(s => (
+              <StructureCard
+                key={s.structureId}
+                s={s}
+                selected={s.structureId === (selectedStructure?.structureId ?? null)}
+                onClick={() => setSelectedId(s.structureId)}
+              />
+            ))}
+          </div>
+
+          {/* Chart panel */}
+          <div className="lg:col-span-2 space-y-4">
+            {selectedStructure ? (
+              <>
+                {/* Chart header */}
+                <div className="rounded-2xl overflow-hidden"
+                  style={{ background: T.surface, border: `1px solid ${T.border}` }}>
+                  <div className="px-4 py-3 border-b flex items-center justify-between"
+                    style={{ borderColor: T.border }}>
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4" style={{ color: T.accent }} />
+                      <h2 className="text-sm font-semibold">{selectedStructure.structureName}</h2>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded"
+                        style={{ background: T.blueBg, border: `1px solid ${T.blueBorder}`, color: T.blue }}>
+                        {selectedStructure.digitalTwinStatus}
                       </span>
-                      <span style={{ color: 'oklch(42% 0.02 280)' }}>SHMS Nível {s.shmsLevel}</span>
                     </div>
-                    {s.anomalyCount > 0 && (
-                      <div className="text-[10px] mt-0.5" style={{ color: 'oklch(75% 0.14 70)' }}>
-                        ⚠ {s.anomalyCount} anomalia{s.anomalyCount > 1 ? 's' : ''} recente{s.anomalyCount > 1 ? 's' : ''}
-                      </div>
-                    )}
+                    <div className="flex items-center gap-3 text-[10px]" style={{ color: T.dim }}>
+                      <span className="flex items-center gap-1">
+                        <span style={{ color: T.accent }}>—</span> Real
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span style={{ color: T.orange }}>- -</span> LSTM
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span style={{ background: `${T.accent}30`, display: 'inline-block', width: 12, height: 8, borderRadius: 2 }} />
+                        IC 95%
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span style={{ color: T.red }}>✕</span> Anomalia
+                      </span>
+                    </div>
                   </div>
-                </button>
-              ))}
-            </div>
-          </div>
 
-          {/* Main chart panel */}
-          <div className="lg:col-span-2 rounded-2xl overflow-hidden" style={{ background: 'oklch(11% 0.02 280)', border: '1px solid oklch(18% 0.02 280)' }}>
-            <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: 'oklch(16% 0.02 280)' }}>
-              <div className="flex items-center gap-2">
-                <TrendingUp className="w-4 h-4" style={{ color: 'oklch(72% 0.14 195)' }} />
-                <h2 className="text-sm font-semibold">Sensor {data.recentReadings[0]?.sensorId ?? '—'} · Piezômetro</h2>
-              </div>
-              <div className="flex items-center gap-3 text-[10px]" style={{ color: 'oklch(42% 0.02 280)' }}>
-                <span className="flex items-center gap-1"><span style={{ color: 'oklch(72% 0.14 195)', fontWeight: 600 }}>—</span> Real</span>
-                <span className="flex items-center gap-1"><span style={{ color: '#60a5fa', fontWeight: 600 }}>- -</span> LSTM</span>
-                <span className="flex items-center gap-1"><span style={{ background: 'rgba(96,165,250,0.3)', display: 'inline-block', width: 12, height: 8, borderRadius: 2 }}></span> IC 95%</span>
-                <span className="flex items-center gap-1"><span style={{ color: '#ef4444' }}>●</span> Anomalia</span>
-              </div>
-            </div>
+                  <div className="p-4">
+                    <div className="rounded-xl overflow-hidden mb-4"
+                      style={{ background: 'oklch(9% 0.02 220)' }}>
+                      <SensorChart readings={chartReadings} predictions={chartPredictions} />
+                    </div>
 
-            <div className="p-4">
-              {/* Chart */}
-              <div className="rounded-xl overflow-hidden mb-4" style={{ background: 'oklch(9% 0.02 280)' }}>
-                <SensorChart
-                  readings={data.recentReadings}
-                  predictions={data.lstmPredictions}
-                  color="oklch(72% 0.14 195)"
-                />
-              </div>
-
-              {/* Stats row */}
-              <div className="grid grid-cols-4 gap-3">
-                {[
-                  { label: 'Valor Atual', value: `${latestReading?.value.toFixed(2)} kPa`, icon: Gauge, color: 'oklch(72% 0.14 195)' },
-                  { label: 'Confiança', value: `${avgConfidence}%`, icon: BarChart3, color: 'oklch(65% 0.14 260)' },
-                  { label: 'RMSE', value: data.lstmPredictions[0]?.rmse.toFixed(4) ?? '—', icon: Zap, color: 'oklch(75% 0.14 70)' },
-                  { label: 'Anomalias/h', value: data.alerts.length.toString(), icon: AlertTriangle, color: data.alerts.length > 0 ? 'oklch(75% 0.14 70)' : 'oklch(65% 0.18 145)' },
-                ].map(({ label, value, icon: Icon, color }) => (
-                  <div key={label} className="rounded-xl p-3 text-center" style={{ background: 'oklch(13% 0.02 280)' }}>
-                    <Icon className="w-4 h-4 mx-auto mb-1" style={{ color }} />
-                    <div className="text-sm font-bold" style={{ color }}>{value}</div>
-                    <div className="text-[10px] mt-0.5" style={{ color: 'oklch(42% 0.02 280)' }}>{label}</div>
+                    {/* Stats row */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {[
+                        {
+                          label: 'Sensor Principal',
+                          value: selectedStructure.sensors[0]?.sensorId ?? '—',
+                          color: T.accent,
+                        },
+                        {
+                          label: 'Última Leitura',
+                          value: selectedStructure.sensors[0]
+                            ? `${selectedStructure.sensors[0].lastReading} ${selectedStructure.sensors[0].unit}`
+                            : '—',
+                          color: T.text,
+                        },
+                        {
+                          label: 'Confiança LSTM',
+                          value: selectedStructure.lstmPrediction
+                            ? `${(selectedStructure.lstmPrediction.confidence * 100).toFixed(0)}%`
+                            : '—',
+                          color: T.blue,
+                        },
+                        {
+                          label: 'Tendência',
+                          value: (
+                            <span className="flex items-center justify-center gap-1">
+                              {trendIcon(selectedStructure.lstmPrediction?.trend)}
+                              {selectedStructure.lstmPrediction?.trend ?? '—'}
+                            </span>
+                          ),
+                          color: T.text,
+                        },
+                      ].map(({ label, value, color }) => (
+                        <div key={label} className="rounded-xl p-3 text-center"
+                          style={{ background: 'oklch(13% 0.02 220)' }}>
+                          <div className="text-xs font-semibold" style={{ color }}>{value}</div>
+                          <div className="text-[10px] mt-0.5" style={{ color: T.dim }}>{label}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+                </div>
 
-        {/* ═══ ALERTS + SENSOR TABLE ═══ */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-          {/* Alerts — IEC 62682:2014 §6.3 alarm priority management */}
-          <div className="rounded-2xl overflow-hidden" style={{ background: 'oklch(11% 0.02 280)', border: '1px solid oklch(18% 0.02 280)' }}>
-            <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: 'oklch(16% 0.02 280)' }}>
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4" style={{ color: 'oklch(75% 0.14 70)' }} />
-                <h2 className="text-sm font-semibold">Alertas Recentes</h2>
-                {data.alerts.length > 0 && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
-                    style={{ background: 'oklch(22% 0.08 70)', border: '1px solid oklch(30% 0.10 70)', color: 'oklch(75% 0.14 70)' }}>
-                    {data.alerts.length}
-                  </span>
+                {/* Signal analysis panel (if available) */}
+                {selectedStructure.signalAnalysis && (
+                  <SignalAnalysisPanel sig={selectedStructure.signalAnalysis} />
                 )}
-              </div>
-              <span className="text-[10px]" style={{ color: 'oklch(42% 0.02 280)' }}>IEC 62682 P1–P4</span>
-            </div>
 
-            {data.alerts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 gap-2">
-                <CheckCircle2 className="w-8 h-8" style={{ color: 'oklch(65% 0.18 145)' }} />
-                <span className="text-sm" style={{ color: 'oklch(62% 0.02 280)' }}>Nenhum alerta ativo</span>
-              </div>
-            ) : (
-              <div className="divide-y overflow-y-auto max-h-72" style={{ borderColor: 'oklch(15% 0.02 280)' }}>
-                {data.alerts.map(alert => (
-                  <div key={alert.id} className="px-4 py-3 flex items-start gap-3">
-                    <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                      style={alert.severity === 'critical'
-                        ? { background: 'oklch(14% 0.06 25)', color: 'oklch(65% 0.22 25)' }
-                        : { background: 'oklch(14% 0.06 70)', color: 'oklch(75% 0.14 70)' }}>
-                      {alert.severity === 'critical' ? <XCircle className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
+                {/* Sensor table */}
+                {selectedStructure.sensors.length > 0 && (
+                  <div className="rounded-2xl overflow-hidden"
+                    style={{ background: T.surface, border: `1px solid ${T.border}` }}>
+                    <div className="px-4 py-3 border-b flex items-center gap-2"
+                      style={{ borderColor: T.border }}>
+                      <Activity className="w-4 h-4" style={{ color: T.accent }} />
+                      <span className="text-sm font-semibold">Sensores da Estrutura</span>
+                      <span className="ml-auto text-[10px]" style={{ color: T.dim }}>
+                        {selectedStructure.sensors.length} sensores
+                      </span>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs leading-relaxed" style={{ color: 'oklch(78% 0.02 280)' }}>{alert.message}</p>
-                      <div className="flex items-center gap-2 mt-1 text-[10px]" style={{ color: 'oklch(42% 0.02 280)' }}>
-                        <Clock className="w-3 h-3" />
-                        {new Date(alert.timestamp).toLocaleTimeString()}
-                        <span style={{ color: 'oklch(55% 0.02 280)' }}>{alert.sensorId}</span>
-                      </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr style={{ borderBottom: `1px solid ${T.border}` }}>
+                            {['Sensor', 'Tipo', 'Leitura', 'ICOLD', 'Atualizado'].map(h => (
+                              <th key={h} className="px-4 py-2 text-left text-[10px] font-semibold uppercase tracking-wider"
+                                style={{ color: T.dim }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedStructure.sensors.map((sen, i) => (
+                            <tr key={i} style={{ borderBottom: `1px solid oklch(13% 0.02 220)` }}
+                              className="transition-colors"
+                              onMouseEnter={e => (e.currentTarget.style.background = 'oklch(13% 0.02 220)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                              <td className="px-4 py-2 text-xs font-mono" style={{ color: T.accent }}>{sen.sensorId}</td>
+                              <td className="px-4 py-2 text-xs" style={{ color: T.muted }}>{sen.sensorType}</td>
+                              <td className="px-4 py-2 text-xs font-semibold" style={{ color: T.text }}>
+                                {sen.lastReading} {sen.unit}
+                              </td>
+                              <td className="px-4 py-2">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded font-bold"
+                                  style={{
+                                    background: `${icoldColor(sen.icoldLevel)}20`,
+                                    border: `1px solid ${icoldColor(sen.icoldLevel)}50`,
+                                    color: icoldColor(sen.icoldLevel),
+                                  }}>
+                                  {sen.icoldLevel}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2 text-[10px]" style={{ color: T.dim }}>
+                                {relativeTime(sen.lastUpdated)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
-                ))}
+                )}
+              </>
+            ) : (
+              <div className="rounded-2xl p-8 flex items-center justify-center"
+                style={{ background: T.surface, border: `1px solid ${T.border}`, color: T.muted }}>
+                Selecione uma estrutura para ver detalhes
               </div>
             )}
           </div>
-
-          {/* Recent readings table */}
-          <div className="rounded-2xl overflow-hidden" style={{ background: 'oklch(11% 0.02 280)', border: '1px solid oklch(18% 0.02 280)' }}>
-            <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: 'oklch(16% 0.02 280)' }}>
-              <Activity className="w-4 h-4" style={{ color: 'oklch(72% 0.14 195)' }} />
-              <h2 className="text-sm font-semibold">Leituras Recentes</h2>
-            </div>
-            <div className="overflow-y-auto max-h-72">
-              <table className="w-full">
-                <thead>
-                  <tr style={{ borderBottom: '1px solid oklch(16% 0.02 280)' }}>
-                    {['Tempo', 'Sensor', 'Valor', 'Status'].map(h => (
-                      <th key={h} className="px-4 py-2 text-left text-[10px] font-semibold uppercase tracking-wider"
-                        style={{ color: 'oklch(42% 0.02 280)' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...data.recentReadings].reverse().slice(0, 15).map((r, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid oklch(13% 0.02 280)' }}
-                      className="transition-colors" onMouseEnter={e => (e.currentTarget.style.background = 'oklch(13% 0.02 280)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                      <td className="px-4 py-2 text-xs" style={{ color: 'oklch(45% 0.02 280)' }}>
-                        {new Date(r.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </td>
-                      <td className="px-4 py-2 text-xs font-mono" style={{ color: 'oklch(65% 0.02 280)' }}>{r.sensorId}</td>
-                      <td className="px-4 py-2 text-xs font-semibold" style={{ color: r.isAnomaly ? 'oklch(75% 0.14 70)' : 'oklch(88% 0.02 280)' }}>
-                        {r.value} {r.unit}
-                      </td>
-                      <td className="px-4 py-2">
-                        {r.isAnomaly ? (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded font-bold"
-                            style={{ background: 'oklch(14% 0.06 70)', color: 'oklch(75% 0.14 70)' }}>
-                            ⚠ z={r.zScore?.toFixed(1)}
-                          </span>
-                        ) : (
-                          <span className="text-[10px]" style={{ color: 'oklch(65% 0.18 145)' }}>✓ Normal</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
         </div>
+
+        {/* ═══ ALERTS PANEL ═══ */}
+        <AlertsPanel alerts={allAlerts} />
 
         {/* ═══ FOOTER ═══ */}
-        <div className="flex items-center justify-between text-[10px] pb-4" style={{ color: 'oklch(38% 0.02 280)' }}>
-          <span>SHMS Monitor v3 · MOTHER {'{'}v122.0{'}'} · ISO 13374-1:2003 · IEC 62682:2014 · GISTM 2020</span>
-          <span>Leituras totais: {data.systemStatus.totalReadings.toLocaleString('pt-BR')}</span>
-        </div>
+        <footer className="flex items-center justify-between text-[10px] pb-4"
+          style={{ color: T.dim }}>
+          <span>SHMS Geo Inspector v4 · MOTHER v7 · ISO 13374-1:2003 · IEC 62682:2014 · GISTM 2020</span>
+          <span>
+            {totalReadings.toLocaleString('pt-BR')} leituras · {structures.length} estruturas ·{' '}
+            {lastUpdated ? `atualizado ${lastUpdated.toLocaleTimeString('pt-BR')}` : 'carregando…'}
+          </span>
+        </footer>
       </div>
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes ping { 75%,100% { transform: scale(2); opacity: 0; } }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.4 } }
+        .animate-spin { animation: spin 1s linear infinite; }
+        .animate-pulse { animation: pulse 2s cubic-bezier(.4,0,.6,1) infinite; }
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: oklch(22% 0.02 280); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: oklch(22% 0.02 220); border-radius: 4px; }
       `}</style>
     </div>
   );
