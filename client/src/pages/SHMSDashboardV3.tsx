@@ -215,9 +215,172 @@ function MiniChart({ data, title, unit, color }: MiniChartProps) {
   );
 }
 
+// ─── CONSELHO DOS 5: IEC 62682 Alarm Card ────────────────────────────────────
+// C4 (Safety): IEC 62682:2014 §6.3 alarm priority + CVD-safe colors (C3)
+// Redundant coding: color + shape + border + position (ISO 11064-5 6.3.2)
+interface AlarmCardProps {
+  priority: 1 | 2 | 3 | 4;
+  title: string;
+  detail: string;
+  timestamp: string;
+  acknowledged?: boolean;
+  onAcknowledge?: () => void;
+}
+
+const ALARM_PRIORITY_CONFIG = {
+  1: { // EMERGENCY — Red Triangle — IEC 60073 §5.2
+    label: 'P1 — EMERGÊNCIA',
+    color: 'oklch(55% 0.22 25)',
+    bg: 'oklch(25% 0.08 25)',
+    borderColor: 'oklch(55% 0.22 25)',
+    shape: '▲',  // Triangle — redundant shape coding
+    description: 'Ação imediata <5min',
+    flash: true,
+  },
+  2: { // HIGH — Amber Diamond — IEC 60073
+    label: 'P2 — ALTO',
+    color: 'oklch(75% 0.18 70)',
+    bg: 'oklch(30% 0.06 70)',
+    borderColor: 'oklch(75% 0.18 70)',
+    shape: '◆',  // Diamond
+    description: 'Ação em <30min',
+    flash: false,
+  },
+  3: { // MEDIUM — Yellow Square
+    label: 'P3 — MÉDIO',
+    color: 'oklch(85% 0.15 95)',
+    bg: 'oklch(35% 0.05 95)',
+    borderColor: 'oklch(85% 0.15 95)',
+    shape: '■',  // Square
+    description: 'Ação em <4h',
+    flash: false,
+  },
+  4: { // LOW — Blue Circle
+    label: 'P4 — BAIXO',
+    color: 'oklch(65% 0.15 250)',
+    bg: 'oklch(25% 0.05 250)',
+    borderColor: 'oklch(65% 0.15 250)',
+    shape: '●',  // Circle
+    description: 'Ação em <24h',
+    flash: false,
+  },
+};
+
+function AlarmCard({ priority, title, detail, timestamp, acknowledged, onAcknowledge }: AlarmCardProps) {
+  const cfg = ALARM_PRIORITY_CONFIG[priority];
+  return (
+    <div
+      className={priority === 1 && !acknowledged ? 'alarm-p1 alarm-p1-flash' : `alarm-p${priority}`}
+      role="alert"
+      aria-live={priority <= 2 ? 'assertive' : 'polite'}
+      style={{
+        borderRadius: '6px',
+        padding: '8px 10px',
+        marginBottom: '6px',
+        opacity: acknowledged ? 0.5 : 1,
+        transition: 'opacity 200ms ease',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flex: 1 }}>
+          {/* Shape coding (ISO 11064-5) */}
+          <span
+            style={{ color: cfg.color, fontSize: '14px', flexShrink: 0, marginTop: 1 }}
+            aria-hidden="true"
+          >
+            {cfg.shape}
+          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span
+                style={{
+                  fontSize: '9px',
+                  fontWeight: 700,
+                  color: cfg.color,
+                  letterSpacing: '0.05em',
+                  textTransform: 'uppercase',
+                  background: `${cfg.color}20`,
+                  padding: '1px 5px',
+                  borderRadius: '3px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {cfg.label}
+              </span>
+              <span style={{ fontSize: '9px', color: cfg.color, opacity: 0.7 }}>{cfg.description}</span>
+            </div>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: 'oklch(92% 0.01 280)', marginTop: 2 }}>
+              {title}
+            </div>
+            <div style={{ fontSize: '11px', color: 'oklch(72% 0.02 275)', marginTop: 1 }}>
+              {detail}
+            </div>
+            <div style={{ fontSize: '10px', color: 'oklch(52% 0.02 270)', marginTop: 2 }}>
+              {new Date(timestamp).toLocaleTimeString('pt-BR')}
+            </div>
+          </div>
+        </div>
+        {/* 2-step acknowledgment (IEC 62682 §7.4.2 — prevents accidental ack) */}
+        {!acknowledged && onAcknowledge && (
+          <button
+            onClick={onAcknowledge}
+            style={{
+              padding: '3px 8px',
+              borderRadius: '4px',
+              border: `1px solid ${cfg.color}60`,
+              background: 'transparent',
+              color: cfg.color,
+              fontSize: '10px',
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+            title={`Confirmar alarme: ${title} (IEC 62682 §7.4.2)`}
+            aria-label={`Confirmar alarme ${title}`}
+          >
+            ACK
+          </button>
+        )}
+        {acknowledged && (
+          <span style={{ fontSize: '10px', color: 'oklch(65% 0.18 145)', flexShrink: 0 }}>✓ ACK</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── ISA-101 Display Level Badge ───────────────────────────────────────────────
+// C4 (Safety): ISA-101.01-2015 4-level display hierarchy
+function ISALevelBadge({ level }: { level: 1 | 2 | 3 | 4 }) {
+  const labels: Record<number, string> = {
+    1: 'Nível 1 — Visão Geral',
+    2: 'Nível 2 — Estrutura',
+    3: 'Nível 3 — Detalhe',
+    4: 'Nível 4 — Diagnóstico',
+  };
+  return (
+    <span
+      className="shms-level-indicator"
+      style={{
+        background: 'oklch(24% 0.03 270)',
+        color: 'oklch(65% 0.15 250)',
+        border: '1px solid oklch(65% 0.15 250 / 0.3)',
+      }}
+      title={`ISA-101.01-2015: ${labels[level]}`}
+    >
+      ISA L{level}
+    </span>
+  );
+}
+
 // ─── Health Index Gauge ───────────────────────────────────────────────────────
+// CONSELHO: CVD-safe colors (C3) — green uses oklch(65% 0.18 145) not #22c55e
 function HealthGauge({ value, label }: { value: number; label: string }) {
-  const color = value >= 90 ? '#22c55e' : value >= 70 ? '#f59e0b' : '#ef4444';
+  // IEC 60073 semantic: >90=green(OK), 70-90=amber(caution), 40-70=orange(warning), <40=red(danger)
+  const color =
+    value >= 90 ? 'oklch(65% 0.18 145)' :  /* OK — green */
+    value >= 70 ? 'oklch(75% 0.18 70)' :   /* Caution — amber */
+    value >= 40 ? 'oklch(75% 0.16 50)' :   /* Warning — orange */
+    'oklch(55% 0.22 25)';                   /* Danger — red */
   const angle = (value / 100) * 180 - 90;
   const rad = (angle * Math.PI) / 180;
   const cx = 60, cy = 55, r = 40;
@@ -256,7 +419,16 @@ export default function SHMSDashboardV3() {
   const [lastRefresh, setLastRefresh] = useState<string>('');
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [selectedStructure, setSelectedStructure] = useState<string>('wdu-dam-001');
+  const [acknowledgedAlarms, setAcknowledgedAlarms] = useState<Set<string>>(new Set());
+  const [displayLevel, setDisplayLevel] = useState<1 | 2 | 3 | 4>(1);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // IEC 62682 §7.4.2: 2-step acknowledgment
+  const acknowledgeAlarm = (alertId: string) => {
+    if (window.confirm(`Confirmar reconhecimento do alarme ${alertId}?\n\n[IEC 62682 §7.4.2 — 2-step acknowledgment]`)) {
+      setAcknowledgedAlarms(prev => new Set([...prev, alertId]));
+    }
+  };
 
   const fetchData = useCallback(async () => {
     try {
@@ -310,38 +482,133 @@ export default function SHMSDashboardV3() {
     isAnomaly: data.recentReadings[i]?.isAnomaly,
   }));
 
+  // CONSELHO: IEC 60073 CVD-safe OKLCH colors (C3 + C4 consensus)
   const riskColors: Record<string, string> = {
-    low: '#22c55e',
-    medium: '#f59e0b',
-    high: '#f97316',
-    critical: '#ef4444',
+    low:      'oklch(65% 0.18 145)',  /* OK — green */
+    medium:   'oklch(75% 0.18 70)',   /* Caution — amber */
+    high:     'oklch(75% 0.16 50)',   /* Warning — orange */
+    critical: 'oklch(55% 0.22 25)',   /* Danger — red */
   };
 
+  // IEC 62682: Map alert severity to priority level
+  const severityToPriority = (sev: string): 1 | 2 | 3 | 4 =>
+    sev === 'critical' ? 1 : sev === 'warning' ? 2 : 4;
+
+  const activeAlarmCount = data.alerts.filter(a => !acknowledgedAlarms.has(a.id)).length;
+  const criticalCount    = data.alerts.filter(a => a.severity === 'critical' && !acknowledgedAlarms.has(a.id)).length;
+
   return (
-    <div style={{ background: '#0a0f1e', minHeight: '100vh', color: '#e2e8f0', fontFamily: 'system-ui, sans-serif', padding: 16 }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid #1e293b', paddingBottom: 12 }}>
-        <div>
-          <h1 style={{ fontSize: 18, fontWeight: 700, color: '#f1f5f9', margin: 0 }}>
-            🏗️ SHMS Dashboard v3
-          </h1>
-          <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>
-            MOTHER v91.0 · Sprint 9 C208 · ISO 13374-1:2003 · GISTM 2020
+    <div
+      style={{
+        background: 'oklch(8% 0.02 280)',
+        minHeight: '100vh',
+        color: 'oklch(92% 0.01 280)',
+        fontFamily: "'Inter', system-ui, sans-serif",
+        padding: 16,
+      }}
+    >
+      {/* ── ISA-101 Level 1: System Overview Header ── */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 12,
+          borderBottom: '1px solid oklch(24% 0.03 270)',
+          paddingBottom: 12,
+        }}
+        role="banner"
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h1
+                style={{
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: 'oklch(92% 0.01 280)',
+                  margin: 0,
+                  letterSpacing: '-0.01em',
+                }}
+              >
+                SHMS Dashboard
+              </h1>
+              <ISALevelBadge level={displayLevel} />
+              {/* ISA-101 Level selector */}
+              <div style={{ display: 'flex', gap: 2 }}>
+                {([1, 2, 3, 4] as const).map(l => (
+                  <button
+                    key={l}
+                    onClick={() => setDisplayLevel(l)}
+                    title={`ISA-101 Nível ${l}`}
+                    aria-pressed={displayLevel === l}
+                    style={{
+                      padding: '2px 6px',
+                      borderRadius: 3,
+                      border: `1px solid ${displayLevel === l ? 'oklch(65% 0.15 250)' : 'oklch(30% 0.03 265)'}`,
+                      background: displayLevel === l ? 'oklch(25% 0.05 250)' : 'transparent',
+                      color: displayLevel === l ? 'oklch(65% 0.15 250)' : 'oklch(52% 0.02 270)',
+                      fontSize: '10px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    L{l}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{ fontSize: 10, color: 'oklch(52% 0.02 270)', marginTop: 2 }}>
+              IEC 62682 · ISA-101 · ISO 13374 · GISTM 2020 · ICOLD 158
+            </div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 11, color: '#64748b' }}>
-            Atualizado: {lastRefresh}
+
+        {/* Right: Controls + Active alarm counter */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Active alarm badge — Endsley SA Level 1: immediate perception */}
+          {activeAlarmCount > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '4px 10px',
+                borderRadius: 6,
+                background: criticalCount > 0 ? 'oklch(25% 0.08 25)' : 'oklch(30% 0.06 70)',
+                border: `1px solid ${criticalCount > 0 ? 'oklch(55% 0.22 25)' : 'oklch(75% 0.18 70)'}`,
+                animation: criticalCount > 0 ? 'alarm-critical-flash 500ms ease-in-out infinite' : 'none',
+              }}
+              role="status"
+              aria-live="assertive"
+            >
+              <span style={{ fontSize: '11px' }}>
+                {criticalCount > 0 ? '▲' : '◆'}
+              </span>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: criticalCount > 0 ? 'oklch(55% 0.22 25)' : 'oklch(75% 0.18 70)',
+                }}
+              >
+                {activeAlarmCount} alarme{activeAlarmCount !== 1 ? 's' : ''} ativo{activeAlarmCount !== 1 ? 's' : ''}
+                {criticalCount > 0 && ` (${criticalCount} P1)`}
+              </span>
+            </div>
+          )}
+          <div style={{ fontSize: 10, color: 'oklch(52% 0.02 270)' }}>
+            {lastRefresh}
           </div>
           <button
             onClick={() => setAutoRefresh(a => !a)}
+            aria-pressed={autoRefresh}
             style={{
-              padding: '4px 10px',
-              borderRadius: 6,
+              padding: '3px 8px',
+              borderRadius: 5,
               border: 'none',
-              background: autoRefresh ? '#0ea5e9' : '#334155',
-              color: '#fff',
-              fontSize: 11,
+              background: autoRefresh ? 'oklch(45% 0.15 200)' : 'oklch(24% 0.03 270)',
+              color: autoRefresh ? 'oklch(92% 0.01 280)' : 'oklch(72% 0.02 275)',
+              fontSize: '10px',
               cursor: 'pointer',
             }}
           >
@@ -349,148 +616,386 @@ export default function SHMSDashboardV3() {
           </button>
           <button
             onClick={fetchData}
-            style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: '#1e293b', color: '#94a3b8', fontSize: 11, cursor: 'pointer' }}
+            style={{
+              padding: '3px 8px',
+              borderRadius: 5,
+              border: '1px solid oklch(30% 0.03 265)',
+              background: 'transparent',
+              color: 'oklch(72% 0.02 275)',
+              fontSize: '10px',
+              cursor: 'pointer',
+            }}
           >
-            ↻ Refresh
+            ↻
           </button>
         </div>
       </div>
 
-      {/* PRÉ-PRODUÇÃO Banner (R38) */}
-      <div style={{ background: '#1c1917', border: '1px solid #78350f', borderRadius: 8, padding: '8px 12px', marginBottom: 16, fontSize: 11, color: '#fbbf24' }}>
-        ⚠️ <strong>PRÉ-PRODUÇÃO (R38):</strong> Dados sintéticos calibrados (GISTM 2020 + ICOLD 158). Não há sensores reais conectados nesta fase.
+      {/* PRÉ-PRODUÇÃO Banner — CONSELHO: use P3 amber, not hardcoded amber */}
+      <div
+        className="alarm-p3"
+        style={{ borderRadius: 6, padding: '6px 10px', marginBottom: 12, fontSize: '10px' }}
+        role="status"
+      >
+        <strong>■ PRÉ-PRODUÇÃO (R38):</strong> Dados sintéticos calibrados (GISTM 2020 + ICOLD 158). Sensores reais não conectados.
       </div>
 
-      {/* System Status Bar */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 }}>
+      {/* ── Endsley SA Level 1: System Status — immediate perception ── */}
+      <div
+        className="sa-level-1"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: 6,
+          marginBottom: 12,
+        }}
+        role="region"
+        aria-label="Status do sistema — Situational Awareness Level 1"
+      >
         {[
-          { label: 'LSTM Status', value: data.systemStatus.lstmStatus.toUpperCase(), color: '#22c55e', icon: '🧠' },
-          { label: 'MQTT', value: data.systemStatus.mqttConnected ? 'CONECTADO' : 'DESCONECTADO', color: data.systemStatus.mqttConnected ? '#22c55e' : '#ef4444', icon: '📡' },
-          { label: 'Total Leituras', value: data.systemStatus.totalReadings.toLocaleString('pt-BR'), color: '#60a5fa', icon: '📊' },
-          { label: 'Alertas Ativos', value: String(data.alerts.length), color: data.alerts.length > 0 ? '#f59e0b' : '#22c55e', icon: '🔔' },
+          {
+            label: 'LSTM',
+            value: data.systemStatus.lstmStatus.toUpperCase(),
+            color: 'oklch(65% 0.18 145)',
+            icon: '🧠',
+          },
+          {
+            label: 'MQTT',
+            value: data.systemStatus.mqttConnected ? 'CONECTADO' : 'DESCON.',
+            color: data.systemStatus.mqttConnected ? 'oklch(65% 0.18 145)' : 'oklch(55% 0.22 25)',
+            icon: '📡',
+          },
+          {
+            label: 'Leituras',
+            value: data.systemStatus.totalReadings.toLocaleString('pt-BR'),
+            color: 'oklch(65% 0.15 250)',
+            icon: '📊',
+          },
+          {
+            label: 'Alarmes',
+            value: String(activeAlarmCount),
+            color: activeAlarmCount > 0
+              ? (criticalCount > 0 ? 'oklch(55% 0.22 25)' : 'oklch(75% 0.18 70)')
+              : 'oklch(65% 0.18 145)',
+            icon: activeAlarmCount > 0 ? '🔔' : '🔕',
+          },
         ].map(item => (
-          <div key={item.label} style={{ background: '#0f172a', borderRadius: 8, padding: '10px 12px', border: '1px solid #1e293b' }}>
-            <div style={{ fontSize: 11, color: '#64748b' }}>{item.icon} {item.label}</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: item.color, marginTop: 4 }}>{item.value}</div>
+          <div
+            key={item.label}
+            style={{
+              background: 'oklch(12% 0.02 280)',
+              borderRadius: 6,
+              padding: '8px 10px',
+              border: '1px solid oklch(24% 0.03 270)',
+            }}
+          >
+            <div style={{ fontSize: '10px', color: 'oklch(52% 0.02 270)' }}>
+              {item.icon} {item.label}
+            </div>
+            <div
+              className="sensor-value"
+              style={{ fontSize: '13px', color: item.color, marginTop: 2 }}
+            >
+              {item.value}
+            </div>
           </div>
         ))}
       </div>
 
-      {/* Structure Selector + Health Gauges */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12, marginBottom: 16 }}>
-        {/* Structure List */}
-        <div style={{ background: '#0f172a', borderRadius: 8, padding: 12, border: '1px solid #1e293b' }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', marginBottom: 10 }}>
-            ESTRUTURAS MONITORADAS
+      {/* ── ISA-101 Level 2: Structure Overview + Health Gauges ── */}
+      <div
+        style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10, marginBottom: 10 }}
+        role="region"
+        aria-label="ISA-101 Nível 2 — Visão por estrutura"
+      >
+        {/* Structure List — Endsley SA Level 1: perception of all structures */}
+        <div
+          style={{
+            background: 'oklch(12% 0.02 280)',
+            borderRadius: 8,
+            padding: 10,
+            border: '1px solid oklch(24% 0.03 270)',
+          }}
+        >
+          <div
+            style={{
+              fontSize: '10px',
+              fontWeight: 700,
+              color: 'oklch(52% 0.02 270)',
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+              marginBottom: 8,
+            }}
+          >
+            ESTRUTURAS · GISTM 2020
           </div>
           {data.structures.map(s => (
-            <div
+            <button
               key={s.structureId}
               onClick={() => setSelectedStructure(s.structureId)}
+              aria-pressed={selectedStructure === s.structureId}
               style={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
                 padding: '8px 10px',
                 borderRadius: 6,
-                marginBottom: 6,
+                marginBottom: 5,
                 cursor: 'pointer',
-                background: selectedStructure === s.structureId ? '#1e293b' : 'transparent',
-                border: `1px solid ${selectedStructure === s.structureId ? '#334155' : 'transparent'}`,
+                background: selectedStructure === s.structureId
+                  ? 'oklch(18% 0.025 275)'
+                  : 'transparent',
+                border: `1px solid ${selectedStructure === s.structureId
+                  ? 'oklch(35% 0.10 300)'
+                  : 'transparent'}`,
+                transition: 'background 150ms ease, border-color 150ms ease',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#f1f5f9' }}>{s.structureName}</div>
-                  <div style={{ fontSize: 10, color: '#64748b' }}>SHM Level {s.shmsLevel} · {s.anomalyCount} anomalias</div>
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: 'oklch(92% 0.01 280)' }}>
+                    {s.structureName}
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'oklch(52% 0.02 270)', marginTop: 1 }}>
+                    SHM L{s.shmsLevel} · {s.anomalyCount} anomalia{s.anomalyCount !== 1 ? 's' : ''}
+                  </div>
                 </div>
-                <div style={{
-                  padding: '2px 8px',
-                  borderRadius: 12,
-                  fontSize: 10,
-                  fontWeight: 700,
-                  background: `${riskColors[s.riskLevel]}22`,
-                  color: riskColors[s.riskLevel],
-                  border: `1px solid ${riskColors[s.riskLevel]}44`,
-                }}>
+                {/* CVD-safe risk badge with shape (C3 + C4) */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 3,
+                    padding: '2px 7px',
+                    borderRadius: 10,
+                    fontSize: '9px',
+                    fontWeight: 700,
+                    background: `${riskColors[s.riskLevel]}20`,
+                    color: riskColors[s.riskLevel],
+                    border: `1px solid ${riskColors[s.riskLevel]}50`,
+                  }}
+                >
+                  {/* Shape redundant coding */}
+                  <span aria-hidden="true">
+                    {s.riskLevel === 'critical' ? '▲' :
+                     s.riskLevel === 'high'     ? '◆' :
+                     s.riskLevel === 'medium'   ? '■' : '●'}
+                  </span>
                   {s.riskLevel.toUpperCase()}
                 </div>
               </div>
-            </div>
+            </button>
           ))}
         </div>
 
-        {/* Health Gauges */}
-        <div style={{ background: '#0f172a', borderRadius: 8, padding: 12, border: '1px solid #1e293b' }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', marginBottom: 10 }}>
-            ÍNDICE DE SAÚDE ESTRUTURAL — ISO 13374-1:2003 §4.2
+        {/* Health Gauges — Endsley SA Level 2: comprehension */}
+        <div
+          style={{
+            background: 'oklch(12% 0.02 280)',
+            borderRadius: 8,
+            padding: 10,
+            border: '1px solid oklch(24% 0.03 270)',
+          }}
+        >
+          <div
+            style={{
+              fontSize: '10px',
+              fontWeight: 700,
+              color: 'oklch(52% 0.02 270)',
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+              marginBottom: 8,
+            }}
+          >
+            ÍNDICE DE SAÚDE ESTRUTURAL · ISO 13374-1:2003 §4.2
           </div>
-          <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
             {data.structures.map(s => (
               <HealthGauge key={s.structureId} value={s.healthIndex} label={s.structureName} />
             ))}
           </div>
           {selectedStructureData && (
-            <div style={{ marginTop: 12, padding: '8px 12px', background: '#0a0f1e', borderRadius: 6, fontSize: 11, color: '#64748b' }}>
-              <strong style={{ color: '#94a3b8' }}>{selectedStructureData.structureName}</strong>
-              {' '}· Health Index: <strong style={{ color: riskColors[selectedStructureData.riskLevel] }}>{selectedStructureData.healthIndex.toFixed(1)}/100</strong>
-              {' '}· Risco: <strong style={{ color: riskColors[selectedStructureData.riskLevel] }}>{selectedStructureData.riskLevel.toUpperCase()}</strong>
-              {' '}· {selectedStructureData.anomalyCount} anomalia(s) detectada(s)
+            <div
+              style={{
+                marginTop: 10,
+                padding: '6px 10px',
+                background: 'oklch(8% 0.02 280)',
+                borderRadius: 5,
+                fontSize: '10px',
+                color: 'oklch(72% 0.02 275)',
+                borderLeft: `3px solid ${riskColors[selectedStructureData.riskLevel]}`,
+              }}
+            >
+              <strong style={{ color: 'oklch(92% 0.01 280)' }}>{selectedStructureData.structureName}</strong>
+              {' '}· Health:{' '}
+              <strong
+                className="sensor-value"
+                style={{ color: riskColors[selectedStructureData.riskLevel] }}
+              >
+                {selectedStructureData.healthIndex.toFixed(1)}/100
+              </strong>
+              {' '}· Risco:{' '}
+              <strong style={{ color: riskColors[selectedStructureData.riskLevel] }}>
+                {selectedStructureData.riskLevel.toUpperCase()}
+              </strong>
+              {' '}· {selectedStructureData.anomalyCount} anomalia(s)
             </div>
           )}
         </div>
       </div>
 
-      {/* LSTM Prediction Chart */}
-      <div style={{ background: '#0f172a', borderRadius: 8, padding: 12, border: '1px solid #1e293b', marginBottom: 16 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', marginBottom: 10 }}>
-          LSTM PREDICTOR vs. LEITURAS REAIS — Hochreiter & Schmidhuber (1997) · RMSE = 0.0434mm
+      {/* ── ISA-101 Level 3: Detail — LSTM Chart ── */}
+      <div
+        style={{
+          background: 'oklch(12% 0.02 280)',
+          borderRadius: 8,
+          padding: 10,
+          border: '1px solid oklch(24% 0.03 270)',
+          marginBottom: 10,
+        }}
+        role="region"
+        aria-label="Predições LSTM vs leituras reais"
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 8,
+          }}
+        >
+          <div
+            style={{
+              fontSize: '10px',
+              fontWeight: 700,
+              color: 'oklch(52% 0.02 270)',
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+            }}
+          >
+            LSTM PREDICTOR vs. LEITURAS · RMSE = 0.0434mm
+          </div>
+          <span
+            style={{
+              fontSize: '9px',
+              color: 'oklch(52% 0.02 270)',
+              fontStyle: 'italic',
+            }}
+          >
+            Hochreiter & Schmidhuber (1997) · arXiv:2210.04165
+          </span>
         </div>
         <MiniChart
           data={chartData}
           title="Piezômetro P1 — Poro-pressão (kPa)"
           unit="kPa"
-          color="#22c55e"
+          color="oklch(65% 0.18 145)"
         />
-        <div style={{ fontSize: 10, color: '#475569', marginTop: 4 }}>
+        <div style={{ fontSize: '9px', color: 'oklch(52% 0.02 270)', marginTop: 4 }}>
           Últimas 20 leituras · Intervalo: 1 min · Limiar anomalia: |z-score| &gt; 1.8σ (Sohn et al. 2004)
         </div>
       </div>
 
-      {/* Alerts Timeline */}
-      <div style={{ background: '#0f172a', borderRadius: 8, padding: 12, border: '1px solid #1e293b', marginBottom: 16 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', marginBottom: 10 }}>
-          TIMELINE DE ALERTAS — ICOLD Bulletin 158 §4.3 (L1/L2/L3)
+      {/* ── IEC 62682 Alarm Management Panel ── */}
+      <div
+        style={{
+          background: 'oklch(12% 0.02 280)',
+          borderRadius: 8,
+          padding: 10,
+          border: activeAlarmCount > 0
+            ? `1px solid ${criticalCount > 0 ? 'oklch(55% 0.22 25 / 0.5)' : 'oklch(75% 0.18 70 / 0.4)'}`
+            : '1px solid oklch(24% 0.03 270)',
+          marginBottom: 10,
+          transition: 'border-color 300ms ease',
+        }}
+        role="region"
+        aria-label="Painel de alarmes IEC 62682"
+        aria-live="polite"
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 8,
+          }}
+        >
+          <div
+            style={{
+              fontSize: '10px',
+              fontWeight: 700,
+              color: 'oklch(52% 0.02 270)',
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+            }}
+          >
+            ALARMES ATIVOS · IEC 62682:2014 §6.3
+          </div>
+          <span style={{ fontSize: '9px', color: 'oklch(52% 0.02 270)' }}>
+            Meta: ≤6 alarmes/hora · EEMUA 191
+          </span>
         </div>
-        {data.alerts.length === 0 ? (
-          <div style={{ fontSize: 12, color: '#22c55e', padding: '8px 0' }}>
-            ✅ Nenhum alerta ativo — Sistema operando dentro dos parâmetros normais
+
+        {data.alerts.filter(a => !acknowledgedAlarms.has(a.id)).length === 0 ? (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 0',
+              color: 'oklch(65% 0.18 145)',
+              fontSize: '12px',
+            }}
+          >
+            <span style={{ fontSize: '14px' }}>●</span>
+            Sistema operando dentro dos parâmetros normais — 0 alarmes ativos
           </div>
         ) : (
-          <div style={{ maxHeight: 150, overflowY: 'auto' }}>
+          <div style={{ maxHeight: 180, overflowY: 'auto' }}>
             {data.alerts.map(alert => (
-              <div key={alert.id} style={{
-                display: 'flex',
-                gap: 10,
-                padding: '6px 8px',
-                marginBottom: 4,
-                borderRadius: 6,
-                background: alert.severity === 'critical' ? '#1c0a0a' : '#1c1507',
-                border: `1px solid ${alert.severity === 'critical' ? '#7f1d1d' : '#78350f'}`,
-              }}>
-                <span style={{ fontSize: 14 }}>{alert.severity === 'critical' ? '🔴' : '🟡'}</span>
-                <div>
-                  <div style={{ fontSize: 11, color: '#f1f5f9' }}>{alert.message}</div>
-                  <div style={{ fontSize: 10, color: '#64748b' }}>
-                    {new Date(alert.timestamp).toLocaleTimeString('pt-BR')} · {alert.sensorId}
-                  </div>
-                </div>
-              </div>
+              <AlarmCard
+                key={alert.id}
+                priority={severityToPriority(alert.severity)}
+                title={`Sensor ${alert.sensorId}`}
+                detail={alert.message}
+                timestamp={alert.timestamp}
+                acknowledged={acknowledgedAlarms.has(alert.id)}
+                onAcknowledge={() => acknowledgeAlarm(alert.id)}
+              />
             ))}
           </div>
         )}
+
+        {/* Alarm rate KPI — IEC 62682 §5 */}
+        <div
+          style={{
+            marginTop: 6,
+            padding: '4px 8px',
+            background: 'oklch(8% 0.02 280)',
+            borderRadius: 4,
+            fontSize: '9px',
+            color: 'oklch(52% 0.02 270)',
+            display: 'flex',
+            gap: 12,
+          }}
+        >
+          <span>Total: {data.alerts.length}</span>
+          <span>ACK: {acknowledgedAlarms.size}</span>
+          <span>Pendente: {data.alerts.length - acknowledgedAlarms.size}</span>
+        </div>
       </div>
 
       {/* Footer */}
-      <div style={{ fontSize: 10, color: '#334155', textAlign: 'center', paddingTop: 8, borderTop: '1px solid #1e293b' }}>
-        MOTHER v91.0 · Sprint 9 C208 · Dashboard SHMS v3 · NC-SHMS-004 FIX
+      <div
+        style={{
+          fontSize: '9px',
+          color: 'oklch(38% 0.02 270)',
+          textAlign: 'center',
+          paddingTop: 8,
+          borderTop: '1px solid oklch(24% 0.03 270)',
+        }}
+      >
+        MOTHER v91.0 · SHMS Dashboard v3 — Conselho dos 5 UX/UI · NC-SHMS-004 FIX
         · Grieves (2014) Digital Twin · ISO 13374-1:2003 · GISTM 2020 · ICOLD 158
       </div>
     </div>
