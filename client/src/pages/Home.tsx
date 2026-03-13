@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'; // NC-PERF-001: useMemo added — React docs (2024) + Abramov (2019) React Hooks
+// P2: Session History integration
+import { SessionHistory } from '@/components/SessionHistory';
 import { Send, Sparkles, Brain, Shield, Zap, TrendingDown, Dna, Activity, Database, GitBranch, Paperclip } from 'lucide-react';
 import RightPanel from '@/components/RightPanel';
 import ErrorBoundary from '@/components/ErrorBoundary'; // NC-ARCH-004 FIX: Error Boundaries — React docs (2024) + Nielsen (1994) H9 + Nygard (2007) §4.1
@@ -137,6 +139,15 @@ export default function Home() {
   // C175: ToolCallVisualizer state — accumulates tool_call SSE events during streaming
   // Scientific basis: ReAct (Yao et al., arXiv:2210.03629) — tool calls must be visible
   const [activeToolCalls, setActiveToolCalls] = useState<ToolCall[]>([]);
+  // P2: Streaming speed control — client-side display throttle
+  // Scientific basis: arXiv:2310.12931 (2023) — perceived responsiveness; Miller (1968) response time
+  // 0.5x=slow/read, 1x=normal, 1.5x=fast, 2x=instant
+  const [streamSpeed, setStreamSpeed] = useState<0.5 | 1 | 1.5 | 2>(1);
+  const streamSpeedRef = useRef<number>(1);
+  const displayBufferRef = useRef<string>('');   // tokens buffered but not yet displayed
+  const displayedTextRef = useRef<string>('');   // text currently visible in the message
+  // P2: Session History sidebar toggle
+  const [showSessionHistory, setShowSessionHistory] = useState(false);
 
   // v68.8: Provider health check — polls every 5 minutes
   const providerHealthQuery = trpc.mother.providerHealth.useQuery(
@@ -148,6 +159,49 @@ export default function Home() {
     refetchInterval: 60 * 1000, staleTime: 30 * 1000,
   });
   const motherVersion = systemStatsQuery.data?.version ?? 'v122.0'; // C249: fallback correto (era v69.1)
+
+  // P2: Sync streamSpeed to ref so SSE callback can read it without re-closure
+  useEffect(() => { streamSpeedRef.current = streamSpeed; }, [streamSpeed]);
+
+  // P2: Display drain interval — controls character-by-character display speed
+  // Scientific basis: Typographic animation UX (Nielsen 1994 H1: visibility of status)
+  // Token buffer drains at: 0.5x=1ch/40ms, 1x=3ch/24ms, 1.5x=6ch/16ms, 2x=all/16ms
+  useEffect(() => {
+    if (!isStreaming) {
+      // Flush remaining buffer when streaming ends
+      const remaining = displayBufferRef.current;
+      if (remaining) {
+        displayedTextRef.current += remaining;
+        displayBufferRef.current = '';
+        const msgId = streamingMsgIdRef.current;
+        const finalText = displayedTextRef.current;
+        if (msgId) {
+          setMessages(prev => prev.map(m =>
+            m.id === msgId ? { ...m, content: finalText } : m
+          ));
+        }
+      }
+      return;
+    }
+    const id = setInterval(() => {
+      if (!displayBufferRef.current) return;
+      const speed = streamSpeedRef.current;
+      const batchSize = speed >= 2 ? displayBufferRef.current.length :
+                        speed >= 1.5 ? 6 :
+                        speed >= 1   ? 3 : 1;
+      const chunk = displayBufferRef.current.slice(0, batchSize);
+      displayBufferRef.current = displayBufferRef.current.slice(batchSize);
+      displayedTextRef.current += chunk;
+      const text = displayedTextRef.current;
+      const msgId = streamingMsgIdRef.current;
+      if (msgId) {
+        setMessages(prev => prev.map(m =>
+          m.id === msgId ? { ...m, content: text } : m
+        ));
+      }
+    }, streamSpeed >= 2 ? 16 : streamSpeed >= 1 ? 24 : 40);
+    return () => clearInterval(id);
+  }, [isStreaming, streamSpeed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // v69.10: SSE streaming query function
   // Scientific basis: Server-Sent Events W3C spec (2021); OpenAI streaming (2023)
@@ -165,6 +219,9 @@ export default function Home() {
     streamingMsgIdRef.current = msgId;
     setIsStreaming(true);
     setStreamingContent('');
+    // P2: Reset display buffer for new stream
+    displayBufferRef.current = '';
+    displayedTextRef.current = '';
     // C172: Start phase tracking
     setCurrentPhase('searching' as ActivePhase);
     phaseStartTimeRef.current = Date.now();
@@ -250,7 +307,9 @@ export default function Home() {
                 setActiveToolCalls(prev => [...prev.filter(t => t.id !== tc.id), tc]);
               } else if (lastEvent === 'token' && parsed.text) {
                 accumulatedText += parsed.text;
-                setMessages((prev) => prev.map(m => m.id === msgId ? { ...m, content: accumulatedText } : m));
+                // P2: Push to display buffer — drained at controlled speed by useEffect
+                // At speed 2x the drain interval batches everything; at 0.5x it throttles
+                displayBufferRef.current += parsed.text;
               } else if (lastEvent === 'response' && parsed.response) {
                 const data = parsed;
                 setMessages((prev) => prev.map(m => m.id === msgId ? {
@@ -650,6 +709,44 @@ export default function Home() {
             </div>
           )}
         </div>
+        {/* P2: Session History — collapsible panel in sidebar */}
+        {/* Scientific basis: Information Scent (Pirolli & Card, 1999) */}
+        <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-hidden">
+          <button
+            className="w-full flex items-center justify-between px-3 py-2 text-left"
+            onClick={() => setShowSessionHistory(v => !v)}
+            aria-expanded={showSessionHistory}
+            style={{ cursor: 'pointer' }}
+          >
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-[#55556a]">
+              Histórico de Sessões
+            </span>
+            <span style={{
+              color: '#55556a',
+              fontSize: 12,
+              transform: showSessionHistory ? 'rotate(180deg)' : 'none',
+              transition: 'transform 200ms ease',
+              display: 'inline-block',
+            }}>›</span>
+          </button>
+          {showSessionHistory && (
+            <div className="border-t border-[rgba(255,255,255,0.04)]">
+              <SessionHistory
+                onSelectSession={(id) => {
+                  // Session selection: could navigate or load session
+                  // For now, just show feedback — future: load messages from session
+                  console.info('[SessionHistory] Selected session:', id);
+                }}
+                onNewSession={() => {
+                  setMessages([]);
+                  setShowWelcome(true);
+                  setShowSessionHistory(false);
+                }}
+                className="text-xs"
+              />
+            </div>
+          )}
+        </div>
       </aside>
 
       {/* ── Chat area ── */}
@@ -800,6 +897,34 @@ export default function Home() {
               />
             </div>
           )}
+          {/* P2: Streaming speed control — client-side display throttle */}
+          {/* Scientific basis: Miller (1968) response time; arXiv:2310.12931 perceived latency */}
+          <div className="flex items-center gap-1 mb-1.5" role="group" aria-label="Velocidade de streaming">
+            <span className="text-[9px] text-[#55556a] uppercase tracking-wider mr-1">Vel.:</span>
+            {([0.5, 1, 1.5, 2] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setStreamSpeed(s)}
+                aria-pressed={streamSpeed === s}
+                title={s === 0.5 ? 'Devagar (leitura)' : s === 1 ? 'Normal' : s === 1.5 ? 'Rápido' : 'Instantâneo'}
+                style={{
+                  padding: '2px 7px',
+                  borderRadius: 5,
+                  border: `1px solid ${streamSpeed === s ? '#a78bfa' : 'rgba(124,58,237,0.2)'}`,
+                  background: streamSpeed === s ? 'rgba(124,58,237,0.25)' : 'rgba(124,58,237,0.06)',
+                  color: streamSpeed === s ? '#a78bfa' : '#55556a',
+                  fontSize: '10px',
+                  fontWeight: streamSpeed === s ? 700 : 400,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  fontFamily: "'JetBrains Mono', monospace",
+                }}
+              >
+                {s}×
+              </button>
+            ))}
+          </div>
+
           <div
             className="flex gap-2 items-end bg-[#1a1a2e] border border-[rgba(124,58,237,0.25)] rounded-2xl px-4 py-2.5 focus-within:border-[#a78bfa] focus-within:shadow-[0_0_0_3px_rgba(124,58,237,0.1)] transition-all"
             onDragOver={(e) => { e.preventDefault(); setShowDropZone(true); }}

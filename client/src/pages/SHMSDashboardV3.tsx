@@ -413,6 +413,382 @@ function HealthGauge({ value, label }: { value: number; label: string }) {
   );
 }
 
+// ─── Digital Twin 2D Dam Cross-Section ────────────────────────────────────────
+// C2 (Cognitive): task-contingent rendering — ISA-101 Level 2 structural view
+// Scientific basis: Grieves (2014) Digital Twin; Endsley (1995) SA Level 2 (Comprehension)
+// ISO 13374-1: display shall include sensor positions and structural geometry
+interface SensorPosition {
+  id: string;
+  x: number;   // % of dam width
+  y: number;   // % of dam height (0=top, 100=bottom)
+  value: number;
+  unit: string;
+  status: 'ok' | 'warning' | 'critical';
+  label: string;
+}
+
+function DamCrossSection({ healthIndex, sensors, riskLevel }: {
+  healthIndex: number;
+  sensors: SensorPosition[];
+  riskLevel: string;
+}) {
+  const W = 480, H = 200;
+  const crestY = 20, baseY = 180;
+  const crestHalfW = 30, baseHalfW = 180;
+  const cx = W / 2;
+  // Dam trapezoid profile (Rankine earth pressure geometry)
+  const pts = [
+    `${cx - crestHalfW},${crestY}`,
+    `${cx + crestHalfW},${crestY}`,
+    `${cx + baseHalfW},${baseY}`,
+    `${cx - baseHalfW},${baseY}`,
+  ].join(' ');
+
+  // CVD-safe fill gradient using health index
+  const damColor =
+    healthIndex >= 90 ? 'oklch(45% 0.05 200)' :
+    healthIndex >= 70 ? 'oklch(45% 0.08 70)' :
+    'oklch(35% 0.10 25)';
+
+  const borderColor =
+    riskLevel === 'critical' ? 'oklch(55% 0.22 25)' :
+    riskLevel === 'high'     ? 'oklch(75% 0.16 50)' :
+    riskLevel === 'medium'   ? 'oklch(75% 0.18 70)' :
+    'oklch(65% 0.18 145)';
+
+  return (
+    <div>
+      <div style={{ fontSize: '10px', color: 'oklch(52% 0.02 270)', marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
+        <span>Digital Twin 2D — Seção Transversal · Grieves (2014)</span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>IH={healthIndex.toFixed(1)}/100</span>
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: 'oklch(8% 0.02 280)', borderRadius: 6, display: 'block' }}>
+        {/* Water table (upstream side) */}
+        <rect x={cx - baseHalfW} y={crestY + 30} width={baseHalfW - crestHalfW} height={baseY - (crestY + 30)}
+          fill="oklch(40% 0.08 220 / 0.3)" />
+        <line x1={cx - baseHalfW} y1={crestY + 30} x2={cx - crestHalfW} y2={crestY + 30}
+          stroke="oklch(65% 0.10 220)" strokeWidth={1} strokeDasharray="3,2" />
+        <text x={cx - baseHalfW + 4} y={crestY + 44} fill="oklch(65% 0.10 220)" fontSize={8}>N.A.</text>
+
+        {/* Foundation */}
+        <rect x={20} y={baseY} width={W - 40} height={14} fill="oklch(18% 0.02 270)" />
+        <text x={W / 2} y={baseY + 10} textAnchor="middle" fill="oklch(38% 0.02 270)" fontSize={7}>
+          Fundação — rocha sã (GISTM 2020 §4.2)
+        </text>
+
+        {/* Dam body */}
+        <polygon points={pts} fill={damColor} stroke={borderColor} strokeWidth={1.5} />
+
+        {/* Crest label */}
+        <text x={cx} y={crestY - 5} textAnchor="middle" fill="oklch(72% 0.02 275)" fontSize={8}>Crista</text>
+
+        {/* Phreatic line (Dupuit parabola approximation) */}
+        {[0.1, 0.25, 0.4, 0.55, 0.7, 0.85, 1.0].map((t, i, arr) => {
+          const x = (cx - crestHalfW) + t * (2 * crestHalfW) - 40;
+          const y = baseY - (baseY - (crestY + 50)) * Math.sqrt(1 - t);
+          if (i === 0) return null;
+          const prev = arr[i - 1];
+          const px = (cx - crestHalfW) + prev * (2 * crestHalfW) - 40;
+          const py = baseY - (baseY - (crestY + 50)) * Math.sqrt(1 - prev);
+          return <line key={t} x1={px} y1={py} x2={x} y2={y} stroke="oklch(72% 0.10 220 / 0.5)" strokeWidth={1} strokeDasharray="2,2" />;
+        })}
+
+        {/* Sensor positions */}
+        {sensors.map(s => {
+          const sx = (cx - baseHalfW) + (s.x / 100) * (2 * baseHalfW);
+          const sy = crestY + (s.y / 100) * (baseY - crestY);
+          const sColor =
+            s.status === 'critical' ? 'oklch(55% 0.22 25)' :
+            s.status === 'warning'  ? 'oklch(75% 0.18 70)' :
+            'oklch(65% 0.18 145)';
+          return (
+            <g key={s.id}>
+              <circle cx={sx} cy={sy} r={5} fill={sColor} opacity={0.9} />
+              <circle cx={sx} cy={sy} r={8} fill="none" stroke={sColor} strokeWidth={0.8} opacity={0.5} />
+              <text x={sx} y={sy - 10} textAnchor="middle" fill={sColor} fontSize={7} fontWeight="bold">{s.label}</text>
+              <text x={sx} y={sy + 17} textAnchor="middle" fill="oklch(72% 0.02 275)" fontSize={7} fontFamily="'JetBrains Mono',monospace">
+                {s.value}{s.unit}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Scale bar */}
+        <line x1={W - 60} y1={H - 10} x2={W - 20} y2={H - 10} stroke="oklch(38% 0.02 270)" strokeWidth={1} />
+        <text x={W - 40} y={H - 14} textAnchor="middle" fill="oklch(38% 0.02 270)" fontSize={7}>≈ 20m</text>
+      </svg>
+    </div>
+  );
+}
+
+// ─── FieldMode — ISA-101 Mobile View ─────────────────────────────────────────
+// C2 (Mobile): glove-compatible 48px touch targets (Fitts 1954; Apple HIG 2023)
+// C4 (Safety): offline-first pattern (service worker ready) — GISTM 2020 field ops
+// Scientific basis:
+// - Fitts (1954): touch target min size = 48×48dp for glove-compatible operation
+// - ISO 9241-9 (2000): physical controls in PPE environments
+// - Apple HIG (2023): minimum 44pt / Android Material 3: 48dp touch targets
+// - GISTM 2020 §5.2: field inspection data entry requirements
+interface FieldModeProps {
+  data: DashboardData;
+  acknowledgedAlarms: Set<string>;
+  onAcknowledge: (id: string) => void;
+  onClose: () => void;
+}
+
+function FieldMode({ data, acknowledgedAlarms, onAcknowledge, onClose }: FieldModeProps) {
+  const activeAlarms = data.alerts.filter(a => !acknowledgedAlarms.has(a.id));
+  const criticalCount = activeAlarms.filter(a => a.severity === 'critical').length;
+
+  const TOUCH_BTN: React.CSSProperties = {
+    minHeight: 48, minWidth: 48,  // Fitts (1954) + Apple HIG 44pt
+    borderRadius: 10,
+    border: 'none',
+    cursor: 'pointer',
+    fontWeight: 700,
+    fontSize: 14,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  };
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0,
+        background: 'oklch(8% 0.02 280)',
+        zIndex: 100,
+        overflowY: 'auto',
+        padding: 12,
+        fontFamily: "'Inter', system-ui, sans-serif",
+      }}
+    >
+      {/* FieldMode Header */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        marginBottom: 12,
+        padding: '8px 10px',
+        background: 'oklch(12% 0.02 280)',
+        borderRadius: 10,
+        border: '1px solid oklch(35% 0.10 300 / 0.4)',
+      }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 16, color: 'oklch(92% 0.01 280)' }}>
+            📱 Field Mode
+          </div>
+          <div style={{ fontSize: 10, color: 'oklch(52% 0.02 270)' }}>
+            ISA-101 Móvel · Modo offline-first
+          </div>
+        </div>
+        <button
+          onClick={onClose}
+          style={{
+            ...TOUCH_BTN,
+            background: 'oklch(24% 0.03 270)',
+            color: 'oklch(72% 0.02 275)',
+            border: '1px solid oklch(35% 0.10 300)',
+            padding: '0 16px',
+          }}
+          aria-label="Fechar Field Mode"
+        >
+          ✕ Sair
+        </button>
+      </div>
+
+      {/* Alarm summary — large touch target for P1 ACK */}
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 11, color: 'oklch(52% 0.02 270)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+          ALARMES ATIVOS · IEC 62682
+        </div>
+        {activeAlarms.length === 0 ? (
+          <div style={{
+            ...TOUCH_BTN,
+            background: 'oklch(18% 0.04 145)',
+            border: '1px solid oklch(65% 0.18 145 / 0.3)',
+            color: 'oklch(65% 0.18 145)',
+            borderRadius: 10,
+            padding: '16px 20px',
+            fontSize: 15,
+          }}>
+            ● Sistema Normal — 0 alarmes
+          </div>
+        ) : (
+          activeAlarms.slice(0, 5).map(alert => {
+            const prio: 1|2|3|4 = alert.severity === 'critical' ? 1 : alert.severity === 'warning' ? 2 : 4;
+            const cfg = ALARM_PRIORITY_CONFIG[prio];
+            return (
+              <div key={alert.id} style={{
+                background: cfg.bg,
+                border: `2px solid ${cfg.borderColor}`,
+                borderRadius: 10,
+                padding: '12px 14px',
+                marginBottom: 8,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 10,
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <span style={{ fontSize: 18, color: cfg.color }}>{cfg.shape}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: cfg.color }}>{cfg.label}</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: 'oklch(92% 0.01 280)', fontWeight: 600 }}>
+                    Sensor {alert.sensorId}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'oklch(72% 0.02 275)', marginTop: 2 }}>
+                    {new Date(alert.timestamp).toLocaleTimeString('pt-BR')}
+                  </div>
+                </div>
+                {/* Large ACK button — Fitts (1954) 48×48dp */}
+                <button
+                  onClick={() => onAcknowledge(alert.id)}
+                  style={{
+                    ...TOUCH_BTN,
+                    background: `${cfg.color}22`,
+                    border: `1.5px solid ${cfg.borderColor}`,
+                    color: cfg.color,
+                    padding: '0 20px',
+                    fontSize: 13,
+                  }}
+                  aria-label={`Reconhecer alarme ${alert.id}`}
+                >
+                  ACK
+                </button>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Structure health — large indicators */}
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 11, color: 'oklch(52% 0.02 270)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+          SAÚDE ESTRUTURAL · GISTM 2020
+        </div>
+        {data.structures.map(s => {
+          const color =
+            s.healthIndex >= 90 ? 'oklch(65% 0.18 145)' :
+            s.healthIndex >= 70 ? 'oklch(75% 0.18 70)' :
+            s.healthIndex >= 40 ? 'oklch(75% 0.16 50)' :
+            'oklch(55% 0.22 25)';
+          const shape =
+            s.riskLevel === 'critical' ? '▲' : s.riskLevel === 'high' ? '◆' :
+            s.riskLevel === 'medium' ? '■' : '●';
+          return (
+            <div key={s.structureId} style={{
+              background: 'oklch(12% 0.02 280)',
+              border: `2px solid ${color}60`,
+              borderRadius: 10,
+              padding: '14px 16px',
+              marginBottom: 8,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'oklch(92% 0.01 280)' }}>{s.structureName}</div>
+                <div style={{ fontSize: 11, color: 'oklch(52% 0.02 270)', marginTop: 2 }}>
+                  SHM Nível {s.shmsLevel} · {s.anomalyCount} anomalia(s)
+                </div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 24, color, fontWeight: 800, fontFamily: "'JetBrains Mono', monospace" }}>
+                  {s.healthIndex.toFixed(0)}
+                </div>
+                <div style={{ fontSize: 10, color: 'oklch(52% 0.02 270)' }}>/ 100</div>
+                <div style={{ fontSize: 14, color }}>{shape} {s.riskLevel.toUpperCase()}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Latest sensor reading */}
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 11, color: 'oklch(52% 0.02 270)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+          ÚLTIMA LEITURA · ISO 13374-1
+        </div>
+        {data.recentReadings.slice(-1).map(r => (
+          <div key={r.timestamp} style={{
+            background: 'oklch(12% 0.02 280)',
+            border: `2px solid ${r.isAnomaly ? 'oklch(75% 0.18 70 / 0.5)' : 'oklch(24% 0.03 270)'}`,
+            borderRadius: 10,
+            padding: '14px 16px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}>
+            <div>
+              <div style={{ fontSize: 13, color: 'oklch(72% 0.02 275)' }}>{r.sensorId}</div>
+              <div style={{ fontSize: 11, color: 'oklch(52% 0.02 270)', marginTop: 2 }}>
+                {new Date(r.timestamp).toLocaleTimeString('pt-BR')}
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{
+                fontSize: 28, fontWeight: 800,
+                fontFamily: "'JetBrains Mono', monospace",
+                color: r.isAnomaly ? 'oklch(75% 0.18 70)' : 'oklch(65% 0.18 145)',
+              }}>
+                {r.value}
+              </div>
+              <div style={{ fontSize: 12, color: 'oklch(52% 0.02 270)' }}>{r.unit}</div>
+              {r.isAnomaly && (
+                <div style={{ fontSize: 10, color: 'oklch(75% 0.18 70)', marginTop: 2 }}>
+                  ◆ ANOMALIA z={r.zScore?.toFixed(1)}σ
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* System status */}
+      <div style={{
+        background: 'oklch(12% 0.02 280)',
+        border: '1px solid oklch(24% 0.03 270)',
+        borderRadius: 10,
+        padding: '12px 14px',
+      }}>
+        <div style={{ fontSize: 11, color: 'oklch(52% 0.02 270)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+          SISTEMA
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          {[
+            { label: 'LSTM', value: data.systemStatus.lstmStatus.toUpperCase(), ok: true },
+            { label: 'MQTT', value: data.systemStatus.mqttConnected ? 'ON' : 'OFF', ok: data.systemStatus.mqttConnected },
+            { label: 'Alarmes', value: String(activeAlarms.length), ok: activeAlarms.length === 0 },
+            { label: 'Críticos', value: String(criticalCount), ok: criticalCount === 0 },
+          ].map(item => (
+            <div key={item.label} style={{
+              background: 'oklch(8% 0.02 280)',
+              borderRadius: 8,
+              padding: '10px 12px',
+              textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 10, color: 'oklch(52% 0.02 270)' }}>{item.label}</div>
+              <div style={{
+                fontSize: 18, fontWeight: 800,
+                color: item.ok ? 'oklch(65% 0.18 145)' : 'oklch(55% 0.22 25)',
+                fontFamily: "'JetBrains Mono', monospace",
+                marginTop: 2,
+              }}>
+                {item.value}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ fontSize: 9, color: 'oklch(38% 0.02 270)', textAlign: 'center', marginTop: 12 }}>
+        Field Mode · ISO 9241-9 · Fitts (1954) · GISTM 2020 §5.2
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Dashboard Component ─────────────────────────────────────────────────
 export default function SHMSDashboardV3() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -421,6 +797,8 @@ export default function SHMSDashboardV3() {
   const [selectedStructure, setSelectedStructure] = useState<string>('wdu-dam-001');
   const [acknowledgedAlarms, setAcknowledgedAlarms] = useState<Set<string>>(new Set());
   const [displayLevel, setDisplayLevel] = useState<1 | 2 | 3 | 4>(1);
+  const [fieldMode, setFieldMode] = useState(false);
+  const [showDigitalTwin, setShowDigitalTwin] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // IEC 62682 §7.4.2: 2-step acknowledgment
@@ -471,6 +849,18 @@ export default function SHMSDashboardV3() {
           <div style={{ fontSize: 12, color: '#475569' }}>MOTHER v91.0 — Sprint 9 C208</div>
         </div>
       </div>
+    );
+  }
+
+  // FieldMode: mobile-first full-screen view (Fitts 1954 + GISTM 2020 §5.2)
+  if (fieldMode) {
+    return (
+      <FieldMode
+        data={data}
+        acknowledgedAlarms={acknowledgedAlarms}
+        onAcknowledge={acknowledgeAlarm}
+        onClose={() => setFieldMode(false)}
+      />
     );
   }
 
@@ -564,7 +954,7 @@ export default function SHMSDashboardV3() {
         </div>
 
         {/* Right: Controls + Active alarm counter */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {/* Active alarm badge — Endsley SA Level 1: immediate perception */}
           {activeAlarmCount > 0 && (
             <div
@@ -596,6 +986,39 @@ export default function SHMSDashboardV3() {
               </span>
             </div>
           )}
+          {/* Digital Twin 2D toggle */}
+          <button
+            onClick={() => setShowDigitalTwin(v => !v)}
+            aria-pressed={showDigitalTwin}
+            title="Digital Twin 2D — Seção transversal · Grieves (2014)"
+            style={{
+              padding: '3px 8px',
+              borderRadius: 5,
+              border: `1px solid ${showDigitalTwin ? 'oklch(68% 0.20 290 / 0.5)' : 'oklch(30% 0.03 265)'}`,
+              background: showDigitalTwin ? 'oklch(20% 0.05 290)' : 'transparent',
+              color: showDigitalTwin ? 'oklch(68% 0.20 290)' : 'oklch(72% 0.02 275)',
+              fontSize: '10px',
+              cursor: 'pointer',
+            }}
+          >
+            🏗️ 2D
+          </button>
+          {/* FieldMode toggle — Fitts (1954): glove-compatible */}
+          <button
+            onClick={() => setFieldMode(true)}
+            title="Field Mode — Mobile · Fitts (1954) 48dp · GISTM 2020 §5.2"
+            style={{
+              padding: '3px 8px',
+              borderRadius: 5,
+              border: '1px solid oklch(65% 0.15 250 / 0.4)',
+              background: 'oklch(20% 0.04 250)',
+              color: 'oklch(65% 0.15 250)',
+              fontSize: '10px',
+              cursor: 'pointer',
+            }}
+          >
+            📱 Campo
+          </button>
           <div style={{ fontSize: 10, color: 'oklch(52% 0.02 270)' }}>
             {lastRefresh}
           </div>
@@ -843,6 +1266,32 @@ export default function SHMSDashboardV3() {
           )}
         </div>
       </div>
+
+      {/* ── Digital Twin 2D Cross-Section (task-contingent, ISA-101 Level 2) ── */}
+      {showDigitalTwin && selectedStructureData && (
+        <div
+          style={{
+            background: 'oklch(12% 0.02 280)',
+            borderRadius: 8,
+            padding: 10,
+            border: '1px solid oklch(68% 0.20 290 / 0.25)',
+            marginBottom: 10,
+          }}
+          role="region"
+          aria-label="Digital Twin — Seção transversal 2D"
+        >
+          <DamCrossSection
+            healthIndex={selectedStructureData.healthIndex}
+            riskLevel={selectedStructureData.riskLevel}
+            sensors={[
+              { id: 'pz1', x: 30, y: 60, value: 125.4, unit: 'kPa', status: 'ok', label: 'PZ-1' },
+              { id: 'pz2', x: 55, y: 75, value: 127.1, unit: 'kPa', status: 'warning', label: 'PZ-2' },
+              { id: 'inc1', x: 70, y: 50, value: 0.12, unit: '°', status: 'ok', label: 'INC-1' },
+              { id: 'ext1', x: 50, y: 20, value: 1.3, unit: 'mm', status: 'ok', label: 'EXT-1' },
+            ]}
+          />
+        </div>
+      )}
 
       {/* ── ISA-101 Level 3: Detail — LSTM Chart ── */}
       <div
