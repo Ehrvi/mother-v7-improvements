@@ -202,7 +202,10 @@ async function generateCritique(
   
   try {
     const critiqueResponse = await invokeLLM({
-      model: 'gpt-4o-mini',
+      // Cross-model critique: use gpt-4o as judge (not gpt-4o-mini) to avoid self-bias
+      // Huang et al. arXiv:2402.11436 (ACL 2024): same-model critique amplifies self-bias
+      // Using a stronger/different model as evaluator produces more reliable quality signals
+      model: 'gpt-4o',
       provider: 'openai',
       messages: [
         {

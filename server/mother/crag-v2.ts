@@ -231,15 +231,30 @@ async function hybridMultiSourceRetrieval(queries: string[]): Promise<CRAGv2Docu
     // non-blocking
   }
   
-  // Compute hybrid RRF score (Reciprocal Rank Fusion)
-  // Scientific basis: Luan et al. (2022) — hybrid retrieval outperforms either alone
+  // Compute hybrid RRF score (Reciprocal Rank Fusion — Cormack et al., SIGIR 2009)
+  // RRF(d) = Σ 1/(k + r_i(d)) where r_i is rank in list i, k=60 (standard constant)
+  // This is rank-based, not score-based — must rank each source list first.
+  // Previous implementation (arithmetic mean of scores) was incorrect per the paper.
+  const K_RRF = 60;
+  const bm25Sorted = [...documents].sort((a, b) => (b.bm25Score || 0) - (a.bm25Score || 0));
+  const vectorSorted = [...documents].sort((a, b) => (b.vectorScore || 0) - (a.vectorScore || 0));
+  const bm25Rank = new Map(bm25Sorted.map((d, i) => [d, i + 1]));
+  const vectorRank = new Map(vectorSorted.map((d, i) => [d, i + 1]));
   for (const doc of documents) {
-    const bm25 = doc.bm25Score || 0;
-    const vector = doc.vectorScore || 0;
-    // RRF: if both scores available, combine; otherwise use available score
-    doc.hybridScore = bm25 > 0 && vector > 0 
-      ? (bm25 + vector) / 2 + 0.1 // bonus for appearing in both
-      : Math.max(bm25, vector, doc.relevanceScore);
+    const rBm25 = bm25Rank.get(doc) ?? documents.length;
+    const rVector = vectorRank.get(doc) ?? documents.length;
+    const hasBm25 = (doc.bm25Score || 0) > 0;
+    const hasVector = (doc.vectorScore || 0) > 0;
+    if (hasBm25 && hasVector) {
+      // Both signals: canonical RRF
+      doc.hybridScore = 1 / (K_RRF + rBm25) + 1 / (K_RRF + rVector);
+    } else if (hasBm25) {
+      doc.hybridScore = 1 / (K_RRF + rBm25);
+    } else if (hasVector) {
+      doc.hybridScore = 1 / (K_RRF + rVector);
+    } else {
+      doc.hybridScore = doc.relevanceScore || 0;
+    }
   }
   
   return documents;

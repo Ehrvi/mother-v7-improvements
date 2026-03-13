@@ -221,12 +221,11 @@ export async function executeAutonomousUpdate(proposalId: number): Promise<Updat
     
     reactObserve(`Proposal found: "${proposal.title}" (status: ${proposal.status})`);
     
-    const forceExecute = process.env.FORCE_EXECUTE === 'true';
-    if (proposal.status !== 'approved' && !forceExecute) {
-      throw new Error(`Proposal ${proposalId} is not approved (status: ${proposal.status})`);
-    }
-    if (forceExecute && proposal.status !== 'approved') {
-      log.info(`[MOTHER-SWE] ⚠️  FORCE_EXECUTE mode: bypassing status check (status: ${proposal.status})`);
+    // Security: FORCE_EXECUTE removed — always require approved status.
+    // DGM risk mitigation: bypass of human approval is a critical attack vector (arXiv:2505.22954).
+    // Any env-var-based approval bypass allows compromised Cloud Run env to execute arbitrary proposals.
+    if (proposal.status !== 'approved') {
+      throw new Error(`Proposal ${proposalId} is not approved (status: ${proposal.status}). Human approval required.`);
     }
     
     // ============================================================
@@ -340,16 +339,32 @@ export async function executeAutonomousUpdate(proposalId: number): Promise<Updat
     
     try {
       runCommand(repoPath, 'npm ci --silent 2>/dev/null || true');
-      const tsResult = runCommand(repoPath, 
+      const tsResult = runCommand(repoPath,
         'npx tsc --project tsconfig.server.json --noEmit 2>&1 | grep -v "node_modules" | grep -v ".test.ts" || true'
       );
       if (tsResult.includes('error TS')) {
-        reactObserve(`TypeScript errors found:\n${tsResult}`);
-        // Don't fail — log the errors and continue. The CI/CD pipeline will catch them.
-      } else {
-        reactObserve('TypeScript compilation: PASSED (0 errors)');
+        // TypeScript errors are blocking — DGM must not introduce type regressions
+        // DGM safety: Zhang et al. arXiv:2505.22954 — AI must not falsify evaluation
+        throw new Error(`DGM safety gate: TypeScript errors detected. Proposal rejected.\n${tsResult}`);
+      }
+      reactObserve('TypeScript compilation: PASSED (0 errors)');
+
+      // Run unit test suite as regression gate (DGM safety — arXiv:2505.22954)
+      // Tests must pass before any autonomous commit is allowed
+      try {
+        const testResult = runCommand(repoPath,
+          'pnpm vitest run tests/c321-c323-gate-tests.spec.ts tests/mother-quality-modules.spec.ts tests/pipeline-integration.spec.ts 2>&1 | tail -20'
+        );
+        if (testResult.includes('failed') || testResult.includes('FAIL')) {
+          throw new Error(`DGM safety gate: Test suite failed. Proposal rejected.\n${testResult}`);
+        }
+        reactObserve('Regression test suite: PASSED');
+      } catch (testErr: any) {
+        if (testErr.message.startsWith('DGM safety gate')) throw testErr;
+        reactObserve(`Test suite warning (non-blocking): ${testErr.message}`);
       }
     } catch (e: any) {
+      if (e.message?.startsWith('DGM safety gate')) throw e;
       reactObserve(`TypeScript check warning: ${e.message}`);
     }
     

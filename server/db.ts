@@ -260,19 +260,15 @@ export async function getKnowledgeById(id: number): Promise<Knowledge | undefine
   const db = await getDb();
   if (!db) return undefined;
 
+  // Fire-and-forget access tracking to avoid N+1 (2 queries per read)
+  // UPDATE runs asynchronously — doesn't block the caller (non-critical metric)
   const result = await db.select().from(knowledge).where(eq(knowledge.id, id)).limit(1);
-  
   if (result[0]) {
-    // Update access count
-    await db
-      .update(knowledge)
-      .set({ 
-        accessCount: sql`${knowledge.accessCount} + 1`,
-        lastAccessed: new Date()
-      })
-      .where(eq(knowledge.id, id));
+    db.update(knowledge)
+      .set({ accessCount: sql`${knowledge.accessCount} + 1`, lastAccessed: new Date() })
+      .where(eq(knowledge.id, id))
+      .catch(() => { /* non-critical metric, ignore failures */ });
   }
-  
   return result[0];
 }
 

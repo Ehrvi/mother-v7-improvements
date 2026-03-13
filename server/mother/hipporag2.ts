@@ -33,7 +33,8 @@
 
 import { createLogger } from '../_core/logger';
 import { getDb } from '../db';
-import { sql } from 'drizzle-orm';
+import { sql, inArray } from 'drizzle-orm';
+import { knowledge as knowledgeTable } from '../../drizzle/schema';
 import { invokeLLM } from '../_core/llm';
 
 const log = createLogger('HIPPORAG2');
@@ -383,13 +384,13 @@ export async function hippoRAG2Retrieve(
     const db = await getDb();
     if (!db) return { passages: [], entities: expandedEntities, hops, graphTraversalMs: Date.now() - startTime, confidence: 0 };
 
-    const idList = Array.from(knowledgeIdSet).slice(0, topK * 2);
-    const rows = await db.execute(sql`
-      SELECT id, title, content
-      FROM knowledge
-      WHERE id IN (${sql.raw(idList.join(','))})
-      LIMIT ${topK}
-    `) as any[];
+    const idList = Array.from(knowledgeIdSet).slice(0, topK * 2).map(Number).filter(n => Number.isInteger(n) && n > 0);
+    if (idList.length === 0) return { passages: [], entities: expandedEntities, hops, graphTraversalMs: Date.now() - startTime, confidence: 0 };
+    const rows = await db
+      .select({ id: knowledgeTable.id, title: knowledgeTable.title, content: knowledgeTable.content })
+      .from(knowledgeTable)
+      .where(inArray(knowledgeTable.id, idList))
+      .limit(topK);
 
     const passages = rows.map(row =>
       `[${row.title ?? 'Knowledge'}]\n${String(row.content ?? '').slice(0, 500)}`
