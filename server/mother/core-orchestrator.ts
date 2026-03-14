@@ -820,15 +820,21 @@ async function streamResponse(body: ReadableStream<Uint8Array>, onChunk: (chunk:
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let fullResponse = '';
+  // C353 FIX: buffer incomplete SSE lines across read() calls.
+  // Without this, when OpenAI splits a packet mid-line (e.g. "Pitágor" | "as"}"),
+  // JSON.parse fails on the incomplete line → token permanently dropped → garbled words.
+  let buffer = '';
 
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
 
-    const text = decoder.decode(value, { stream: true });
-    const lines = text.split('\n').filter(l => l.startsWith('data: '));
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? ''; // keep incomplete last line for next read
 
     for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
       const data = line.slice(6);
       if (data === '[DONE]') continue;
       try {
@@ -855,13 +861,16 @@ async function streamAnthropicResponse(body: ReadableStream<Uint8Array>, onChunk
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let fullResponse = '';
+  // C353 FIX: same buffering fix as streamResponse — Anthropic can also split SSE lines.
+  let buffer = '';
 
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
 
-    const text = decoder.decode(value, { stream: true });
-    const lines = text.split('\n');
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? ''; // keep incomplete last line for next read
 
     for (const line of lines) {
       // Anthropic SSE: data lines contain JSON with type field

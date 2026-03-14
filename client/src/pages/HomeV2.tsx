@@ -174,13 +174,21 @@ export default function HomeV2() {
     // FIX (C352): flushRender now reads accumulatedText via closure at fire time, not capture time.
     // Previously captured `text` at schedule time → tokens arriving during 100ms window were lost.
     let pendingRenderFrame: ReturnType<typeof setTimeout> | null = null;
+    // streamSpeed: 0.5×=80ms, 1×=50ms, 1.5×=30ms, 2×=0ms (instant)
+    const getDelay = () => streamSpeed >= 2 ? 0 : streamSpeed >= 1.5 ? 30 : streamSpeed >= 1 ? 50 : 80;
     const flushRender = () => {
       if (pendingRenderFrame) return;
+      const delay = getDelay();
+      if (delay === 0) {
+        const id = msgId;
+        setMessages(prev => prev.map(m => m.id === id ? { ...m, content: accumulatedText } : m));
+        return;
+      }
       pendingRenderFrame = setTimeout(() => {
         pendingRenderFrame = null;
         const id = msgId;
         setMessages(prev => prev.map(m => m.id === id ? { ...m, content: accumulatedText } : m));
-      }, 50);
+      }, delay);
     };
 
     try {
