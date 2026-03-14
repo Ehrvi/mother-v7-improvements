@@ -205,8 +205,8 @@ export function buildRoutingDecision(query: string, availableProviders?: Set<str
   const tierConfigs: Record<RoutingTier, Omit<RoutingDecision, 'rationale' | 'complexityScore'>> = {
     TIER_1: {
       tier: 'TIER_1',
-      primaryModel: 'gpt-4o-mini',
-      primaryProvider: 'openai',
+      primaryModel: available.has('anthropic') ? 'claude-haiku-4-5-20251001' : 'gpt-4o-mini',
+      primaryProvider: available.has('anthropic') ? 'anthropic' : 'openai',
       temperature: 0.3,
       maxTokens: 1024,
       estimatedLatencyMs: 800,
@@ -216,8 +216,8 @@ export function buildRoutingDecision(query: string, availableProviders?: Set<str
     },
     TIER_2: {
       tier: 'TIER_2',
-      primaryModel: 'gpt-4o',
-      primaryProvider: 'openai',
+      primaryModel: available.has('anthropic') ? 'claude-sonnet-4-6' : 'gpt-4o',
+      primaryProvider: available.has('anthropic') ? 'anthropic' : 'openai',
       temperature: 0.5,
       maxTokens: 2048,
       estimatedLatencyMs: 1500,
@@ -227,10 +227,10 @@ export function buildRoutingDecision(query: string, availableProviders?: Set<str
     },
     TIER_3: {
       tier: 'TIER_3',
-      primaryModel: 'gpt-4o',
-      primaryProvider: 'openai',
-      secondaryModel: available.has('anthropic') ? 'claude-sonnet-4-6' : undefined,
-      secondaryProvider: available.has('anthropic') ? 'anthropic' : undefined,
+      primaryModel: available.has('anthropic') ? 'claude-sonnet-4-6' : 'gpt-4o',
+      primaryProvider: available.has('anthropic') ? 'anthropic' : 'openai',
+      secondaryModel: available.has('openai') ? 'gpt-4o' : undefined,
+      secondaryProvider: available.has('openai') ? 'openai' : undefined,
       temperature: 0.6,
       maxTokens: 4096,
       estimatedLatencyMs: 3000,
