@@ -105,7 +105,7 @@ steps:
       # C365 Comparison: MOTHER 77.0 vs Manus 85.5 (Cohen's d=-0.616, medium effect — gap to close)
       # C366: Quality SLO Dashboard deploy (NC-TEST-006, porta 8502)
       # C367: Pre-deploy quality gate (NC-TEST-007, >=2/3 TIER_1 smoke queries must pass)
-      - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA,VITE_APP_ID=mother-interface,NODE_OPTIONS=--max-old-space-size=6144,DPO_FINE_TUNED_MODEL=ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v8e:DFay6MHy,MOTHER_VERSION=v122.31,MOTHER_CYCLE=367,SHMS_SIMULATION_ONLY=true,MOTHER_CITATION_DEBUG=true,MOTHER_COMPLEXITY_THRESHOLD=4,MOTHER_STEALTH_PLANNER=true,MOTHER_PRM_ENABLED=true,MOTHER_CITATION_ENGINE=true,MOTHER_VERTE_RAG=true,MOTHER_ADAPTIVE_THRESHOLD=true'
+      - '--set-env-vars=GIT_COMMIT_SHA=$SHORT_SHA,VITE_APP_ID=mother-interface,NODE_OPTIONS=--max-old-space-size=6144,DPO_FINE_TUNED_MODEL=ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v8e:DFay6MHy,MOTHER_VERSION=v122.31,MOTHER_CYCLE=367,SHMS_SIMULATION_ONLY=false,MOTHER_CITATION_DEBUG=true,MOTHER_COMPLEXITY_THRESHOLD=4,MOTHER_STEALTH_PLANNER=true,MOTHER_PRM_ENABLED=true,MOTHER_CITATION_ENGINE=true,MOTHER_VERTE_RAG=true,MOTHER_ADAPTIVE_THRESHOLD=true,TIMESCALE_DB_URL=postgres://tsdbadmin:kbdtdc719antdsw4@np88jyj5mj.e8uars6xuw.tsdb.cloud.timescale.com:31052/tsdb?sslmode=require'
 
   # C367 (2026-03-13): Pre-deploy quality gate — smoke test before traffic migration
   # Scientific basis: HELM (arXiv:2211.09110) — automated evaluation as CI/CD gate
