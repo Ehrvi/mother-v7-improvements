@@ -135,6 +135,8 @@ export default function HomeV2() {
   const [phaseLatencyMs, setPhaseLatencyMs] = useState<number>(0);
   const [activeToolCalls, setActiveToolCalls] = useState<ToolCall[]>([]);
   const [showSessionHistory, setShowSessionHistory] = useState(false);
+  const [streamSpeed, setStreamSpeed] = useState<0.5 | 1 | 1.5 | 2>(1);
+  const [feedback, setFeedback] = useState<Record<string, 'up' | 'down'>>({});
 
   // ─── Server queries ──────────────────────────────────────────────────────────
   const providerHealthQuery = trpc.mother.providerHealth.useQuery(
@@ -168,16 +170,17 @@ export default function HomeV2() {
     const controller = new AbortController();
     abortControllerRef.current = controller;
     let accumulatedText = '';
-    // Throttle SSE token re-renders to 100ms intervals (Huang et al. pattern)
-    // At ~50 tokens/sec, this reduces re-renders from 50/sec to 10/sec (-80%)
+    // Throttle SSE token re-renders to 50ms intervals
+    // FIX (C352): flushRender now reads accumulatedText via closure at fire time, not capture time.
+    // Previously captured `text` at schedule time → tokens arriving during 100ms window were lost.
     let pendingRenderFrame: ReturnType<typeof setTimeout> | null = null;
-    const flushRender = (text: string) => {
+    const flushRender = () => {
       if (pendingRenderFrame) return;
       pendingRenderFrame = setTimeout(() => {
         pendingRenderFrame = null;
         const id = msgId;
-        setMessages(prev => prev.map(m => m.id === id ? { ...m, content: text } : m));
-      }, 100);
+        setMessages(prev => prev.map(m => m.id === id ? { ...m, content: accumulatedText } : m));
+      }, 50);
     };
 
     try {
@@ -194,6 +197,12 @@ export default function HomeV2() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+      // FIX (C352): lastEvent MUST be outside the while loop.
+      // Bug: declaring it inside caused reset on every reader.read() call.
+      // When a data: line is split across two TCP chunks, the event: line is in
+      // chunk 1 (sets lastEvent='token'), partial data: parse fails → lastEvent=''.
+      // In chunk 2, the completed data: line has lastEvent='' → token DROPPED → garbled words.
+      let lastEvent = '';
 
       while (true) {
         const { done, value } = await reader.read();
@@ -202,8 +211,8 @@ export default function HomeV2() {
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
 
-        let lastEvent = '';
         for (const line of lines) {
+          if (line === '') { lastEvent = ''; continue; } // blank line = end of SSE event
           if (line.startsWith('event: ')) { lastEvent = line.slice(7).trim(); continue; }
           if (line.startsWith('data: ')) {
             try {
@@ -233,7 +242,7 @@ export default function HomeV2() {
                 setActiveToolCalls(prev => [...prev.filter(t => t.id !== tc.id), tc]);
               } else if (lastEvent === 'token' && parsed.text) {
                 accumulatedText += parsed.text;
-                flushRender(accumulatedText);
+                flushRender();
               } else if (lastEvent === 'response' && parsed.response) {
                 setMessages(prev => prev.map(m => m.id === msgId ? {
                   ...m,
@@ -252,7 +261,7 @@ export default function HomeV2() {
                 });
               }
             } catch { /* skip malformed */ }
-            lastEvent = '';
+            // NOTE: do NOT reset lastEvent here — wait for blank line (proper SSE spec)
           }
         }
       }
@@ -725,30 +734,54 @@ export default function HomeV2() {
                     {msg.timestamp.toLocaleTimeString()}
                   </span>
 
-                  {/* Follow-up chips — last completed MOTHER message only */}
+                  {/* Follow-up chips + feedback — last completed MOTHER message only */}
                   {msg.role === 'mother' && msg.content && msgIdx === visibleMessages.length - 1 && !isStreaming && (
-                    <div className="flex flex-wrap gap-1.5 mt-1">
-                      {getFollowUpChips(msg.content).map(chip => (
-                        <button key={chip}
-                          onClick={() => sendMessage(chip)}
-                          className="text-[11px] px-3 py-1.5 rounded-full transition-all"
-                          style={{
-                            border: '1px solid oklch(28% 0.08 290)',
-                            background: 'oklch(14% 0.04 290)',
-                            color: 'oklch(68% 0.16 285)',
-                          }}
-                          onMouseEnter={e => {
-                            e.currentTarget.style.background = 'oklch(20% 0.06 290)';
-                            e.currentTarget.style.borderColor = 'oklch(45% 0.12 290)';
-                          }}
-                          onMouseLeave={e => {
-                            e.currentTarget.style.background = 'oklch(14% 0.04 290)';
-                            e.currentTarget.style.borderColor = 'oklch(28% 0.08 290)';
-                          }}
-                        >
-                          {chip}
-                        </button>
-                      ))}
+                    <div>
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        {getFollowUpChips(msg.content).map(chip => (
+                          <button key={chip}
+                            onClick={() => sendMessage(chip)}
+                            className="text-[11px] px-3 py-1.5 rounded-full transition-all"
+                            style={{
+                              border: '1px solid oklch(28% 0.08 290)',
+                              background: 'oklch(14% 0.04 290)',
+                              color: 'oklch(68% 0.16 285)',
+                            }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.background = 'oklch(20% 0.06 290)';
+                              e.currentTarget.style.borderColor = 'oklch(45% 0.12 290)';
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.background = 'oklch(14% 0.04 290)';
+                              e.currentTarget.style.borderColor = 'oklch(28% 0.08 290)';
+                            }}
+                          >
+                            {chip}
+                          </button>
+                        ))}
+                      </div>
+                      {/* Feedback buttons */}
+                      <div className="flex items-center gap-1 mt-1.5">
+                        {(['up', 'down'] as const).map(dir => (
+                          <button key={dir}
+                            onClick={() => setFeedback(f => ({ ...f, [msg.id]: f[msg.id] === dir ? undefined as unknown as 'up' : dir }))}
+                            title={dir === 'up' ? 'Boa resposta' : 'Resposta ruim'}
+                            style={{
+                              padding: '2px 8px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
+                              border: `1px solid ${feedback[msg.id] === dir ? (dir === 'up' ? 'oklch(55% 0.18 145)' : 'oklch(55% 0.18 25)') : 'oklch(22% 0.02 280)'}`,
+                              background: feedback[msg.id] === dir ? (dir === 'up' ? 'oklch(20% 0.08 145)' : 'oklch(20% 0.08 25)') : 'transparent',
+                              color: feedback[msg.id] === dir ? (dir === 'up' ? 'oklch(65% 0.18 145)' : 'oklch(65% 0.18 25)') : 'oklch(38% 0.02 280)',
+                              transition: 'all 0.15s',
+                            }}>
+                            {dir === 'up' ? '👍' : '👎'}
+                          </button>
+                        ))}
+                        {feedback[msg.id] && (
+                          <span className="text-[10px] ml-1" style={{ color: 'oklch(50% 0.02 280)' }}>
+                            {feedback[msg.id] === 'up' ? 'Obrigado pelo feedback!' : 'Vou melhorar.'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -875,8 +908,27 @@ export default function HomeV2() {
               </div>
             </div>
 
+            {/* Speed calibrator (P2: streaming display throttle) */}
+            <div className="flex items-center gap-1 mt-2 mb-1">
+              <span className="text-[9px] uppercase tracking-wider mr-1" style={{ color: 'oklch(38% 0.02 280)' }}>Vel.:</span>
+              {([0.5, 1, 1.5, 2] as const).map(s => (
+                <button key={s} onClick={() => setStreamSpeed(s)}
+                  title={s === 0.5 ? 'Devagar' : s === 1 ? 'Normal' : s === 1.5 ? 'Rápido' : 'Instantâneo'}
+                  style={{
+                    padding: '2px 7px', borderRadius: 5, fontSize: '10px', cursor: 'pointer',
+                    fontFamily: "'JetBrains Mono', monospace", transition: 'all 0.15s',
+                    border: `1px solid ${streamSpeed === s ? '#a78bfa' : 'rgba(124,58,237,0.2)'}`,
+                    background: streamSpeed === s ? 'rgba(124,58,237,0.25)' : 'rgba(124,58,237,0.06)',
+                    color: streamSpeed === s ? '#a78bfa' : 'oklch(42% 0.02 280)',
+                    fontWeight: streamSpeed === s ? 700 : 400,
+                  }}>
+                  {s}×
+                </button>
+              ))}
+            </div>
+
             {/* Bottom status bar */}
-            <div className="flex items-center justify-between mt-2 px-1">
+            <div className="flex items-center justify-between mt-1 px-1">
               <p className="text-[10px]" style={{ color: 'oklch(38% 0.02 280)' }}>
                 Enter para enviar · Shift+Enter nova linha
               </p>

@@ -291,6 +291,8 @@ export async function storeInCache(
 ): Promise<void> {
   // Don't cache low-quality responses
   if (qualityScore < 70) return;
+  // C352: Don't cache truncated/empty responses (prevents serving partial streaming artifacts)
+  if (response.trim().length < 200) return;
   // C289: Cache TIER_3 with shorter TTL (2h). Only skip TIER_4.
   if (tier === 'TIER_4') return;
   // C289: Also store in L1 exact-match cache for O(1) future lookups
