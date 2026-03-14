@@ -1729,9 +1729,10 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     try {
       const { directedSelfRefine } = await import('./self-refine');
       const systemPrompt = buildSystemPrompt(l3, l2.routing);
+      // C354 FIX: use finalResponse (PRM-improved) not l4.response (raw) as self-refine input
       const refineResult = await directedSelfRefine(
         req.query,
-        l4.response,
+        finalResponse,
         l3.knowledgeContext || '',
         systemPrompt,
         l5.gEvalScores,
@@ -1752,9 +1753,10 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     }
   }
 
-  // Apply citation result (from Block B, on PRM/refined response if both improved)
+  // Apply citation result — append formattedReferences to finalResponse (not responseWithCitations
+  // which was built from l4.response; this preserves PRM+self-refine improvements) — C354 FIX
   if (citBlockResult.status === 'fulfilled' && citBlockResult.value?.applied && citBlockResult.value.citationsFound > 0) {
-    finalResponse = citBlockResult.value.responseWithCitations;
+    finalResponse = finalResponse + citBlockResult.value.formattedReferences;
     layers.push({
       layer: 5.5 as any,
       name: 'Citation Engine (C353)',
