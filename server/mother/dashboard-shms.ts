@@ -80,7 +80,8 @@ export async function getDashboardData(
   // Tentar obter leituras reais do TimescaleDB
   try {
     const readings = await getLatestReadings();
-    timescaleConnected = true;
+    timescaleConnected = readings.length > 0; // C354 FIX: only true when real data exists
+    if (readings.length === 0) throw new Error('no-data'); // trigger synthetic fallback
     sensors = readings.slice(0, 10).map(r => ({
       sensorId: r.sensorId ?? 'unknown',
       sensorType: String(r.sensorType ?? 'unknown'),

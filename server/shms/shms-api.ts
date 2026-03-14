@@ -188,7 +188,8 @@ export function registerSHMSRoutes(router: Router): void {
    * Returns alert history.
    */
   router.get('/api/shms/alerts/history', (req: Request, res: Response) => {
-    const limit = parseInt(req.query.limit as string || '50');
+    const parsedLimit = parseInt(req.query.limit as string || '50', 10);
+    const limit = isNaN(parsedLimit) ? 50 : Math.min(Math.max(parsedLimit, 1), 1000); // C354 FIX
     res.json({
       history: shmsAlertEngine.getHistory(limit),
       limit,
