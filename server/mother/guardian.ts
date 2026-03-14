@@ -197,8 +197,9 @@ async function runGEvalGeminiFallback(
     const data = await res.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) return null;
-    // Extract JSON from response (may have markdown)
-    const jsonMatch = text.match(/\{[^}]+\}/);
+    // Extract JSON from response (may have markdown or multi-line)
+    // C354 FIX: /\{[^}]+\}/ fails on multi-line JSON — use greedy [\s\S]* with last-} anchor
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return null;
     const scores = JSON.parse(jsonMatch[0]) as GEvalScores;
     const dims = ['coherence', 'consistency', 'fluency', 'relevance', 'safety'] as const;
