@@ -17,6 +17,7 @@
  */
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
+import { timingSafeEqual } from 'crypto';
 import { createLogger } from '../logger.js';
 
 const log = createLogger('auth-router');
@@ -39,7 +40,12 @@ export function authenticateA2A(req: Request, res: Response, next: NextFunction)
   }
 
   const auth = req.headers.authorization;
-  if (!auth || auth !== `Bearer ${token}`) {
+  // C354 FIX: use constant-time comparison to prevent timing attacks (NIST SP 800-63B)
+  const expected = `Bearer ${token}`;
+  const actual = auth ?? '';
+  const safe = actual.length === expected.length &&
+    timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
+  if (!safe) {
     log.warn(`[AuthRouter] Unauthorized request from ${req.ip} — ${req.method} ${req.path}`);
     res.status(401).json({ error: 'Unauthorized — invalid or missing A2A token' });
     return;
