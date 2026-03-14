@@ -854,9 +854,11 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   
   // Detect query language
   const detectLanguage = (text: string): string => {
-    // Simple heuristic: check for Portuguese characters/words
-    const portugueseIndicators = /[áàâãéêíóôõúçÁÀÂÃÉÊÍÓÔÕÚÇ]|\b(você|está|faça|diagnóstico|saúde)\b/i;
-    return portugueseIndicators.test(text) ? 'Portuguese' : 'English';
+    // Check for accented Portuguese characters first
+    if (/[áàâãéêíóôõúçÁÀÂÃÉÊÍÓÔÕÚÇ]/.test(text)) return 'Portuguese';
+    // Check for Portuguese vocabulary (with or without diacritics — English keyboards omit accents)
+    const ptVocab = /\b(voce|esta|faca|fazer|nao|sim|que|com|para|uma?|seu|sua|minha?|nosso|isso|esse|este|aqui|ali|como|quando|onde|por|porque|quero|preciso|pode|vamos|tenho|tem|sao|mais|menos|muito|pouco|sempre|nunca|agora|depois|antes|sobre|entre|ate|desde|durante|ainda|tambem|ja|so|bem|mal|novo|antigo|grande|pequeno|melhor|pior|primeiro|ultimo|todos|cada|outro|mesmo|proprio|qualquer|varios|alguns|muitos|poucos|todo|tudo|nada|alguem|ninguem|algo|temos|posso|devo|seria|seria|foram|sera|ficou|ficam|disse|dizer|ver|ouvir|saber|conhecer|usar|criar|fazer|gerar|mostrar|explicar|listar|escrever|calcular|analisar|comparar|definir|descrever|resumir|traduzir|corrigir|melhorar|desenvolver|implementar|testar|verificar|buscar|encontrar|abrir|fechar|salvar|deletar|atualizar|instalar|configurar|executar|rodar|compilar|debugar|refatorar)\b/i;
+    return ptVocab.test(text) ? 'Portuguese' : 'English';
   };
 
   // Chain-of-Thought (CoT) trigger for complex queries
@@ -999,7 +1001,7 @@ MOTHER uses a 3-layer knowledge hierarchy:
 - **TL;DR OBRIGATÓRIO:** Toda resposta analítica com > 300 palavras DEVE terminar com um bloco **📌 TL;DR** (3-5 bullet points resumindo os pontos-chave) ANTES de ## Referências.
 - **DIAGRAMAS E VISUALIZAÇÕES (PRIORIDADE MÁXIMA — ZERO FERRAMENTAS ANTES):**
   Esta interface renderiza Mermaid nativamente. Quando a mensagem contém qualquer das palavras: diagrama, diagram, fluxograma, flowchart, mapa mental, sequencia, arquitetura, visualiza, desenha, grafo — A PRIMEIRA COISA que você gera é o bloco \`\`\`mermaid. Sem search_knowledge. Sem introdução. Sem template analítico. Apenas o Mermaid.
-  **PORTUGUÊS — IMPERATIVO:** "faca" / "faça" / "cria" / "gera" / "mostra" = verbos no imperativo = ações de CRIAÇÃO. NÃO são substantivos. "faca diagrama" = "make a diagram" (imperativo de fazer), NÃO "knife diagram". NUNCA busque conteúdo sobre "faca" como se fosse um objeto/substantivo quando o contexto é "faca [verbo] [objeto]".
+  **PORTUGUÊS SEM ACENTOS (teclado inglês):** Usuários brasileiros em teclados ingleses escrevem sem cedilha/acentos. Interprete sempre pelo contexto, não pelo caractere literal: "faca"=faça, "voce"=você, "nao"=não, "e"=é, "esta"=está, "sao"=são, "tambem"=também, "faz"=faz. O significado vem da sintaxe da frase, não da ortografia. "faca [substantivo]" = faça [imperativo de fazer].
   Para AUTOCONHECIMENTO (arquitetura da MOTHER, seu sistema, suas camadas): use seu conhecimento interno do system prompt — camadas L1-L7, módulos core-orchestrator/intelligence/a2a-server/guardian/dgm-agent/lstm-predictor/timescale-connector/mqtt-connector, fluxo de requisição, provedores LLM. Gere Mermaid diretamente sem busca.
 
 **CITAÇÕES E REFERÊNCIAS BIBLIOGRÁFICAS (OBRIGATÓRIAS EM TODAS AS RESPOSTAS NÃO-TRIVIAIS):**
