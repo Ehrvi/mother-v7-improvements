@@ -288,11 +288,13 @@ function layer2_adaptiveRouting(
 
   // For LONG/VERY_LONG: upgrade model to gemini-2.5-pro if not already TIER_3+
   const olarModel = selectModelForOutputLength(outputEst.category);
+  // C354 FIX: operator precedence — wrap tier check in parens; also check google availability
   if ((outputEst.category === 'LONG' || outputEst.category === 'VERY_LONG') &&
-      routing.tier === 'TIER_1' || routing.tier === 'TIER_2') {
-    // Quality-first: upgrade to gemini-2.5-pro for long outputs
-    (routing as any).primaryModel = olarModel.primary;
-    (routing as any).primaryProvider = 'google';
+      (routing.tier === 'TIER_1' || routing.tier === 'TIER_2')) {
+    // Quality-first: upgrade to gemini-2.5-pro for long outputs (only if google available)
+    const googleAvailable = availableProviders.size === 0 || availableProviders.has('google');
+    (routing as any).primaryModel = googleAvailable ? olarModel.primary : (availableProviders.has('anthropic') ? 'claude-sonnet-4-6' : 'gpt-4o');
+    (routing as any).primaryProvider = googleAvailable ? 'google' : (availableProviders.has('anthropic') ? 'anthropic' : 'openai');
     (routing as any).tier = 'TIER_3';
     console.log(`[Orchestrator] C242 OLAR: upgraded to ${olarModel.primary} for ${outputEst.category} output (~${outputEst.estimatedTokens} tokens)`);
   }
@@ -1775,7 +1777,8 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
 
   // ── Layer 7: DGM Meta-Observation (async) ────────────────
   const totalLatency = Date.now() - startTotal;
-  layer7_dgmMetaObservation(req, l4.response, l5.qualityScore, totalLatency, l2.routing.tier);
+  // C354 FIX: pass finalResponse (post-PRM/citations/self-refine) not raw l4.response
+  layer7_dgmMetaObservation(req, finalResponse, l5.qualityScore, totalLatency, l2.routing.tier);
   layers.push({
     layer: 7,
     name: 'DGM Meta-Observation',

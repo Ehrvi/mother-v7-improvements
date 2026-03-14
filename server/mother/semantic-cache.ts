@@ -64,6 +64,13 @@ const memoryCache = new Map<string, CacheEntry>();
 // Principle: exact-match check before expensive similarity computation
 const exactMatchCache = new Map<string, { response: string; qualityScore: number; expiresAt: Date; hitCount: number }>();
 const MAX_EXACT_ENTRIES = 500;
+// C354 FIX: periodic cleanup of expired entries to prevent memory accumulation
+setInterval(() => {
+  const now = new Date();
+  for (const [key, entry] of exactMatchCache) {
+    if (entry.expiresAt <= now) exactMatchCache.delete(key);
+  }
+}, 10 * 60 * 1000); // every 10 minutes
 // C223 — Calibração de cache semântico (Roadmap Conselho v98, 2026-03-10)
 // SIMILARITY_THRESHOLD: 0.92 → 0.82 → 0.78 → 0.75
 // Scientific basis: GPTCache (Zeng et al., 2023): 0.75 achieves ~70-75% hit rate

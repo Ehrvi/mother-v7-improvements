@@ -569,6 +569,13 @@ app.post('/api/mother/stream', async (req, res) => {
 // - Sanitization: removes control chars, normalizes whitespace, truncates at 100KB
 
 const _extractRateLimiter: Map<string, { count: number; resetAt: number }> = new Map();
+// C354 FIX: periodic cleanup of expired rate limit entries to prevent memory leak
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of _extractRateLimiter) {
+    if (now > entry.resetAt) _extractRateLimiter.delete(ip);
+  }
+}, 5 * 60 * 1000); // every 5 minutes
 
 function extractRateLimit(ip: string): boolean {
   const now = Date.now();

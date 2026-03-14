@@ -199,8 +199,10 @@ export function buildRoutingDecision(query: string, availableProviders?: Set<str
     console.log(`[Router] C232 Domain override: ${complexityTier} → ${tier} (domain=${domainResult.domain}, confidence=${domainResult.confidence.toFixed(2)})`);
   }
 
-  // Default available providers (all)
-  const available = availableProviders ?? new Set(['openai', 'anthropic', 'google', 'mistral', 'deepseek']);
+  // C354 FIX: empty Set is truthy so ?? won't trigger — use size check
+  const available = (availableProviders && availableProviders.size > 0)
+    ? availableProviders
+    : new Set(['openai', 'anthropic', 'google', 'mistral', 'deepseek']);
 
   const tierConfigs: Record<RoutingTier, Omit<RoutingDecision, 'rationale' | 'complexityScore'>> = {
     TIER_1: {
