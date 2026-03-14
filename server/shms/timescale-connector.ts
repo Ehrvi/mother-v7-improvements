@@ -23,15 +23,40 @@
  * standard PostgreSQL time-series queries when extension is unavailable.
  */
 
-import { getDb } from '../db.js';
-import { sql } from 'drizzle-orm';
+// C354: TimescaleDB uses dedicated PostgreSQL connection via timescale-pg-client.ts
+// NOT the MySQL main DB (db.ts). TIMESCALE_DB_URL env var required.
+import { getTimescalePool } from './timescale-pg-client.js';
+
+// Drizzle-compatible execute shim: returns [rows, ...] to match existing result[0] pattern
+async function executeQuery(queryStr: { queryChunks?: unknown[]; sql?: string; params?: unknown[] } | { toSQL?(): { sql: string; params: unknown[] } }) {
+  const pool = getTimescalePool();
+  if (!pool) throw new Error('[TimescaleConnector] TIMESCALE_DB_URL not configured');
+  let sqlStr: string;
+  let params: unknown[];
+  if (typeof (queryStr as any).toSQL === 'function') {
+    const q = (queryStr as any).toSQL();
+    // Convert MySQL ? placeholders to PostgreSQL $1, $2, ...
+    let idx = 0;
+    sqlStr = q.sql.replace(/\?/g, () => `$${++idx}`);
+    params = q.params ?? [];
+  } else if (typeof (queryStr as any).sql === 'string') {
+    let idx = 0;
+    sqlStr = (queryStr as any).sql.replace(/\?/g, () => `$${++idx}`);
+    params = (queryStr as any).params ?? [];
+  } else {
+    throw new Error('[TimescaleConnector] Unknown query format');
+  }
+  const result = await pool.query(sqlStr, params as unknown[]);
+  // Return [rows] to match existing result[0] usage pattern throughout this file
+  return [result.rows];
+}
 
 // Helper: get db instance (throws if unavailable)
 async function getDbInstance() {
-  const db = await getDb();
-  if (!db) throw new Error('[TimescaleConnector] Database unavailable');
-  return db;
+  return { execute: executeQuery };
 }
+
+import { sql } from 'drizzle-orm';
 import type { SensorReading, SensorType } from './mqtt-connector';
 import type { LSTMPrediction } from './lstm-predictor';
 
