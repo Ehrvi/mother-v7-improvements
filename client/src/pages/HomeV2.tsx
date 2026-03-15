@@ -333,11 +333,18 @@ export default function HomeV2() {
     return true;
   }), [messages, isStreaming]);
 
-  const buildConversationHistory = useCallback(() =>
-    messages.filter(m => m.role === 'user' || m.role === 'mother').slice(-20).map(m => ({
+  const buildConversationHistory = useCallback(() => {
+    // v122.27 FIX: Limit history to last 10 messages and cap content length
+    // Prevents "Prompt is too long" errors that caused infinite loop in production.
+    // MOTHER responses can be 500+ words each; 20 messages easily exceeds context window.
+    const MAX_CONTENT_CHARS = 1500;
+    return messages.filter(m => m.role === 'user' || m.role === 'mother').slice(-10).map(m => ({
       role: m.role === 'user' ? 'user' as const : 'assistant' as const,
-      content: m.content,
-    })), [messages]);
+      content: m.content.length > MAX_CONTENT_CHARS
+        ? m.content.slice(0, MAX_CONTENT_CHARS) + '\n[...truncated]'
+        : m.content,
+    }));
+  }, [messages]);
 
   const sendMessage = useCallback((text?: string) => {
     const rawQuery = (text || input).trim();

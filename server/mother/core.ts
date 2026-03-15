@@ -1158,11 +1158,30 @@ ${autonomyStatus}
 
   // v63.0: Multi-turn conversation — inject history between system prompt and current query
   // Scientific basis: OpenAI chat completions multi-turn format (Brown et al., GPT-3, 2020)
+  // v122.27 FIX: Token-budget truncation to prevent "Prompt is too long" infinite loop
+  // The system prompt alone can exceed 8k tokens. With 10 conversation messages (each potentially
+  // 500+ words), the total easily blows past the context window, causing API errors.
+  // Fix: estimate total history chars, truncate oldest messages first, and cap individual
+  // message content to 2000 chars. Budget: ~40k chars (~10k tokens) for history.
   type LLMRole = 'system' | 'user' | 'assistant' | 'tool' | 'function';
-  const historyMessages: Array<{ role: LLMRole; content: string }> = conversationHistory.slice(-10).map(m => ({
+  const MAX_HISTORY_CHARS = 40000; // ~10k tokens budget for conversation history
+  const MAX_MESSAGE_CHARS = 2000; // Cap individual messages to prevent single-message overflow
+  const rawHistory = conversationHistory.slice(-10).map(m => ({
     role: (m.role === 'user' ? 'user' : 'assistant') as LLMRole,
-    content: m.content,
+    content: m.content.length > MAX_MESSAGE_CHARS
+      ? m.content.slice(0, MAX_MESSAGE_CHARS) + '\n[...truncated]'
+      : m.content,
   }));
+  // Drop oldest messages until total fits within budget
+  let totalChars = rawHistory.reduce((sum, m) => sum + m.content.length, 0);
+  const historyMessages = [...rawHistory];
+  while (totalChars > MAX_HISTORY_CHARS && historyMessages.length > 2) {
+    const removed = historyMessages.shift()!;
+    totalChars -= removed.content.length;
+  }
+  if (historyMessages.length < rawHistory.length) {
+    log.info(`[MOTHER] v122.27: Truncated conversation history from ${rawHistory.length} to ${historyMessages.length} messages (${totalChars} chars) to prevent context overflow`);
+  }
 
   // v64.0: Tool Engine — provide tools to the LLM for function calling
   // Scientific basis: OpenAI Function Calling (OpenAI, 2023); ReAct (Yao et al., ICLR 2023)
@@ -1234,18 +1253,55 @@ AÇÃO ÚNICA: gere IMEDIATAMENTE o bloco \`\`\`mermaid ... \`\`\` com o diagram
 ` + systemPrompt;
   }
 
-  const toolDetectionResponse = await invokeLLM({
-    model: 'gpt-4o',
-    provider: 'openai',
-    messages: [
-      { role: 'system' as LLMRole, content: systemPrompt },
-      ...historyMessages,
-      { role: 'user' as LLMRole, content: query },
-    ],
-    tools: MOTHER_TOOLS,
-    tool_choice: effectiveToolChoice,
-    temperature: 0.1, // v74.11: deterministic tool detection
-  });
+  // v122.27: Auto-retry with progressive history truncation on context_length_exceeded
+  // When the prompt is too long, drop conversation history progressively and retry.
+  // This prevents the infinite "Prompt is too long" loop seen in production.
+  let toolDetectionResponse;
+  let _historyForLLM = [...historyMessages];
+  for (let _attempt = 0; _attempt < 3; _attempt++) {
+    try {
+      toolDetectionResponse = await invokeLLM({
+        model: 'gpt-4o',
+        provider: 'openai',
+        messages: [
+          { role: 'system' as LLMRole, content: systemPrompt },
+          ..._historyForLLM,
+          { role: 'user' as LLMRole, content: query },
+        ],
+        tools: MOTHER_TOOLS,
+        tool_choice: effectiveToolChoice,
+        temperature: 0.1, // v74.11: deterministic tool detection
+      });
+      break; // Success — exit retry loop
+    } catch (err: any) {
+      const errMsg = String(err?.message || err || '');
+      const isContextOverflow = /context.length|too.long|max.tokens|token.limit|maximum.context|content.length/i.test(errMsg)
+        || (err?.status === 400 && /length|token/i.test(errMsg));
+      if (isContextOverflow && _historyForLLM.length > 0) {
+        // Drop half the history and retry
+        const dropCount = Math.max(1, Math.ceil(_historyForLLM.length / 2));
+        _historyForLLM = _historyForLLM.slice(dropCount);
+        log.warn(`[MOTHER] v122.27: Context overflow detected (attempt ${_attempt + 1}) — dropped ${dropCount} history messages, ${_historyForLLM.length} remaining`);
+        continue;
+      }
+      throw err; // Not a context overflow error, or no more history to drop
+    }
+  }
+  if (!toolDetectionResponse) {
+    // Final attempt with no history at all
+    log.warn('[MOTHER] v122.27: All history-truncation retries failed — invoking with zero history');
+    toolDetectionResponse = await invokeLLM({
+      model: 'gpt-4o',
+      provider: 'openai',
+      messages: [
+        { role: 'system' as LLMRole, content: systemPrompt },
+        { role: 'user' as LLMRole, content: query },
+      ],
+      tools: MOTHER_TOOLS,
+      tool_choice: effectiveToolChoice,
+      temperature: 0.1,
+    });
+  }
   let response: string;
   let usage = toolDetectionResponse.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
   const toolCalls = toolDetectionResponse.choices[0]?.message?.tool_calls;
