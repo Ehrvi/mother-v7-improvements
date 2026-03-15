@@ -97,7 +97,7 @@ export async function getDb() {
         password: decodeURIComponent(url.password),
         database: url.pathname.slice(1), // remove leading '/'
         connectTimeout: 30000,
-        ssl: { rejectUnauthorized: false },
+        ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false },
         ...POOL_CONFIG_BASE,
       };
     }
