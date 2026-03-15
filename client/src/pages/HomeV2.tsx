@@ -22,6 +22,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Streamdown } from 'streamdown';
+import type { MermaidConfig } from 'mermaid';
 import {
   Send, Plus, ChevronLeft, ChevronRight, Brain, Shield, Zap, TrendingDown,
   Database, Activity, Dna, Sparkles, GitBranch, Paperclip, Square, BarChart3,
@@ -35,6 +36,25 @@ import PhaseIndicator, { type Phase, type ActivePhase } from '@/components/Phase
 import ToolCallVisualizer, { type ToolCall } from '@/components/ToolCallVisualizer';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { useNavigate } from 'react-router-dom';
+
+// ─── Mermaid Config ──────────────────────────────────────────────────────────
+// Dark theme aligned with MOTHER cyberpunk design system
+const MERMAID_CONFIG: MermaidConfig = {
+  theme: 'dark',
+  themeVariables: {
+    primaryColor: '#B026FF',
+    primaryTextColor: '#E0B3FF',
+    primaryBorderColor: '#00F5FF',
+    lineColor: '#00F5FF',
+    secondaryColor: '#1a1a2e',
+    tertiaryColor: '#0A0E1A',
+    background: '#0A0E1A',
+    mainBkg: '#1a1a2e',
+    nodeBorder: '#B026FF',
+    titleColor: '#E0B3FF',
+    fontFamily: 'JetBrains Mono, monospace',
+  },
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -681,6 +701,9 @@ export default function HomeV2() {
                       style={{ color: 'oklch(88% 0.02 280)' }}>
                       <ErrorBoundary componentName="Streamdown">
                         <Streamdown
+                          // Force remount after streaming ends so Mermaid re-renders with full diagram syntax
+                          key={isStreaming && msg.id === streamingMsgIdRef.current ? `${msg.id}-streaming` : `${msg.id}-final`}
+                          mermaidConfig={MERMAID_CONFIG}
                           isAnimating={isStreaming && msg.id === streamingMsgIdRef.current}
                           parseIncompleteMarkdown={isStreaming && msg.id === streamingMsgIdRef.current}
                           shikiTheme={['github-dark', 'github-dark']}
