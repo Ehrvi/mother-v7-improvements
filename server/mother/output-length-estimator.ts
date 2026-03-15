@@ -216,6 +216,10 @@ const SHORT_SIGNALS = [
   'brevemente', 'sintetize', 'email', 'mensagem curta', 'nota', 'tweet',
   // EN
   'summary', 'briefly', 'short answer', 'in a few words', 'tldr', 'email',
+  // Diagram/visualization requests — output is a Mermaid block, NOT a long document
+  // Must come before artifact-noun scoring to prevent LFSA activation
+  'diagrama', 'diagram', 'fluxograma', 'flowchart', 'mermaid',
+  'visualiza', 'desenha', 'grafo', 'graph', 'mapa mental', 'mind map',
 ];
 
 const MICRO_SIGNALS = [
