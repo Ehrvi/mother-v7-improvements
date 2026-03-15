@@ -15,7 +15,8 @@
 import { createLogger } from '../_core/logger';
 import { runDGMCycle } from './dgm-cycle3';
 import { SandboxExecutor } from './sandbox-executor';
-import { FitnessEvaluator, FitnessScore } from './fitness-evaluator';
+import { FitnessEvaluator } from './fitness-evaluator';
+import type { FitnessScore } from './fitness-evaluator';
 import { cryptographicProof } from './cryptographic-proof';
 import { DGMVersionManager } from './dgm-version-manager';
 import { DGMGitHubIntegrator } from './dgm-github-integrator';
