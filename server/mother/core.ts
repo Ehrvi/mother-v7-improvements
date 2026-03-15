@@ -249,12 +249,23 @@ function extractSemanticTitle(query: string): string {
 export async function processQuery(request: MotherRequest): Promise<MotherResponse> {
   const startTime = Date.now();
 
+  // ==================== DIAGRAM INTERCEPT — bypass LFSA and structured templates ====================
+  // Diagram requests must NEVER trigger LFSA or NC-COG-002-C322 template.
+  // Keywords that unambiguously indicate a Mermaid diagram is the expected output.
+  const DIAGRAM_KEYWORDS = /\b(diagrama|diagram|fluxograma|flowchart|mermaid|visualiza[rç]|desenha[rç]|grafo|graph)\b/i;
+  if (DIAGRAM_KEYWORDS.test(request.query)) {
+    // Mark request so system prompt injection below knows to prepend diagram override
+    (request as any)._isDiagramRequest = true;
+  }
+
   // ==================== C241: LFSA INTERCEPTOR — Long-Form Synthesis Architecture ====================
   // Scientific basis: HiRAP (EMNLP 2025) — hierarchical decomposition for long-form generation
   // FrugalGPT (Chen et al., 2023) — output length is primary routing signal
   // Conselho v100 consensus: VERY_LONG queries (60+ pages) MUST bypass coreOrchestrate (25s timeout)
   // and use generateLongFormV3 (Plan→Execute→Assemble pipeline with 600s timeout per section)
-  const lfEstimate = estimateOutputLength(request.query);
+  const lfEstimate = (request as any)._isDiagramRequest
+    ? { requiresLFSA: false, estimatedPages: 0.3, estimatedTokens: 512, category: 'SHORT' as const, confidence: 1.0, detectedSignal: 'Diagram intercept — LFSA bypassed', complexitySignals: undefined }
+    : estimateOutputLength(request.query);
   // C321: Log semantic complexity signals for diagnostics
   if (lfEstimate.complexitySignals) {
     const cs = lfEstimate.complexitySignals;
@@ -1167,7 +1178,16 @@ ${autonomyStatus}
   // NC-COG-008: Lock-Free Explainer (Herlihy & Wing 1990) — injects CAS/Z3 guidance for concurrency queries
   // NC-COG-010: Multi-Step FOL Chain (arXiv:2305.14279) — injects >=5 step derivation template for multi-step FOL
   // Impact: ZERO on non-matching queries. Adds ~500-1200 tokens only when domain is detected.
-  const systemPrompt = enhanceSystemPromptWithFOLChain(query, enhanceSystemPromptWithLockFree(query, enhanceSystemPromptWithFOL(query, systemPromptBase)));
+  let systemPrompt = enhanceSystemPromptWithFOLChain(query, enhanceSystemPromptWithLockFree(query, enhanceSystemPromptWithFOL(query, systemPromptBase)));
+
+  // DIAGRAM OVERRIDE: prepend hard constraint that beats NC-COG-002-C322 template and search_knowledge
+  if ((request as any)._isDiagramRequest) {
+    systemPrompt = `⚠️ OVERRIDE ABSOLUTO — PEDIDO DE DIAGRAMA DETECTADO:
+Esta mensagem pede um diagrama/visualização. Ignorar TODOS os templates de documento (NC-COG-002-C322, Introdução/Desenvolvimento/Análise/Conclusão). NÃO chamar search_knowledge. NÃO gerar texto introdutório. NÃO usar estrutura de documento.
+AÇÃO ÚNICA: gere IMEDIATAMENTE o bloco \`\`\`mermaid ... \`\`\` com o diagrama solicitado. Nada antes, nada depois (exceto legenda mínima se necessário).
+
+` + systemPrompt;
+  }
 
   const toolDetectionResponse = await invokeLLM({
     model: 'gpt-4o',
