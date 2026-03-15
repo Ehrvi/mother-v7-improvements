@@ -36,6 +36,7 @@ import {
   recordRoutingDecision,
   type RoutingDecision as AdaptiveRoutingDecision,
 } from './adaptive-router';
+import { ENV as _ENV } from '../_core/env';
 import {
   lookupCache,
   storeInCache,
@@ -265,10 +266,23 @@ function layer2_adaptiveRouting(
   const start = Date.now();
   const availableProviders = new Set<string>();
 
-  // Check circuit breakers for available providers
+  // Check circuit breakers AND API key availability for providers
+  // BUG FIX: Previously, providers without API keys were still marked as available,
+  // causing the router to select them as primary → guaranteed failure → unnecessary
+  // fallback latency. Now we verify the API key exists before adding to the set.
+  const _providerKeyMap: Record<string, string> = {
+    openai: _ENV.openaiApiKey,
+    anthropic: _ENV.anthropicApiKey,
+    google: _ENV.googleApiKey,
+    deepseek: _ENV.deepseekApiKey,
+    mistral: _ENV.mistralApiKey,
+  };
   for (const provider of ['openai', 'anthropic', 'google', 'mistral', 'deepseek']) {
-    if (isProviderAvailable(provider, ORCHESTRATOR_CIRCUIT_CONFIG)) {
+    const hasKey = !!_providerKeyMap[provider];
+    if (hasKey && isProviderAvailable(provider, ORCHESTRATOR_CIRCUIT_CONFIG)) {
       availableProviders.add(provider);
+    } else if (!hasKey) {
+      console.log(`[Orchestrator] Provider ${provider} excluded: no API key configured`);
     }
   }
 

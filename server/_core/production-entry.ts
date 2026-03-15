@@ -548,7 +548,24 @@ app.post('/api/mother/stream', async (req, res) => {
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error('[Stream] processQuery threw — sending error + degradation response:', message);
     sendEvent('error', { message });
+    // BUG FIX: Previously, when processQuery threw, only an 'error' event was sent.
+    // The frontend ignored error events, showing "Resposta não recebida" instead.
+    // Now we also send a degradation response so the user sees something meaningful.
+    const degradationText = 'Desculpe, ocorreu um erro ao processar sua mensagem. Por favor, tente novamente em alguns segundos.';
+    sendEvent('token', { text: degradationText });
+    sendEvent('response', {
+      response: degradationText,
+      tier: 'TIER_1',
+      provider: 'error',
+      modelName: 'fallback',
+      quality: { qualityScore: 0, passed: false },
+      responseTime: 0,
+      cost: 0,
+      cacheHit: false,
+    });
+    sendEvent('done', { message: 'Error fallback', total_ms: 0, quality_score: 0 });
   } finally {
     res.end();
   }

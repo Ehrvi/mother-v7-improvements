@@ -248,6 +248,13 @@ export default function HomeV2() {
                   durationMs: parsed.durationMs, timestamp: parsed.timestamp || Date.now(),
                 };
                 setActiveToolCalls(prev => [...prev.filter(t => t.id !== tc.id), tc]);
+              } else if (lastEvent === 'error' && parsed.message) {
+                // BUG FIX: Previously error events from backend were silently ignored,
+                // causing "Resposta não recebida" instead of showing the actual error.
+                accumulatedText = `⚠️ ${parsed.message}`;
+                setMessages(prev => prev.map(m => m.id === msgId ? {
+                  ...m, content: accumulatedText,
+                } : m));
               } else if (lastEvent === 'token' && parsed.text) {
                 accumulatedText += parsed.text;
                 flushRender();
