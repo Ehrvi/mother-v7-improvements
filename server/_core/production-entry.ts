@@ -548,6 +548,7 @@ app.post('/api/mother/stream', async (req, res) => {
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error('[Stream] ERROR in /api/mother/stream:', err);
     sendEvent('error', { message });
   } finally {
     res.end();
