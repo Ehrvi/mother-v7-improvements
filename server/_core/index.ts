@@ -14,6 +14,7 @@ import monitorRouter from "../routes/monitor-routes.js";
 import longFormRouter from "../routes/long-form-routes.js";
 // Sprint 2 C201: HippoRAG2 indexing + Reflexion engine
 import { scheduleKGBuild as scheduleC201Indexing } from "../mother/hipporag2.js";
+import { processQuery } from "../mother/core";
 // Vite imports moved to dynamic imports to avoid bundling in production
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -55,6 +56,96 @@ async function startServer() {
   app.use("/api/version", (_req, res) => res.redirect("/api/health/version"));
   app.use("/api/monitor", monitorRouter);
   app.use("/api/long-form", longFormRouter);
+
+  // SSE streaming endpoint — must be registered BEFORE Vite middleware
+  // (Vite catch-all returns HTML for unmatched routes, causing "Resposta não recebida")
+  app.post("/api/mother/stream", async (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    const sendEvent = (event: string, data: unknown) => {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    try {
+      const { query, useCache, conversationHistory } = req.body;
+      if (!query) {
+        sendEvent('error', { message: 'Missing query parameter' });
+        return res.end();
+      }
+
+      const _ttftStart = Date.now();
+      sendEvent('thinking', {
+        message: '\ud83e\udde0 MOTHER está processando...',
+        timestamp: _ttftStart,
+        version: process.env.MOTHER_VERSION || 'v122.26',
+      });
+      sendEvent('progress', { phase: 'routing', message: 'Analisando complexidade da query...', ttft_ms: Date.now() - _ttftStart });
+
+      let _streamingTokenCount = 0;
+      const result = await processQuery({
+        query, useCache, conversationHistory,
+        onChunk: (chunk: string) => {
+          try {
+            _streamingTokenCount++;
+            sendEvent('token', { text: chunk, streaming: true, token_index: _streamingTokenCount });
+          } catch { /* non-blocking */ }
+        },
+        onPhase: (phase: string, meta?: Record<string, unknown>) => {
+          try {
+            sendEvent('phase', { phase, elapsed_ms: Date.now() - _ttftStart, ...meta });
+            const phaseMessages: Record<string, string> = {
+              'routing': 'Roteando para o modelo ideal...',
+              'retrieval': 'Buscando conhecimento relevante...',
+              'generation': 'Gerando resposta com IA...',
+              'quality': 'Validando qualidade (Guardian)...',
+              'grounding': 'Verificando fontes e citações...',
+              'cove': 'Verificando consistência (CoVe)...',
+              'constitutional': 'Aplicando princípios constitucionais...',
+              'citation': 'Buscando referências científicas...',
+            };
+            if (phaseMessages[phase]) {
+              sendEvent('progress', { phase, message: phaseMessages[phase], elapsed_ms: Date.now() - _ttftStart });
+            }
+          } catch { /* non-blocking */ }
+        },
+        onToolCall: (toolName: string, toolArgs: Record<string, unknown>, status: string, output?: string, durationMs?: number) => {
+          try {
+            sendEvent('tool_call', { id: `tc-${Date.now()}`, name: toolName, input: toolArgs, status, output, durationMs, timestamp: Date.now() });
+          } catch { /* non-blocking */ }
+        },
+      });
+
+      sendEvent('progress', { phase: 'validating', message: 'Validando qualidade (Guardian)...', elapsed_ms: Date.now() - _ttftStart });
+
+      const finalText = result.response || '';
+      const CHUNK_SIZE = 16;
+      if (_streamingTokenCount === 0) {
+        for (let i = 0; i < finalText.length; i += CHUNK_SIZE) {
+          sendEvent('token', { text: finalText.slice(i, i + CHUNK_SIZE) });
+        }
+      } else {
+        sendEvent('stream_complete', { tokens_sent: _streamingTokenCount, elapsed_ms: Date.now() - _ttftStart });
+      }
+
+      const totalTime = Date.now() - _ttftStart;
+      sendEvent('response', { ...result, ttft_ms: totalTime, streaming_chunks: Math.ceil(finalText.length / CHUNK_SIZE) });
+      sendEvent('done', { message: 'Processamento concluído', total_ms: totalTime, quality_score: result.quality?.qualityScore, citations_count: (result as any).citations?.length ?? 0 });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      console.error('[Stream] processQuery threw:', message);
+      sendEvent('error', { message });
+      const degradationText = 'Desculpe, ocorreu um erro ao processar sua mensagem. Por favor, tente novamente em alguns segundos.';
+      sendEvent('token', { text: degradationText });
+      sendEvent('response', { response: degradationText, tier: 'TIER_1', provider: 'error', modelName: 'fallback', quality: { qualityScore: 0, passed: false }, responseTime: 0, cost: 0, cacheHit: false });
+      sendEvent('done', { message: 'Error fallback', total_ms: 0, quality_score: 0 });
+    } finally {
+      res.end();
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",
