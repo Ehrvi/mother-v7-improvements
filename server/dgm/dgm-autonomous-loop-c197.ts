@@ -278,7 +278,8 @@ export { AutonomousLoopResult, AutonomousLoopConfig };
 // Base: arXiv:2505.22954 Darwin Gödel Machine + Semantic Versioning 2.0.0
 // ─────────────────────────────────────────────────────────────────────────
 
-import { runDGMLoopCycle, getDGMLoopActivator, LoopActivatorResult } from './dgm-loop-activator';
+import { runDGMLoopCycle, getDGMLoopActivator } from './dgm-loop-activator';
+import type { LoopActivatorResult } from './dgm-loop-activator';
 import { getDGMVersionManager, formatRunId, formatVersion } from './dgm-version-manager';
 
 /**
