@@ -1759,13 +1759,21 @@ async function generateModification(
     //    which is unnecessary for code generation and adds 30s+ overhead
     // 3. Timeout cascades cause fallback to gpt-4o-mini with 3s budget → snippet/garbage
     //
-    // New approach (per SICA arXiv:2504.15228 §4.2): surgical SEARCH/REPLACE blocks.
-    // The LLM outputs only the changed sections as search/replace pairs.
-    // We apply them to the original file, preserving everything else intact.
-    // C358: Anchor prompt with line-numbered excerpts to prevent LLM hallucinating file content
+    // C360: Evidence-based optimizations from literature review:
+    // - SICA (arXiv:2504.15228 §4.2): surgical SEARCH/REPLACE blocks
+    // - Self-Repair (arXiv:2304.05128, Chen et al.): iterative repair with compiler feedback
+    // - Aider benchmark: temperature=0 for edits, extract existing imports as context
+    // - OpenAI Structured Output: json_schema mode eliminates JSON parse failures
+    // - SWE-bench top agents: provide explicit import inventory to prevent hallucination
     const codeLines = originalCode.split('\n');
     const firstLines = codeLines.slice(0, 5).map((l, i) => `  ${i + 1}: ${l}`).join('\n');
     const lastLines = codeLines.slice(-3).map((l, i) => `  ${codeLines.length - 2 + i}: ${l}`).join('\n');
+
+    // C360: Extract existing imports from the target file — these are the ONLY allowed external imports
+    const existingImports = codeLines
+      .filter(l => /^\s*import\s/.test(l))
+      .map(l => l.trim())
+      .join('\n');
 
     const modificationQuery = `You are a DGM (Darwin Gödel Machine, arXiv:2505.22954) code evolution agent.
 Your task: propose SURGICAL modifications to improve a TypeScript source file.
@@ -1788,15 +1796,19 @@ LAST 3 LINES:
 ${lastLines}
 Your "search" strings MUST match text from the file above. Do NOT invent or guess file content.
 
-INSTALLED PACKAGES (you may ONLY import from these or from relative paths):
-${getAvailablePackagesSummary()}
-Do NOT import any module not in this list. Python libraries (transformers, torch, dpr-model, etc.) do NOT exist in npm.
+EXISTING IMPORTS IN THIS FILE (these are the ONLY imports you may use — do NOT add new external imports):
+${existingImports}
+CONSTRAINT: You MUST NOT add any new import statements for external packages. You may only:
+- Use imports already present above
+- Add relative imports to files in server/mother/ or server/_core/ that already exist
+- Use Node.js built-in modules (crypto, fs, path, etc.)
+Do NOT import: transformers, torch, dpr-model, @huggingface/*, sentence-transformers, or any Python/ML library.
 
 ${tscErrorFeedback ? `PREVIOUS ATTEMPT FAILED:
 ${tscErrorFeedback}
 Fix these errors. Copy search strings EXACTLY from the COMPLETE ORIGINAL FILE above.
 
-` : ''}OUTPUT FORMAT — respond with ONLY a JSON object:
+` : ''}OUTPUT FORMAT — respond with ONLY valid JSON (no markdown fences, no text outside JSON):
 {
   "targetFile": "${actualTargetFile}",
   "rationale": "Why this change improves the system",
@@ -1824,39 +1836,46 @@ RULES:
 11. Every variable, function, or type you reference in replacement code MUST be declared in scope. Do NOT use undeclared identifiers.
 12. Ensure each replacement block is syntactically complete — no unclosed braces, strings, or template literals.`;
 
-    // Direct LLM call with 90s timeout — bypasses the full orchestrator pipeline
-    // Uses gpt-4o for reliable code generation (not gpt-4o-mini which truncates)
+    // C360: Evidence-based LLM call optimizations:
+    // - Temperature 0: per Aider benchmarks, deterministic output is critical for code edits
+    // - Structured Output (json_schema): OpenAI guarantees valid JSON matching schema,
+    //   eliminates JSON parse failures (Chen et al., "Efficient Tool Use with Structured Generation", 2024)
+    // - Self-Repair pattern (arXiv:2304.05128): compiler feedback in retry loop
     const DGM_MODIFY_MODEL = process.env.DGM_MODIFY_MODEL || 'gpt-4o';
     const DGM_MODIFY_PROVIDER = (process.env.DGM_MODIFY_PROVIDER || 'openai') as 'openai' | 'google' | 'anthropic';
+
+    // JSON Schema for OpenAI Structured Output — guarantees valid JSON structure
+    const modificationSchema = {
+      name: 'DGMModification',
+      schema: {
+        type: 'object' as const,
+        properties: {
+          targetFile: { type: 'string', description: 'The file being modified' },
+          rationale: { type: 'string', description: 'Why this change improves the system' },
+          scientificBasis: { type: 'string', description: 'arXiv paper citation supporting the change' },
+          searchReplace: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                search: { type: 'string', description: 'Exact string from original file to find' },
+                replace: { type: 'string', description: 'Replacement string' },
+              },
+              required: ['search', 'replace'],
+              additionalProperties: false,
+            },
+            minItems: 1,
+            maxItems: 5,
+          },
+          expectedMetricImprovement: { type: 'string', description: 'Expected improvement' },
+        },
+        required: ['targetFile', 'rationale', 'searchReplace'],
+        additionalProperties: false,
+      },
+      strict: true,
+    };
+
     const startMs = Date.now();
-    let llmResponse: string;
-    try {
-      const llmResult = await invokeLLM({
-        model: DGM_MODIFY_MODEL,
-        provider: DGM_MODIFY_PROVIDER,
-        messages: [
-          { role: 'system', content: 'You are a senior TypeScript engineer performing surgical code modifications. Output ONLY valid JSON, no markdown fences, no explanation outside JSON.' },
-          { role: 'user', content: modificationQuery },
-        ],
-        temperature: 0.3,
-        maxTokens: 8192,
-      });
-      const rawContent = llmResult?.choices?.[0]?.message?.content;
-      llmResponse = typeof rawContent === 'string' ? rawContent : Array.isArray(rawContent) ? rawContent.map(c => 'text' in c ? c.text : '').join('') : '';
-    } catch (err: any) {
-      log.warn(`[MODIFY] invokeLLM failed (${DGM_MODIFY_PROVIDER}/${DGM_MODIFY_MODEL}): ${err?.message || err}`);
-      return null;
-    }
-    const latencyMs = Date.now() - startMs;
-
-    if (!llmResponse || llmResponse.trim().length < 50) {
-      log.warn(`[MODIFY] Empty response from invokeLLM (${DGM_MODIFY_PROVIDER}/${DGM_MODIFY_MODEL})`);
-      return null;
-    }
-
-    log.info(`[MODIFY] Code generation via invokeLLM — provider=${DGM_MODIFY_PROVIDER}, model=${DGM_MODIFY_MODEL}, latency=${latencyMs}ms`);
-
-    // Extract the JSON modification from the LLM response
     let modResult: {
       targetFile?: string;
       rationale?: string;
@@ -1866,14 +1885,41 @@ RULES:
       expectedMetricImprovement?: string;
     } = {};
     try {
-      // Strip markdown fences if present
-      const cleaned = llmResponse.replace(/^```(?:json)?\s*\n/m, '').replace(/\n```\s*$/, '');
-      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-      if (jsonMatch) modResult = JSON.parse(jsonMatch[0]);
-    } catch (parseErr) {
-      log.warn(`[MODIFY] JSON parse failed — response starts with: ${llmResponse.slice(0, 100)}`);
+      const llmResult = await invokeLLM({
+        model: DGM_MODIFY_MODEL,
+        provider: DGM_MODIFY_PROVIDER,
+        messages: [
+          { role: 'system', content: 'You are a senior TypeScript engineer performing surgical code modifications. You MUST NOT add imports for packages not already imported in the file.' },
+          { role: 'user', content: modificationQuery },
+        ],
+        temperature: 0, // C360: Deterministic output for code edits (per Aider/SWE-bench best practices)
+        maxTokens: 8192,
+        // C360: Use structured output for OpenAI provider — guarantees valid JSON
+        ...(DGM_MODIFY_PROVIDER === 'openai' ? { outputSchema: modificationSchema } : { responseFormat: { type: 'json_object' as const } }),
+      });
+      const rawContent = llmResult?.choices?.[0]?.message?.content;
+      const llmResponse = typeof rawContent === 'string' ? rawContent : Array.isArray(rawContent) ? rawContent.map((c: any) => 'text' in c ? c.text : '').join('') : '';
+
+      if (!llmResponse || llmResponse.trim().length < 50) {
+        log.warn(`[MODIFY] Empty response from invokeLLM (${DGM_MODIFY_PROVIDER}/${DGM_MODIFY_MODEL})`);
+        return null;
+      }
+
+      // With structured output, response is guaranteed valid JSON; parse directly
+      try {
+        modResult = JSON.parse(llmResponse);
+      } catch {
+        // Fallback: strip markdown fences if present (non-OpenAI providers)
+        const cleaned = llmResponse.replace(/^```(?:json)?\s*\n/m, '').replace(/\n```\s*$/, '');
+        const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+        if (jsonMatch) modResult = JSON.parse(jsonMatch[0]);
+      }
+    } catch (err: any) {
+      log.warn(`[MODIFY] invokeLLM failed (${DGM_MODIFY_PROVIDER}/${DGM_MODIFY_MODEL}): ${err?.message || err}`);
       return null;
     }
+    const latencyMs = Date.now() - startMs;
+    log.info(`[MODIFY] Code generation via invokeLLM — provider=${DGM_MODIFY_PROVIDER}, model=${DGM_MODIFY_MODEL}, latency=${latencyMs}ms`);
 
     // Apply surgical SEARCH/REPLACE modifications to the original file
     let proposedCode: string;
