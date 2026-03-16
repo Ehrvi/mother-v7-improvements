@@ -1045,59 +1045,83 @@ async function selfImproveStep(
       `O LLM recebe o problem statement e o código-fonte atual, e gera um patch. ` +
       `Este é o passo de auto-referência (Self-Referential Improvement, Schmidhuber 2007): MOTHER modifica seu próprio código.`,
       timestamp: new Date().toISOString() });
-    // Retry loop: if tsc fails, feed errors back to LLM and try again (max 3 attempts)
-    const MAX_MODIFY_ATTEMPTS = 3;
+    // C360: Sample-diversity-first strategy (arXiv:2306.09896, Olausson et al., ICLR 2024)
+    // "10 samples × 1 repair each = 66.1% pass rate > 2 samples × 10 repairs = 61.8%"
+    // Strategy: Phase 1 — generate 2 diverse candidates in parallel (temp 0 + temp 0.15)
+    //           Phase 2 — if both fail import/tsc, repair the best one ONCE with feedback
+    const MAX_MODIFY_ATTEMPTS = 3; // Total budget: 2 diverse + 1 repair
     let modification: Awaited<ReturnType<typeof generateModification>> = null;
     let tscFeedback: string | undefined;
-    for (let attempt = 1; attempt <= MAX_MODIFY_ATTEMPTS; attempt++) {
-      if (attempt > 1) {
-        log.info(`[SELF-IMPROVE] Retry ${attempt}/${MAX_MODIFY_ATTEMPTS} for ${runId} with tsc error feedback`);
-        emitDGMEvent({ step: 'modify', status: 'start', message: `[Passo 2 — RETRY ${attempt}/${MAX_MODIFY_ATTEMPTS}] Regenerando código com feedback dos erros de compilação.\n\n` +
-          `Erros anteriores: ${(tscFeedback || '').slice(0, 200)}`,
-          timestamp: new Date().toISOString() });
-      }
-      modification = await generateModification(problemStatement, entry, parent, tscFeedback);
-      if (!modification) {
-        // C358: Feed back failure with concrete file excerpt so LLM stops hallucinating
-        tscFeedback = (tscFeedback || '') + '\n[SEARCH/REPLACE FAILED] The search strings did not match the actual file content. ' +
-          'You are hallucinating code that does not exist in the file. ' +
-          'Copy-paste the search strings EXACTLY from the COMPLETE ORIGINAL FILE provided in the prompt. ' +
-          'Do NOT invent import statements or code blocks from memory.';
-        continue; // Try again instead of breaking
-      }
+    type ModResult = { targetFile: string; proposedCode: string; originalCode: string; rationale: string; patch: string };
+    let bestFailure: { mod: ModResult; errors: string[] } | null = null;
 
+    // Helper: validate a candidate (import check + tsc)
+    const validateCandidate = (mod: ModResult): { valid: boolean; errors: string[] } => {
       // C359: Import pre-validation — catch phantom imports BEFORE expensive tsc worktree
       const originalFileCode = (() => {
-        try {
-          return readFileSync(join(MOTHER_DIR, modification.targetFile), 'utf-8');
-        } catch { return ''; }
+        try { return readFileSync(join(MOTHER_DIR, mod.targetFile), 'utf-8'); }
+        catch { return ''; }
       })();
-      const importCheck = validateImports(originalFileCode, modification.proposedCode);
+      const importCheck = validateImports(originalFileCode, mod.proposedCode);
       if (!importCheck.valid) {
         const phantoms = importCheck.phantomImports.join(', ');
-        log.warn(`[SELF-IMPROVE] PHANTOM IMPORTS detected on attempt ${attempt}: ${phantoms}`);
-        tscFeedback = `[PHANTOM IMPORT ERROR] You added import(s) for modules that DO NOT EXIST in this project: ${phantoms}. ` +
-          `These are NOT installed npm packages. Do NOT import them. ` +
-          `Only use modules already imported in the file or from this list of installed packages: ${getAvailablePackagesSummary().slice(0, 500)}`;
-        modification = null;
+        log.warn(`[SELF-IMPROVE] PHANTOM IMPORTS detected: ${phantoms}`);
+        return { valid: false, errors: [`[PHANTOM IMPORT ERROR] Modules not in project: ${phantoms}. Do NOT import them. Only use existing imports.`] };
+      }
+      // Quick tsc pre-check using git worktree — NEVER writes to real source files
+      const tsResult = validateTypeScriptInWorktree(mod.targetFile, mod.proposedCode);
+      return tsResult;
+    };
+
+    // Phase 1: Generate 2 diverse candidates in parallel
+    log.info(`[SELF-IMPROVE] Phase 1: Generating 2 diverse candidates in parallel (arXiv:2306.09896)`);
+    const [candidate1, candidate2] = await Promise.all([
+      generateModification(problemStatement, entry, parent, undefined),
+      generateModification(problemStatement, entry, parent, '[DIVERSITY HINT] Generate a DIFFERENT approach than your default. Focus on minimal, conservative changes using only existing imports and functions.'),
+    ]);
+
+    // Validate candidates in order
+    const candidates = [candidate1, candidate2] as Array<Awaited<ReturnType<typeof generateModification>>>;
+    for (const [idx, candidate] of candidates.entries()) {
+      if (!candidate) {
+        log.warn(`[SELF-IMPROVE] Candidate ${idx + 1} failed to generate (search/replace mismatch)`);
         continue;
       }
-
-      // Quick tsc pre-check using git worktree — NEVER writes to real source files
-      const tsResult = validateTypeScriptInWorktree(modification.targetFile, modification.proposedCode);
-
-      if (tsResult.valid) {
-        log.info(`[SELF-IMPROVE] tsc pre-check PASSED on attempt ${attempt}`);
+      const result = validateCandidate(candidate);
+      if (result.valid) {
+        log.info(`[SELF-IMPROVE] Candidate ${idx + 1} PASSED tsc on first attempt (sample diversity win)`);
+        modification = candidate;
         break;
       }
-      // tsc failed — feed errors back for next attempt
-      tscFeedback = tsResult.errors.join('\n');
-      log.warn(`[SELF-IMPROVE] tsc pre-check FAILED on attempt ${attempt}: ${tsResult.errors[0]}`);
-      modification = null;
+      log.warn(`[SELF-IMPROVE] Candidate ${idx + 1} FAILED: ${result.errors[0]}`);
+      // Keep the best failure for repair phase
+      if (!bestFailure || result.errors.length < bestFailure.errors.length) {
+        bestFailure = { mod: candidate, errors: result.errors };
+      }
     }
+
+    // Phase 2: If both candidates failed, repair the best one ONCE with concrete feedback
+    if (!modification && bestFailure) {
+      log.info(`[SELF-IMPROVE] Phase 2: Repairing best candidate with tsc feedback (1 repair round)`);
+      tscFeedback = bestFailure.errors.join('\n');
+      emitDGMEvent({ step: 'modify', status: 'start', message: `[Passo 2 — REPAIR] Reparando melhor candidato com feedback do compilador.\n\nErros: ${tscFeedback.slice(0, 200)}`,
+        timestamp: new Date().toISOString() });
+      const repaired = await generateModification(problemStatement, entry, parent, tscFeedback);
+      if (repaired) {
+        const repairResult = validateCandidate(repaired);
+        if (repairResult.valid) {
+          log.info(`[SELF-IMPROVE] Repair PASSED tsc (feedback-guided repair success)`);
+          modification = repaired;
+        } else {
+          log.warn(`[SELF-IMPROVE] Repair FAILED: ${repairResult.errors[0]}`);
+        }
+      }
+    }
+
     if (!modification) {
-      emitDGMEvent({ step: 'modify', status: 'fail', message: `[Passo 2 — MODIFICAÇÃO FALHOU] O LLM não conseguiu gerar código compilável após ${MAX_MODIFY_ATTEMPTS} tentativas. Pipeline encerrado para esta variante.${tscFeedback ? `\n\nÚltimos erros tsc: ${tscFeedback.slice(0, 300)}` : ''}`, timestamp: new Date().toISOString() });
-      log.warn(`[SELF-IMPROVE] Failed to generate compilable modification for ${runId} after ${MAX_MODIFY_ATTEMPTS} attempts`);
+      const errorSummary = tscFeedback || bestFailure?.errors.join('\n') || 'All candidates failed to generate';
+      emitDGMEvent({ step: 'modify', status: 'fail', message: `[Passo 2 — MODIFICAÇÃO FALHOU] Nenhum dos ${MAX_MODIFY_ATTEMPTS} candidatos (2 diversos + 1 repair) compilou. Pipeline encerrado.\n\nÚltimos erros: ${errorSummary.slice(0, 300)}`, timestamp: new Date().toISOString() });
+      log.warn(`[SELF-IMPROVE] Failed to generate compilable modification for ${runId} after ${MAX_MODIFY_ATTEMPTS} attempts (2 diverse + 1 repair)`);
       return null;
     }
     const modificationHash = proofHash({ targetFile: modification.targetFile, proposedCode: modification.proposedCode, rationale: modification.rationale });
