@@ -508,7 +508,7 @@ export default function HomeV2() {
                     <div className="grid grid-cols-2 gap-1">
                       {items.map(({ icon: Icon, label, desc, color }) => (
                         <button key={label}
-                          onClick={() => label === '/dgm-test' ? setShowDGMTest(true) : sendMessage(label)}
+                          onClick={() => label === '/dgm-test' ? navigate('/dgm-test') : sendMessage(label)}
                           title={desc}
                           className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-medium text-left transition-all"
                           style={{ background: `${color}12`, border: `1px solid ${color}25`, color }}

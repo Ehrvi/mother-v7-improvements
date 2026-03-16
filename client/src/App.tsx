@@ -4,6 +4,7 @@ import { ThemeProvider } from '@/contexts/ThemeContext'; // C239: WCAG AA — Th
 import { trpc } from '@/lib/trpc';
 import HomeV2 from './pages/HomeV2';
 import DgmLineage from './pages/DgmLineage';
+import DgmTest from './pages/DgmTest';
 import Login from './pages/Login';
 import Admin from './pages/Admin';
 import SHMSPage from './pages/SHMSPage';
@@ -45,6 +46,7 @@ function App() {
             <Route path="/shms/3d" element={<AuthGuard><SHMS3DEnvironment /></AuthGuard>} />
             <Route path="/lineage" element={<AuthGuard><DgmLineage /></AuthGuard>} />
             <Route path="/dgm" element={<AuthGuard><DgmLineage /></AuthGuard>} />
+            <Route path="/dgm-test" element={<AuthGuard><DgmTest /></AuthGuard>} />
             <Route path="/admin" element={<AuthGuard><Admin /></AuthGuard>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
