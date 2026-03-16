@@ -97,6 +97,142 @@ export const dgmEvents = new EventEmitter();
 const pendingProposals = new Map<string, { proposal: DGMProposal; resolve: (approved: boolean) => void }>();
 const eventLog: DGMEvent[] = [];
 
+// ─── Rejection Memory ───────────────────────────────────────────────────────
+// Prevents the same (or very similar) proposals from resurfacing after rejection.
+// Key = targetFile + mutationType → stores rejection signatures for similarity matching.
+interface RejectionRecord {
+  targetFile: string;
+  mutationType: string;
+  rationaleHash: string;       // SHA-256 of the rationale text
+  problemKeywords: string[];   // top keywords from problemStatement for fuzzy matching
+  rejectedAt: string;
+  rejectCount: number;         // how many times similar proposals were blocked
+}
+
+const rejectionMemory: RejectionRecord[] = [];
+const MAX_REJECTION_RECORDS = 200;
+
+/** Extract top keywords (>4 chars, lowercased, deduplicated) from text */
+function extractKeywords(text: string): string[] {
+  const stopWords = new Set(['this', 'that', 'with', 'from', 'have', 'been', 'will', 'should', 'would', 'could', 'which', 'their', 'there', 'about', 'these', 'those', 'para', 'como', 'mais', 'quando', 'pode', 'deve']);
+  return [...new Set(
+    text.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
+      .filter(w => w.length > 4 && !stopWords.has(w))
+  )].slice(0, 20);
+}
+
+/** Compute Jaccard similarity between two keyword sets */
+function keywordSimilarity(a: string[], b: string[]): number {
+  if (a.length === 0 || b.length === 0) return 0;
+  const setA = new Set(a);
+  const setB = new Set(b);
+  let intersection = 0;
+  for (const w of setA) if (setB.has(w)) intersection++;
+  const union = setA.size + setB.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+}
+
+/** Check if a proposal is too similar to a previously rejected one */
+function isBlockedByRejectionMemory(
+  targetFile: string,
+  mutationType: string,
+  rationale: string,
+  problemStatement: string,
+): { blocked: boolean; reason?: string; matchedRecord?: RejectionRecord } {
+  const rationaleHash = createHash('sha256').update(rationale).digest('hex');
+  const keywords = extractKeywords(problemStatement + ' ' + rationale);
+
+  for (const record of rejectionMemory) {
+    // Exact match: same file + same type + same rationale hash
+    if (record.targetFile === targetFile && record.mutationType === mutationType && record.rationaleHash === rationaleHash) {
+      return {
+        blocked: true,
+        reason: `Proposta identica rejeitada anteriormente (${record.rejectedAt}). Rejeicoes acumuladas: ${record.rejectCount}`,
+        matchedRecord: record,
+      };
+    }
+
+    // Fuzzy match: same file + same type + high keyword similarity (>= 0.6)
+    if (record.targetFile === targetFile && record.mutationType === mutationType) {
+      const similarity = keywordSimilarity(keywords, record.problemKeywords);
+      if (similarity >= 0.6) {
+        return {
+          blocked: true,
+          reason: `Proposta similar rejeitada anteriormente (similaridade: ${(similarity * 100).toFixed(0)}%, ${record.rejectedAt}). Rejeicoes acumuladas: ${record.rejectCount}`,
+          matchedRecord: record,
+        };
+      }
+    }
+
+    // Cross-type block: same file + very high similarity (>= 0.8), regardless of mutation type
+    if (record.targetFile === targetFile) {
+      const similarity = keywordSimilarity(keywords, record.problemKeywords);
+      if (similarity >= 0.8) {
+        return {
+          blocked: true,
+          reason: `Proposta muito similar rejeitada anteriormente em tipo diferente (similaridade: ${(similarity * 100).toFixed(0)}%, tipo original: ${record.mutationType}, ${record.rejectedAt}). Rejeicoes acumuladas: ${record.rejectCount}`,
+          matchedRecord: record,
+        };
+      }
+    }
+  }
+
+  return { blocked: false };
+}
+
+/** Record a rejection into memory */
+function recordRejection(targetFile: string, mutationType: string, rationale: string, problemStatement: string): void {
+  const rationaleHash = createHash('sha256').update(rationale).digest('hex');
+  const keywords = extractKeywords(problemStatement + ' ' + rationale);
+
+  // Check if we already have a record for this exact combination — increment counter
+  const existing = rejectionMemory.find(r =>
+    r.targetFile === targetFile && r.mutationType === mutationType && r.rationaleHash === rationaleHash
+  );
+  if (existing) {
+    existing.rejectCount++;
+    existing.rejectedAt = new Date().toISOString();
+    return;
+  }
+
+  // Also check fuzzy match — increment counter on closest match
+  for (const record of rejectionMemory) {
+    if (record.targetFile === targetFile && record.mutationType === mutationType) {
+      const similarity = keywordSimilarity(keywords, record.problemKeywords);
+      if (similarity >= 0.6) {
+        record.rejectCount++;
+        record.rejectedAt = new Date().toISOString();
+        // Merge keywords to widen the rejection signature
+        const merged = [...new Set([...record.problemKeywords, ...keywords])].slice(0, 30);
+        record.problemKeywords = merged;
+        return;
+      }
+    }
+  }
+
+  // New rejection — add record
+  if (rejectionMemory.length >= MAX_REJECTION_RECORDS) {
+    rejectionMemory.shift(); // evict oldest
+  }
+  rejectionMemory.push({
+    targetFile,
+    mutationType,
+    rationaleHash,
+    problemKeywords: keywords,
+    rejectedAt: new Date().toISOString(),
+    rejectCount: 1,
+  });
+  log.info(`[REJECTION-MEMORY] Recorded rejection: ${targetFile} / ${mutationType} (${keywords.length} keywords)`);
+}
+
+/** Get rejection memory stats (for debugging / API) */
+export function getRejectionMemoryStats(): { total: number; records: Array<{ targetFile: string; mutationType: string; rejectCount: number; rejectedAt: string }> } {
+  return {
+    total: rejectionMemory.length,
+    records: rejectionMemory.map(r => ({ targetFile: r.targetFile, mutationType: r.mutationType, rejectCount: r.rejectCount, rejectedAt: r.rejectedAt })),
+  };
+}
+
 function emitDGMEvent(event: DGMEvent) {
   eventLog.push(event);
   if (eventLog.length > 200) eventLog.splice(0, eventLog.length - 200);
@@ -976,6 +1112,27 @@ async function selfImproveStep(
     let diagnosisParsed: { scientificBasis?: string; proposedFix?: string; problem?: string; rootCause?: string; expectedImprovement?: string; targetFile?: string } = {};
     try { const m = problemStatement.match(/\{[\s\S]*\}/); if (m) diagnosisParsed = JSON.parse(m[0]); } catch { /* ignore */ }
 
+    // Rejection Memory check — block proposals too similar to previously rejected ones
+    const rejectionCheck = isBlockedByRejectionMemory(
+      modification.targetFile,
+      entry.entryType,
+      modification.rationale,
+      problemStatement,
+    );
+    if (rejectionCheck.blocked) {
+      emitDGMEvent({
+        step: 'proposal',
+        status: 'fail',
+        message: `[Passo 6 — BLOQUEADA POR MEMORIA DE REJEICAO] ${rejectionCheck.reason}\n\n` +
+          `A proposta para ${modification.targetFile} (tipo: ${entry.entryType}) foi automaticamente descartada ` +
+          `porque uma proposta similar ja foi rejeitada pelo humano. O DGM prossegue para a proxima mutacao.`,
+        timestamp: new Date().toISOString(),
+        data: { targetFile: modification.targetFile, mutationType: entry.entryType, reason: rejectionCheck.reason },
+      });
+      log.info(`[REJECTION-MEMORY] Blocked proposal for ${modification.targetFile}/${entry.entryType}: ${rejectionCheck.reason}`);
+      return null;
+    }
+
     const proposalForReview: DGMProposal = {
       id: `proposal-${runId}`,
       runId,
@@ -1039,8 +1196,12 @@ async function selfImproveStep(
     });
 
     if (!humanApproved) {
-      emitDGMEvent({ step: 'proposal', status: 'fail', message: '[Passo 6 — PROPOSTA REJEITADA] O humano rejeitou a modificação proposta. A variante será descartada e o pipeline prossegue para a próxima mutação.', timestamp: new Date().toISOString() });
-      log.info(`[SELF-IMPROVE] Proposal rejected by human: ${proposalForReview.id}`);
+      // Record rejection in memory so similar proposals are blocked in future cycles
+      recordRejection(modification.targetFile, entry.entryType, modification.rationale, problemStatement);
+      emitDGMEvent({ step: 'proposal', status: 'fail', message: `[Passo 6 — PROPOSTA REJEITADA] O humano rejeitou a modificação proposta. A variante será descartada e o pipeline prossegue para a próxima mutação.\n\n` +
+        `Memoria de rejeicao atualizada: propostas similares para ${modification.targetFile} (tipo: ${entry.entryType}) serao bloqueadas automaticamente em ciclos futuros.`,
+        timestamp: new Date().toISOString(), data: { rejectionMemorySize: rejectionMemory.length } });
+      log.info(`[SELF-IMPROVE] Proposal rejected by human: ${proposalForReview.id} — recorded in rejection memory`);
       return null;
     }
     emitDGMEvent({ step: 'proposal', status: 'success', message: '[Passo 6 — PROPOSTA APROVADA] Humano aprovou a modificação. Aplicando patch ao código-fonte do sistema...', timestamp: new Date().toISOString() });
