@@ -33,7 +33,7 @@ if (!_jwtSecret || _jwtSecret.length < 32) {
 }
 
 export const ENV = {
-  appId: process.env.VITE_APP_ID ?? "",
+  appId: process.env.VITE_APP_ID || "mother-local",
   cookieSecret: _jwtSecret || "dev-insecure-secret-change-in-production-now",
   databaseUrl: process.env.DATABASE_URL ?? "",
   oAuthServerUrl: process.env.OAUTH_SERVER_URL ?? "",

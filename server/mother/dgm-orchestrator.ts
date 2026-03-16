@@ -21,7 +21,8 @@
 import { createHash } from 'crypto';
 import { createLogger } from '../_core/logger'; // NC-003 structured logger
 const log = createLogger('DGM-ORCHESTRATOR');
-import { fitnessEvaluator, EvaluationTarget, FitnessScore } from './fitness-evaluator';
+import { fitnessEvaluator } from './fitness-evaluator';
+import type { EvaluationTarget, FitnessScore } from './fitness-evaluator';
 import { checkDuplicate } from './dgm-deduplicator'; // C148: DGM Deduplicator (ISSUE-DGM: repeated proposals 8+ times per cycle)
 import { getDb } from '../db'; // C176: DB-backed deduplication for cross-restart persistence
 import { sql } from 'drizzle-orm';
