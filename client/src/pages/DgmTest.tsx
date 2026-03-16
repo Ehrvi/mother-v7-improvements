@@ -229,7 +229,7 @@ export default function DgmTest() {
                     <div style={{ fontSize: '11px', fontWeight: 600, color: status === 'pending' ? '#4040a0' : '#e0e0ff', textTransform: 'uppercase' }}>
                       {step === 'init' ? 'Inicializar' : step === 'diagnose' ? 'Diagnosticar' : step === 'modify' ? 'Gerar Codigo' : step === 'safety' ? 'Safety Gate' : step === 'fitness' ? 'Fitness Check' : step === 'sandbox' ? 'Sandbox' : step === 'proposal' ? 'Aprovacao Humana' : step === 'evaluate' ? 'Benchmark' : 'Concluido'}
                     </div>
-                    {lastEvent && <div style={{ fontSize: '9px', color: STEP_COLORS[status] ?? '#4040a0', marginTop: '1px' }}>{lastEvent.message.slice(0, 80)}</div>}
+                    {lastEvent && <div style={{ fontSize: '9px', color: STEP_COLORS[status] ?? '#4040a0', marginTop: '1px' }}>{(lastEvent.message.split('\n\n')[0] || lastEvent.message).slice(0, 100)}</div>}
                   </div>
                 </div>
               );
@@ -355,28 +355,46 @@ export default function DgmTest() {
                 flex: 1, background: '#0a0a16', borderRadius: '8px', border: '1px solid #2d2d4e',
                 padding: '10px', overflowY: 'auto', maxHeight: currentProposal ? '200px' : '500px',
               }}>
-                {events.map((ev, i) => (
-                  <div key={i} style={{
-                    padding: '4px 8px', marginBottom: '2px', borderRadius: '4px',
-                    borderLeft: `3px solid ${STEP_COLORS[ev.status] ?? '#4040a0'}`,
-                    background: ev.status === 'fail' ? 'rgba(255,96,96,0.05)' : ev.status === 'waiting' ? 'rgba(255,160,74,0.05)' : 'transparent',
-                  }}>
-                    <span style={{ color: '#4040a0', fontSize: '9px' }}>
-                      {new Date(ev.timestamp).toLocaleTimeString()}
-                    </span>
-                    <span style={{
-                      marginLeft: '8px', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase',
-                      color: STEP_COLORS[ev.status] ?? '#6060a0',
-                      padding: '1px 4px', borderRadius: '3px',
-                      background: ev.status === 'success' ? 'rgba(74,255,158,0.1)' : ev.status === 'fail' ? 'rgba(255,96,96,0.1)' : ev.status === 'waiting' ? 'rgba(255,160,74,0.1)' : 'transparent',
+                {events.map((ev, i) => {
+                  const messageParts = ev.message.split('\n\n');
+                  const title = messageParts[0] || '';
+                  const detail = messageParts.slice(1).join('\n\n');
+                  return (
+                    <div key={i} style={{
+                      padding: '8px 10px', marginBottom: '6px', borderRadius: '6px',
+                      borderLeft: `3px solid ${STEP_COLORS[ev.status] ?? '#4040a0'}`,
+                      background: ev.status === 'fail' ? 'rgba(255,96,96,0.06)' : ev.status === 'waiting' ? 'rgba(255,160,74,0.06)' : ev.status === 'success' ? 'rgba(74,255,158,0.03)' : 'rgba(255,255,255,0.01)',
                     }}>
-                      {ev.step}:{ev.status}
-                    </span>
-                    <span style={{ marginLeft: '8px', fontSize: '11px', color: '#c0c0e0' }}>
-                      {ev.message}
-                    </span>
-                  </div>
-                ))}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: detail ? '4px' : 0 }}>
+                        <span style={{ color: '#4040a0', fontSize: '9px', flexShrink: 0 }}>
+                          {new Date(ev.timestamp).toLocaleTimeString()}
+                        </span>
+                        <span style={{
+                          fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', flexShrink: 0,
+                          color: STEP_COLORS[ev.status] ?? '#6060a0',
+                          padding: '1px 5px', borderRadius: '3px',
+                          background: ev.status === 'success' ? 'rgba(74,255,158,0.1)' : ev.status === 'fail' ? 'rgba(255,96,96,0.1)' : ev.status === 'waiting' ? 'rgba(255,160,74,0.1)' : 'transparent',
+                        }}>
+                          {ev.step}:{ev.status}
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#e0e0ff', fontWeight: 600 }}>
+                          {title}
+                        </span>
+                      </div>
+                      {detail && (
+                        <div style={{ fontSize: '10px', color: '#9090b8', lineHeight: 1.6, marginLeft: '2px', marginTop: '2px', whiteSpace: 'pre-wrap' }}>
+                          {detail}
+                        </div>
+                      )}
+                      {ev.data && (ev.data.hash || ev.data.score || ev.data.dimensions) && (
+                        <div style={{ marginTop: '3px', fontSize: '9px', color: '#4a4a6a' }}>
+                          {ev.data.hash && <>Hash: <code style={{ color: '#6a6aff' }}>{String(ev.data.hash).slice(0, 16)}...</code> </>}
+                          {ev.data.score != null && <>Score: <strong style={{ color: ev.data.score as number >= 50 ? '#4aff9e' : '#ff6060' }}>{String(ev.data.score)}/100</strong> </>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
                 {isRunning && !currentProposal && (
                   <div style={{ padding: '4px 8px', color: '#4a9eff', fontSize: '11px' }}>
                     &#x21BB; Processando...
