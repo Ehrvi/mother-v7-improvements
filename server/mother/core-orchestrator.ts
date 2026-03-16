@@ -650,7 +650,7 @@ async function layer4_neuralGeneration(
       ),
       circuitConfig,
     );
-    console.log(`[Orchestrator] F1-1 ReAct: primary succeeded in ${Date.now() - totalBudgetStart}ms (budget: ${REACT_TIMEOUT_CONFIG.totalBudgetMs}ms)`);
+    console.log(`[Orchestrator] F1-1 ReAct: primary succeeded in ${Date.now() - totalBudgetStart}ms (budget: ${effectiveBudgetMs}ms)`);
 
     return {
       response,

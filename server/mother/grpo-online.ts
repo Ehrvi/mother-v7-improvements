@@ -160,14 +160,17 @@ export async function recordOnlineReward(record: OnlineRewardRecord): Promise<vo
       timestamp: record.timestamp.toISOString(),
     });
 
+    // C357: Add domain and updatedAt columns (required by schema — was causing insert failures)
     await db.execute(sql`
-      INSERT INTO knowledge (title, content, category, source, tags, created_at)
+      INSERT INTO knowledge (title, content, category, source, tags, domain, createdAt, updatedAt)
       VALUES (
         ${title},
         ${content},
         'grpo_online_reward',
         'grpo-online-rl-f3-3',
         ${JSON.stringify(['grpo', 'online_rl', 'reward', label.toLowerCase(), record.category])},
+        'GRPO Online RL',
+        NOW(),
         NOW()
       )
     `);

@@ -1516,23 +1516,28 @@ async function persistVariantToDb(variant: AgentVariant): Promise<void> {
     const db = await getDb();
     if (!db) return;
 
+    // C357: Fix column names to match actual dgm_archive table schema (migration 0028)
+    // Real columns: cycleNumber, eventType, title, description, metadata, qualityScore, etc.
     await db.execute(sql`
-      INSERT INTO dgm_archive (generation_id, parent_id, code_snapshot, fitness_score, benchmark_results)
+      INSERT INTO dgm_archive (cycleNumber, eventType, title, description, qualityScore, metadata, createdAt)
       VALUES (
-        ${variant.id},
-        ${variant.parentId},
+        ${variant.generation},
+        'variant_created',
+        ${`DGM Variant: ${variant.id} (parent: ${variant.parentId || 'none'})`},
         ${variant.strategyDescription},
-        ${variant.accuracyScore},
+        ${variant.accuracyScore * 100},
         ${JSON.stringify({
+          variantId: variant.id,
+          parentId: variant.parentId,
           resolvedIds: variant.resolvedIds,
           unresolvedIds: variant.unresolvedIds,
           emptyPatchIds: variant.emptyPatchIds,
           totalSubmittedInstances: variant.totalSubmittedInstances,
           fitnessBreakdown: variant.fitnessBreakdown,
-          generation: variant.generation,
           childrenCount: variant.childrenCount,
           isCompiled: variant.isCompiled,
-        })}
+        })},
+        NOW()
       )
     `);
   } catch (err) {

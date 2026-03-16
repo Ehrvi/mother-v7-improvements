@@ -60,8 +60,9 @@ export interface AMemRetrievalResult {
 // CONFIGURATION
 // ============================================================
 
+// C357: Use localhost in development to avoid calling Cloud Run (which returns HTML 404 for /search)
 const MOTHER_BASE_URL = process.env.MOTHER_BASE_URL ||
-  'https://mother-interface-qtvghovzxa-ts.a.run.app';
+  (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://mother-interface-qtvghovzxa-ts.a.run.app');
 
 // A-MEM importance scoring weights (A-MEM paper, Section 3.4)
 const IMPORTANCE_WEIGHTS = {
@@ -169,8 +170,10 @@ export async function retrieveAMemContext(
   limit = MAX_RETRIEVAL_COUNT,
 ): Promise<AMemRetrievalResult> {
   try {
+    // C357: Fix URL path — route is /api/a2a/knowledge (not /knowledge/search)
+    // The 'search' param filters by text, 'category' filters by category
     const params = new URLSearchParams({
-      q: query,
+      search: query,
       category: 'episodic_memory',
       limit: limit.toString(),
     });
@@ -179,7 +182,7 @@ export async function retrieveAMemContext(
       params.set('userId', userId);
     }
 
-    const response = await fetch(`${MOTHER_BASE_URL}/api/a2a/knowledge/search?${params}`, {
+    const response = await fetch(`${MOTHER_BASE_URL}/api/a2a/knowledge?${params}`, {
       signal: AbortSignal.timeout(3000),
     });
 
@@ -385,7 +388,7 @@ export async function getAMemStats(): Promise<{
 }> {
   try {
     const response = await fetch(
-      `${MOTHER_BASE_URL}/api/a2a/knowledge/search?category=episodic_memory&limit=100`,
+      `${MOTHER_BASE_URL}/api/a2a/knowledge?category=episodic_memory&limit=100`,
       { signal: AbortSignal.timeout(3000) },
     );
 

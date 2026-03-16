@@ -274,10 +274,20 @@ export default function DgmTest() {
   };
 
   const handleApprove = (proposalId: string) => {
-    resolveMutation.mutate({ proposalId, approved: true });
+    resolveMutation.mutate({ proposalId, approved: true }, {
+      onSuccess: (data) => {
+        if (!data.resolved) console.warn('[DGM] Proposal not found (may have been auto-approved)');
+      },
+      onError: (err) => console.error('[DGM] Failed to approve:', err.message),
+    });
   };
   const handleReject = (proposalId: string) => {
-    resolveMutation.mutate({ proposalId, approved: false });
+    resolveMutation.mutate({ proposalId, approved: false }, {
+      onSuccess: (data) => {
+        if (!data.resolved) console.warn('[DGM] Proposal not found (may have been auto-approved)');
+      },
+      onError: (err) => console.error('[DGM] Failed to reject:', err.message),
+    });
   };
 
   const isRunning = testMutation.isPending;
@@ -411,17 +421,17 @@ export default function DgmTest() {
                   <div style={{ fontSize: '10px', color: '#6060a0', marginTop: '2px' }}>{currentProposal.targetFile} | Fitness: {currentProposal.fitnessScore}/100 | Sandbox: {currentProposal.sandboxPassed ? 'OK' : 'FAIL'} ({currentProposal.sandboxType})</div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={() => handleApprove(currentProposal.id)} style={{
-                    background: 'linear-gradient(135deg, #22c55e, #16a34a)', color: '#fff', border: 'none',
-                    borderRadius: '8px', padding: '8px 20px', cursor: 'pointer', fontWeight: 700, fontSize: '13px',
+                  <button onClick={() => handleApprove(currentProposal.id)} disabled={resolveMutation.isPending} style={{
+                    background: resolveMutation.isPending ? '#555' : 'linear-gradient(135deg, #22c55e, #16a34a)', color: '#fff', border: 'none',
+                    borderRadius: '8px', padding: '8px 20px', cursor: resolveMutation.isPending ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '13px',
                   }}>
-                    APROVAR
+                    {resolveMutation.isPending ? 'ENVIANDO...' : 'APROVAR'}
                   </button>
-                  <button onClick={() => handleReject(currentProposal.id)} style={{
-                    background: 'rgba(255, 96, 96, 0.15)', color: '#ff6060', border: '1px solid #ff606040',
-                    borderRadius: '8px', padding: '8px 20px', cursor: 'pointer', fontWeight: 700, fontSize: '13px',
+                  <button onClick={() => handleReject(currentProposal.id)} disabled={resolveMutation.isPending} style={{
+                    background: resolveMutation.isPending ? 'rgba(100,100,100,0.15)' : 'rgba(255, 96, 96, 0.15)', color: resolveMutation.isPending ? '#888' : '#ff6060', border: '1px solid #ff606040',
+                    borderRadius: '8px', padding: '8px 20px', cursor: resolveMutation.isPending ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '13px',
                   }}>
-                    REJEITAR
+                    {resolveMutation.isPending ? 'ENVIANDO...' : 'REJEITAR'}
                   </button>
                 </div>
               </div>
