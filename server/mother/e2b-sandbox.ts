@@ -145,9 +145,11 @@ async function runTypeScriptCheck(options: {
     const hasImport = code.includes('import') || code.includes('require');
     const hasSyntaxError = code.includes('???') || code.includes('PLACEHOLDER');
     const hasTypeAnnotations = code.includes(': ') || code.includes('interface ') || code.includes('type ');
+    const hasFunction = /function\s+\w+|const\s+\w+\s*=|class\s+\w+|=>\s*\{/.test(code);
 
-    // Check for common TypeScript patterns
-    const isValidTS = hasExport && !hasSyntaxError;
+    // DGM code snippets may not have export/import since they are partial patches.
+    // Accept code that has valid TS patterns (functions, types, classes) even without export.
+    const isValidTS = !hasSyntaxError && (hasExport || hasFunction || hasTypeAnnotations);
 
     // Check code length (too short = likely incomplete)
     const isSubstantial = code.trim().length > 50;

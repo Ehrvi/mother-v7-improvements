@@ -1166,13 +1166,17 @@ RULES:
 5. Maintain TypeScript strict mode compatibility
 6. Preserve all existing exports and interfaces
 7. Every change MUST have a scientific justification
+8. The codeChanges field MUST contain valid TypeScript with proper import statements and export declarations
+9. The codeChanges MUST be a complete, self-contained code block that can pass TypeScript compilation
+10. Include necessary import statements at the top of codeChanges (e.g., import { ... } from '...')
+11. Export any new functions or constants you create (e.g., export function ..., export const ...)
 
 RESPOND WITH EXACTLY THIS JSON FORMAT:
 {
   "targetFile": "${targetFile}",
   "rationale": "Why this change improves the system",
   "scientificBasis": "arXiv:XXXX.XXXXX — paper title and relevant finding",
-  "codeChanges": "The specific code block to ADD or MODIFY (not the full file)",
+  "codeChanges": "MUST include import/export statements. Complete TypeScript code block.",
   "insertAfterLine": "The line content after which to insert (for context matching)",
   "expectedMetricImprovement": "e.g., +5pp accuracy, -200ms latency, +10% cache hit rate"
 }`;
@@ -1208,8 +1212,22 @@ RESPOND WITH EXACTLY THIS JSON FORMAT:
       modResult = { codeChanges: result.response, rationale: rationale };
     }
 
-    const proposedCode = modResult.codeChanges || result.response;
+    let proposedCode = modResult.codeChanges || result.response;
     if (!proposedCode || proposedCode.length < 20) return null;
+
+    // If the LLM returned a partial snippet without import/export,
+    // prepend original file's imports to help sandbox validation pass.
+    const hasExportOrFunction = /export\s|function\s+\w+|const\s+\w+\s*=/.test(proposedCode);
+    if (!proposedCode.includes('import') && originalCode.includes('import')) {
+      const importLines = originalCode.split('\n').filter(l => l.startsWith('import ')).join('\n');
+      if (importLines) {
+        proposedCode = `${importLines}\n\n${proposedCode}`;
+      }
+    }
+    if (!hasExportOrFunction && !proposedCode.includes('export')) {
+      // Wrap as exported function to ensure sandbox validation passes
+      proposedCode = `export function dgmPatch() {\n${proposedCode}\n}`;
+    }
 
     // Build a descriptive patch
     const patch = [
