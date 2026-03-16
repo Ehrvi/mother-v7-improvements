@@ -193,6 +193,62 @@ export function validateTypeScript(projectDir: string): {
   }
 }
 
+/**
+ * Validate proposed code against the full project using a temporary git worktree.
+ * NEVER writes to real source files — completely eliminates corruption risk.
+ *
+ * How it works:
+ * 1. Creates a temporary git worktree (shallow clone of current HEAD)
+ * 2. Writes the proposed code to the target file INSIDE the worktree
+ * 3. Runs tsc --noEmit inside the worktree
+ * 4. Deletes the worktree (always, via finally)
+ *
+ * This replaces the old approach of writing to real files + backup/restore.
+ */
+export function validateTypeScriptInWorktree(
+  targetFile: string,
+  proposedCode: string,
+): { valid: boolean; errors: string[] } {
+  const worktreeDir = path.join(MOTHER_DIR, '.dgm-worktree-' + Date.now());
+  const branchName = `dgm-validate-${Date.now()}`;
+  try {
+    // Create temporary worktree from current HEAD
+    execSync(`git worktree add --detach "${worktreeDir}"`, {
+      cwd: MOTHER_DIR,
+      stdio: 'pipe',
+      timeout: 30000,
+    });
+
+    // Write proposed code to the target file inside the worktree
+    const targetPath = path.join(worktreeDir, targetFile);
+    const targetDir = path.dirname(targetPath);
+    mkdirSync(targetDir, { recursive: true });
+    writeFileSync(targetPath, proposedCode, 'utf-8');
+
+    // Run tsc inside the worktree
+    return validateTypeScript(worktreeDir);
+  } catch (err: unknown) {
+    const error = err as { stdout?: Buffer; stderr?: Buffer; message?: string };
+    const output = error.stdout?.toString() || error.stderr?.toString() || error.message || 'Unknown error';
+    return { valid: false, errors: [`Worktree validation error: ${output.slice(0, 500)}`] };
+  } finally {
+    // ALWAYS clean up worktree — no leftover state
+    try {
+      execSync(`git worktree remove --force "${worktreeDir}"`, {
+        cwd: MOTHER_DIR,
+        stdio: 'pipe',
+        timeout: 15000,
+      });
+    } catch {
+      // If worktree remove fails, try manual cleanup
+      try {
+        execSync(`rm -rf "${worktreeDir}"`, { stdio: 'pipe', timeout: 10000 });
+        execSync(`git worktree prune`, { cwd: MOTHER_DIR, stdio: 'pipe', timeout: 10000 });
+      } catch { /* best effort cleanup */ }
+    }
+  }
+}
+
 // ============================================================
 // CRASH-SAFE FILE BACKUP FOR DGM VALIDATION
 // ============================================================
@@ -338,49 +394,37 @@ export async function applyProposal(proposalId: string): Promise<SelfModificatio
 
   const targetPath = path.join(MOTHER_DIR, proposal.targetFile);
 
-  // Disk backup BEFORE writing — if process crashes, pre-start restores from .dgm-backup/
-  dgmBackupFile(proposal.targetFile);
-  let tsValid = false;
-  let tsErrors: string[] = [];
+  // Validate in git worktree FIRST — never writes to real files until tsc passes
+  const tsResult = validateTypeScriptInWorktree(proposal.targetFile, proposal.proposedCode);
 
-  try {
-    // Write proposed code
-    writeFileSync(targetPath, proposal.proposedCode, 'utf-8');
-
-    // Validate TypeScript
-    const tsResult = validateTypeScript(MOTHER_DIR);
-    tsValid = tsResult.valid;
-    tsErrors = tsResult.errors;
-  } catch (err: unknown) {
-    const error = err as Error;
-    dgmRestoreFile(proposal.targetFile);
-    return {
-      success: false,
-      proposalId,
-      targetFile: proposal.targetFile,
-      action: 'rejected',
-      reason: `Error applying proposal: ${error.message}`,
-      proofHash: createHash('sha256').update(`error:${proposalId}:${timestamp}`).digest('hex'),
-      timestamp,
-    };
-  }
-
-  if (!tsValid) {
-    dgmRestoreFile(proposal.targetFile);
+  if (!tsResult.valid) {
     proposal.validationResult = 'failed';
     return {
       success: false,
       proposalId,
       targetFile: proposal.targetFile,
       action: 'rejected',
-      reason: `TypeScript validation failed: ${tsErrors.slice(0, 3).join('; ')}`,
+      reason: `TypeScript validation failed: ${tsResult.errors.slice(0, 3).join('; ')}`,
       proofHash: createHash('sha256').update(`ts-failed:${proposalId}:${timestamp}`).digest('hex'),
       timestamp,
     };
   }
 
-  // tsc passed — the proposed code is now the real file. Clear the backup.
-  dgmClearBackup(proposal.targetFile);
+  // tsc passed in worktree — safe to write to real file
+  try {
+    writeFileSync(targetPath, proposal.proposedCode, 'utf-8');
+  } catch (err: unknown) {
+    const error = err as Error;
+    return {
+      success: false,
+      proposalId,
+      targetFile: proposal.targetFile,
+      action: 'rejected',
+      reason: `Error writing file: ${error.message}`,
+      proofHash: createHash('sha256').update(`error:${proposalId}:${timestamp}`).digest('hex'),
+      timestamp,
+    };
+  }
 
   proposal.validationResult = 'passed';
   proposal.fitnessScore = 0.85; // Default; real score from benchmark

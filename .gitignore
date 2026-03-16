@@ -11,3 +11,4 @@ logs/
 *.backup
 *.orig
 .dgm-backup/
+.dgm-worktree-*

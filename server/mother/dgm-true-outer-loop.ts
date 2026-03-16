@@ -34,7 +34,7 @@ import { createLogger } from '../_core/logger';
 import { getDb } from '../db';
 import { sandboxExecutor } from '../dgm/sandbox-executor';
 import { runInSandbox } from './e2b-sandbox';
-import { validateTypeScript, MOTHER_DIR, dgmBackupFile, dgmRestoreFile, dgmClearBackup } from './self-modifier';
+import { validateTypeScript, validateTypeScriptInWorktree, MOTHER_DIR } from './self-modifier';
 import { sql } from 'drizzle-orm';
 import { processQuery } from './core';
 import { orchestrate as coreOrchestrate } from './core-orchestrator';
@@ -978,33 +978,17 @@ async function selfImproveStep(
       modification = await generateModification(problemStatement, entry, parent, tscFeedback);
       if (!modification) break;
 
-      // Quick tsc pre-check before proceeding through the full pipeline
-      // CRASH-SAFE: backup written to disk BEFORE overwriting source file.
-      // If process crashes, pre-start script finds .dgm-backup/ and restores.
-      const fs = await import('fs');
-      const pathMod = await import('path');
-      const targetPath = pathMod.join(MOTHER_DIR, modification.targetFile);
-      dgmBackupFile(modification.targetFile); // Disk backup BEFORE write
-      try {
-        fs.writeFileSync(targetPath, modification.proposedCode, 'utf-8');
-        const tsResult = validateTypeScript(MOTHER_DIR);
+      // Quick tsc pre-check using git worktree — NEVER writes to real source files
+      const tsResult = validateTypeScriptInWorktree(modification.targetFile, modification.proposedCode);
 
-        if (tsResult.valid) {
-          log.info(`[SELF-IMPROVE] tsc pre-check PASSED on attempt ${attempt}`);
-          dgmRestoreFile(modification.targetFile); // Restore original — applyProposal writes later
-          break;
-        }
-        // tsc failed — feed errors back for next attempt
-        tscFeedback = tsResult.errors.join('\n');
-        log.warn(`[SELF-IMPROVE] tsc pre-check FAILED on attempt ${attempt}: ${tsResult.errors[0]}`);
-        modification = null;
-      } catch (preCheckErr) {
-        log.warn(`[SELF-IMPROVE] tsc pre-check error on attempt ${attempt}: ${preCheckErr}`);
-        modification = null;
-      } finally {
-        // ALWAYS restore from disk backup — survives process crash
-        dgmRestoreFile(modification?.targetFile || '');
+      if (tsResult.valid) {
+        log.info(`[SELF-IMPROVE] tsc pre-check PASSED on attempt ${attempt}`);
+        break;
       }
+      // tsc failed — feed errors back for next attempt
+      tscFeedback = tsResult.errors.join('\n');
+      log.warn(`[SELF-IMPROVE] tsc pre-check FAILED on attempt ${attempt}: ${tsResult.errors[0]}`);
+      modification = null;
     }
     if (!modification) {
       emitDGMEvent({ step: 'modify', status: 'fail', message: `[Passo 2 — MODIFICAÇÃO FALHOU] O LLM não conseguiu gerar código compilável após ${MAX_MODIFY_ATTEMPTS} tentativas. Pipeline encerrado para esta variante.${tscFeedback ? `\n\nÚltimos erros tsc: ${tscFeedback.slice(0, 300)}` : ''}`, timestamp: new Date().toISOString() });
@@ -1149,40 +1133,20 @@ async function selfImproveStep(
       `Próximo passo: validação local tsc --noEmit antes da aprovação humana.`,
       timestamp: new Date().toISOString(), data: { type: sandboxResult.sandboxType, durationMs: sandboxResult.durationMs, hash: sandboxHash } });
 
-    // Step 5.5: LOCAL TSC GATE — Validate with the same tsc --noEmit used by self-modifier.ts
-    // This prevents proposals that pass E2B (isolated) but fail locally (with full project context)
+    // Step 5.5: LOCAL TSC GATE — Validate with tsc --noEmit using git worktree (never touches real files)
     {
-      const fs = await import('fs');
-      const path = await import('path');
-      const targetPath = path.join(MOTHER_DIR, modification.targetFile);
-      dgmBackupFile(modification.targetFile); // Disk backup BEFORE write
-      let tscPassed = false;
-      let tscErrors: string[] = [];
-      try {
-        // Temporarily write proposed code to validate against the full project
-        fs.writeFileSync(targetPath, modification.proposedCode, 'utf-8');
-        const tsResult = validateTypeScript(MOTHER_DIR);
-        tscPassed = tsResult.valid;
-        tscErrors = tsResult.errors;
-      } catch (tscErr) {
-        log.warn(`[SELF-IMPROVE] Local tsc validation error: ${tscErr}`);
-        tscPassed = false;
-        tscErrors = [String(tscErr)];
-      } finally {
-        // ALWAYS restore from disk backup — survives process crash
-        dgmRestoreFile(modification.targetFile);
-      }
-      if (!tscPassed) {
+      const tsResult = validateTypeScriptInWorktree(modification.targetFile, modification.proposedCode);
+      if (!tsResult.valid) {
         emitDGMEvent({
           step: 'sandbox',
           status: 'fail',
-          message: `[Passo 5.5 — TSC LOCAL REJEITOU] O código passou no sandbox isolado mas falhou na compilação local (tsc --noEmit).\n\n` +
-            `Erros: ${tscErrors.slice(0, 3).join('; ')}.\n` +
-            `Esta validação garante consistência com o self-modifier.ts — apenas código que compila no projeto real é aceito.`,
+          message: `[Passo 5.5 — TSC LOCAL REJEITOU] O código passou no sandbox isolado mas falhou na compilação local (tsc --noEmit via worktree).\n\n` +
+            `Erros: ${tsResult.errors.slice(0, 3).join('; ')}.\n` +
+            `Esta validação usa git worktree isolado — sem risco de corrupção dos arquivos fonte.`,
           timestamp: new Date().toISOString(),
-          data: { errors: tscErrors.slice(0, 5), targetFile: modification.targetFile },
+          data: { errors: tsResult.errors.slice(0, 5), targetFile: modification.targetFile },
         });
-        log.warn(`[SELF-IMPROVE] Local tsc --noEmit FAILED for ${modification.targetFile}: ${tscErrors[0]}`);
+        log.warn(`[SELF-IMPROVE] Local tsc --noEmit FAILED for ${modification.targetFile}: ${tsResult.errors[0]}`);
         return null;
       }
       log.info(`[SELF-IMPROVE] Local tsc --noEmit PASSED for ${modification.targetFile}`);
@@ -1924,45 +1888,9 @@ export const DEFAULT_BENCHMARK_MEDIUM: BenchmarkQuery[] = [
  *     archive = update_archive(archive, compiled, method)
  *     save_state(gen, archive)
  */
-/**
- * Self-heal: restore any source files corrupted by DGM validation writes.
- * If the process crashed between writeFileSync(proposedCode) and the backup restore,
- * the source file will contain the LLM's proposed code instead of the original.
- * This checks `git diff --name-only` for unexpected modifications and restores them.
- */
-async function dgmSelfHeal(): Promise<void> {
-  try {
-    const { execSync } = await import('child_process');
-    // Get files modified in the working tree (unstaged changes)
-    const dirtyFiles = execSync('git diff --name-only', { cwd: MOTHER_DIR, stdio: 'pipe' })
-      .toString().trim().split('\n').filter(Boolean);
-
-    if (dirtyFiles.length === 0) return;
-
-    // Only restore server/ files — DGM only modifies server code
-    const serverFiles = dirtyFiles.filter(f => f.startsWith('server/'));
-    if (serverFiles.length === 0) return;
-
-    log.warn(`[DGM-SELF-HEAL] Found ${serverFiles.length} dirty source file(s) — likely from a crashed DGM validation. Restoring: ${serverFiles.join(', ')}`);
-    for (const file of serverFiles) {
-      try {
-        execSync(`git checkout -- "${file}"`, { cwd: MOTHER_DIR, stdio: 'pipe' });
-        log.info(`[DGM-SELF-HEAL] Restored ${file}`);
-      } catch (err) {
-        log.error(`[DGM-SELF-HEAL] Failed to restore ${file}: ${err}`);
-      }
-    }
-  } catch (err) {
-    log.warn(`[DGM-SELF-HEAL] Self-heal check failed (non-fatal): ${err}`);
-  }
-}
-
 export async function runDGMOuterLoop(
   config?: Partial<DGMConfig>,
 ): Promise<DGMRunState> {
-  // Self-heal: restore any files corrupted by a previous crashed DGM run
-  await dgmSelfHeal();
-
   const runId = `dgm-run-${Date.now()}`;
   const fullConfig: DGMConfig = {
     maxGenerations: config?.maxGenerations ?? MAX_GENERATIONS,
@@ -2090,9 +2018,6 @@ export async function runDGMOuterLoop(
 export async function runSingleGeneration(
   config?: Partial<DGMConfig>,
 ): Promise<GenerationResult> {
-  // Self-heal before starting — restore any files corrupted by a previous crashed run
-  await dgmSelfHeal();
-
   const fullConfig: DGMConfig = {
     maxGenerations: 1,
     selfImproveSize: config?.selfImproveSize ?? SELFIMPROVE_SIZE,
