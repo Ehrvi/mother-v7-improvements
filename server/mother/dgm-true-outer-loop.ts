@@ -41,6 +41,16 @@ import { createProposal, applyProposal } from './self-modifier';
 
 const log = createLogger('DGM-TRUE');
 
+// ─── Proof Hash Utility ──────────────────────────────────────────────────────
+// Gödel Machine (Schmidhuber, 2007): "Every self-modification must be verifiable"
+// DGM (Zhang et al., 2025): "Empirical validation replaces impractical proofs"
+// We use SHA-256 hashes as lightweight proof-of-state for every DGM operation.
+
+function proofHash(data: unknown): string {
+  const serialized = typeof data === 'string' ? data : JSON.stringify(data, null, 0);
+  return createHash('sha256').update(serialized).digest('hex');
+}
+
 // ─── Constants (from paper: arXiv:2505.22954 Section 3) ──────────────────────
 
 /** Maximum generations before stopping (paper default: 80) */
@@ -100,6 +110,14 @@ export interface AgentVariant {
   createdAt: Date;
   /** Is this variant compiled and functional? */
   isCompiled: boolean;
+  /** SHA-256 proof hash of this variant's complete state (Gödel Machine verifiability) */
+  proofHash: string;
+  /** SHA-256 hash of the diagnosis that produced this variant */
+  diagnosisHash?: string;
+  /** SHA-256 hash of the proposed code modification */
+  modificationHash?: string;
+  /** SHA-256 hash of the benchmark evaluation results */
+  benchmarkHash?: string;
 }
 
 /**
@@ -182,6 +200,8 @@ export interface GenerationResult {
   archiveSize: number;
   bestAccuracy: number;
   timestamp: string;
+  /** SHA-256 hash of this generation's complete state */
+  generationHash: string;
 }
 
 /**
@@ -234,6 +254,8 @@ async function initializeArchive(benchmarkSmall: BenchmarkQuery[]): Promise<void
   // Evaluate the base MOTHER agent on the small benchmark
   const baseAccuracy = await evaluateVariant('initial', [], benchmarkSmall);
 
+  const benchmarkHash = proofHash({ queries: benchmarkSmall.map(q => q.id), results: baseAccuracy.results });
+
   const initial: AgentVariant = {
     id: 'initial',
     parentId: '',
@@ -248,12 +270,18 @@ async function initializeArchive(benchmarkSmall: BenchmarkQuery[]): Promise<void
     strategyDescription: 'Base MOTHER agent (no modifications)',
     createdAt: new Date(),
     isCompiled: true,
+    proofHash: '', // computed below
+    benchmarkHash,
   };
+  initial.proofHash = proofHash(initial);
 
   archive.set('initial', initial);
 
   // Persist to DB
   await persistVariantToDb(initial);
+
+  log.info(`[ARCHIVE] PROOF initial.proofHash=${initial.proofHash.slice(0, 16)}...`);
+  log.info(`[ARCHIVE] PROOF initial.benchmarkHash=${benchmarkHash.slice(0, 16)}...`);
 
   log.info(`[ARCHIVE] Initialized with base accuracy: ${(baseAccuracy.accuracy * 100).toFixed(1)}%`);
 }
@@ -544,6 +572,8 @@ async function selfImproveStep(
       log.warn(`[SELF-IMPROVE] Failed to diagnose problem for ${runId}`);
       return null;
     }
+    const diagnosisHash = proofHash({ input: { entryType: entry.entryType, parentId: entry.parentId, target: entry.target }, output: problemStatement });
+    log.info(`[PROOF] Step 1 DIAGNOSE hash=${diagnosisHash.slice(0, 16)}... (${problemStatement.length} chars)`);
 
     // Step 2: SELF-MODIFY — Ask LLM to propose code changes
     const modification = await generateModification(problemStatement, entry, parent);
@@ -551,9 +581,13 @@ async function selfImproveStep(
       log.warn(`[SELF-IMPROVE] Failed to generate modification for ${runId}`);
       return null;
     }
+    const modificationHash = proofHash({ targetFile: modification.targetFile, proposedCode: modification.proposedCode, rationale: modification.rationale });
+    log.info(`[PROOF] Step 2 MODIFY hash=${modificationHash.slice(0, 16)}... target=${modification.targetFile} (${modification.proposedCode.length} chars)`);
 
     // Step 3: SAFETY CHECK — Validate modification before applying
     const safetyResult = checkSafetyGate(modification.targetFile, modification.proposedCode, runId);
+    const safetyHash = proofHash({ file: modification.targetFile, allowed: safetyResult.allowed, violations: safetyResult.violations, warnings: safetyResult.warnings });
+    log.info(`[PROOF] Step 3 SAFETY hash=${safetyHash.slice(0, 16)}... allowed=${safetyResult.allowed}`);
     if (!safetyResult.allowed) {
       log.warn(`[SELF-IMPROVE] Safety gate blocked modification: ${safetyResult.violations.join(', ')}`);
       return null;
@@ -566,6 +600,8 @@ async function selfImproveStep(
       cycleId: runId,
       agentId: parent.id,
     });
+    const fitnessHash = proofHash({ overall: fitnessResult.overall, dimensions: fitnessResult.dimensions, file: modification.targetFile });
+    log.info(`[PROOF] Step 4 FITNESS hash=${fitnessHash.slice(0, 16)}... overall=${fitnessResult.overall}`);
 
     if (fitnessResult.overall < 50) {
       log.warn(`[SELF-IMPROVE] Static fitness too low: ${fitnessResult.overall}`);
@@ -579,6 +615,8 @@ async function selfImproveStep(
       rationale: modification.rationale,
       expectedImprovement: `DGM self-improvement (arXiv:2505.22954), mutation=${entry.entryType}`,
     });
+    const proposalHash = proofHash({ proposalId: proposal.id, targetFile: modification.targetFile, rationale: modification.rationale });
+    log.info(`[PROOF] Step 5 PROPOSAL hash=${proposalHash.slice(0, 16)}... id=${proposal.id}`);
 
     const applied = await applyProposal(proposal.id);
     if (!applied) {
@@ -593,6 +631,8 @@ async function selfImproveStep(
       [...parent.patches, modification.patch],
       benchmarkSmall,
     );
+    const benchmarkHash = proofHash({ variantId: runId, accuracy: smallResult.accuracy, resolvedIds: smallResult.resolvedIds, results: smallResult.results });
+    log.info(`[PROOF] Step 6 BENCHMARK hash=${benchmarkHash.slice(0, 16)}... accuracy=${(smallResult.accuracy * 100).toFixed(1)}%`);
 
     // If accuracy passes threshold, run deeper evaluation
     let finalResult = smallResult;
@@ -637,7 +677,15 @@ async function selfImproveStep(
       },
       createdAt: new Date(),
       isCompiled: true,
+      proofHash: '', // computed below
+      diagnosisHash,
+      modificationHash,
+      benchmarkHash,
     };
+    variant.proofHash = proofHash(variant);
+
+    log.info(`[PROOF] Step 7 VARIANT hash=${variant.proofHash.slice(0, 16)}... id=${runId}`);
+    log.info(`[PROOF] CHAIN: parent=${parent.proofHash.slice(0, 12)}→diagnosis=${diagnosisHash.slice(0, 12)}→modify=${modificationHash.slice(0, 12)}→safety=${safetyHash.slice(0, 12)}→fitness=${fitnessHash.slice(0, 12)}→bench=${benchmarkHash.slice(0, 12)}→variant=${variant.proofHash.slice(0, 12)}`);
 
     archive.set(runId, variant);
     await persistVariantToDb(variant);
@@ -1228,13 +1276,16 @@ export async function runDGMOuterLoop(
       archiveSize: archive.size,
       bestAccuracy: Math.max(...Array.from(archive.values()).map(v => v.accuracyScore)),
       timestamp: new Date().toISOString(),
+      generationHash: '', // computed below
     };
+    genResult.generationHash = proofHash(genResult);
     state.generationResults.push(genResult);
     state.archive = Array.from(archive.keys());
 
     await persistGenerationState(runId, gen, genResult);
 
     log.info(`[DGM-OUTER] Generation ${gen} complete: archive=${archive.size}, best=${(genResult.bestAccuracy * 100).toFixed(1)}%`);
+    log.info(`[PROOF] Generation ${gen} hash=${genResult.generationHash.slice(0, 16)}... children=${childrenIds.length} compiled=${compiledIds.length}`);
 
     // Check convergence: if best accuracy hasn't improved in 5 generations, consider stopping
     if (gen >= 5) {
@@ -1294,7 +1345,7 @@ export async function runSingleGeneration(
 
   updateArchive(compiledIds, fullConfig.archiveUpdateMethod, fullConfig.noiseLeeway);
 
-  return {
+  const result: GenerationResult = {
     generation: 0,
     mutations: entries,
     childrenIds,
@@ -1302,7 +1353,12 @@ export async function runSingleGeneration(
     archiveSize: archive.size,
     bestAccuracy: Math.max(...Array.from(archive.values()).map(v => v.accuracyScore)),
     timestamp: new Date().toISOString(),
+    generationHash: '',
   };
+  result.generationHash = proofHash(result);
+
+  log.info(`[PROOF] SingleGeneration hash=${result.generationHash.slice(0, 16)}... children=${childrenIds.length} compiled=${compiledIds.length}`);
+  return result;
 }
 
 // ─── Archive Query API ───────────────────────────────────────────────────────
@@ -1321,10 +1377,15 @@ export function getArchiveState(): {
     strategy: string;
     isCompiled: boolean;
     createdAt: string;
+    proofHash: string;
+    diagnosisHash?: string;
+    modificationHash?: string;
+    benchmarkHash?: string;
   }>;
   bestVariantId: string | null;
   bestAccuracy: number;
   initialAccuracy: number;
+  archiveHash: string;
 } {
   const variants = Array.from(archive.values())
     .map(v => ({
@@ -1336,10 +1397,15 @@ export function getArchiveState(): {
       strategy: v.strategyDescription,
       isCompiled: v.isCompiled,
       createdAt: v.createdAt.toISOString(),
+      proofHash: v.proofHash,
+      diagnosisHash: v.diagnosisHash,
+      modificationHash: v.modificationHash,
+      benchmarkHash: v.benchmarkHash,
     }))
     .sort((a, b) => b.accuracy - a.accuracy);
 
   const best = variants[0];
+  const archiveHash = proofHash(variants.map(v => v.proofHash));
 
   return {
     size: archive.size,
@@ -1347,6 +1413,7 @@ export function getArchiveState(): {
     bestVariantId: best?.id ?? null,
     bestAccuracy: best?.accuracy ?? 0,
     initialAccuracy: getOriginalScore(),
+    archiveHash,
   };
 }
 
