@@ -32,6 +32,42 @@ interface VariantInfo {
   diagnosisHash?: string;
   modificationHash?: string;
   benchmarkHash?: string;
+  sandboxHash?: string;
+  sandboxPassed?: boolean;
+  sandboxType?: string;
+}
+
+interface ScientificProof {
+  reproducibility: {
+    valid: boolean;
+    parentProofHash: string;
+    modificationHash: string;
+    childProofHash: string;
+    recomputedChildHash: string;
+    hashesMatch: boolean;
+  };
+  empiricalGain: {
+    valid: boolean;
+    parentAccuracy: number;
+    childAccuracy: number;
+    delta: number;
+    verdict: 'improvement' | 'neutral' | 'regression';
+    parentResolvedCount: number;
+    childResolvedCount: number;
+    benchmarkSize: number;
+  };
+  integrity: {
+    valid: boolean;
+    safetyGatePassed: boolean;
+    safetyHash: string;
+    sandboxPassed: boolean;
+    sandboxHash: string;
+    sandboxOutput: string;
+    sandboxDurationMs: number;
+    preApplyValidation: boolean;
+  };
+  overallValid: boolean;
+  timestamp: string;
 }
 
 interface TestResult {
@@ -43,6 +79,7 @@ interface TestResult {
     bestAccuracy: number;
     generationHash: string;
     timestamp: string;
+    scientificProofs: ScientificProof[];
   };
   archive: {
     size: number;
@@ -63,7 +100,7 @@ interface TestResult {
   timestamp: string;
 }
 
-type TabId = 'report' | 'hashes' | 'tree';
+type TabId = 'report' | 'proofs' | 'hashes' | 'tree';
 
 export const DGMTestPanel: React.FC = () => {
   const [customQuery, setCustomQuery] = useState('');
@@ -232,7 +269,8 @@ export const DGMTestPanel: React.FC = () => {
           <div style={{ display: 'flex', borderBottom: '1px solid #2d2d4e' }}>
             {([
               { id: 'report' as TabId, label: 'Relatorio' },
-              { id: 'hashes' as TabId, label: 'Proof Hashes' },
+              { id: 'proofs' as TabId, label: 'Provas Cientificas' },
+              { id: 'hashes' as TabId, label: 'Hashes' },
               { id: 'tree' as TabId, label: 'Arvore' },
             ]).map(tab => (
               <button
@@ -290,6 +328,90 @@ export const DGMTestPanel: React.FC = () => {
               </div>
             )}
 
+            {/* Scientific Proofs tab */}
+            {activeTab === 'proofs' && (
+              <div style={{ padding: '14px' }}>
+                {result.generation.scientificProofs.length === 0 ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: '#6060a0' }}>
+                    Nenhuma prova gerada (nenhum filho compilado nesta geracao)
+                  </div>
+                ) : (
+                  result.generation.scientificProofs.map((proof, i) => (
+                    <div key={i} style={{
+                      marginBottom: '16px',
+                      border: `1px solid ${proof.overallValid ? '#4aff9e40' : '#ff606040'}`,
+                      borderRadius: '8px',
+                      overflow: 'hidden',
+                    }}>
+                      {/* Header */}
+                      <div style={{
+                        padding: '10px 14px',
+                        background: proof.overallValid ? 'rgba(74, 255, 158, 0.05)' : 'rgba(255, 96, 96, 0.05)',
+                        borderBottom: '1px solid #2d2d4e',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      }}>
+                        <span style={{ fontWeight: 700, color: proof.overallValid ? '#4aff9e' : '#ff6060' }}>
+                          Prova Cientifica #{i + 1}
+                        </span>
+                        <span style={{
+                          padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 700,
+                          background: proof.overallValid ? 'rgba(74, 255, 158, 0.15)' : 'rgba(255, 96, 96, 0.15)',
+                          color: proof.overallValid ? '#4aff9e' : '#ff6060',
+                        }}>
+                          {proof.overallValid ? 'VALIDA' : 'INVALIDA'}
+                        </span>
+                      </div>
+
+                      <div style={{ padding: '12px 14px' }}>
+                        {/* Proof 1: Reprodutibilidade */}
+                        <ProofSection
+                          title="1. REPRODUTIBILIDADE"
+                          subtitle="Hash chain deterministico parent→child"
+                          valid={proof.reproducibility.valid}
+                          details={[
+                            { label: 'Parent Hash', value: proof.reproducibility.parentProofHash },
+                            { label: 'Modification Hash', value: proof.reproducibility.modificationHash },
+                            { label: 'Child Hash', value: proof.reproducibility.childProofHash },
+                            { label: 'Recomputed Hash', value: proof.reproducibility.recomputedChildHash },
+                            { label: 'Deterministico', value: proof.reproducibility.hashesMatch ? 'SIM' : 'NAO' },
+                          ]}
+                        />
+
+                        {/* Proof 2: Ganho Empírico */}
+                        <ProofSection
+                          title="2. GANHO EMPIRICO"
+                          subtitle="Before/after benchmark comparison"
+                          valid={proof.empiricalGain.valid}
+                          details={[
+                            { label: 'Parent Accuracy', value: `${(proof.empiricalGain.parentAccuracy * 100).toFixed(1)}% (${proof.empiricalGain.parentResolvedCount}/${proof.empiricalGain.benchmarkSize})` },
+                            { label: 'Child Accuracy', value: `${(proof.empiricalGain.childAccuracy * 100).toFixed(1)}% (${proof.empiricalGain.childResolvedCount}/${proof.empiricalGain.benchmarkSize})` },
+                            { label: 'Delta', value: `${proof.empiricalGain.delta >= 0 ? '+' : ''}${(proof.empiricalGain.delta * 100).toFixed(1)}pp` },
+                            { label: 'Veredicto', value: proof.empiricalGain.verdict.toUpperCase() },
+                          ]}
+                          verdictColor={proof.empiricalGain.verdict === 'improvement' ? '#4aff9e' : proof.empiricalGain.verdict === 'neutral' ? '#ffa04a' : '#ff6060'}
+                        />
+
+                        {/* Proof 3: Integridade */}
+                        <ProofSection
+                          title="3. INTEGRIDADE"
+                          subtitle="Anti-objective-hacking (sandbox + safety gate)"
+                          valid={proof.integrity.valid}
+                          details={[
+                            { label: 'Safety Gate', value: proof.integrity.safetyGatePassed ? 'PASSED' : 'FAILED' },
+                            { label: 'Safety Hash', value: proof.integrity.safetyHash },
+                            { label: 'Sandbox', value: proof.integrity.sandboxPassed ? 'PASSED' : 'FAILED' },
+                            { label: 'Sandbox Hash', value: proof.integrity.sandboxHash },
+                            { label: 'Sandbox Duration', value: `${proof.integrity.sandboxDurationMs}ms` },
+                            { label: 'Pre-Apply Validation', value: proof.integrity.preApplyValidation ? 'SIM (antes do commit)' : 'NAO' },
+                          ]}
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
             {/* Proof Hashes tab */}
             {activeTab === 'hashes' && (
               <div style={{ padding: '14px' }}>
@@ -315,6 +437,16 @@ export const DGMTestPanel: React.FC = () => {
                     {v.diagnosisHash && <HashBlock label="diagnosisHash" value={v.diagnosisHash} />}
                     {v.modificationHash && <HashBlock label="modificationHash" value={v.modificationHash} />}
                     {v.benchmarkHash && <HashBlock label="benchmarkHash" value={v.benchmarkHash} />}
+                    {v.sandboxHash && <HashBlock label="sandboxHash" value={v.sandboxHash} />}
+                    {v.sandboxPassed !== undefined && (
+                      <div style={{ fontSize: '10px', marginTop: '2px' }}>
+                        <span style={{ color: '#6060a0' }}>sandbox: </span>
+                        <span style={{ color: v.sandboxPassed ? '#4aff9e' : '#ff6060', fontWeight: 700 }}>
+                          {v.sandboxPassed ? 'PASSED' : 'FAILED'}
+                        </span>
+                        {v.sandboxType && <span style={{ color: '#4040a0' }}> ({v.sandboxType})</span>}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -433,6 +565,53 @@ const HashBlock: React.FC<{ label: string; value: string }> = ({ label, value })
     }}>
       {value}
     </code>
+  </div>
+);
+
+const ProofSection: React.FC<{
+  title: string;
+  subtitle: string;
+  valid: boolean;
+  details: Array<{ label: string; value: string }>;
+  verdictColor?: string;
+}> = ({ title, subtitle, valid, details, verdictColor }) => (
+  <div style={{
+    marginBottom: '12px',
+    padding: '10px',
+    background: 'rgba(255,255,255,0.02)',
+    borderRadius: '6px',
+    borderLeft: `3px solid ${valid ? '#4aff9e' : '#ff6060'}`,
+  }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+      <div>
+        <span style={{ color: '#e0e0ff', fontWeight: 700, fontSize: '11px' }}>{title}</span>
+        <span style={{ color: '#4040a0', fontSize: '9px', marginLeft: '8px' }}>{subtitle}</span>
+      </div>
+      <span style={{
+        color: valid ? '#4aff9e' : '#ff6060',
+        fontSize: '10px', fontWeight: 700,
+      }}>
+        {valid ? 'VALIDO' : 'INVALIDO'}
+      </span>
+    </div>
+    {details.map(d => (
+      <div key={d.label} style={{
+        display: 'flex', justifyContent: 'space-between', padding: '2px 0',
+        fontSize: '10px',
+      }}>
+        <span style={{ color: '#6060a0' }}>{d.label}</span>
+        <span style={{
+          color: verdictColor && d.label === 'Veredicto' ? verdictColor :
+                 d.value.length > 20 ? '#4aff9e' : '#e0e0ff',
+          fontWeight: d.label === 'Veredicto' || d.label === 'Deterministico' ? 700 : 400,
+          maxWidth: '400px', wordBreak: 'break-all', textAlign: 'right',
+          fontFamily: d.value.length > 20 ? 'monospace' : 'inherit',
+          fontSize: d.value.length > 40 ? '9px' : '10px',
+        }}>
+          {d.value}
+        </span>
+      </div>
+    ))}
   </div>
 );
 

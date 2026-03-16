@@ -89,9 +89,48 @@ async function main() {
     }
 
     console.log('');
+    console.log('━━━ FASE 5: PROVAS CIENTÍFICAS (Sakana AI DGM Criteria) ━━━━━━');
+    console.log('');
+    for (const [i, proof] of result.scientificProofs.entries()) {
+      console.log(`  ┌─── Prova Científica #${i + 1} ─── ${proof.overallValid ? 'VÁLIDA' : 'INVÁLIDA'} ───┐`);
+      console.log(`  │`);
+      console.log(`  │ 1. REPRODUTIBILIDADE (hash chain determinístico):`);
+      console.log(`  │    Parent Hash:     ${proof.reproducibility.parentProofHash}`);
+      console.log(`  │    Modification:    ${proof.reproducibility.modificationHash}`);
+      console.log(`  │    Child Hash:      ${proof.reproducibility.childProofHash}`);
+      console.log(`  │    Recomputed:      ${proof.reproducibility.recomputedChildHash}`);
+      console.log(`  │    Determinístico:  ${proof.reproducibility.hashesMatch ? 'SIM' : 'NÃO'}`);
+      console.log(`  │    Válido:          ${proof.reproducibility.valid ? '✓' : '✗'}`);
+      console.log(`  │`);
+      console.log(`  │ 2. GANHO EMPÍRICO (before/after benchmark):`);
+      console.log(`  │    Parent Accuracy: ${(proof.empiricalGain.parentAccuracy * 100).toFixed(1)}% (${proof.empiricalGain.parentResolvedCount}/${proof.empiricalGain.benchmarkSize})`);
+      console.log(`  │    Child Accuracy:  ${(proof.empiricalGain.childAccuracy * 100).toFixed(1)}% (${proof.empiricalGain.childResolvedCount}/${proof.empiricalGain.benchmarkSize})`);
+      console.log(`  │    Delta:           ${proof.empiricalGain.delta >= 0 ? '+' : ''}${(proof.empiricalGain.delta * 100).toFixed(1)}pp`);
+      console.log(`  │    Veredicto:       ${proof.empiricalGain.verdict.toUpperCase()}`);
+      console.log(`  │    Válido:          ${proof.empiricalGain.valid ? '✓' : '✗'}`);
+      console.log(`  │`);
+      console.log(`  │ 3. INTEGRIDADE (anti-objective-hacking):`);
+      console.log(`  │    Safety Gate:     ${proof.integrity.safetyGatePassed ? 'PASSED' : 'FAILED'}`);
+      console.log(`  │    Safety Hash:     ${proof.integrity.safetyHash}`);
+      console.log(`  │    Sandbox:         ${proof.integrity.sandboxPassed ? 'PASSED' : 'FAILED'}`);
+      console.log(`  │    Sandbox Hash:    ${proof.integrity.sandboxHash}`);
+      console.log(`  │    Sandbox Duration:${proof.integrity.sandboxDurationMs}ms`);
+      console.log(`  │    Pre-Apply:       ${proof.integrity.preApplyValidation ? 'SIM (antes do commit)' : 'NÃO'}`);
+      console.log(`  │    Válido:          ${proof.integrity.valid ? '✓' : '✗'}`);
+      console.log(`  │`);
+      console.log(`  └─── Overall: ${proof.overallValid ? '✓ PROVA VÁLIDA' : '✗ PROVA INVÁLIDA'} ───┘`);
+      console.log('');
+    }
+
+    if (result.scientificProofs.length === 0) {
+      console.log('  Nenhuma prova gerada (nenhum filho compilado)');
+    }
+
+    console.log('');
     console.log('╔═══════════════════════════════════════════════════════════════╗');
     console.log(`║  EXECUÇÃO COMPLETA — ${elapsed}s                              `);
     console.log(`║  Archive Hash: ${archive.archiveHash.slice(0, 48)}...`);
+    console.log(`║  Provas: ${result.scientificProofs.length} gerada(s), ${result.scientificProofs.filter(p => p.overallValid).length} válida(s)`);
     console.log('╚═══════════════════════════════════════════════════════════════╝');
     console.log('');
 
