@@ -83,9 +83,14 @@ export class SandboxExecutor {
     const startTime = Date.now();
 
     try {
+      // Strip TypeScript-only syntax (interfaces, type aliases, type annotations)
+      // so Node.js can execute the code as plain JavaScript.
+      // DGM-generated code is TypeScript — we need to transpile or strip types.
+      const jsCode = stripTypeScriptSyntax(code);
+
       // Write code to isolated file
       const codeFile = path.join(workDir, "dgm-proposal.mjs");
-      await fs.writeFile(codeFile, code, "utf-8");
+      await fs.writeFile(codeFile, jsCode, "utf-8");
 
       // Execute with timeout and memory limit
       const { stdout, stderr } = await execFileAsync(
@@ -211,6 +216,31 @@ export class SandboxExecutor {
       console.warn(`[SandboxExecutor] Failed to cleanup: ${workDir}`);
     }
   }
+}
+
+/**
+ * Strip TypeScript-only syntax so Node.js can execute the code as plain JS.
+ * Removes: interface/type declarations, type annotations, 'export type', generics on calls.
+ * Preserves runtime logic (functions, classes, variables, expressions).
+ */
+function stripTypeScriptSyntax(code: string): string {
+  return code
+    // Remove full 'export interface Foo { ... }' blocks (handles multi-line)
+    .replace(/export\s+interface\s+\w+\s*\{[^}]*\}/g, '')
+    // Remove full 'interface Foo { ... }' blocks
+    .replace(/\binterface\s+\w+\s*\{[^}]*\}/g, '')
+    // Remove 'export type Foo = ...' lines
+    .replace(/export\s+type\s+\w+\s*=[^;]+;/g, '')
+    // Remove 'type Foo = ...' lines
+    .replace(/\btype\s+\w+\s*=[^;]+;/g, '')
+    // Remove ': TypeName' annotations from parameters and variables (simple cases)
+    .replace(/:\s*(?:string|number|boolean|void|any|unknown|never|null|undefined|Record<[^>]+>|Promise<[^>]+>|Array<[^>]+>|\w+(?:\[\])?)\s*([,)=;{])/g, '$1')
+    // Remove 'as TypeName' casts
+    .replace(/\bas\s+\w+(?:<[^>]+>)?\b/g, '')
+    // Remove standalone 'export type { ... }' re-exports
+    .replace(/export\s+type\s*\{[^}]*\}\s*;?/g, '')
+    // Clean up empty lines left behind
+    .replace(/\n{3,}/g, '\n\n');
 }
 
 // Singleton instance for server-wide use

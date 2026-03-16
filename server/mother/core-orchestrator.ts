@@ -605,8 +605,9 @@ async function layer4_neuralGeneration(
     const gpt4oController = new AbortController();
     const gpt4oTimer = setTimeout(() => gpt4oController.abort(), gpt4oBudget);
     try {
+      const gpt4oMaxTokens = Math.min(routing.maxTokens ?? 16384, 16384); // GPT-4o max is 16384
       const gpt4oResponse = await callProvider(
-        'openai', 'gpt-4o', messages, routing.temperature, routing.maxTokens, req.onChunk, gpt4oController.signal,
+        'openai', 'gpt-4o', messages, routing.temperature, gpt4oMaxTokens, req.onChunk, gpt4oController.signal,
       );
       clearTimeout(gpt4oTimer);
       console.log(`[Orchestrator] C349 gpt-4o succeeded in ${Date.now() - totalBudgetStart}ms (budget reserve applied)`);

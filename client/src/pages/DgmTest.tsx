@@ -65,6 +65,143 @@ const STEP_COLORS: Record<string, string> = {
   waiting: '#ffa04a',
 };
 
+/* ── Live Activity Rotating Messages ── */
+const ACTIVITY_MESSAGES: Record<string, string[]> = {
+  init: [
+    'Selecionando agente-pai do arquivo MAP-Elites...',
+    'Preparando operador de mutacao...',
+    'Calculando hash de inicializacao SHA-256...',
+    'Configurando parametros de evolucao...',
+  ],
+  diagnose: [
+    'Analisando pipeline para identificar fraquezas...',
+    'Executando queries do benchmark no agente-pai...',
+    'Comparando metricas de qualidade...',
+    'Formulando problem statement cientifico...',
+    'Consultando papers relevantes (arXiv)...',
+    'Classificando tipo de deficiencia encontrada...',
+  ],
+  modify: [
+    'LLM gerando modificacao de codigo...',
+    'Aplicando principios de Self-Referential Improvement...',
+    'Avaliando trade-offs de complexidade vs ganho...',
+    'Escrevendo patch para arquivo alvo...',
+    'Verificando coerencia com arquitetura existente...',
+    'Adicionando base cientifica ao rationale...',
+  ],
+  safety: [
+    'Verificando acesso a credenciais...',
+    'Analisando loops infinitos potenciais...',
+    'Checando delecao de arquivos criticos...',
+    'Validando escopo de modificacao permitido...',
+    'Aplicando Constitutional AI (arXiv:2212.08073)...',
+  ],
+  fitness: [
+    'Avaliando corretude do codigo...',
+    'Medindo robustez e tratamento de erros...',
+    'Calculando complexidade ciclomatica...',
+    'Analisando seguranca (OWASP top 10)...',
+    'Verificando testabilidade...',
+    'Computando score multi-dimensional (7 eixos)...',
+  ],
+  sandbox: [
+    'Criando sandbox isolado E2B...',
+    'Compilando TypeScript no ambiente seguro...',
+    'Executando validacao de sintaxe...',
+    'Verificando efeitos colaterais...',
+    'Testando imports e exports...',
+    'Rodando verificacao de integridade...',
+  ],
+  proposal: [
+    'Aguardando aprovacao humana...',
+    'Proposta pronta para revisao...',
+    'Human-in-the-loop ativo...',
+  ],
+  evaluate: [
+    'Executando benchmark completo...',
+    'Testando queries uma a uma...',
+    'Medindo qualidade G-Eval por resposta...',
+    'Comparando accuracy vs agente-pai...',
+    'Calculando ganho empirico...',
+  ],
+  complete: [
+    'Finalizando prova criptografica...',
+    'Salvando variante no arquivo MAP-Elites...',
+    'Gerando hash final de verificacao...',
+  ],
+};
+
+function LiveActivityBanner({ currentStep, isRunning }: { currentStep: string | null; isRunning: boolean }) {
+  const [msgIndex, setMsgIndex] = useState(0);
+  const [opacity, setOpacity] = useState(1);
+
+  useEffect(() => {
+    if (!isRunning || !currentStep) return;
+    const messages = ACTIVITY_MESSAGES[currentStep];
+    if (!messages || messages.length === 0) return;
+
+    setMsgIndex(0);
+    setOpacity(1);
+
+    const interval = setInterval(() => {
+      // Fade out
+      setOpacity(0);
+      setTimeout(() => {
+        setMsgIndex(prev => (prev + 1) % messages.length);
+        // Fade in
+        setOpacity(1);
+      }, 300);
+    }, 2800);
+
+    return () => clearInterval(interval);
+  }, [currentStep, isRunning]);
+
+  if (!isRunning || !currentStep) return null;
+
+  const messages = ACTIVITY_MESSAGES[currentStep];
+  if (!messages || messages.length === 0) return null;
+
+  const stepLabel = currentStep === 'init' ? 'INICIALIZANDO' : currentStep === 'diagnose' ? 'DIAGNOSTICANDO' : currentStep === 'modify' ? 'GERANDO CODIGO' : currentStep === 'safety' ? 'SAFETY GATE' : currentStep === 'fitness' ? 'FITNESS CHECK' : currentStep === 'sandbox' ? 'SANDBOX' : currentStep === 'proposal' ? 'APROVACAO' : currentStep === 'evaluate' ? 'BENCHMARK' : 'FINALIZANDO';
+
+  return (
+    <div style={{
+      margin: '12px 12px 0', padding: '10px 16px', borderRadius: '8px',
+      background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(74, 158, 255, 0.08))',
+      border: '1px solid rgba(139, 92, 246, 0.2)',
+      display: 'flex', alignItems: 'center', gap: '12px',
+    }}>
+      {/* Animated spinner */}
+      <div style={{
+        width: '28px', height: '28px', borderRadius: '50%',
+        border: '2px solid transparent',
+        borderTopColor: '#8b5cf6', borderRightColor: '#4a9eff',
+        animation: 'spin 1s linear infinite', flexShrink: 0,
+      }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: '10px', fontWeight: 700, color: '#8b5cf6',
+          textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px',
+        }}>
+          {stepLabel}
+        </div>
+        <div style={{
+          fontSize: '12px', color: '#c0c0e0',
+          transition: 'opacity 0.3s ease',
+          opacity,
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
+          {messages[msgIndex % messages.length]}
+        </div>
+      </div>
+      {/* Pulsing dot */}
+      <div style={{
+        width: '8px', height: '8px', borderRadius: '50%',
+        background: '#4aff9e', animation: 'pulse 1.5s infinite', flexShrink: 0,
+      }} />
+    </div>
+  );
+}
+
 export default function DgmTest() {
   const navigate = useNavigate();
   const [customQueries, setCustomQueries] = useState('');
@@ -147,6 +284,7 @@ export default function DgmTest() {
   const pendingProposals = (proposalsQuery.data ?? []) as DGMProposal[];
   const currentProposal = pendingProposals[0] ?? null;
   const lastStep = events.length > 0 ? events[events.length - 1] : null;
+  const activeStep = isRunning && lastStep?.status === 'start' ? lastStep.step : (isRunning && lastStep ? lastStep.step : null);
 
   return (
     <div style={{ minHeight: '100vh', background: '#08081a', color: '#e0e0ff', fontFamily: 'monospace' }}>
@@ -229,7 +367,7 @@ export default function DgmTest() {
                     <div style={{ fontSize: '11px', fontWeight: 600, color: status === 'pending' ? '#4040a0' : '#e0e0ff', textTransform: 'uppercase' }}>
                       {step === 'init' ? 'Inicializar' : step === 'diagnose' ? 'Diagnosticar' : step === 'modify' ? 'Gerar Codigo' : step === 'safety' ? 'Safety Gate' : step === 'fitness' ? 'Fitness Check' : step === 'sandbox' ? 'Sandbox' : step === 'proposal' ? 'Aprovacao Humana' : step === 'evaluate' ? 'Benchmark' : 'Concluido'}
                     </div>
-                    {lastEvent && <div style={{ fontSize: '9px', color: STEP_COLORS[status] ?? '#4040a0', marginTop: '1px' }}>{lastEvent.message.slice(0, 80)}</div>}
+                    {lastEvent && <div style={{ fontSize: '9px', color: STEP_COLORS[status] ?? '#4040a0', marginTop: '1px' }}>{(lastEvent.message.split('\n\n')[0] || lastEvent.message).slice(0, 100)}</div>}
                   </div>
                 </div>
               );
@@ -246,6 +384,9 @@ export default function DgmTest() {
               Erro: {error}
             </div>
           )}
+
+          {/* Live Activity Banner */}
+          <LiveActivityBanner currentStep={activeStep} isRunning={isRunning || pollEnabled} />
 
           {/* Empty state */}
           {events.length === 0 && !isRunning && !error && (
@@ -355,28 +496,46 @@ export default function DgmTest() {
                 flex: 1, background: '#0a0a16', borderRadius: '8px', border: '1px solid #2d2d4e',
                 padding: '10px', overflowY: 'auto', maxHeight: currentProposal ? '200px' : '500px',
               }}>
-                {events.map((ev, i) => (
-                  <div key={i} style={{
-                    padding: '4px 8px', marginBottom: '2px', borderRadius: '4px',
-                    borderLeft: `3px solid ${STEP_COLORS[ev.status] ?? '#4040a0'}`,
-                    background: ev.status === 'fail' ? 'rgba(255,96,96,0.05)' : ev.status === 'waiting' ? 'rgba(255,160,74,0.05)' : 'transparent',
-                  }}>
-                    <span style={{ color: '#4040a0', fontSize: '9px' }}>
-                      {new Date(ev.timestamp).toLocaleTimeString()}
-                    </span>
-                    <span style={{
-                      marginLeft: '8px', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase',
-                      color: STEP_COLORS[ev.status] ?? '#6060a0',
-                      padding: '1px 4px', borderRadius: '3px',
-                      background: ev.status === 'success' ? 'rgba(74,255,158,0.1)' : ev.status === 'fail' ? 'rgba(255,96,96,0.1)' : ev.status === 'waiting' ? 'rgba(255,160,74,0.1)' : 'transparent',
+                {events.map((ev, i) => {
+                  const messageParts = ev.message.split('\n\n');
+                  const title = messageParts[0] || '';
+                  const detail = messageParts.slice(1).join('\n\n');
+                  return (
+                    <div key={i} style={{
+                      padding: '8px 10px', marginBottom: '6px', borderRadius: '6px',
+                      borderLeft: `3px solid ${STEP_COLORS[ev.status] ?? '#4040a0'}`,
+                      background: ev.status === 'fail' ? 'rgba(255,96,96,0.06)' : ev.status === 'waiting' ? 'rgba(255,160,74,0.06)' : ev.status === 'success' ? 'rgba(74,255,158,0.03)' : 'rgba(255,255,255,0.01)',
                     }}>
-                      {ev.step}:{ev.status}
-                    </span>
-                    <span style={{ marginLeft: '8px', fontSize: '11px', color: '#c0c0e0' }}>
-                      {ev.message}
-                    </span>
-                  </div>
-                ))}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: detail ? '4px' : 0 }}>
+                        <span style={{ color: '#4040a0', fontSize: '9px', flexShrink: 0 }}>
+                          {new Date(ev.timestamp).toLocaleTimeString()}
+                        </span>
+                        <span style={{
+                          fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', flexShrink: 0,
+                          color: STEP_COLORS[ev.status] ?? '#6060a0',
+                          padding: '1px 5px', borderRadius: '3px',
+                          background: ev.status === 'success' ? 'rgba(74,255,158,0.1)' : ev.status === 'fail' ? 'rgba(255,96,96,0.1)' : ev.status === 'waiting' ? 'rgba(255,160,74,0.1)' : 'transparent',
+                        }}>
+                          {ev.step}:{ev.status}
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#e0e0ff', fontWeight: 600 }}>
+                          {title}
+                        </span>
+                      </div>
+                      {detail && (
+                        <div style={{ fontSize: '10px', color: '#9090b8', lineHeight: 1.6, marginLeft: '2px', marginTop: '2px', whiteSpace: 'pre-wrap' }}>
+                          {detail}
+                        </div>
+                      )}
+                      {ev.data && (ev.data.hash || ev.data.score || ev.data.dimensions) && (
+                        <div style={{ marginTop: '3px', fontSize: '9px', color: '#4a4a6a' }}>
+                          {ev.data.hash && <>Hash: <code style={{ color: '#6a6aff' }}>{String(ev.data.hash).slice(0, 16)}...</code> </>}
+                          {ev.data.score != null && <>Score: <strong style={{ color: ev.data.score as number >= 50 ? '#4aff9e' : '#ff6060' }}>{String(ev.data.score)}/100</strong> </>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
                 {isRunning && !currentProposal && (
                   <div style={{ padding: '4px 8px', color: '#4a9eff', fontSize: '11px' }}>
                     &#x21BB; Processando...
@@ -410,6 +569,7 @@ export default function DgmTest() {
 
       <style>{`
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
       `}</style>
     </div>
   );
