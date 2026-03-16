@@ -125,24 +125,29 @@ async function runInE2BSandbox(options: {
       };
     }
 
-    // E2B tsc compilation failed — this often happens because DGM-generated code
-    // imports project-internal modules that don't exist in the isolated sandbox.
-    // Fall back to lenient syntax validation (same as when E2B_API_KEY is not set).
-    // Scientific basis: SICA (arXiv:2504.15228) — "graduated validation: syntax first,
-    // then semantics, prevents false rejections in isolated environments"
-    log.warn('E2B: tsc failed in sandbox, falling back to lenient syntax check', {
-      sandboxId, filePath, error: error.slice(0, 200),
+    // E2B tsc failed — reject the proposal. No lenient fallback.
+    // This matches the strict validation in self-modifier.ts (tsc --noEmit)
+    // which would rollback the code anyway if it doesn't compile.
+    log.warn('E2B: tsc failed in sandbox — proposal REJECTED (no lenient fallback)', {
+      sandboxId, filePath, error: error.slice(0, 500),
     });
-    const fallbackResult = await runTypeScriptCheck({ code: options.code, filePath: options.filePath, startTime });
-    fallbackResult.sandboxType = 'e2b+tsc-fallback';
-    fallbackResult.sandboxId = sandboxId;
-    if (fallbackResult.passed) {
-      fallbackResult.output = `E2B tsc failed (import resolution in sandbox), but syntax validation PASSED.\n${error.slice(0, 300)}`;
-    }
-    return fallbackResult;
+    return {
+      passed: false,
+      output: `TypeScript compilation FAILED in E2B sandbox:\n${error.slice(0, 1000)}`,
+      error: error || 'tsc --noEmit failed',
+      executionTimeMs: Date.now() - startTime,
+      sandboxType: 'e2b',
+      sandboxId,
+    };
   } catch (err) {
-    log.warn('E2B: Sandbox execution failed, falling back to tsc check', { error: String(err) });
-    return runTypeScriptCheck({ code: options.code, filePath: options.filePath, startTime });
+    log.warn('E2B: Sandbox execution failed — proposal REJECTED', { error: String(err) });
+    return {
+      passed: false,
+      output: `E2B sandbox execution error: ${String(err)}`,
+      error: String(err),
+      executionTimeMs: Date.now() - startTime,
+      sandboxType: 'e2b',
+    };
   }
 }
 

@@ -349,7 +349,7 @@ export default function DgmTest() {
     setExpiredMsg(null);
     resolveMutation.mutate({ proposalId, approved: true }, {
       onSuccess: (data) => {
-        if (!data.resolved) setExpiredMsg('Esta proposta ja expirou ou foi auto-aprovada por timeout. Seu clique nao teve efeito.');
+        if (!data.resolved) setExpiredMsg('Proposta nao encontrada no servidor. O servidor pode ter reiniciado. Rode o pipeline novamente.');
       },
       onError: (err) => console.error('[DGM] Failed to approve:', err.message),
     });
@@ -358,7 +358,7 @@ export default function DgmTest() {
     setExpiredMsg(null);
     resolveMutation.mutate({ proposalId, approved: false }, {
       onSuccess: (data) => {
-        if (!data.resolved) setExpiredMsg('Esta proposta ja expirou ou foi auto-aprovada por timeout. Sua rejeicao nao teve efeito.');
+        if (!data.resolved) setExpiredMsg('Proposta nao encontrada no servidor. O servidor pode ter reiniciado. Rode o pipeline novamente.');
       },
       onError: (err) => console.error('[DGM] Failed to reject:', err.message),
     });

@@ -34,6 +34,7 @@ import { createLogger } from '../_core/logger';
 import { getDb } from '../db';
 import { sandboxExecutor } from '../dgm/sandbox-executor';
 import { runInSandbox } from './e2b-sandbox';
+import { validateTypeScript, MOTHER_DIR } from './self-modifier';
 import { sql } from 'drizzle-orm';
 import { processQuery } from './core';
 import { orchestrate as coreOrchestrate } from './core-orchestrator';
@@ -1081,11 +1082,11 @@ async function selfImproveStep(
         sandboxResult.sandboxType = `${sandboxResult.sandboxType}+imports-skip`;
       }
     } catch (sandboxErr) {
-      // Sandbox failure is NOT fatal — log and continue with warning
-      log.warn(`[SELF-IMPROVE] Sandbox execution error (non-fatal): ${sandboxErr}`);
+      // Sandbox failure IS fatal — code that can't be validated must be rejected
+      log.warn(`[SELF-IMPROVE] Sandbox execution error (FATAL): ${sandboxErr}`);
       sandboxResult = {
-        passed: true, // non-fatal: allow pipeline to continue
-        output: `Sandbox unavailable: ${sandboxErr}`,
+        passed: false,
+        output: `Sandbox error: ${sandboxErr}`,
         error: String(sandboxErr),
         durationMs: 0,
         sandboxType: 'unavailable',
@@ -1104,10 +1105,57 @@ async function selfImproveStep(
     }
     emitDGMEvent({ step: 'sandbox', status: 'success', message: `[Passo 5 — SANDBOX APROVADO] Tipo: ${sandboxResult.sandboxType}, Duração: ${sandboxResult.durationMs}ms.\n\n` +
       `Resultado: Código compilou e passou na validação do sandbox. Hash SHA-256: ${sandboxHash.slice(0, 16)}... ` +
-      `Próximo passo: apresentação da proposta para aprovação humana (Human-in-the-Loop).`,
+      `Próximo passo: validação local tsc --noEmit antes da aprovação humana.`,
       timestamp: new Date().toISOString(), data: { type: sandboxResult.sandboxType, durationMs: sandboxResult.durationMs, hash: sandboxHash } });
 
-    // Step 5: HUMAN APPROVAL — Present proposal to user before applying
+    // Step 5.5: LOCAL TSC GATE — Validate with the same tsc --noEmit used by self-modifier.ts
+    // This prevents proposals that pass E2B (isolated) but fail locally (with full project context)
+    {
+      const fs = await import('fs');
+      const path = await import('path');
+      const targetPath = path.join(MOTHER_DIR, modification.targetFile);
+      const backupCode = fs.existsSync(targetPath) ? fs.readFileSync(targetPath, 'utf-8') : null;
+      try {
+        // Temporarily write proposed code to validate against the full project
+        fs.writeFileSync(targetPath, modification.proposedCode, 'utf-8');
+        const tsResult = validateTypeScript(MOTHER_DIR);
+        // Always restore original regardless of result
+        if (backupCode !== null) {
+          fs.writeFileSync(targetPath, backupCode, 'utf-8');
+        } else {
+          fs.unlinkSync(targetPath);
+        }
+        if (!tsResult.valid) {
+          emitDGMEvent({
+            step: 'sandbox',
+            status: 'fail',
+            message: `[Passo 5.5 — TSC LOCAL REJEITOU] O código passou no sandbox isolado mas falhou na compilação local (tsc --noEmit).\n\n` +
+              `Erros: ${tsResult.errors.slice(0, 3).join('; ')}.\n` +
+              `Esta validação garante consistência com o self-modifier.ts — apenas código que compila no projeto real é aceito.`,
+            timestamp: new Date().toISOString(),
+            data: { errors: tsResult.errors.slice(0, 5), targetFile: modification.targetFile },
+          });
+          log.warn(`[SELF-IMPROVE] Local tsc --noEmit FAILED for ${modification.targetFile}: ${tsResult.errors[0]}`);
+          return null;
+        }
+        log.info(`[SELF-IMPROVE] Local tsc --noEmit PASSED for ${modification.targetFile}`);
+      } catch (tscErr) {
+        // Restore on error
+        if (backupCode !== null) {
+          fs.writeFileSync(targetPath, backupCode, 'utf-8');
+        }
+        emitDGMEvent({
+          step: 'sandbox',
+          status: 'fail',
+          message: `[Passo 5.5 — TSC LOCAL ERRO] Erro ao validar compilação local: ${String(tscErr).slice(0, 200)}`,
+          timestamp: new Date().toISOString(),
+        });
+        log.warn(`[SELF-IMPROVE] Local tsc validation error: ${tscErr}`);
+        return null;
+      }
+    }
+
+    // Step 6: HUMAN APPROVAL — Present proposal to user before applying
     // C358: Parse full diagnosis JSON for rich proposal context
     let diagnosisParsed: { scientificBasis?: string; proposedFix?: string; problem?: string; rootCause?: string; expectedImprovement?: string; targetFile?: string } = {};
     try { const m = problemStatement.match(/\{[\s\S]*\}/); if (m) diagnosisParsed = JSON.parse(m[0]); } catch { /* ignore */ }
@@ -1177,29 +1225,14 @@ async function selfImproveStep(
       message: `[Passo 6 — APROVAÇÃO HUMANA] Proposta pronta para revisão: ${modification.targetFile}.\n\n` +
         `Metodologia: Human-in-the-Loop (HITL) — DGM §3.5. O sistema apresenta a proposta com: código original vs proposto, ` +
         `justificativa científica, parecer de fitness (${fitnessResult.overall}/100), e resultado do sandbox (${sandboxResult.sandboxType}). ` +
-        `O humano pode APROVAR (aplica a modificação) ou REJEITAR (descarta a variante). Timeout: 5 minutos → auto-aprovação.`,
+        `O humano DEVE aprovar ou rejeitar manualmente. Nao ha timeout — a proposta aguarda indefinidamente.`,
       timestamp: new Date().toISOString(),
       data: { proposal: proposalForReview },
     });
 
-    // Wait for human approval (30min timeout — gives human ample time to review)
+    // Wait for human approval — NO timeout. Proposal stays pending until human decides.
     const humanApproved = await new Promise<boolean>((resolve) => {
       pendingProposals.set(proposalForReview.id, { proposal: proposalForReview, resolve });
-      // Auto-approve after 30 minutes if no human response (for background DGM runs)
-      setTimeout(() => {
-        if (pendingProposals.has(proposalForReview.id)) {
-          pendingProposals.delete(proposalForReview.id);
-          emitDGMEvent({
-            step: 'proposal',
-            status: 'success',
-            message: `[Passo 6 — AUTO-APROVADA POR TIMEOUT] Nenhuma resposta humana em 30 minutos. Proposta auto-aprovada.`,
-            timestamp: new Date().toISOString(),
-            data: { proposalId: proposalForReview.id, reason: 'timeout' },
-          });
-          log.info(`[PROPOSAL] Auto-approved after 30min timeout: ${proposalForReview.id}`);
-          resolve(true);
-        }
-      }, 30 * 60 * 1000);
     });
 
     if (!humanApproved) {
