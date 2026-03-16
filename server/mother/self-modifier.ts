@@ -284,49 +284,26 @@ export async function applyProposal(proposalId: string): Promise<SelfModificatio
 
   const targetPath = path.join(MOTHER_DIR, proposal.targetFile);
 
+  // Read backup BEFORE writing — guarantees we can restore on any failure
+  const backupCode = existsSync(targetPath) ? readFileSync(targetPath, 'utf-8') : null;
+  let tsValid = false;
+  let tsErrors: string[] = [];
+
   try {
     // Write proposed code
     writeFileSync(targetPath, proposal.proposedCode, 'utf-8');
 
     // Validate TypeScript
     const tsResult = validateTypeScript(MOTHER_DIR);
-    if (!tsResult.valid) {
-      // Rollback
-      if (existsSync(targetPath)) {
-        // Restore from git
-        execSync(`git checkout -- "${proposal.targetFile}"`, { cwd: MOTHER_DIR, stdio: 'pipe' });
-      }
-      proposal.validationResult = 'failed';
-      return {
-        success: false,
-        proposalId,
-        targetFile: proposal.targetFile,
-        action: 'rejected',
-        reason: `TypeScript validation failed: ${tsResult.errors.slice(0, 3).join('; ')}`,
-        proofHash: createHash('sha256').update(`ts-failed:${proposalId}:${timestamp}`).digest('hex'),
-        timestamp,
-      };
-    }
-
-    proposal.validationResult = 'passed';
-    proposal.fitnessScore = 0.85; // Default; real score from benchmark
-
-    // Generate proof hash
-    const proofHash = createHash('sha256')
-      .update(`${proposal.targetFile}:${proposal.proposedHash}:${timestamp}:MOTHER-v80.0`)
-      .digest('hex');
-
-    return {
-      success: true,
-      proposalId,
-      targetFile: proposal.targetFile,
-      action: 'applied',
-      reason: 'All safety gates passed, TypeScript valid, code applied',
-      proofHash,
-      timestamp,
-    };
+    tsValid = tsResult.valid;
+    tsErrors = tsResult.errors;
   } catch (err: unknown) {
     const error = err as Error;
+    // Restore original before returning error
+    try {
+      if (backupCode !== null) writeFileSync(targetPath, backupCode, 'utf-8');
+      else execSync(`git checkout -- "${proposal.targetFile}"`, { cwd: MOTHER_DIR, stdio: 'pipe' });
+    } catch { /* restore failed — git checkout is last resort below */ }
     return {
       success: false,
       proposalId,
@@ -337,6 +314,48 @@ export async function applyProposal(proposalId: string): Promise<SelfModificatio
       timestamp,
     };
   }
+
+  if (!tsValid) {
+    // Rollback — restore original file content (crash-safe: backup is in memory)
+    try {
+      if (backupCode !== null) {
+        writeFileSync(targetPath, backupCode, 'utf-8');
+      } else {
+        execSync(`git checkout -- "${proposal.targetFile}"`, { cwd: MOTHER_DIR, stdio: 'pipe' });
+      }
+    } catch {
+      // Last resort: git checkout
+      try { execSync(`git checkout -- "${proposal.targetFile}"`, { cwd: MOTHER_DIR, stdio: 'pipe' }); } catch { /* file may be corrupted */ }
+    }
+    proposal.validationResult = 'failed';
+    return {
+      success: false,
+      proposalId,
+      targetFile: proposal.targetFile,
+      action: 'rejected',
+      reason: `TypeScript validation failed: ${tsErrors.slice(0, 3).join('; ')}`,
+      proofHash: createHash('sha256').update(`ts-failed:${proposalId}:${timestamp}`).digest('hex'),
+      timestamp,
+    };
+  }
+
+  proposal.validationResult = 'passed';
+  proposal.fitnessScore = 0.85; // Default; real score from benchmark
+
+  // Generate proof hash
+  const proofHash = createHash('sha256')
+    .update(`${proposal.targetFile}:${proposal.proposedHash}:${timestamp}:MOTHER-v80.0`)
+    .digest('hex');
+
+  return {
+    success: true,
+    proposalId,
+    targetFile: proposal.targetFile,
+    action: 'applied',
+    reason: 'All safety gates passed, TypeScript valid, code applied',
+    proofHash,
+    timestamp,
+  };
 }
 
 /**

@@ -986,11 +986,12 @@ async function selfImproveStep(
       try {
         fs.writeFileSync(targetPath, modification.proposedCode, 'utf-8');
         const tsResult = validateTypeScript(MOTHER_DIR);
-        if (backup !== null) fs.writeFileSync(targetPath, backup, 'utf-8');
-        else fs.unlinkSync(targetPath);
 
         if (tsResult.valid) {
           log.info(`[SELF-IMPROVE] tsc pre-check PASSED on attempt ${attempt}`);
+          // Restore original — applyProposal will write again later
+          if (backup !== null) fs.writeFileSync(targetPath, backup, 'utf-8');
+          else fs.unlinkSync(targetPath);
           break; // Good — proceed with this modification
         }
         // tsc failed — feed errors back for next attempt
@@ -998,9 +999,16 @@ async function selfImproveStep(
         log.warn(`[SELF-IMPROVE] tsc pre-check FAILED on attempt ${attempt}: ${tsResult.errors[0]}`);
         modification = null; // Mark as failed for this attempt
       } catch (preCheckErr) {
-        if (backup !== null) fs.writeFileSync(targetPath, backup, 'utf-8');
         log.warn(`[SELF-IMPROVE] tsc pre-check error on attempt ${attempt}: ${preCheckErr}`);
         modification = null;
+      } finally {
+        // ALWAYS restore original file — even if process is crashing
+        try {
+          if (backup !== null) fs.writeFileSync(targetPath, backup, 'utf-8');
+          else if (fs.existsSync(targetPath)) fs.unlinkSync(targetPath);
+        } catch (restoreErr) {
+          log.error(`[SELF-IMPROVE] CRITICAL: Failed to restore ${targetPath} after tsc pre-check: ${restoreErr}`);
+        }
       }
     }
     if (!modification) {
@@ -1153,44 +1161,49 @@ async function selfImproveStep(
       const path = await import('path');
       const targetPath = path.join(MOTHER_DIR, modification.targetFile);
       const backupCode = fs.existsSync(targetPath) ? fs.readFileSync(targetPath, 'utf-8') : null;
+      let tscPassed = false;
+      let tscErrors: string[] = [];
       try {
         // Temporarily write proposed code to validate against the full project
         fs.writeFileSync(targetPath, modification.proposedCode, 'utf-8');
         const tsResult = validateTypeScript(MOTHER_DIR);
-        // Always restore original regardless of result
-        if (backupCode !== null) {
-          fs.writeFileSync(targetPath, backupCode, 'utf-8');
-        } else {
-          fs.unlinkSync(targetPath);
-        }
-        if (!tsResult.valid) {
-          emitDGMEvent({
-            step: 'sandbox',
-            status: 'fail',
-            message: `[Passo 5.5 — TSC LOCAL REJEITOU] O código passou no sandbox isolado mas falhou na compilação local (tsc --noEmit).\n\n` +
-              `Erros: ${tsResult.errors.slice(0, 3).join('; ')}.\n` +
-              `Esta validação garante consistência com o self-modifier.ts — apenas código que compila no projeto real é aceito.`,
-            timestamp: new Date().toISOString(),
-            data: { errors: tsResult.errors.slice(0, 5), targetFile: modification.targetFile },
-          });
-          log.warn(`[SELF-IMPROVE] Local tsc --noEmit FAILED for ${modification.targetFile}: ${tsResult.errors[0]}`);
-          return null;
-        }
-        log.info(`[SELF-IMPROVE] Local tsc --noEmit PASSED for ${modification.targetFile}`);
+        tscPassed = tsResult.valid;
+        tscErrors = tsResult.errors;
       } catch (tscErr) {
-        // Restore on error
-        if (backupCode !== null) {
-          fs.writeFileSync(targetPath, backupCode, 'utf-8');
+        log.warn(`[SELF-IMPROVE] Local tsc validation error: ${tscErr}`);
+        tscPassed = false;
+        tscErrors = [String(tscErr)];
+      } finally {
+        // ALWAYS restore original file — crash-safe guarantee
+        try {
+          if (backupCode !== null) {
+            fs.writeFileSync(targetPath, backupCode, 'utf-8');
+          } else if (fs.existsSync(targetPath)) {
+            fs.unlinkSync(targetPath);
+          }
+        } catch (restoreErr) {
+          // Last resort: git checkout
+          log.error(`[SELF-IMPROVE] CRITICAL: Failed to restore ${modification.targetFile}, attempting git checkout: ${restoreErr}`);
+          try {
+            const { execSync } = await import('child_process');
+            execSync(`git checkout -- "${modification.targetFile}"`, { cwd: MOTHER_DIR, stdio: 'pipe' });
+          } catch { /* git checkout also failed — file may be corrupted */ }
         }
+      }
+      if (!tscPassed) {
         emitDGMEvent({
           step: 'sandbox',
           status: 'fail',
-          message: `[Passo 5.5 — TSC LOCAL ERRO] Erro ao validar compilação local: ${String(tscErr).slice(0, 200)}`,
+          message: `[Passo 5.5 — TSC LOCAL REJEITOU] O código passou no sandbox isolado mas falhou na compilação local (tsc --noEmit).\n\n` +
+            `Erros: ${tscErrors.slice(0, 3).join('; ')}.\n` +
+            `Esta validação garante consistência com o self-modifier.ts — apenas código que compila no projeto real é aceito.`,
           timestamp: new Date().toISOString(),
+          data: { errors: tscErrors.slice(0, 5), targetFile: modification.targetFile },
         });
-        log.warn(`[SELF-IMPROVE] Local tsc validation error: ${tscErr}`);
+        log.warn(`[SELF-IMPROVE] Local tsc --noEmit FAILED for ${modification.targetFile}: ${tscErrors[0]}`);
         return null;
       }
+      log.info(`[SELF-IMPROVE] Local tsc --noEmit PASSED for ${modification.targetFile}`);
     }
 
     // Step 6: HUMAN APPROVAL — Present proposal to user before applying
@@ -1929,9 +1942,45 @@ export const DEFAULT_BENCHMARK_MEDIUM: BenchmarkQuery[] = [
  *     archive = update_archive(archive, compiled, method)
  *     save_state(gen, archive)
  */
+/**
+ * Self-heal: restore any source files corrupted by DGM validation writes.
+ * If the process crashed between writeFileSync(proposedCode) and the backup restore,
+ * the source file will contain the LLM's proposed code instead of the original.
+ * This checks `git diff --name-only` for unexpected modifications and restores them.
+ */
+async function dgmSelfHeal(): Promise<void> {
+  try {
+    const { execSync } = await import('child_process');
+    // Get files modified in the working tree (unstaged changes)
+    const dirtyFiles = execSync('git diff --name-only', { cwd: MOTHER_DIR, stdio: 'pipe' })
+      .toString().trim().split('\n').filter(Boolean);
+
+    if (dirtyFiles.length === 0) return;
+
+    // Only restore server/ files — DGM only modifies server code
+    const serverFiles = dirtyFiles.filter(f => f.startsWith('server/'));
+    if (serverFiles.length === 0) return;
+
+    log.warn(`[DGM-SELF-HEAL] Found ${serverFiles.length} dirty source file(s) — likely from a crashed DGM validation. Restoring: ${serverFiles.join(', ')}`);
+    for (const file of serverFiles) {
+      try {
+        execSync(`git checkout -- "${file}"`, { cwd: MOTHER_DIR, stdio: 'pipe' });
+        log.info(`[DGM-SELF-HEAL] Restored ${file}`);
+      } catch (err) {
+        log.error(`[DGM-SELF-HEAL] Failed to restore ${file}: ${err}`);
+      }
+    }
+  } catch (err) {
+    log.warn(`[DGM-SELF-HEAL] Self-heal check failed (non-fatal): ${err}`);
+  }
+}
+
 export async function runDGMOuterLoop(
   config?: Partial<DGMConfig>,
 ): Promise<DGMRunState> {
+  // Self-heal: restore any files corrupted by a previous crashed DGM run
+  await dgmSelfHeal();
+
   const runId = `dgm-run-${Date.now()}`;
   const fullConfig: DGMConfig = {
     maxGenerations: config?.maxGenerations ?? MAX_GENERATIONS,
@@ -2059,6 +2108,9 @@ export async function runDGMOuterLoop(
 export async function runSingleGeneration(
   config?: Partial<DGMConfig>,
 ): Promise<GenerationResult> {
+  // Self-heal before starting — restore any files corrupted by a previous crashed run
+  await dgmSelfHeal();
+
   const fullConfig: DGMConfig = {
     maxGenerations: 1,
     selfImproveSize: config?.selfImproveSize ?? SELFIMPROVE_SIZE,
