@@ -41,7 +41,6 @@ import { orchestrate as coreOrchestrate } from './core-orchestrator';
 import { fitnessEvaluator } from './fitness-evaluator';
 import { checkSafetyGate } from './safety-gate';
 import { recordAuditEntry } from './audit-trail';
-import { createProposal, applyProposal } from './self-modifier';
 import { githubWriteService } from './github-write-service';
 
 const log = createLogger('DGM-TRUE');
@@ -1312,21 +1311,18 @@ async function selfImproveStep(
       });
       log.info(`[SELF-IMPROVE] GitHub PR created: #${result.pr.number} — ${result.pr.url}`);
     } catch (prErr) {
-      // GitHub PR creation failed — fall back to local applyProposal
-      log.warn(`[SELF-IMPROVE] GitHub PR creation failed: ${prErr}. Falling back to local apply.`);
-      emitDGMEvent({ step: 'proposal', status: 'fail', message: `[Passo 6 — PR FALHOU] Erro ao criar PR no GitHub: ${String(prErr).slice(0, 200)}.\n\nFallback: aplicando localmente via applyProposal.`, timestamp: new Date().toISOString() });
-
-      const proposal = createProposal({
-        targetFile: modification.targetFile,
-        proposedCode: modification.proposedCode,
-        rationale: modification.rationale,
-        expectedImprovement: `DGM self-improvement (arXiv:2505.22954), mutation=${entry.entryType}`,
+      // GitHub PR creation failed — DO NOT fall back to local writes.
+      // Local applyProposal() can corrupt source files (hipporag2.ts, intelligence.ts, etc.)
+      log.error(`[SELF-IMPROVE] GitHub PR creation failed: ${prErr}. Proposal DISCARDED (no local fallback).`);
+      emitDGMEvent({
+        step: 'proposal',
+        status: 'fail',
+        message: `[Passo 6 — PR FALHOU] Erro ao criar PR no GitHub: ${String(prErr).slice(0, 200)}.\n\n` +
+          `A proposta foi DESCARTADA. Não há fallback local — escrita direta nos arquivos fonte foi desabilitada ` +
+          `para prevenir corrupção. Configure GITHUB_TOKEN ou GITHUB_PAT no .env para habilitar o DGM.`,
+        timestamp: new Date().toISOString(),
       });
-      const applied = await applyProposal(proposal.id);
-      if (!applied) {
-        emitDGMEvent({ step: 'proposal', status: 'fail', message: `[Passo 6 — APLICAÇÃO LOCAL FALHOU] Não foi possível aplicar a proposta ${proposal.id}.`, timestamp: new Date().toISOString() });
-        return null;
-      }
+      return null;
     }
 
     // Step 6: EMPIRICAL EVALUATION — The core DGM innovation
