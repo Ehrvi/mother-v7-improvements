@@ -35,6 +35,8 @@ import { getDb } from '../db';
 import { sandboxExecutor } from '../dgm/sandbox-executor';
 import { runInSandbox } from './e2b-sandbox';
 import { validateTypeScript, validateTypeScriptInWorktree, MOTHER_DIR } from './self-modifier';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { sql } from 'drizzle-orm';
 import { processQuery } from './core';
 import { orchestrate as coreOrchestrate } from './core-orchestrator';
@@ -45,6 +47,84 @@ import { recordAuditEntry } from './audit-trail';
 import { githubWriteService } from './github-write-service';
 
 const log = createLogger('DGM-TRUE');
+
+// ─── C359: Import Pre-Validation ─────────────────────────────────────────────
+// Prevent gpt-4o from importing Python/non-existent modules (e.g. 'transformers', 'dpr-model')
+// by checking new imports against package.json before wasting a tsc worktree run.
+
+let _cachedPkgDeps: Set<string> | null = null;
+
+/** Get all dependency names from package.json (cached). */
+function getProjectDependencies(): Set<string> {
+  if (_cachedPkgDeps) return _cachedPkgDeps;
+  try {
+    const pkgPath = join(MOTHER_DIR, 'package.json');
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+    const deps = new Set<string>([
+      ...Object.keys(pkg.dependencies || {}),
+      ...Object.keys(pkg.devDependencies || {}),
+    ]);
+    // Also add Node.js built-in modules
+    const builtins = ['crypto', 'events', 'fs', 'path', 'os', 'url', 'util', 'stream',
+      'http', 'https', 'net', 'tls', 'dns', 'child_process', 'cluster', 'worker_threads',
+      'buffer', 'querystring', 'zlib', 'assert', 'timers', 'perf_hooks', 'process'];
+    for (const b of builtins) {
+      deps.add(b);
+      deps.add(`node:${b}`);
+    }
+    _cachedPkgDeps = deps;
+    return deps;
+  } catch {
+    return new Set();
+  }
+}
+
+/** Extract module names from import statements in code. */
+function extractImports(code: string): string[] {
+  const imports: string[] = [];
+  // Match: import ... from 'module' or import 'module'
+  const regex = /import\s+(?:.*?\s+from\s+)?['"]([^'"]+)['"]/g;
+  let match;
+  while ((match = regex.exec(code)) !== null) {
+    imports.push(match[1]);
+  }
+  return imports;
+}
+
+/**
+ * Validate that all new imports in proposedCode exist in the project.
+ * Returns { valid: true } or { valid: false, phantomImports: [...] }
+ */
+function validateImports(
+  originalCode: string,
+  proposedCode: string,
+): { valid: boolean; phantomImports: string[] } {
+  const originalImports = new Set(extractImports(originalCode));
+  const proposedImports = extractImports(proposedCode);
+  const deps = getProjectDependencies();
+  const phantomImports: string[] = [];
+
+  for (const imp of proposedImports) {
+    if (originalImports.has(imp)) continue; // Already existed
+    if (imp.startsWith('.') || imp.startsWith('/')) continue; // Relative import — tsc will check
+    // Get the package name (handle scoped packages like @foo/bar)
+    const pkgName = imp.startsWith('@') ? imp.split('/').slice(0, 2).join('/') : imp.split('/')[0];
+    if (!deps.has(pkgName)) {
+      phantomImports.push(imp);
+    }
+  }
+
+  return phantomImports.length === 0
+    ? { valid: true, phantomImports: [] }
+    : { valid: false, phantomImports };
+}
+
+/** Get a compact list of top installed packages for the LLM prompt. */
+function getAvailablePackagesSummary(): string {
+  const deps = getProjectDependencies();
+  const relevant = [...deps].filter(d => !d.startsWith('node:') && !d.startsWith('@types/'));
+  return relevant.slice(0, 80).join(', ');
+}
 
 // ─── DGM Event System ──────────────────────────────────────────────────────
 // Emits real-time events during the DGM pipeline for UI feedback.
@@ -986,6 +1066,23 @@ async function selfImproveStep(
         continue; // Try again instead of breaking
       }
 
+      // C359: Import pre-validation — catch phantom imports BEFORE expensive tsc worktree
+      const originalFileCode = (() => {
+        try {
+          return readFileSync(join(MOTHER_DIR, modification.targetFile), 'utf-8');
+        } catch { return ''; }
+      })();
+      const importCheck = validateImports(originalFileCode, modification.proposedCode);
+      if (!importCheck.valid) {
+        const phantoms = importCheck.phantomImports.join(', ');
+        log.warn(`[SELF-IMPROVE] PHANTOM IMPORTS detected on attempt ${attempt}: ${phantoms}`);
+        tscFeedback = `[PHANTOM IMPORT ERROR] You added import(s) for modules that DO NOT EXIST in this project: ${phantoms}. ` +
+          `These are NOT installed npm packages. Do NOT import them. ` +
+          `Only use modules already imported in the file or from this list of installed packages: ${getAvailablePackagesSummary().slice(0, 500)}`;
+        modification = null;
+        continue;
+      }
+
       // Quick tsc pre-check using git worktree — NEVER writes to real source files
       const tsResult = validateTypeScriptInWorktree(modification.targetFile, modification.proposedCode);
 
@@ -1690,6 +1787,10 @@ ${firstLines}
 LAST 3 LINES:
 ${lastLines}
 Your "search" strings MUST match text from the file above. Do NOT invent or guess file content.
+
+INSTALLED PACKAGES (you may ONLY import from these or from relative paths):
+${getAvailablePackagesSummary()}
+Do NOT import any module not in this list. Python libraries (transformers, torch, dpr-model, etc.) do NOT exist in npm.
 
 ${tscErrorFeedback ? `PREVIOUS ATTEMPT FAILED:
 ${tscErrorFeedback}
