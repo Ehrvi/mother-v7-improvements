@@ -36,6 +36,7 @@ import PhaseIndicator, { type Phase, type ActivePhase } from '@/components/Phase
 import ToolCallVisualizer, { type ToolCall } from '@/components/ToolCallVisualizer';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import InteractiveMermaid from '@/components/InteractiveMermaid';
+import { DGMTestPanel } from '@/components/DGMTestPanel';
 import { useNavigate } from 'react-router-dom';
 
 // ─── Mermaid Config ──────────────────────────────────────────────────────────
@@ -140,6 +141,7 @@ const SIDEBAR_COMMANDS = [
   { group: 'Evolução DGM', items: [
     { icon: Layers, label: '/proposals', desc: 'Listar propostas DGM', color: '#fbbf24' },
     { icon: Dna, label: '/fitness', desc: 'Score de fitness atual', color: '#34d399' },
+    { icon: FlaskConical, label: '/dgm-test', desc: 'Teste DGM com proof hashes', color: '#8b5cf6' },
   ]},
   { group: 'Conhecimento', items: [
     { icon: BookOpen, label: '/knowledge', desc: 'Base de conhecimento', color: '#f472b6' },
@@ -176,6 +178,7 @@ export default function HomeV2() {
   const [phaseLatencyMs, setPhaseLatencyMs] = useState<number>(0);
   const [activeToolCalls, setActiveToolCalls] = useState<ToolCall[]>([]);
   const [showSessionHistory, setShowSessionHistory] = useState(false);
+  const [showDGMTest, setShowDGMTest] = useState(false);
   const [streamSpeed, setStreamSpeed] = useState<0.5 | 1 | 1.5 | 2>(1);
   const [feedback, setFeedback] = useState<Record<string, 'up' | 'down'>>({});
 
@@ -505,7 +508,7 @@ export default function HomeV2() {
                     <div className="grid grid-cols-2 gap-1">
                       {items.map(({ icon: Icon, label, desc, color }) => (
                         <button key={label}
-                          onClick={() => sendMessage(label)}
+                          onClick={() => label === '/dgm-test' ? navigate('/dgm-test') : sendMessage(label)}
                           title={desc}
                           className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-medium text-left transition-all"
                           style={{ background: `${color}12`, border: `1px solid ${color}25`, color }}
@@ -1038,7 +1041,37 @@ export default function HomeV2() {
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: oklch(22% 0.02 280); border-radius: 4px; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
+
+      {/* DGM Test Panel Modal */}
+      {showDGMTest && (
+        <div
+          onClick={() => setShowDGMTest(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '20px',
+          }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ position: 'relative', maxWidth: '720px', width: '100%' }}>
+            <button
+              onClick={() => setShowDGMTest(false)}
+              style={{
+                position: 'absolute', top: -12, right: -12, zIndex: 10,
+                background: '#2d2d4e', border: '1px solid #4040a0', borderRadius: '50%',
+                width: 28, height: 28, color: '#e0e0ff', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '14px', fontWeight: 700,
+              }}
+            >
+              X
+            </button>
+            <DGMTestPanel />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

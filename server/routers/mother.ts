@@ -353,6 +353,59 @@ export const motherRouter = router({
     }),
 
   /**
+   * DGM Test Run — Execute a single DGM generation and return full report with proof hashes.
+   * Scientific basis: Darwin Gödel Machine (arXiv:2505.22954)
+   * Returns: generation result + archive state + evolutionary tree + all SHA-256 proof hashes
+   */
+  dgmTestRun: publicProcedure
+    .input(
+      z.object({
+        benchmarkQueries: z.array(z.object({
+          id: z.string(),
+          query: z.string(),
+          expectedMinQuality: z.number().optional().default(50),
+          category: z.string().optional().default('general'),
+        })).optional(),
+        selfImproveSize: z.number().min(1).max(5).optional().default(1),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { runSingleGeneration, getArchiveState, getEvolutionaryTree } = await import('../mother/dgm-true-outer-loop.js');
+
+      const defaultBenchmark = [
+        { id: 'test-001', query: 'O que é o Darwin Gödel Machine?', expectedMinQuality: 60, category: 'factual' },
+        { id: 'test-002', query: 'Oi, tudo bem?', expectedMinQuality: 50, category: 'conversational' },
+      ];
+
+      const benchmarkSmall = input.benchmarkQueries && input.benchmarkQueries.length > 0
+        ? input.benchmarkQueries
+        : defaultBenchmark;
+
+      const startTime = Date.now();
+
+      const generationResult = await runSingleGeneration({
+        selfImproveSize: input.selfImproveSize,
+        selfImproveWorkers: 1,
+        parentSelectionMethod: 'score_child_prop',
+        archiveUpdateMethod: 'keep_all',
+        benchmarkSmall,
+        benchmarkMedium: [],
+      });
+
+      const elapsedMs = Date.now() - startTime;
+      const archive = getArchiveState();
+      const tree = getEvolutionaryTree();
+
+      return {
+        generation: generationResult,
+        archive,
+        tree,
+        elapsedMs,
+        timestamp: new Date().toISOString(),
+      };
+    }),
+
+  /**
    * v38.0: DGM Supervisor - Orchestrates multi-agent evolution loop
    * Scientific basis: Darwin Godel Machine (Sakana AI, 2025)
    */

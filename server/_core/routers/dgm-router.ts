@@ -80,3 +80,68 @@ dgmRouter.post('/execute', authenticateA2A, async (req: Request, res: Response) 
     res.status(500).json({ error: 'DGM status unavailable', details: (err as Error).message });
   }
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// True DGM (arXiv:2505.22954) — MAP-Elites outer loop endpoints
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * POST /dgm/run-generation — Run a single DGM generation
+ * Selects parents, applies mutations, evaluates variants, updates archive.
+ */
+dgmRouter.post('/run-generation', authenticateA2A, async (_req: Request, res: Response) => {
+  try {
+    const { runSingleGeneration } = await import('../../mother/dgm-true-outer-loop.js');
+    const result = await runSingleGeneration();
+    log.info(`[DGM-True] Generation complete — children: ${result.childrenIds.length}, best: ${(result.bestAccuracy * 100).toFixed(1)}%`);
+    res.json({ ...result, timestamp: new Date().toISOString() });
+  } catch (err) {
+    log.error('[DGM-True] Generation failed:', err);
+    res.status(500).json({ error: 'DGM generation failed', details: (err as Error).message });
+  }
+});
+
+/**
+ * POST /dgm/run-loop — Run the full DGM outer loop (multiple generations)
+ * Body: { maxGenerations?, parallelParents?, parentSelectionMethod?, archiveUpdateMethod? }
+ */
+dgmRouter.post('/run-loop', authenticateA2A, async (req: Request, res: Response) => {
+  try {
+    const { runDGMOuterLoop } = await import('../../mother/dgm-true-outer-loop.js');
+    const config = req.body || {};
+    const state = await runDGMOuterLoop(config);
+    log.info(`[DGM-True] Loop complete — generations: ${state.currentGeneration}, archive: ${state.archive.length}, best: ${(state.generationResults.at(-1)?.bestAccuracy ?? 0) * 100}%`);
+    res.json({ ...state, timestamp: new Date().toISOString() });
+  } catch (err) {
+    log.error('[DGM-True] Loop failed:', err);
+    res.status(500).json({ error: 'DGM loop failed', details: (err as Error).message });
+  }
+});
+
+/**
+ * GET /dgm/archive — Current MAP-Elites archive state
+ */
+dgmRouter.get('/archive', authenticateA2A, async (_req: Request, res: Response) => {
+  try {
+    const { getArchiveState } = await import('../../mother/dgm-true-outer-loop.js');
+    const archive = getArchiveState();
+    res.json({ ...archive, timestamp: new Date().toISOString() });
+  } catch (err) {
+    log.error('[DGM-True] Archive retrieval failed:', err);
+    res.status(500).json({ error: 'Archive unavailable', details: (err as Error).message });
+  }
+});
+
+/**
+ * GET /dgm/evolutionary-tree — Evolutionary lineage tree
+ */
+dgmRouter.get('/evolutionary-tree', authenticateA2A, async (_req: Request, res: Response) => {
+  try {
+    const { getEvolutionaryTree } = await import('../../mother/dgm-true-outer-loop.js');
+    const tree = getEvolutionaryTree();
+    res.json({ tree, timestamp: new Date().toISOString() });
+  } catch (err) {
+    log.error('[DGM-True] Evolutionary tree failed:', err);
+    res.status(500).json({ error: 'Tree unavailable', details: (err as Error).message });
+  }
+});
