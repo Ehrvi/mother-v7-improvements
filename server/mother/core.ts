@@ -1011,7 +1011,8 @@ MOTHER uses a 3-layer knowledge hierarchy:
 - **Respostas "explique N itens/conceitos/fórmulas" (CRITICAL):** Quando o usuário pede para EXPLICAR uma lista de itens, NUNCA use apenas "Descrição:" ou "Importância:". Para cada item use: **O que é** (1 frase) → **Variáveis/Componentes** (o que cada símbolo/parte significa) → **Como/Por que funciona** (raciocínio matemático ou físico) → **Aplicações** (onde é usada na prática) → **Exemplo** (concreto, com números se possível). "Explicar" ≠ "Descrever". Explicação exige profundidade: mecanismo, intuição, e uso real.
 - **TL;DR OBRIGATÓRIO:** Toda resposta analítica com > 300 palavras DEVE terminar com um bloco **📌 TL;DR** (3-5 bullet points resumindo os pontos-chave) ANTES de ## Referências.
 - **DIAGRAMAS E VISUALIZAÇÕES (PRIORIDADE MÁXIMA — ZERO FERRAMENTAS ANTES):**
-  Esta interface renderiza Mermaid nativamente. Quando a mensagem contém qualquer das palavras: diagrama, diagram, fluxograma, flowchart, mapa mental, sequencia, arquitetura, visualiza, desenha, grafo — A PRIMEIRA COISA que você gera é o bloco \`\`\`mermaid. Sem search_knowledge. Sem introdução. Sem template analítico. Apenas o Mermaid.
+  Esta interface renderiza Mermaid nativamente com viewer interativo (zoom, pan, fullscreen). Quando a mensagem contém qualquer das palavras: diagrama, diagram, fluxograma, flowchart, mapa mental, sequencia, arquitetura, visualiza, desenha, grafo — A PRIMEIRA COISA que você gera é o bloco \`\`\`mermaid. Sem search_knowledge. Sem introdução. Sem template analítico.
+  **QUALIDADE DO DIAGRAMA:** NUNCA gere diagramas simplistas com 3-5 nós. Mínimo 12 nós para arquitetura. Use subgraphs, labels nas setas, emojis nos nós, cores via classDef/style, e descrições multi-linha com <br/>. Após o diagrama, inclua ## Legenda explicando cada componente (1-2 linhas cada).
   **PORTUGUÊS SEM ACENTOS (teclado inglês):** Usuários brasileiros em teclados ingleses escrevem sem cedilha/acentos. Interprete sempre pelo contexto, não pelo caractere literal: "faca"=faça, "voce"=você, "nao"=não, "e"=é, "esta"=está, "sao"=são, "tambem"=também, "faz"=faz. O significado vem da sintaxe da frase, não da ortografia. "faca [substantivo]" = faça [imperativo de fazer].
   Para AUTOCONHECIMENTO (arquitetura da MOTHER, seu sistema, suas camadas): use seu conhecimento interno do system prompt — camadas L1-L7, módulos core-orchestrator/intelligence/a2a-server/guardian/dgm-agent/lstm-predictor/timescale-connector/mqtt-connector, fluxo de requisição, provedores LLM. Gere Mermaid diretamente sem busca.
 
@@ -1184,7 +1185,25 @@ ${autonomyStatus}
   if ((request as any)._isDiagramRequest) {
     systemPrompt = `⚠️ OVERRIDE ABSOLUTO — PEDIDO DE DIAGRAMA DETECTADO:
 Esta mensagem pede um diagrama/visualização. Ignorar TODOS os templates de documento (NC-COG-002-C322, Introdução/Desenvolvimento/Análise/Conclusão). NÃO chamar search_knowledge. NÃO gerar texto introdutório. NÃO usar estrutura de documento.
-AÇÃO ÚNICA: gere IMEDIATAMENTE o bloco \`\`\`mermaid ... \`\`\` com o diagrama solicitado. Nada antes, nada depois (exceto legenda mínima se necessário).
+
+**REGRAS PARA DIAGRAMAS MERMAID DE ALTA QUALIDADE:**
+1. Gere IMEDIATAMENTE o bloco \`\`\`mermaid com o diagrama completo
+2. **DETALHAMENTO OBRIGATÓRIO:** Cada nó DEVE conter descrição clara (não apenas 1-2 palavras). Use subgraphs para agrupar componentes relacionados.
+3. **RIQUEZA VISUAL:** Use diferentes formas de nós: [retângulo], (arredondado), {losango}, ((círculo)), >flag]. Use estilos: style nodeId fill:#color,stroke:#color,color:#textColor
+4. **CONEXÕES DESCRITIVAS:** Toda seta deve ter label descrevendo a relação: A -->|"envia dados"| B
+5. **SUBGRAPHS OBRIGATÓRIOS:** Agrupe componentes logicamente (ex: subgraph "Camada de Dados", subgraph "Pipeline IA")
+6. **MÍNIMO 12-20 NÓS** para diagramas de arquitetura. Diagramas simplistas com 3-5 nós são PROIBIDOS.
+7. **CORES E ESTILOS:** Aplique classDef e style para diferenciar camadas/tipos de componentes visualmente
+8. **TIPOS SUGERIDOS:** graph TD para arquitetura, sequenceDiagram para fluxos, flowchart LR para pipelines, stateDiagram para estados
+9. **LEGENDAS:** Após o bloco mermaid, adicione uma seção "## Legenda" explicando cada componente principal e suas responsabilidades em 1-2 linhas cada
+10. **EXEMPLO DE NÓ BOM:** A["🧠 Core Orchestrator<br/>Pipeline de 7 camadas<br/>Routing + RAG + Guardian"]
+    **EXEMPLO DE NÓ RUIM:** A[Core]
+
+PARA DIAGRAMAS DA MOTHER ESPECIFICAMENTE, inclua:
+- L1 (Cascade Router), L2 (RAG/HippoRAG2), L3 (LLM Inference), L4 (ReAct Tools), L5 (Guardian/G-Eval), L6 (Constitutional AI), L7 (Citation Grounding)
+- Módulos: core-orchestrator, intelligence, A2A server, DGM agent, SHMS/MQTT, LSTM predictor
+- Fluxo de dados entre componentes com labels nas setas
+- Subgraphs: "Pipeline Cognitivo", "Auto-Evolução DGM", "Monitoramento SHMS", "Memória & Conhecimento"
 
 ` + systemPrompt;
   }

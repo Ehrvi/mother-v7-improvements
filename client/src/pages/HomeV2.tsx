@@ -35,6 +35,7 @@ import { FileDropZone } from '@/components/FileDropZone';
 import PhaseIndicator, { type Phase, type ActivePhase } from '@/components/PhaseIndicator';
 import ToolCallVisualizer, { type ToolCall } from '@/components/ToolCallVisualizer';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import InteractiveMermaid from '@/components/InteractiveMermaid';
 import { useNavigate } from 'react-router-dom';
 
 // ─── Mermaid Config ──────────────────────────────────────────────────────────
@@ -110,6 +111,26 @@ const QUICK_PROMPTS = [
   { icon: BarChart3, label: 'GEA & Fitness', query: 'Explique o sistema GEA (Group-Evolving Agents) e como o fitness score é calculado.' },
   { icon: Sparkles, label: 'Visão final', query: 'Qual é a visão final de MOTHER como superinteligência cognitiva autônoma?' },
 ];
+
+// Split message content into text segments and mermaid diagram blocks
+type ContentSegment = { type: 'text'; content: string } | { type: 'mermaid'; content: string };
+function splitMermaidBlocks(text: string): ContentSegment[] {
+  const segments: ContentSegment[] = [];
+  const regex = /```mermaid\s*\n([\s\S]*?)```/g;
+  let lastIndex = 0;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ type: 'text', content: text.slice(lastIndex, match.index) });
+    }
+    segments.push({ type: 'mermaid', content: match[1].trim() });
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) {
+    segments.push({ type: 'text', content: text.slice(lastIndex) });
+  }
+  return segments.length > 0 ? segments : [{ type: 'text', content: text }];
+}
 
 const SIDEBAR_COMMANDS = [
   { group: 'Diagnóstico', items: [
@@ -693,27 +714,48 @@ export default function HomeV2() {
                       }}>
                       {msg.content}
                     </div>
-                  ) : (
-                    // FIX: Streamdown em vez de dangerouslySetInnerHTML com regex
-                    // Eliminates: palavras faltando, caracteres cortados, HTML inválido
-                    // isAnimating=true durante streaming → streamdown renderiza markdown incompleto graciosamente
-                    <div className="prose prose-invert prose-sm max-w-none w-full"
-                      style={{ color: 'oklch(88% 0.02 280)' }}>
-                      <ErrorBoundary componentName="Streamdown">
-                        <Streamdown
-                          // Force remount after streaming ends so Mermaid re-renders with full diagram syntax
-                          key={isStreaming && msg.id === streamingMsgIdRef.current ? `${msg.id}-streaming` : `${msg.id}-final`}
-                          mermaidConfig={MERMAID_CONFIG}
-                          isAnimating={isStreaming && msg.id === streamingMsgIdRef.current}
-                          parseIncompleteMarkdown={isStreaming && msg.id === streamingMsgIdRef.current}
-                          shikiTheme={['github-dark', 'github-dark']}
-                          className="text-sm leading-relaxed [&_h1]:text-xl [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mt-4 [&_h2]:mb-2 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-3 [&_h3]:mb-1.5 [&_p]:mb-2 [&_ul]:mb-2 [&_ol]:mb-2 [&_li]:mb-0.5 [&_code]:text-[13px] [&_pre]:text-[13px] [&_blockquote]:border-l-2 [&_table]:text-sm"
-                        >
-                          {msg.content}
-                        </Streamdown>
-                      </ErrorBoundary>
-                    </div>
-                  )}
+                  ) : (() => {
+                    const isCurrentlyStreaming = isStreaming && msg.id === streamingMsgIdRef.current;
+                    const hasMermaid = !isCurrentlyStreaming && /```mermaid/i.test(msg.content);
+                    const segments = hasMermaid ? splitMermaidBlocks(msg.content) : null;
+
+                    return (
+                      <div className="prose prose-invert prose-sm max-w-none w-full"
+                        style={{ color: 'oklch(88% 0.02 280)' }}>
+                        {segments ? (
+                          // Post-streaming: render text via Streamdown + mermaid via InteractiveMermaid
+                          segments.map((seg, i) => seg.type === 'mermaid' ? (
+                            <ErrorBoundary key={i} componentName="InteractiveMermaid">
+                              <InteractiveMermaid chart={seg.content} mermaidConfig={MERMAID_CONFIG} />
+                            </ErrorBoundary>
+                          ) : seg.content.trim() ? (
+                            <ErrorBoundary key={i} componentName="Streamdown">
+                              <Streamdown
+                                shikiTheme={['github-dark', 'github-dark']}
+                                className="text-sm leading-relaxed [&_h1]:text-xl [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mt-4 [&_h2]:mb-2 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-3 [&_h3]:mb-1.5 [&_p]:mb-2 [&_ul]:mb-2 [&_ol]:mb-2 [&_li]:mb-0.5 [&_code]:text-[13px] [&_pre]:text-[13px] [&_blockquote]:border-l-2 [&_table]:text-sm"
+                              >
+                                {seg.content}
+                              </Streamdown>
+                            </ErrorBoundary>
+                          ) : null)
+                        ) : (
+                          // During streaming: use Streamdown with streaming props (mermaid renders after)
+                          <ErrorBoundary componentName="Streamdown">
+                            <Streamdown
+                              key={isCurrentlyStreaming ? `${msg.id}-streaming` : `${msg.id}-final`}
+                              mermaidConfig={MERMAID_CONFIG}
+                              isAnimating={isCurrentlyStreaming}
+                              parseIncompleteMarkdown={isCurrentlyStreaming}
+                              shikiTheme={['github-dark', 'github-dark']}
+                              className="text-sm leading-relaxed [&_h1]:text-xl [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mt-4 [&_h2]:mb-2 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-3 [&_h3]:mb-1.5 [&_p]:mb-2 [&_ul]:mb-2 [&_ol]:mb-2 [&_li]:mb-0.5 [&_code]:text-[13px] [&_pre]:text-[13px] [&_blockquote]:border-l-2 [&_table]:text-sm"
+                            >
+                              {msg.content}
+                            </Streamdown>
+                          </ErrorBoundary>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Streaming indicator */}
                   {msg.role === 'mother' && isStreaming && msg.id === streamingMsgIdRef.current && msg.content === '' && (
