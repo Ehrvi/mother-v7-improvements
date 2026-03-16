@@ -33,7 +33,7 @@ import { createLogger } from '../_core/logger';
 import { getDb } from '../db';
 import { sql } from 'drizzle-orm';
 import { processQuery } from './core';
-import { invokeLLM } from '../_core/llm';
+import { orchestrate as coreOrchestrate } from './core-orchestrator';
 import { fitnessEvaluator } from './fitness-evaluator';
 import { checkSafetyGate } from './safety-gate';
 import { recordAuditEntry } from './audit-trail';
@@ -676,7 +676,12 @@ async function selfImproveStep(
  * Diagnose why a specific benchmark query fails or what to improve.
  *
  * arXiv:2505.22954 self_improve_step.py — diagnose_problem():
- * Uses an LLM (o1) to analyze evaluation logs and produce a problem statement.
+ * Uses the MOTHER pipeline itself (self-referential) to analyze failures.
+ *
+ * Scientific basis:
+ * - DGM (Zhang et al., 2025): "The agent analyzes its own evaluation logs"
+ * - Gödel Machine (Schmidhuber, 2007): "Self-referential system that reasons about its own code"
+ * - SICA (Bristol, 2025): "Same agent is both meta-agent and target agent"
  */
 async function diagnoseProblem(
   entry: MutationEntry,
@@ -719,37 +724,76 @@ Focus on the weakest link in: cascade routing, retrieval, generation, quality, g
 The parent variant has accuracy ${(parent.accuracyScore * 100).toFixed(1)}% on the benchmark.`,
   };
 
-  const prompt = mutationPrompts[entry.entryType];
+  const basePrompt = mutationPrompts[entry.entryType];
 
-  try {
-    const response = await invokeLLM({
-      model: 'gpt-4o',
-      provider: 'openai',
-      messages: [
-        {
-          role: 'system' as const,
-          content: `You are a DGM (Darwin Gödel Machine) diagnostic agent. Your task is to analyze
-a self-improving AI pipeline and identify specific, actionable improvements.
+  // Self-referential: MOTHER diagnoses MOTHER through its own processQuery pipeline
+  // This leverages all existing capabilities: cascade routing, RAG, active study, etc.
+  const diagnosticQuery = `[DGM DIAGNOSTIC — ${entry.entryType}]
 
-Output a JSON object with:
+You are operating as a DGM (Darwin Gödel Machine, arXiv:2505.22954) diagnostic agent.
+Your task: analyze MOTHER's own pipeline and identify a specific, scientifically justified improvement.
+
+CONTEXT:
+${basePrompt}
+
+SAFETY CONSTRAINTS (R1 — FORBIDDEN_PATHS):
+The following files are PROTECTED and CANNOT be modified:
+- server/mother/core-orchestrator.ts (core pipeline)
+- server/mother/core.ts (entry point)
+- server/mother/safety-gate.ts (safety — cannot modify itself)
+- server/_core/* (infrastructure)
+- .env*, Dockerfile, cloudbuild.yaml
+
+WRITABLE targets for improvement (focus on these):
+- server/mother/intelligence.ts (routing, model selection)
+- server/mother/semantic-cache.ts (caching strategy)
+- server/mother/calibration.ts (confidence calibration)
+- server/mother/adaptive-calibration-v2.ts (temperature scaling)
+- server/mother/hipporag2.ts (RAG retrieval)
+- server/mother/guardian.ts (quality evaluation)
+- server/mother/active-study.ts (proactive learning)
+- server/mother/grounding.ts (citation grounding)
+- server/mother/constitutional-ai.ts (safety filtering)
+- server/mother/tts-engine.ts, whisper-stt.ts (multimodal)
+- server/mother/persistent-shell.ts (code execution)
+- server/mother/shms-*.ts (SHMS domain modules)
+
+PARENT VARIANT METRICS:
+- Accuracy: ${(parent.accuracyScore * 100).toFixed(1)}%
+- Resolved: ${parent.resolvedIds.length}/${parent.totalSubmittedInstances}
+- Unresolved: ${parent.unresolvedIds.join(', ') || 'none'}
+- Empty: ${parent.emptyPatchIds.join(', ') || 'none'}
+- Strategy: ${parent.strategyDescription}
+
+RESPOND WITH A JSON OBJECT (and nothing else):
 {
   "problem": "Clear description of the problem",
   "rootCause": "Technical root cause in the codebase",
   "targetFile": "server/mother/xxx.ts",
   "proposedFix": "Specific code change to make",
-  "expectedImprovement": "What metric will improve and by how much"
-}`,
-        },
-        { role: 'user' as const, content: prompt },
-      ],
-      temperature: 0.3,
+  "expectedImprovement": "What metric will improve and by how much",
+  "scientificBasis": "arXiv paper or established method justifying this fix"
+}`;
+
+  try {
+    // Use coreOrchestrate directly (bypasses LFSA interceptor — DGM queries are internal,
+    // not user-facing long-form requests). This leverages the full 8-layer pipeline:
+    // L1 cache → L2 routing → L3 context → L4 generation → L5 guardian.
+    const result = await coreOrchestrate({
+      query: diagnosticQuery,
+      conversationHistory: [],
+      metadata: { source: 'dgm-diagnose', mutationType: entry.entryType },
     });
 
-    const content = response.choices?.[0]?.message?.content;
-    if (!content) return null;
-    return typeof content === 'string' ? content : content.map(c => 'text' in c ? c.text : '').join('');
+    if (!result.response || result.response.trim().length < 20) {
+      log.warn(`[DIAGNOSE] Empty response from coreOrchestrate (provider=${result.provider}, model=${result.model})`);
+      return null;
+    }
+
+    log.info(`[DIAGNOSE] Diagnosis complete via MOTHER pipeline — provider=${result.provider}, model=${result.model}, quality=${result.qualityScore}, latency=${result.latencyMs}ms`);
+    return result.response;
   } catch (err) {
-    log.error(`[DIAGNOSE] LLM call failed: ${String(err)}`);
+    log.error(`[DIAGNOSE] coreOrchestrate failed: ${String(err)}`);
     return null;
   }
 }
@@ -760,6 +804,15 @@ Output a JSON object with:
  * Generate a code modification based on the diagnosis.
  *
  * arXiv:2505.22954: "The DGM uses foundation models to propose code improvements."
+ *
+ * Self-referential: MOTHER generates code modifications for MOTHER
+ * through its own processQuery pipeline, leveraging all existing
+ * capabilities (cascade routing, RAG, active study, grounding).
+ *
+ * Scientific basis:
+ * - DGM (Zhang et al., 2025): "Parent agent acts as its own code editor"
+ * - SICA (arXiv:2504.15228): "Validation-before-commit reduces failure from 83% to 17%"
+ * - Gödel Machine (Schmidhuber, 2007): "Self-referential code rewriting"
  */
 async function generateModification(
   problemStatement: string,
@@ -773,8 +826,8 @@ async function generateModification(
   patch: string;
 } | null> {
   try {
-    // Parse the problem statement to extract target file
-    let diagnosis: { targetFile?: string; proposedFix?: string; problem?: string };
+    // Parse the problem statement to extract target file and diagnosis
+    let diagnosis: { targetFile?: string; proposedFix?: string; problem?: string; scientificBasis?: string };
     try {
       const jsonMatch = problemStatement.match(/\{[\s\S]*\}/);
       diagnosis = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
@@ -782,8 +835,21 @@ async function generateModification(
       diagnosis = { problem: problemStatement };
     }
 
-    const targetFile = diagnosis.targetFile || 'server/mother/core-orchestrator.ts';
+    const targetFile = diagnosis.targetFile || 'server/mother/intelligence.ts';
     const rationale = diagnosis.problem || `${entry.entryType} improvement`;
+    const scientificBasis = diagnosis.scientificBasis || 'DGM arXiv:2505.22954';
+
+    // Pre-check: verify target is not in FORBIDDEN_PATHS before spending LLM tokens
+    const safetyPreCheck = checkSafetyGate(targetFile, '// pre-check', 'dgm-precheck');
+    if (!safetyPreCheck.allowed) {
+      log.warn(`[MODIFY] Target ${targetFile} is protected — redirecting to intelligence.ts`);
+      // Fall back to a safe default target
+      return generateModification(
+        JSON.stringify({ ...diagnosis, targetFile: 'server/mother/intelligence.ts' }),
+        entry,
+        parent,
+      );
+    }
 
     // Read the current file content
     const fs = await import('fs');
@@ -797,40 +863,98 @@ async function generateModification(
       log.warn(`[MODIFY] Could not read ${targetFile}, using empty base`);
     }
 
-    // Ask LLM to generate the improved code
-    const response = await invokeLLM({
-      model: 'gpt-4o',
-      provider: 'openai',
-      messages: [
-        {
-          role: 'system' as const,
-          content: `You are a DGM (Darwin Gödel Machine) code evolution agent.
-Your task is to modify MOTHER's pipeline code to fix a specific problem.
+    // Self-referential: use MOTHER's own pipeline to generate code modifications
+    const modificationQuery = `[DGM CODE EVOLUTION — ${entry.entryType}]
+
+You are operating as a DGM (Darwin Gödel Machine, arXiv:2505.22954) code evolution agent.
+MOTHER is modifying its own code through self-referential improvement.
+
+PROBLEM DIAGNOSIS:
+${problemStatement}
+
+TARGET FILE: ${targetFile}
+SCIENTIFIC BASIS: ${scientificBasis}
+
+ORIGINAL CODE (first 6000 chars):
+\`\`\`typescript
+${originalCode.slice(0, 6000)}
+\`\`\`
 
 RULES:
-1. Output ONLY the modified TypeScript code (full file)
-2. Preserve all existing functionality — only ADD or MODIFY
-3. Include scientific comments citing relevant papers
-4. DO NOT introduce security vulnerabilities
+1. Output ONLY a JSON object with the modification (no markdown, no explanation outside JSON)
+2. Preserve all existing functionality — only ADD or MODIFY relevant sections
+3. Include scientific comments citing relevant arXiv papers
+4. DO NOT introduce security vulnerabilities (OWASP Top 10)
 5. Maintain TypeScript strict mode compatibility
-6. Preserve all existing exports and interfaces`,
-        },
-        {
-          role: 'user' as const,
-          content: `PROBLEM DIAGNOSIS:\n${problemStatement}\n\nORIGINAL CODE (${targetFile}):\n\`\`\`typescript\n${originalCode.slice(0, 8000)}\n\`\`\`\n\nGenerate the improved version of this file.`,
-        },
-      ],
-      temperature: 0.2,
+6. Preserve all existing exports and interfaces
+7. Every change MUST have a scientific justification
+
+RESPOND WITH EXACTLY THIS JSON FORMAT:
+{
+  "targetFile": "${targetFile}",
+  "rationale": "Why this change improves the system",
+  "scientificBasis": "arXiv:XXXX.XXXXX — paper title and relevant finding",
+  "codeChanges": "The specific code block to ADD or MODIFY (not the full file)",
+  "insertAfterLine": "The line content after which to insert (for context matching)",
+  "expectedMetricImprovement": "e.g., +5pp accuracy, -200ms latency, +10% cache hit rate"
+}`;
+
+    // Use coreOrchestrate directly (bypasses LFSA — code evolution is not long-form content)
+    const result = await coreOrchestrate({
+      query: modificationQuery,
+      conversationHistory: [],
+      metadata: { source: 'dgm-modify', mutationType: entry.entryType, targetFile },
     });
 
-    const rawContent = response.choices?.[0]?.message?.content ?? '';
-    const proposedCode = typeof rawContent === 'string' ? rawContent : rawContent.map(c => 'text' in c ? c.text : '').join('');
-    if (!proposedCode || proposedCode.length < 100) return null;
+    if (!result.response || result.response.trim().length < 50) {
+      log.warn(`[MODIFY] Empty response from coreOrchestrate (provider=${result.provider}, model=${result.model})`);
+      return null;
+    }
 
-    // Generate a simple diff as "patch"
-    const patch = `--- a/${targetFile}\n+++ b/${targetFile}\n@@ DGM mutation: ${entry.entryType} @@\n${rationale}`;
+    log.info(`[MODIFY] Code generation via MOTHER — provider=${result.provider}, model=${result.model}, latency=${result.latencyMs}ms`);
 
-    return { targetFile, proposedCode, originalCode, rationale, patch };
+    // Extract the code modification from MOTHER's response
+    let modResult: {
+      targetFile?: string;
+      rationale?: string;
+      scientificBasis?: string;
+      codeChanges?: string;
+      insertAfterLine?: string;
+      expectedMetricImprovement?: string;
+    } = {};
+    try {
+      const jsonMatch = result.response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) modResult = JSON.parse(jsonMatch[0]);
+    } catch {
+      // If JSON parse fails, use the raw response as the code change
+      modResult = { codeChanges: result.response, rationale: rationale };
+    }
+
+    const proposedCode = modResult.codeChanges || result.response;
+    if (!proposedCode || proposedCode.length < 20) return null;
+
+    // Build a descriptive patch
+    const patch = [
+      `--- a/${targetFile}`,
+      `+++ b/${targetFile}`,
+      `@@ DGM mutation: ${entry.entryType} @@`,
+      `@@ Scientific basis: ${modResult.scientificBasis || scientificBasis} @@`,
+      `@@ Expected improvement: ${modResult.expectedMetricImprovement || 'unknown'} @@`,
+      ``,
+      `Rationale: ${modResult.rationale || rationale}`,
+      ``,
+      proposedCode,
+    ].join('\n');
+
+    log.info(`[MODIFY] Modification generated via MOTHER pipeline — target=${targetFile}, basis=${modResult.scientificBasis || scientificBasis}`);
+
+    return {
+      targetFile: modResult.targetFile || targetFile,
+      proposedCode,
+      originalCode,
+      rationale: modResult.rationale || rationale,
+      patch,
+    };
   } catch (err) {
     log.error(`[MODIFY] Generation failed: ${String(err)}`);
     return null;
