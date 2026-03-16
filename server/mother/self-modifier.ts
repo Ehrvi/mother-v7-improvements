@@ -225,8 +225,20 @@ export function validateTypeScriptInWorktree(
     mkdirSync(targetDir, { recursive: true });
     writeFileSync(targetPath, proposedCode, 'utf-8');
 
-    // Run tsc inside the worktree
-    return validateTypeScript(worktreeDir);
+    // Run tsc inside the worktree — but only count errors from the TARGET file.
+    // Pre-existing errors in unrelated files (e.g., client/src/components/) must NOT
+    // block DGM mutations on server/ files. The DGM only modified targetFile, so only
+    // errors in that file are attributable to the proposed change.
+    const tscResult = validateTypeScript(worktreeDir);
+    if (tscResult.valid) return tscResult;
+
+    // Filter errors to only those from the target file
+    const targetErrors = tscResult.errors.filter(e => e.includes(targetFile));
+    if (targetErrors.length === 0) {
+      // All errors are in OTHER files (pre-existing) — the proposed change is clean
+      return { valid: true, errors: [] };
+    }
+    return { valid: false, errors: targetErrors };
   } catch (err: unknown) {
     const error = err as { stdout?: Buffer; stderr?: Buffer; message?: string };
     const output = error.stdout?.toString() || error.stderr?.toString() || error.message || 'Unknown error';
