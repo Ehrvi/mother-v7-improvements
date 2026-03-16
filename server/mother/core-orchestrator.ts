@@ -292,7 +292,13 @@ function layer2_adaptiveRouting(
   // Apply dynamic timeout and model override based on estimated output length
   // Scientific basis: FrugalGPT (Chen et al., 2023) — output length is primary routing signal
   const outputEst = estimateOutputLength(req.query);
-  const dynamicTimeoutMs = computeDynamicTimeout(outputEst.estimatedTokens);
+  // DGM internal queries (diagnose/modify) are system prompts that trigger VERY_LONG classification
+  // due to high semantic complexity scores (action verbs, arXiv refs, artifact nouns).
+  // But DGM responses are SHORT/MEDIUM JSON — cap timeout so Gemini fits within budget reserve.
+  const isDGMInternal = typeof req.metadata?.source === 'string' && req.metadata.source.startsWith('dgm-');
+  const dynamicTimeoutMs = isDGMInternal
+    ? Math.min(computeDynamicTimeout(outputEst.estimatedTokens), 60000) // 60s cap for DGM — responses are JSON, not long-form
+    : computeDynamicTimeout(outputEst.estimatedTokens);
 
   // Override maxTokens based on OLAR category and selected model
   const olarMaxTokens = getMaxTokensForCategory(outputEst.category, routing.primaryModel);
@@ -584,10 +590,15 @@ async function layer4_neuralGeneration(
   // Ciclo 105: Use DPO_CIRCUIT_CONFIG for fine-tuned models (higher timeout, more tolerant)
   const isDpoModel = routing.primaryModel.startsWith('ft:') || routing.primaryModel.includes(':personal:');
   // C241: Use dynamic timeout for iteration budget (long-form needs longer per-iteration budget)
-  const baseIterationMs = Math.max(REACT_TIMEOUT_CONFIG.iterationTimeoutMs, Math.ceil(effectiveBudgetMs / 2));
+  // FIX: The old Math.max(90000, effectiveBudgetMs/2) forced iterationBudget to ≥90s even when
+  // effectiveBudgetMs was 85s. Then C349 Budget Reserve compared iterationBudget (90s) against
+  // maxPrimaryBudget (85s × 0.65 = 55s), ALWAYS rejecting Google → permanent gpt-4o fallback.
+  // Fix: cap iterationBudget at effectiveBudgetMs so the C349 comparison is meaningful.
+  // The circuit breaker timeout (90s) is an upper bound on individual API calls, not a minimum.
+  const baseIterationMs = Math.ceil(effectiveBudgetMs / 2);
   const iterationBudget = isDpoModel
     ? Math.min(DPO_CIRCUIT_CONFIG.timeoutMs, effectiveBudgetMs)
-    : Math.min(ORCHESTRATOR_CIRCUIT_CONFIG.timeoutMs, baseIterationMs); // dynamic per-iteration budget
+    : Math.min(ORCHESTRATOR_CIRCUIT_CONFIG.timeoutMs, baseIterationMs, effectiveBudgetMs); // dynamic per-iteration budget, capped at total
   const circuitConfig = isDpoModel
     ? { ...DPO_CIRCUIT_CONFIG, timeoutMs: iterationBudget }
     : { ...ORCHESTRATOR_CIRCUIT_CONFIG, timeoutMs: iterationBudget };
