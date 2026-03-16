@@ -978,8 +978,11 @@ async function selfImproveStep(
       }
       modification = await generateModification(problemStatement, entry, parent, tscFeedback);
       if (!modification) {
-        // Feed back the failure reason so the next attempt can adjust
-        tscFeedback = (tscFeedback || '') + '\n[SEARCH/REPLACE FAILED] The search strings did not match the actual file content. Use EXACT text from the file, preserving all whitespace and indentation precisely.';
+        // C358: Feed back failure with concrete file excerpt so LLM stops hallucinating
+        tscFeedback = (tscFeedback || '') + '\n[SEARCH/REPLACE FAILED] The search strings did not match the actual file content. ' +
+          'You are hallucinating code that does not exist in the file. ' +
+          'Copy-paste the search strings EXACTLY from the COMPLETE ORIGINAL FILE provided in the prompt. ' +
+          'Do NOT invent import statements or code blocks from memory.';
         continue; // Try again instead of breaking
       }
 
@@ -1662,6 +1665,11 @@ async function generateModification(
     // New approach (per SICA arXiv:2504.15228 §4.2): surgical SEARCH/REPLACE blocks.
     // The LLM outputs only the changed sections as search/replace pairs.
     // We apply them to the original file, preserving everything else intact.
+    // C358: Anchor prompt with line-numbered excerpts to prevent LLM hallucinating file content
+    const codeLines = originalCode.split('\n');
+    const firstLines = codeLines.slice(0, 5).map((l, i) => `  ${i + 1}: ${l}`).join('\n');
+    const lastLines = codeLines.slice(-3).map((l, i) => `  ${codeLines.length - 2 + i}: ${l}`).join('\n');
+
     const modificationQuery = `You are a DGM (Darwin Gödel Machine, arXiv:2505.22954) code evolution agent.
 Your task: propose SURGICAL modifications to improve a TypeScript source file.
 
@@ -1671,14 +1679,21 @@ ${problemStatement}
 TARGET FILE: ${actualTargetFile}
 SCIENTIFIC BASIS: ${scientificBasis}
 
-COMPLETE ORIGINAL FILE (${originalCode.split('\n').length} lines):
+COMPLETE ORIGINAL FILE (${codeLines.length} lines):
 \`\`\`typescript
 ${originalCode}
 \`\`\`
 
-${tscErrorFeedback ? `PREVIOUS ATTEMPT FAILED with TypeScript compilation errors:
+FILE VERIFICATION — the file starts and ends with these exact lines:
+FIRST 5 LINES:
+${firstLines}
+LAST 3 LINES:
+${lastLines}
+Your "search" strings MUST match text from the file above. Do NOT invent or guess file content.
+
+${tscErrorFeedback ? `PREVIOUS ATTEMPT FAILED:
 ${tscErrorFeedback}
-Fix these errors in your output.
+Fix these errors. Copy search strings EXACTLY from the COMPLETE ORIGINAL FILE above.
 
 ` : ''}OUTPUT FORMAT — respond with ONLY a JSON object:
 {
@@ -1702,7 +1717,8 @@ RULES:
 5. Maintain TypeScript strict mode compatibility
 6. Include scientific comments (arXiv citations) for non-trivial changes
 7. DO NOT introduce security vulnerabilities
-8. Preserve all existing imports unless replacing them with better ones`;
+8. Preserve all existing imports unless replacing them with better ones
+9. CRITICAL: Do NOT hallucinate imports or code that doesn't exist in the file. Verify against the FILE VERIFICATION section above.`;
 
     // Direct LLM call with 90s timeout — bypasses the full orchestrator pipeline
     // Uses gpt-4o for reliable code generation (not gpt-4o-mini which truncates)
@@ -1922,19 +1938,17 @@ async function persistVariantToDb(variant: AgentVariant): Promise<void> {
     const db = await getDb();
     if (!db) return;
 
-    // C357: Fix column names to match actual dgm_archive table schema (migration 0028)
-    // Real columns: cycleNumber, eventType, title, description, metadata, qualityScore, etc.
+    // C358: Fix column names to match actual drizzle schema.ts (verified via DESCRIBE 2026-02-24)
+    // Real columns (snake_case): generation_id, parent_id, code_snapshot, fitness_score, benchmark_results, created_at
     await db.execute(sql`
-      INSERT INTO dgm_archive (cycleNumber, eventType, title, description, qualityScore, metadata, createdAt)
+      INSERT INTO dgm_archive (generation_id, parent_id, code_snapshot, fitness_score, benchmark_results)
       VALUES (
-        ${variant.generation},
-        'variant_created',
-        ${`DGM Variant: ${variant.id} (parent: ${variant.parentId || 'none'})`},
-        ${variant.strategyDescription},
+        ${variant.id},
+        ${variant.parentId || null},
+        ${variant.strategyDescription || 'DGM variant'},
         ${variant.accuracyScore * 100},
         ${JSON.stringify({
           variantId: variant.id,
-          parentId: variant.parentId,
           resolvedIds: variant.resolvedIds,
           unresolvedIds: variant.unresolvedIds,
           emptyPatchIds: variant.emptyPatchIds,
@@ -1942,8 +1956,7 @@ async function persistVariantToDb(variant: AgentVariant): Promise<void> {
           fitnessBreakdown: variant.fitnessBreakdown,
           childrenCount: variant.childrenCount,
           isCompiled: variant.isCompiled,
-        })},
-        NOW()
+        })}
       )
     `);
   } catch (err) {
