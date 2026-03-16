@@ -1025,8 +1025,7 @@ The following files are PROTECTED and CANNOT be modified:
 WRITABLE targets for improvement (focus on these):
 - server/mother/intelligence.ts (routing, model selection)
 - server/mother/semantic-cache.ts (caching strategy)
-- server/mother/calibration.ts (confidence calibration)
-- server/mother/adaptive-calibration-v2.ts (temperature scaling)
+- server/mother/calibration.ts (confidence calibration + temperature scaling)
 - server/mother/hipporag2.ts (RAG retrieval)
 - server/mother/guardian.ts (quality evaluation)
 - server/mother/active-study.ts (proactive learning)
@@ -1135,10 +1134,20 @@ async function generateModification(
     const fullPath = path.resolve(targetFile);
 
     let originalCode = '';
+    let actualTargetFile = targetFile;
     try {
       originalCode = fs.readFileSync(fullPath, 'utf-8');
     } catch {
-      log.warn(`[MODIFY] Could not read ${targetFile}, using empty base`);
+      // File doesn't exist — redirect to intelligence.ts (always exists)
+      log.warn(`[MODIFY] ${targetFile} does not exist — redirecting to server/mother/intelligence.ts`);
+      actualTargetFile = 'server/mother/intelligence.ts';
+      const fallbackPath = path.resolve(actualTargetFile);
+      try {
+        originalCode = fs.readFileSync(fallbackPath, 'utf-8');
+      } catch {
+        log.error(`[MODIFY] Fallback file also missing — aborting`);
+        return null;
+      }
     }
 
     // Self-referential: use MOTHER's own pipeline to generate code modifications
@@ -1150,7 +1159,7 @@ MOTHER is modifying its own code through self-referential improvement.
 PROBLEM DIAGNOSIS:
 ${problemStatement}
 
-TARGET FILE: ${targetFile}
+TARGET FILE: ${actualTargetFile}
 SCIENTIFIC BASIS: ${scientificBasis}
 
 ORIGINAL CODE (first 6000 chars):
@@ -1173,7 +1182,7 @@ RULES:
 
 RESPOND WITH EXACTLY THIS JSON FORMAT:
 {
-  "targetFile": "${targetFile}",
+  "targetFile": "${actualTargetFile}",
   "rationale": "Why this change improves the system",
   "scientificBasis": "arXiv:XXXX.XXXXX — paper title and relevant finding",
   "codeChanges": "MUST include import/export statements. Complete TypeScript code block.",
@@ -1185,7 +1194,7 @@ RESPOND WITH EXACTLY THIS JSON FORMAT:
     const result = await coreOrchestrate({
       query: modificationQuery,
       conversationHistory: [],
-      metadata: { source: 'dgm-modify', mutationType: entry.entryType, targetFile },
+      metadata: { source: 'dgm-modify', mutationType: entry.entryType, targetFile: actualTargetFile },
     });
 
     if (!result.response || result.response.trim().length < 50) {
@@ -1230,9 +1239,10 @@ RESPOND WITH EXACTLY THIS JSON FORMAT:
     }
 
     // Build a descriptive patch
+    const finalTarget = modResult.targetFile || actualTargetFile;
     const patch = [
-      `--- a/${targetFile}`,
-      `+++ b/${targetFile}`,
+      `--- a/${finalTarget}`,
+      `+++ b/${finalTarget}`,
       `@@ DGM mutation: ${entry.entryType} @@`,
       `@@ Scientific basis: ${modResult.scientificBasis || scientificBasis} @@`,
       `@@ Expected improvement: ${modResult.expectedMetricImprovement || 'unknown'} @@`,
@@ -1242,10 +1252,10 @@ RESPOND WITH EXACTLY THIS JSON FORMAT:
       proposedCode,
     ].join('\n');
 
-    log.info(`[MODIFY] Modification generated via MOTHER pipeline — target=${targetFile}, basis=${modResult.scientificBasis || scientificBasis}`);
+    log.info(`[MODIFY] Modification generated via MOTHER pipeline — target=${finalTarget}, basis=${modResult.scientificBasis || scientificBasis}`);
 
     return {
-      targetFile: modResult.targetFile || targetFile,
+      targetFile: finalTarget,
       proposedCode,
       originalCode,
       rationale: modResult.rationale || rationale,
