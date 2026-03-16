@@ -1182,17 +1182,24 @@ async function selfImproveStep(
       data: { proposal: proposalForReview },
     });
 
-    // Wait for human approval (with 5min timeout → auto-approve in test mode)
+    // Wait for human approval (30min timeout — gives human ample time to review)
     const humanApproved = await new Promise<boolean>((resolve) => {
       pendingProposals.set(proposalForReview.id, { proposal: proposalForReview, resolve });
-      // Auto-approve after 5 minutes if no human response (for background DGM runs)
+      // Auto-approve after 30 minutes if no human response (for background DGM runs)
       setTimeout(() => {
         if (pendingProposals.has(proposalForReview.id)) {
           pendingProposals.delete(proposalForReview.id);
-          log.info(`[PROPOSAL] Auto-approved after timeout: ${proposalForReview.id}`);
+          emitDGMEvent({
+            step: 'proposal',
+            status: 'success',
+            message: `[Passo 6 — AUTO-APROVADA POR TIMEOUT] Nenhuma resposta humana em 30 minutos. Proposta auto-aprovada.`,
+            timestamp: new Date().toISOString(),
+            data: { proposalId: proposalForReview.id, reason: 'timeout' },
+          });
+          log.info(`[PROPOSAL] Auto-approved after 30min timeout: ${proposalForReview.id}`);
           resolve(true);
         }
-      }, 5 * 60 * 1000);
+      }, 30 * 60 * 1000);
     });
 
     if (!humanApproved) {

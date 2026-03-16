@@ -344,18 +344,21 @@ export default function DgmTest() {
     });
   };
 
+  const [expiredMsg, setExpiredMsg] = useState<string | null>(null);
   const handleApprove = (proposalId: string) => {
+    setExpiredMsg(null);
     resolveMutation.mutate({ proposalId, approved: true }, {
       onSuccess: (data) => {
-        if (!data.resolved) console.warn('[DGM] Proposal not found (may have been auto-approved)');
+        if (!data.resolved) setExpiredMsg('Esta proposta ja expirou ou foi auto-aprovada por timeout. Seu clique nao teve efeito.');
       },
       onError: (err) => console.error('[DGM] Failed to approve:', err.message),
     });
   };
   const handleReject = (proposalId: string) => {
+    setExpiredMsg(null);
     resolveMutation.mutate({ proposalId, approved: false }, {
       onSuccess: (data) => {
-        if (!data.resolved) console.warn('[DGM] Proposal not found (may have been auto-approved)');
+        if (!data.resolved) setExpiredMsg('Esta proposta ja expirou ou foi auto-aprovada por timeout. Sua rejeicao nao teve efeito.');
       },
       onError: (err) => console.error('[DGM] Failed to reject:', err.message),
     });
@@ -514,6 +517,15 @@ export default function DgmTest() {
                     </button>
                   </div>
                 </div>
+                {expiredMsg && (
+                  <div style={{
+                    marginTop: '8px', padding: '8px 12px', borderRadius: '6px',
+                    background: 'rgba(255, 96, 96, 0.12)', border: '1px solid #ff606060',
+                    color: '#ff8080', fontSize: '11px', fontWeight: 600,
+                  }}>
+                    {expiredMsg}
+                  </div>
+                )}
               </div>
 
               {/* 1. DIAGNOSTICO — Why this change is needed */}
