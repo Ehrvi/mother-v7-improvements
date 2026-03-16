@@ -226,14 +226,16 @@ export class SandboxExecutor {
 function stripTypeScriptSyntax(code: string): string {
   return code
     // Remove full 'export interface Foo { ... }' blocks (handles multi-line)
-    .replace(/export\s+interface\s+\w+\s*\{[^}]*\}/g, '')
+    .replace(/export\s+interface\s+\w+[\s\S]*?\{[\s\S]*?\n\}/g, '')
     // Remove full 'interface Foo { ... }' blocks
-    .replace(/\binterface\s+\w+\s*\{[^}]*\}/g, '')
+    .replace(/\binterface\s+\w+[\s\S]*?\{[\s\S]*?\n\}/g, '')
     // Remove 'export type Foo = ...' lines
     .replace(/export\s+type\s+\w+\s*=[^;]+;/g, '')
     // Remove 'type Foo = ...' lines
     .replace(/\btype\s+\w+\s*=[^;]+;/g, '')
-    // Remove ': TypeName' annotations from parameters and variables (simple cases)
+    // Remove generic type parameters: Foo<Bar>, Foo<Bar, Baz>, new Foo<T>()
+    .replace(/<\s*(?:[A-Z]\w*(?:\s*,\s*[A-Z]\w*)*)\s*>/g, '')
+    // Remove ': TypeName' annotations from parameters and variables
     .replace(/:\s*(?:string|number|boolean|void|any|unknown|never|null|undefined|Record<[^>]+>|Promise<[^>]+>|Array<[^>]+>|\w+(?:\[\])?)\s*([,)=;{])/g, '$1')
     // Remove 'as TypeName' casts
     .replace(/\bas\s+\w+(?:<[^>]+>)?\b/g, '')
