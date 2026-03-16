@@ -42,6 +42,24 @@ interface DGMProposal {
   safetyHash: string;
   fitnessHash: string;
   sandboxHash: string;
+  // C358: Rich context
+  title?: string;
+  summary?: string;
+  problemStatement?: string;
+  rootCause?: string;
+  proposedFix?: string;
+  mutationType?: string;
+  fitnessDimensions?: Record<string, number>;
+  safetyWarnings?: string[];
+  parentMetrics?: {
+    id: string;
+    accuracy: number;
+    resolved: number;
+    total: number;
+    unresolvedIds: string[];
+  };
+  diagnosisLength?: number;
+  codeLength?: number;
 }
 
 const STEP_ICONS: Record<string, string> = {
@@ -411,65 +429,171 @@ export default function DgmTest() {
             </div>
           )}
 
-          {/* PROPOSAL REVIEW (when a proposal is pending) */}
+          {/* PROPOSAL REVIEW (when a proposal is pending) — C358: Rich context */}
           {currentProposal && (
-            <div style={{ margin: '12px', borderRadius: '10px', border: '2px solid #ffa04a60', overflow: 'hidden' }}>
-              {/* Header */}
-              <div style={{ padding: '12px 16px', background: 'rgba(255, 160, 74, 0.08)', borderBottom: '1px solid #ffa04a40', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: '14px', color: '#ffa04a' }}>PROPOSTA AGUARDANDO APROVACAO</div>
-                  <div style={{ fontSize: '10px', color: '#6060a0', marginTop: '2px' }}>{currentProposal.targetFile} | Fitness: {currentProposal.fitnessScore}/100 | Sandbox: {currentProposal.sandboxPassed ? 'OK' : 'FAIL'} ({currentProposal.sandboxType})</div>
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={() => handleApprove(currentProposal.id)} disabled={resolveMutation.isPending} style={{
-                    background: resolveMutation.isPending ? '#555' : 'linear-gradient(135deg, #22c55e, #16a34a)', color: '#fff', border: 'none',
-                    borderRadius: '8px', padding: '8px 20px', cursor: resolveMutation.isPending ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '13px',
-                  }}>
-                    {resolveMutation.isPending ? 'ENVIANDO...' : 'APROVAR'}
-                  </button>
-                  <button onClick={() => handleReject(currentProposal.id)} disabled={resolveMutation.isPending} style={{
-                    background: resolveMutation.isPending ? 'rgba(100,100,100,0.15)' : 'rgba(255, 96, 96, 0.15)', color: resolveMutation.isPending ? '#888' : '#ff6060', border: '1px solid #ff606040',
-                    borderRadius: '8px', padding: '8px 20px', cursor: resolveMutation.isPending ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '13px',
-                  }}>
-                    {resolveMutation.isPending ? 'ENVIANDO...' : 'REJEITAR'}
-                  </button>
+            <div style={{ margin: '12px', borderRadius: '10px', border: '2px solid #ffa04a60', overflow: 'hidden', overflowY: 'auto', maxHeight: 'calc(100vh - 200px)' }}>
+              {/* Header with title + action buttons */}
+              <div style={{ padding: '14px 16px', background: 'rgba(255, 160, 74, 0.08)', borderBottom: '1px solid #ffa04a40' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: '15px', color: '#ffa04a' }}>
+                      {currentProposal.title || 'PROPOSTA AGUARDANDO APROVACAO'}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#c0c0e0', marginTop: '4px', lineHeight: 1.5 }}>
+                      {currentProposal.summary || currentProposal.rationale}
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#6060a0', marginTop: '4px' }}>
+                      {currentProposal.targetFile} | Tipo: {currentProposal.mutationType || 'general'} | Run: {currentProposal.runId}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', flexShrink: 0, marginLeft: '12px' }}>
+                    <button onClick={() => handleApprove(currentProposal.id)} disabled={resolveMutation.isPending} style={{
+                      background: resolveMutation.isPending ? '#555' : 'linear-gradient(135deg, #22c55e, #16a34a)', color: '#fff', border: 'none',
+                      borderRadius: '8px', padding: '10px 24px', cursor: resolveMutation.isPending ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '13px',
+                    }}>
+                      {resolveMutation.isPending ? 'ENVIANDO...' : 'APROVAR'}
+                    </button>
+                    <button onClick={() => handleReject(currentProposal.id)} disabled={resolveMutation.isPending} style={{
+                      background: resolveMutation.isPending ? 'rgba(100,100,100,0.15)' : 'rgba(255, 96, 96, 0.15)', color: resolveMutation.isPending ? '#888' : '#ff6060', border: '1px solid #ff606040',
+                      borderRadius: '8px', padding: '10px 24px', cursor: resolveMutation.isPending ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '13px',
+                    }}>
+                      {resolveMutation.isPending ? 'ENVIANDO...' : 'REJEITAR'}
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* Scientific Justification */}
+              {/* 1. DIAGNOSTICO — Why this change is needed */}
               <div style={{ padding: '12px 16px', borderBottom: '1px solid #2d2d4e' }}>
-                <SectionLabel>Justificativa Cientifica</SectionLabel>
+                <SectionLabel>1. Diagnostico — Por que esta mudanca e necessaria</SectionLabel>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '6px' }}>
+                  <div style={{ padding: '10px', background: 'rgba(255, 96, 96, 0.04)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
+                    <div style={{ color: '#ff8080', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Problema Identificado</div>
+                    <div style={{ color: '#e0e0ff', fontSize: '11px', lineHeight: 1.6 }}>
+                      {currentProposal.problemStatement || currentProposal.rationale}
+                    </div>
+                  </div>
+                  <div style={{ padding: '10px', background: 'rgba(255, 160, 74, 0.04)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
+                    <div style={{ color: '#ffa04a', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Causa Raiz</div>
+                    <div style={{ color: '#e0e0ff', fontSize: '11px', lineHeight: 1.6 }}>
+                      {currentProposal.rootCause || 'Identificado via auto-diagnostico DGM'}
+                    </div>
+                  </div>
+                </div>
+                {/* Parent metrics — real data proving the need */}
+                {currentProposal.parentMetrics && (
+                  <div style={{ marginTop: '8px', padding: '10px', background: 'rgba(74, 158, 255, 0.04)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
+                    <div style={{ color: '#4a9eff', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Dados do Agente-Pai (Baseline)</div>
+                    <div style={{ color: '#a0a0c0', fontSize: '11px', lineHeight: 1.6 }}>
+                      Variante: <strong style={{ color: '#e0e0ff' }}>{currentProposal.parentMetrics.id}</strong> |{' '}
+                      Accuracy: <strong style={{ color: currentProposal.parentMetrics.accuracy >= 0.8 ? '#4aff9e' : '#ffa04a' }}>
+                        {(currentProposal.parentMetrics.accuracy * 100).toFixed(1)}%
+                      </strong> |{' '}
+                      Resolvidas: <strong style={{ color: '#e0e0ff' }}>{currentProposal.parentMetrics.resolved}/{currentProposal.parentMetrics.total}</strong>
+                      {currentProposal.parentMetrics.unresolvedIds.length > 0 && (
+                        <span> | Nao resolvidas: <strong style={{ color: '#ff8080' }}>{currentProposal.parentMetrics.unresolvedIds.join(', ')}</strong></span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. PROPOSTA — What the fix is */}
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #2d2d4e' }}>
+                <SectionLabel>2. Proposta de Solucao</SectionLabel>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '6px' }}>
+                  <div style={{ padding: '10px', background: 'rgba(74, 255, 158, 0.04)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
+                    <div style={{ color: '#4aff9e', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Correcao Proposta</div>
+                    <div style={{ color: '#e0e0ff', fontSize: '11px', lineHeight: 1.6 }}>
+                      {currentProposal.proposedFix || currentProposal.rationale}
+                    </div>
+                  </div>
                   <div style={{ padding: '10px', background: 'rgba(139, 92, 246, 0.04)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
-                    <div style={{ color: '#8b5cf6', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Base Cientifica</div>
-                    <div style={{ color: '#e0e0ff', fontSize: '11px', lineHeight: 1.5 }}>{currentProposal.scientificBasis}</div>
+                    <div style={{ color: '#8b5cf6', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Melhoria Esperada</div>
+                    <div style={{ color: '#e0e0ff', fontSize: '11px', lineHeight: 1.6 }}>
+                      {currentProposal.expectedImprovement}
+                    </div>
                   </div>
-                  <div style={{ padding: '10px', background: 'rgba(74, 158, 255, 0.04)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
-                    <div style={{ color: '#4a9eff', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Rationale</div>
-                    <div style={{ color: '#e0e0ff', fontSize: '11px', lineHeight: 1.5 }}>{currentProposal.rationale}</div>
-                  </div>
-                </div>
-                {/* Parecer */}
-                <div style={{ marginTop: '8px', padding: '10px', background: 'rgba(74, 255, 158, 0.03)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
-                  <div style={{ color: '#4aff9e', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Parecer do Sistema</div>
-                  <div style={{ color: '#a0a0c0', fontSize: '11px', lineHeight: 1.5 }}>
-                    Fitness Score: <strong style={{ color: currentProposal.fitnessScore >= 70 ? '#4aff9e' : '#ffa04a' }}>{currentProposal.fitnessScore}/100</strong> |{' '}
-                    Safety Gate: <strong style={{ color: '#4aff9e' }}>PASSED</strong> |{' '}
-                    Sandbox ({currentProposal.sandboxType}): <strong style={{ color: currentProposal.sandboxPassed ? '#4aff9e' : '#ff6060' }}>{currentProposal.sandboxPassed ? 'PASSED' : 'FAILED'}</strong> ({currentProposal.sandboxDurationMs}ms)
-                  </div>
-                </div>
-                {/* Hashes */}
-                <div style={{ marginTop: '6px', fontSize: '9px', color: '#4040a0' }}>
-                  diagnosis: <code style={{ color: '#4aff9e' }}>{currentProposal.diagnosisHash.slice(0, 16)}...</code> |{' '}
-                  modify: <code style={{ color: '#4aff9e' }}>{currentProposal.modificationHash.slice(0, 16)}...</code> |{' '}
-                  safety: <code style={{ color: '#4aff9e' }}>{currentProposal.safetyHash.slice(0, 16)}...</code> |{' '}
-                  sandbox: <code style={{ color: '#4aff9e' }}>{currentProposal.sandboxHash.slice(0, 16)}...</code>
                 </div>
               </div>
 
-              {/* Code Diff */}
+              {/* 3. EMBASAMENTO CIENTIFICO */}
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #2d2d4e' }}>
+                <SectionLabel>3. Embasamento Cientifico</SectionLabel>
+                <div style={{ padding: '10px', background: 'rgba(139, 92, 246, 0.04)', borderRadius: '6px', border: '1px solid #2d2d4e', marginTop: '6px' }}>
+                  <div style={{ color: '#8b5cf6', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Base Cientifica</div>
+                  <div style={{ color: '#e0e0ff', fontSize: '11px', lineHeight: 1.6 }}>{currentProposal.scientificBasis}</div>
+                </div>
+                <div style={{ marginTop: '8px', padding: '10px', background: 'rgba(74, 158, 255, 0.04)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
+                  <div style={{ color: '#4a9eff', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Raciocinio Completo (Rationale)</div>
+                  <div style={{ color: '#e0e0ff', fontSize: '11px', lineHeight: 1.6 }}>{currentProposal.rationale}</div>
+                </div>
+              </div>
+
+              {/* 4. RELATORIO DE VALIDACAO */}
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #2d2d4e' }}>
+                <SectionLabel>4. Relatorio de Validacao</SectionLabel>
+                {/* Fitness dimensions */}
+                <div style={{ marginTop: '6px', padding: '10px', background: 'rgba(74, 255, 158, 0.03)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
+                  <div style={{ color: '#4aff9e', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
+                    Fitness Score: {currentProposal.fitnessScore}/100
+                  </div>
+                  {currentProposal.fitnessDimensions && Object.keys(currentProposal.fitnessDimensions).length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {Object.entries(currentProposal.fitnessDimensions).map(([dim, score]) => (
+                        <div key={dim} style={{
+                          padding: '4px 8px', borderRadius: '4px', fontSize: '10px',
+                          background: (score as number) >= 70 ? 'rgba(74,255,158,0.1)' : (score as number) >= 50 ? 'rgba(255,160,74,0.1)' : 'rgba(255,96,96,0.1)',
+                          color: (score as number) >= 70 ? '#4aff9e' : (score as number) >= 50 ? '#ffa04a' : '#ff6060',
+                          border: `1px solid ${(score as number) >= 70 ? '#4aff9e20' : (score as number) >= 50 ? '#ffa04a20' : '#ff606020'}`,
+                        }}>
+                          {dim}: <strong>{String(score)}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {/* Safety + Sandbox */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '8px' }}>
+                  <div style={{ padding: '10px', background: 'rgba(74, 255, 158, 0.03)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
+                    <div style={{ color: '#4aff9e', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Safety Gate</div>
+                    <div style={{ color: '#a0a0c0', fontSize: '11px' }}>
+                      Status: <strong style={{ color: '#4aff9e' }}>PASSED</strong>
+                      {currentProposal.safetyWarnings && currentProposal.safetyWarnings.length > 0 && (
+                        <div style={{ marginTop: '4px', color: '#ffa04a', fontSize: '10px' }}>
+                          Warnings: {currentProposal.safetyWarnings.join('; ')}
+                        </div>
+                      )}
+                      {(!currentProposal.safetyWarnings || currentProposal.safetyWarnings.length === 0) && (
+                        <span style={{ color: '#6060a0' }}> (0 warnings)</span>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ padding: '10px', background: 'rgba(74, 255, 158, 0.03)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
+                    <div style={{ color: '#4aff9e', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Sandbox</div>
+                    <div style={{ color: '#a0a0c0', fontSize: '11px' }}>
+                      Status: <strong style={{ color: currentProposal.sandboxPassed ? '#4aff9e' : '#ff6060' }}>{currentProposal.sandboxPassed ? 'PASSED' : 'FAILED'}</strong> |{' '}
+                      Tipo: {currentProposal.sandboxType} |{' '}
+                      Duracao: {currentProposal.sandboxDurationMs}ms
+                    </div>
+                  </div>
+                </div>
+                {/* Proof hashes */}
+                <div style={{ marginTop: '8px', padding: '8px 10px', background: 'rgba(64,64,160,0.06)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
+                  <div style={{ color: '#4040a0', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Cadeia de Provas (SHA-256)</div>
+                  <div style={{ fontSize: '9px', color: '#4040a0', lineHeight: 1.8 }}>
+                    diagnostico: <code style={{ color: '#4aff9e' }}>{currentProposal.diagnosisHash?.slice(0, 16)}...</code>{' '}
+                    modificacao: <code style={{ color: '#4aff9e' }}>{currentProposal.modificationHash?.slice(0, 16)}...</code>{' '}
+                    safety: <code style={{ color: '#4aff9e' }}>{currentProposal.safetyHash?.slice(0, 16)}...</code>{' '}
+                    fitness: <code style={{ color: '#4aff9e' }}>{currentProposal.fitnessHash?.slice(0, 16)}...</code>{' '}
+                    sandbox: <code style={{ color: '#4aff9e' }}>{currentProposal.sandboxHash?.slice(0, 16)}...</code>
+                  </div>
+                </div>
+              </div>
+
+              {/* 5. CODE DIFF */}
               <div style={{ padding: '12px 16px' }}>
-                <SectionLabel>Preview do Codigo</SectionLabel>
+                <SectionLabel>5. Preview do Codigo</SectionLabel>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '6px' }}>
                   <div>
                     <div style={{ fontSize: '10px', color: '#ff6060', fontWeight: 700, marginBottom: '4px' }}>ORIGINAL ({currentProposal.targetFile})</div>
@@ -483,7 +607,7 @@ export default function DgmTest() {
                     </pre>
                   </div>
                   <div>
-                    <div style={{ fontSize: '10px', color: '#4aff9e', fontWeight: 700, marginBottom: '4px' }}>PROPOSTA (modificacao)</div>
+                    <div style={{ fontSize: '10px', color: '#4aff9e', fontWeight: 700, marginBottom: '4px' }}>PROPOSTA ({currentProposal.codeLength || currentProposal.proposedCode.length} chars)</div>
                     <pre style={{
                       background: '#0a0a16', border: '1px solid #4aff9e30', borderRadius: '6px',
                       padding: '10px', fontSize: '10px', color: '#c0ffc0',

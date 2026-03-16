@@ -73,6 +73,24 @@ export interface DGMProposal {
   safetyHash: string;
   fitnessHash: string;
   sandboxHash: string;
+  // C358: Rich context for human review
+  title: string;
+  summary: string;
+  problemStatement: string;
+  rootCause: string;
+  proposedFix: string;
+  mutationType: string;
+  fitnessDimensions: Record<string, number>;
+  safetyWarnings: string[];
+  parentMetrics: {
+    id: string;
+    accuracy: number;
+    resolved: number;
+    total: number;
+    unresolvedIds: string[];
+  };
+  diagnosisLength: number;
+  codeLength: number;
 }
 
 export const dgmEvents = new EventEmitter();
@@ -954,8 +972,8 @@ async function selfImproveStep(
       timestamp: new Date().toISOString(), data: { type: sandboxResult.sandboxType, durationMs: sandboxResult.durationMs, hash: sandboxHash } });
 
     // Step 5: HUMAN APPROVAL — Present proposal to user before applying
-    // Extract scientific basis from diagnosis
-    let diagnosisParsed: { scientificBasis?: string; proposedFix?: string; problem?: string } = {};
+    // C358: Parse full diagnosis JSON for rich proposal context
+    let diagnosisParsed: { scientificBasis?: string; proposedFix?: string; problem?: string; rootCause?: string; expectedImprovement?: string; targetFile?: string } = {};
     try { const m = problemStatement.match(/\{[\s\S]*\}/); if (m) diagnosisParsed = JSON.parse(m[0]); } catch { /* ignore */ }
 
     const proposalForReview: DGMProposal = {
@@ -966,7 +984,7 @@ async function selfImproveStep(
       originalCode: modification.originalCode,
       rationale: modification.rationale,
       scientificBasis: diagnosisParsed.scientificBasis || 'DGM arXiv:2505.22954',
-      expectedImprovement: `mutation=${entry.entryType}`,
+      expectedImprovement: diagnosisParsed.expectedImprovement || `mutation=${entry.entryType}`,
       fitnessScore: fitnessResult.overall,
       sandboxPassed: sandboxResult.passed,
       sandboxType: sandboxResult.sandboxType,
@@ -976,6 +994,24 @@ async function selfImproveStep(
       safetyHash,
       fitnessHash,
       sandboxHash,
+      // C358: Rich context for human review
+      title: `${entry.entryType === 'general_improvement' ? 'Melhoria Geral' : entry.entryType === 'solve_low_quality' ? 'Corrigir Baixa Qualidade' : entry.entryType === 'solve_new' ? 'Resolver Query Nova' : entry.entryType}: ${modification.targetFile.split('/').pop()}`,
+      summary: diagnosisParsed.proposedFix || modification.rationale || `Mutação ${entry.entryType} no arquivo ${modification.targetFile}`,
+      problemStatement: diagnosisParsed.problem || problemStatement.slice(0, 2000),
+      rootCause: diagnosisParsed.rootCause || 'Identificado via auto-diagnóstico DGM',
+      proposedFix: diagnosisParsed.proposedFix || modification.rationale || '',
+      mutationType: entry.entryType,
+      fitnessDimensions: fitnessResult.dimensions || {},
+      safetyWarnings: safetyResult.warnings || [],
+      parentMetrics: {
+        id: parent.id,
+        accuracy: parent.accuracyScore,
+        resolved: parent.resolvedIds.length,
+        total: parent.totalSubmittedInstances,
+        unresolvedIds: parent.unresolvedIds,
+      },
+      diagnosisLength: problemStatement.length,
+      codeLength: modification.proposedCode.length,
     };
 
     emitDGMEvent({
