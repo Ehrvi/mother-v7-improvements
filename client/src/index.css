@@ -17,6 +17,14 @@
    Required by streamdown v1.4.0 to activate Tailwind utility classes for rich content */
 @source "../../node_modules/streamdown/dist/index.js";
 
+/* Mermaid SVG diagrams: ensure full rendering without clipping by prose container */
+.prose .mermaid svg,
+.prose [data-mermaid] svg {
+  max-width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 /* ============================================================
