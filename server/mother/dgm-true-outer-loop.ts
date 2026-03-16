@@ -38,6 +38,7 @@ import { validateTypeScript, validateTypeScriptInWorktree, MOTHER_DIR } from './
 import { sql } from 'drizzle-orm';
 import { processQuery } from './core';
 import { orchestrate as coreOrchestrate } from './core-orchestrator';
+import { invokeLLM } from '../_core/llm';
 import { fitnessEvaluator } from './fitness-evaluator';
 import { checkSafetyGate } from './safety-gate';
 import { recordAuditEntry } from './audit-trail';
@@ -1647,14 +1648,18 @@ async function generateModification(
       }
     }
 
-    // Self-referential: use MOTHER's own pipeline to generate code modifications
-    // CRITICAL: The LLM must output the COMPLETE modified file, not a snippet.
-    // applyProposal() does writeFileSync(targetPath, proposedCode) — replacing the entire file.
-    // Then tsc --noEmit validates the whole project. A snippet replacing the full file = compilation failure.
-    const modificationQuery = `[DGM CODE EVOLUTION — ${entry.entryType}]
-
-You are operating as a DGM (Darwin Gödel Machine, arXiv:2505.22954) code evolution agent.
-MOTHER is modifying its own code through self-referential improvement.
+    // DGM Self-Modify: Use invokeLLM directly with surgical SEARCH/REPLACE approach.
+    // Previous approach asked for the COMPLETE file back — this fails because:
+    // 1. Files are 300-700 lines; LLM can't reproduce them faithfully in one shot
+    // 2. coreOrchestrate cascades through the full 8-layer pipeline (G-Eval, citations, etc.)
+    //    which is unnecessary for code generation and adds 30s+ overhead
+    // 3. Timeout cascades cause fallback to gpt-4o-mini with 3s budget → snippet/garbage
+    //
+    // New approach (per SICA arXiv:2504.15228 §4.2): surgical SEARCH/REPLACE blocks.
+    // The LLM outputs only the changed sections as search/replace pairs.
+    // We apply them to the original file, preserving everything else intact.
+    const modificationQuery = `You are a DGM (Darwin Gödel Machine, arXiv:2505.22954) code evolution agent.
+Your task: propose SURGICAL modifications to improve a TypeScript source file.
 
 PROBLEM DIAGNOSIS:
 ${problemStatement}
@@ -1662,81 +1667,132 @@ ${problemStatement}
 TARGET FILE: ${actualTargetFile}
 SCIENTIFIC BASIS: ${scientificBasis}
 
-COMPLETE ORIGINAL FILE:
+COMPLETE ORIGINAL FILE (${originalCode.split('\n').length} lines):
 \`\`\`typescript
 ${originalCode}
 \`\`\`
 
-RULES:
-1. Output ONLY a JSON object with the modification (no markdown, no explanation outside JSON)
-2. The "codeChanges" field MUST contain the COMPLETE MODIFIED FILE — not a snippet, not a diff, not just the changed section
-3. The complete file must include ALL original imports, ALL original exports, ALL original functions — with your modifications integrated
-4. Preserve all existing functionality — only ADD or MODIFY relevant sections within the complete file
-5. Include scientific comments citing relevant arXiv papers for your changes
-6. DO NOT introduce security vulnerabilities (OWASP Top 10)
-7. Maintain TypeScript strict mode compatibility — the code must pass \`tsc --noEmit\`
-8. Every change MUST have a scientific justification
-9. DO NOT remove or rename any existing exports — other modules depend on them
-10. The file will be validated with \`tsc --noEmit\` against the full project — incomplete files WILL be rejected
-
-${tscErrorFeedback ? `PREVIOUS ATTEMPT FAILED — TypeScript compilation errors:
+${tscErrorFeedback ? `PREVIOUS ATTEMPT FAILED with TypeScript compilation errors:
 ${tscErrorFeedback}
-Fix these errors in your output. The code MUST compile with tsc --noEmit.
+Fix these errors in your output.
 
-` : ''}RESPOND WITH EXACTLY THIS JSON FORMAT:
+` : ''}OUTPUT FORMAT — respond with ONLY a JSON object:
 {
   "targetFile": "${actualTargetFile}",
   "rationale": "Why this change improves the system",
   "scientificBasis": "arXiv:XXXX.XXXXX — paper title and relevant finding",
-  "codeChanges": "THE COMPLETE MODIFIED FILE (all imports, all exports, all functions — with your changes integrated)",
-  "expectedMetricImprovement": "e.g., +5pp accuracy, -200ms latency, +10% cache hit rate"
-}`;
+  "searchReplace": [
+    {
+      "search": "exact string from the original file to find (multi-line OK, must be unique)",
+      "replace": "the replacement string (multi-line OK)"
+    }
+  ],
+  "expectedMetricImprovement": "e.g., +5pp accuracy, -200ms latency"
+}
 
-    // Use coreOrchestrate directly (bypasses LFSA — code evolution is not long-form content)
-    const result = await coreOrchestrate({
-      query: modificationQuery,
-      conversationHistory: [],
-      metadata: { source: 'dgm-modify', mutationType: entry.entryType, targetFile: actualTargetFile },
-    });
+RULES:
+1. Each "search" string MUST exist EXACTLY in the original file (copy-paste precision)
+2. Each "search" must be unique in the file — include enough context lines to disambiguate
+3. You may have 1-5 search/replace pairs
+4. DO NOT remove or rename any existing exports — other modules depend on them
+5. Maintain TypeScript strict mode compatibility
+6. Include scientific comments (arXiv citations) for non-trivial changes
+7. DO NOT introduce security vulnerabilities
+8. Preserve all existing imports unless replacing them with better ones`;
 
-    if (!result.response || result.response.trim().length < 50) {
-      log.warn(`[MODIFY] Empty response from coreOrchestrate (provider=${result.provider}, model=${result.model})`);
+    // Direct LLM call with 90s timeout — bypasses the full orchestrator pipeline
+    // Uses gpt-4o for reliable code generation (not gpt-4o-mini which truncates)
+    const DGM_MODIFY_MODEL = process.env.DGM_MODIFY_MODEL || 'gpt-4o';
+    const DGM_MODIFY_PROVIDER = (process.env.DGM_MODIFY_PROVIDER || 'openai') as 'openai' | 'google' | 'anthropic';
+    const startMs = Date.now();
+    let llmResponse: string;
+    try {
+      const llmResult = await invokeLLM({
+        model: DGM_MODIFY_MODEL,
+        provider: DGM_MODIFY_PROVIDER,
+        messages: [
+          { role: 'system', content: 'You are a senior TypeScript engineer performing surgical code modifications. Output ONLY valid JSON, no markdown fences, no explanation outside JSON.' },
+          { role: 'user', content: modificationQuery },
+        ],
+        temperature: 0.3,
+        maxTokens: 8192,
+      });
+      const rawContent = llmResult?.choices?.[0]?.message?.content;
+      llmResponse = typeof rawContent === 'string' ? rawContent : Array.isArray(rawContent) ? rawContent.map(c => 'text' in c ? c.text : '').join('') : '';
+    } catch (err: any) {
+      log.warn(`[MODIFY] invokeLLM failed (${DGM_MODIFY_PROVIDER}/${DGM_MODIFY_MODEL}): ${err?.message || err}`);
+      return null;
+    }
+    const latencyMs = Date.now() - startMs;
+
+    if (!llmResponse || llmResponse.trim().length < 50) {
+      log.warn(`[MODIFY] Empty response from invokeLLM (${DGM_MODIFY_PROVIDER}/${DGM_MODIFY_MODEL})`);
       return null;
     }
 
-    log.info(`[MODIFY] Code generation via MOTHER — provider=${result.provider}, model=${result.model}, latency=${result.latencyMs}ms`);
+    log.info(`[MODIFY] Code generation via invokeLLM — provider=${DGM_MODIFY_PROVIDER}, model=${DGM_MODIFY_MODEL}, latency=${latencyMs}ms`);
 
-    // Extract the code modification from MOTHER's response
+    // Extract the JSON modification from the LLM response
     let modResult: {
       targetFile?: string;
       rationale?: string;
       scientificBasis?: string;
+      searchReplace?: Array<{ search: string; replace: string }>;
       codeChanges?: string;
-      insertAfterLine?: string;
       expectedMetricImprovement?: string;
     } = {};
     try {
-      const jsonMatch = result.response.match(/\{[\s\S]*\}/);
+      // Strip markdown fences if present
+      const cleaned = llmResponse.replace(/^```(?:json)?\s*\n/m, '').replace(/\n```\s*$/, '');
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
       if (jsonMatch) modResult = JSON.parse(jsonMatch[0]);
-    } catch {
-      // If JSON parse fails, use the raw response as the code change
-      modResult = { codeChanges: result.response, rationale: rationale };
+    } catch (parseErr) {
+      log.warn(`[MODIFY] JSON parse failed — response starts with: ${llmResponse.slice(0, 100)}`);
+      return null;
     }
 
-    let proposedCode = modResult.codeChanges || result.response;
-    if (!proposedCode || proposedCode.length < 20) return null;
+    // Apply surgical SEARCH/REPLACE modifications to the original file
+    let proposedCode: string;
+    if (modResult.searchReplace && modResult.searchReplace.length > 0) {
+      proposedCode = originalCode;
+      for (const sr of modResult.searchReplace) {
+        if (!sr.search || sr.replace === undefined) {
+          log.warn(`[MODIFY] Invalid search/replace pair — skipping`);
+          continue;
+        }
+        if (!proposedCode.includes(sr.search)) {
+          // Try trimmed match (LLM sometimes adds/removes whitespace)
+          const trimmedSearch = sr.search.trim();
+          if (trimmedSearch.length > 20 && proposedCode.includes(trimmedSearch)) {
+            proposedCode = proposedCode.replace(trimmedSearch, sr.replace.trim());
+            log.info(`[MODIFY] Applied trimmed search/replace (${trimmedSearch.length} chars)`);
+          } else {
+            log.warn(`[MODIFY] Search string not found in file (${sr.search.slice(0, 80)}...)`);
+            return null; // Abort — LLM hallucinated the search string
+          }
+        } else {
+          proposedCode = proposedCode.replace(sr.search, sr.replace);
+        }
+      }
+      log.info(`[MODIFY] Applied ${modResult.searchReplace.length} surgical modifications`);
+    } else if (modResult.codeChanges) {
+      // Fallback: LLM returned full file in codeChanges (legacy format)
+      proposedCode = modResult.codeChanges.replace(/^```(?:typescript|ts)?\s*\n/m, '').replace(/\n```\s*$/, '');
+      const originalHasImports = originalCode.includes('import ');
+      const looksLikeCompleteFile = proposedCode.includes('import ') ||
+        proposedCode.includes('export ') ||
+        /^(import|export|const|function|class|interface|type)\s/m.test(proposedCode);
+      if (originalHasImports && !looksLikeCompleteFile) {
+        log.warn(`[MODIFY] LLM returned a snippet instead of the complete file — rejecting`);
+        return null;
+      }
+    } else {
+      log.warn(`[MODIFY] No searchReplace or codeChanges in response`);
+      return null;
+    }
 
-    // Strip markdown code fences if the LLM wrapped the output
-    proposedCode = proposedCode.replace(/^```(?:typescript|ts)?\s*\n/m, '').replace(/\n```\s*$/, '');
-
-    // Sanity check: the proposed code must look like a complete file, not a snippet.
-    // Check for imports OR exports OR top-level declarations (some files have exports without imports).
-    const originalHasImports = originalCode.includes('import ');
-    const looksLikeCompleteFile = proposedCode.includes('import ') ||
-      proposedCode.includes('export ') ||
-      /^(import|export|const|function|class|interface|type)\s/m.test(proposedCode);
-    if (originalHasImports && !looksLikeCompleteFile) {
-      log.warn(`[MODIFY] LLM returned a snippet instead of the complete file — rejecting`);
+    if (proposedCode === originalCode) {
+      log.warn(`[MODIFY] Proposed code is identical to original — no changes made`);
       return null;
     }
 
