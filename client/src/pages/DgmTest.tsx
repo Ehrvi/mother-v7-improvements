@@ -65,6 +65,143 @@ const STEP_COLORS: Record<string, string> = {
   waiting: '#ffa04a',
 };
 
+/* ── Live Activity Rotating Messages ── */
+const ACTIVITY_MESSAGES: Record<string, string[]> = {
+  init: [
+    'Selecionando agente-pai do arquivo MAP-Elites...',
+    'Preparando operador de mutacao...',
+    'Calculando hash de inicializacao SHA-256...',
+    'Configurando parametros de evolucao...',
+  ],
+  diagnose: [
+    'Analisando pipeline para identificar fraquezas...',
+    'Executando queries do benchmark no agente-pai...',
+    'Comparando metricas de qualidade...',
+    'Formulando problem statement cientifico...',
+    'Consultando papers relevantes (arXiv)...',
+    'Classificando tipo de deficiencia encontrada...',
+  ],
+  modify: [
+    'LLM gerando modificacao de codigo...',
+    'Aplicando principios de Self-Referential Improvement...',
+    'Avaliando trade-offs de complexidade vs ganho...',
+    'Escrevendo patch para arquivo alvo...',
+    'Verificando coerencia com arquitetura existente...',
+    'Adicionando base cientifica ao rationale...',
+  ],
+  safety: [
+    'Verificando acesso a credenciais...',
+    'Analisando loops infinitos potenciais...',
+    'Checando delecao de arquivos criticos...',
+    'Validando escopo de modificacao permitido...',
+    'Aplicando Constitutional AI (arXiv:2212.08073)...',
+  ],
+  fitness: [
+    'Avaliando corretude do codigo...',
+    'Medindo robustez e tratamento de erros...',
+    'Calculando complexidade ciclomatica...',
+    'Analisando seguranca (OWASP top 10)...',
+    'Verificando testabilidade...',
+    'Computando score multi-dimensional (7 eixos)...',
+  ],
+  sandbox: [
+    'Criando sandbox isolado E2B...',
+    'Compilando TypeScript no ambiente seguro...',
+    'Executando validacao de sintaxe...',
+    'Verificando efeitos colaterais...',
+    'Testando imports e exports...',
+    'Rodando verificacao de integridade...',
+  ],
+  proposal: [
+    'Aguardando aprovacao humana...',
+    'Proposta pronta para revisao...',
+    'Human-in-the-loop ativo...',
+  ],
+  evaluate: [
+    'Executando benchmark completo...',
+    'Testando queries uma a uma...',
+    'Medindo qualidade G-Eval por resposta...',
+    'Comparando accuracy vs agente-pai...',
+    'Calculando ganho empirico...',
+  ],
+  complete: [
+    'Finalizando prova criptografica...',
+    'Salvando variante no arquivo MAP-Elites...',
+    'Gerando hash final de verificacao...',
+  ],
+};
+
+function LiveActivityBanner({ currentStep, isRunning }: { currentStep: string | null; isRunning: boolean }) {
+  const [msgIndex, setMsgIndex] = useState(0);
+  const [opacity, setOpacity] = useState(1);
+
+  useEffect(() => {
+    if (!isRunning || !currentStep) return;
+    const messages = ACTIVITY_MESSAGES[currentStep];
+    if (!messages || messages.length === 0) return;
+
+    setMsgIndex(0);
+    setOpacity(1);
+
+    const interval = setInterval(() => {
+      // Fade out
+      setOpacity(0);
+      setTimeout(() => {
+        setMsgIndex(prev => (prev + 1) % messages.length);
+        // Fade in
+        setOpacity(1);
+      }, 300);
+    }, 2800);
+
+    return () => clearInterval(interval);
+  }, [currentStep, isRunning]);
+
+  if (!isRunning || !currentStep) return null;
+
+  const messages = ACTIVITY_MESSAGES[currentStep];
+  if (!messages || messages.length === 0) return null;
+
+  const stepLabel = currentStep === 'init' ? 'INICIALIZANDO' : currentStep === 'diagnose' ? 'DIAGNOSTICANDO' : currentStep === 'modify' ? 'GERANDO CODIGO' : currentStep === 'safety' ? 'SAFETY GATE' : currentStep === 'fitness' ? 'FITNESS CHECK' : currentStep === 'sandbox' ? 'SANDBOX' : currentStep === 'proposal' ? 'APROVACAO' : currentStep === 'evaluate' ? 'BENCHMARK' : 'FINALIZANDO';
+
+  return (
+    <div style={{
+      margin: '12px 12px 0', padding: '10px 16px', borderRadius: '8px',
+      background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(74, 158, 255, 0.08))',
+      border: '1px solid rgba(139, 92, 246, 0.2)',
+      display: 'flex', alignItems: 'center', gap: '12px',
+    }}>
+      {/* Animated spinner */}
+      <div style={{
+        width: '28px', height: '28px', borderRadius: '50%',
+        border: '2px solid transparent',
+        borderTopColor: '#8b5cf6', borderRightColor: '#4a9eff',
+        animation: 'spin 1s linear infinite', flexShrink: 0,
+      }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: '10px', fontWeight: 700, color: '#8b5cf6',
+          textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px',
+        }}>
+          {stepLabel}
+        </div>
+        <div style={{
+          fontSize: '12px', color: '#c0c0e0',
+          transition: 'opacity 0.3s ease',
+          opacity,
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
+          {messages[msgIndex % messages.length]}
+        </div>
+      </div>
+      {/* Pulsing dot */}
+      <div style={{
+        width: '8px', height: '8px', borderRadius: '50%',
+        background: '#4aff9e', animation: 'pulse 1.5s infinite', flexShrink: 0,
+      }} />
+    </div>
+  );
+}
+
 export default function DgmTest() {
   const navigate = useNavigate();
   const [customQueries, setCustomQueries] = useState('');
@@ -147,6 +284,7 @@ export default function DgmTest() {
   const pendingProposals = (proposalsQuery.data ?? []) as DGMProposal[];
   const currentProposal = pendingProposals[0] ?? null;
   const lastStep = events.length > 0 ? events[events.length - 1] : null;
+  const activeStep = isRunning && lastStep?.status === 'start' ? lastStep.step : (isRunning && lastStep ? lastStep.step : null);
 
   return (
     <div style={{ minHeight: '100vh', background: '#08081a', color: '#e0e0ff', fontFamily: 'monospace' }}>
@@ -246,6 +384,9 @@ export default function DgmTest() {
               Erro: {error}
             </div>
           )}
+
+          {/* Live Activity Banner */}
+          <LiveActivityBanner currentStep={activeStep} isRunning={isRunning || pollEnabled} />
 
           {/* Empty state */}
           {events.length === 0 && !isRunning && !error && (
@@ -428,6 +569,7 @@ export default function DgmTest() {
 
       <style>{`
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
       `}</style>
     </div>
   );
