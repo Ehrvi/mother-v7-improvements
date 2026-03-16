@@ -406,6 +406,40 @@ export const motherRouter = router({
     }),
 
   /**
+   * DGM Event Log — Poll for real-time DGM pipeline events
+   */
+  dgmEvents: publicProcedure
+    .input(z.object({ since: z.number().optional().default(0) }))
+    .query(async ({ input }) => {
+      const { getDGMEventLog } = await import('../mother/dgm-true-outer-loop.js');
+      const allEvents = getDGMEventLog();
+      return allEvents.slice(input.since);
+    }),
+
+  /**
+   * DGM Pending Proposals — Get proposals waiting for human approval
+   */
+  dgmPendingProposals: publicProcedure
+    .query(async () => {
+      const { getPendingProposals } = await import('../mother/dgm-true-outer-loop.js');
+      return getPendingProposals();
+    }),
+
+  /**
+   * DGM Resolve Proposal — Approve or reject a pending proposal
+   */
+  dgmResolveProposal: publicProcedure
+    .input(z.object({
+      proposalId: z.string(),
+      approved: z.boolean(),
+    }))
+    .mutation(async ({ input }) => {
+      const { resolveProposal } = await import('../mother/dgm-true-outer-loop.js');
+      const resolved = resolveProposal(input.proposalId, input.approved);
+      return { resolved, proposalId: input.proposalId, approved: input.approved };
+    }),
+
+  /**
    * v38.0: DGM Supervisor - Orchestrates multi-agent evolution loop
    * Scientific basis: Darwin Godel Machine (Sakana AI, 2025)
    */
