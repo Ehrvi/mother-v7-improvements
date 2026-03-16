@@ -33,7 +33,7 @@ import { createLogger } from '../_core/logger';
 import { getDb } from '../db';
 import { sql } from 'drizzle-orm';
 import { processQuery } from './core';
-import { invokeLLM } from './intelligence';
+import { invokeLLM } from '../_core/llm';
 import { fitnessEvaluator } from './fitness-evaluator';
 import { checkSafetyGate } from './safety-gate';
 import { recordAuditEntry } from './audit-trail';
@@ -553,9 +553,9 @@ async function selfImproveStep(
     }
 
     // Step 3: SAFETY CHECK — Validate modification before applying
-    const safetyResult = await checkSafetyGate(modification.proposedCode);
+    const safetyResult = checkSafetyGate(modification.targetFile, modification.proposedCode, runId);
     if (!safetyResult.allowed) {
-      log.warn(`[SELF-IMPROVE] Safety gate blocked modification: ${safetyResult.reason}`);
+      log.warn(`[SELF-IMPROVE] Safety gate blocked modification: ${safetyResult.violations.join(', ')}`);
       return null;
     }
 
@@ -563,7 +563,8 @@ async function selfImproveStep(
     const fitnessResult = await fitnessEvaluator.evaluate({
       filePath: modification.targetFile,
       content: modification.proposedCode,
-      originalContent: modification.originalCode,
+      cycleId: runId,
+      agentId: parent.id,
     });
 
     if (fitnessResult.overall < 50) {
@@ -576,7 +577,7 @@ async function selfImproveStep(
       targetFile: modification.targetFile,
       proposedCode: modification.proposedCode,
       rationale: modification.rationale,
-      scientificBasis: `DGM self-improvement (arXiv:2505.22954), mutation=${entry.entryType}`,
+      expectedImprovement: `DGM self-improvement (arXiv:2505.22954), mutation=${entry.entryType}`,
     });
 
     const applied = await applyProposal(proposal.id);
@@ -744,7 +745,9 @@ Output a JSON object with:
       temperature: 0.3,
     });
 
-    return response.choices?.[0]?.message?.content ?? null;
+    const content = response.choices?.[0]?.message?.content;
+    if (!content) return null;
+    return typeof content === 'string' ? content : content.map(c => 'text' in c ? c.text : '').join('');
   } catch (err) {
     log.error(`[DIAGNOSE] LLM call failed: ${String(err)}`);
     return null;
@@ -820,7 +823,8 @@ RULES:
       temperature: 0.2,
     });
 
-    const proposedCode = response.choices?.[0]?.message?.content ?? '';
+    const rawContent = response.choices?.[0]?.message?.content ?? '';
+    const proposedCode = typeof rawContent === 'string' ? rawContent : rawContent.map(c => 'text' in c ? c.text : '').join('');
     if (!proposedCode || proposedCode.length < 100) return null;
 
     // Generate a simple diff as "patch"
