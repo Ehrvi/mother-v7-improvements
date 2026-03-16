@@ -37,7 +37,7 @@
 
 import { createHash } from 'crypto';
 import { execSync } from 'child_process';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -194,6 +194,60 @@ export function validateTypeScript(projectDir: string): {
 }
 
 // ============================================================
+// CRASH-SAFE FILE BACKUP FOR DGM VALIDATION
+// ============================================================
+
+const DGM_BACKUP_DIR = path.join(MOTHER_DIR, '.dgm-backup');
+
+/**
+ * Save a file's original content to disk before DGM overwrites it.
+ * Returns the backup path. If the process crashes between writeFileSync
+ * and the restore, the pre-start script finds this backup and restores it.
+ */
+export function dgmBackupFile(filePath: string): string {
+  mkdirSync(DGM_BACKUP_DIR, { recursive: true });
+  // Encode path as safe filename: server/mother/foo.ts -> server__mother__foo.ts
+  const safeName = filePath.replace(/[/\\]/g, '__');
+  const backupPath = path.join(DGM_BACKUP_DIR, safeName);
+  const fullPath = path.resolve(MOTHER_DIR, filePath);
+  if (existsSync(fullPath)) {
+    const content = readFileSync(fullPath, 'utf-8');
+    writeFileSync(backupPath, content, 'utf-8');
+  } else {
+    // Mark that the file didn't exist (so restore = delete)
+    writeFileSync(backupPath, '<<DGM_FILE_DID_NOT_EXIST>>', 'utf-8');
+  }
+  return backupPath;
+}
+
+/**
+ * Restore a file from its DGM backup and remove the backup.
+ */
+export function dgmRestoreFile(filePath: string): void {
+  if (!filePath) return;
+  const safeName = filePath.replace(/[/\\]/g, '__');
+  const backupPath = path.join(DGM_BACKUP_DIR, safeName);
+  const fullPath = path.resolve(MOTHER_DIR, filePath);
+  if (!existsSync(backupPath)) return;
+  const content = readFileSync(backupPath, 'utf-8');
+  if (content === '<<DGM_FILE_DID_NOT_EXIST>>') {
+    try { unlinkSync(fullPath); } catch { /* ignore */ }
+  } else {
+    writeFileSync(fullPath, content, 'utf-8');
+  }
+  try { unlinkSync(backupPath); } catch { /* ignore */ }
+}
+
+/**
+ * Remove a DGM backup (called after successful restore or when validation is done).
+ */
+export function dgmClearBackup(filePath: string): void {
+  const safeName = filePath.replace(/[/\\]/g, '__');
+  const backupPath = path.join(DGM_BACKUP_DIR, safeName);
+  try { unlinkSync(backupPath); } catch { /* ignore */ }
+}
+
+// ============================================================
 // PROPOSAL MANAGEMENT
 // ============================================================
 
@@ -284,8 +338,8 @@ export async function applyProposal(proposalId: string): Promise<SelfModificatio
 
   const targetPath = path.join(MOTHER_DIR, proposal.targetFile);
 
-  // Read backup BEFORE writing — guarantees we can restore on any failure
-  const backupCode = existsSync(targetPath) ? readFileSync(targetPath, 'utf-8') : null;
+  // Disk backup BEFORE writing — if process crashes, pre-start restores from .dgm-backup/
+  dgmBackupFile(proposal.targetFile);
   let tsValid = false;
   let tsErrors: string[] = [];
 
@@ -299,11 +353,7 @@ export async function applyProposal(proposalId: string): Promise<SelfModificatio
     tsErrors = tsResult.errors;
   } catch (err: unknown) {
     const error = err as Error;
-    // Restore original before returning error
-    try {
-      if (backupCode !== null) writeFileSync(targetPath, backupCode, 'utf-8');
-      else execSync(`git checkout -- "${proposal.targetFile}"`, { cwd: MOTHER_DIR, stdio: 'pipe' });
-    } catch { /* restore failed — git checkout is last resort below */ }
+    dgmRestoreFile(proposal.targetFile);
     return {
       success: false,
       proposalId,
@@ -316,17 +366,7 @@ export async function applyProposal(proposalId: string): Promise<SelfModificatio
   }
 
   if (!tsValid) {
-    // Rollback — restore original file content (crash-safe: backup is in memory)
-    try {
-      if (backupCode !== null) {
-        writeFileSync(targetPath, backupCode, 'utf-8');
-      } else {
-        execSync(`git checkout -- "${proposal.targetFile}"`, { cwd: MOTHER_DIR, stdio: 'pipe' });
-      }
-    } catch {
-      // Last resort: git checkout
-      try { execSync(`git checkout -- "${proposal.targetFile}"`, { cwd: MOTHER_DIR, stdio: 'pipe' }); } catch { /* file may be corrupted */ }
-    }
+    dgmRestoreFile(proposal.targetFile);
     proposal.validationResult = 'failed';
     return {
       success: false,
@@ -338,6 +378,9 @@ export async function applyProposal(proposalId: string): Promise<SelfModificatio
       timestamp,
     };
   }
+
+  // tsc passed — the proposed code is now the real file. Clear the backup.
+  dgmClearBackup(proposal.targetFile);
 
   proposal.validationResult = 'passed';
   proposal.fitnessScore = 0.85; // Default; real score from benchmark

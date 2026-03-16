@@ -10,3 +10,4 @@ logs/
 *.bak
 *.backup
 *.orig
+.dgm-backup/

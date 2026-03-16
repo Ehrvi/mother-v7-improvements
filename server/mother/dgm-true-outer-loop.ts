@@ -34,7 +34,7 @@ import { createLogger } from '../_core/logger';
 import { getDb } from '../db';
 import { sandboxExecutor } from '../dgm/sandbox-executor';
 import { runInSandbox } from './e2b-sandbox';
-import { validateTypeScript, MOTHER_DIR } from './self-modifier';
+import { validateTypeScript, MOTHER_DIR, dgmBackupFile, dgmRestoreFile, dgmClearBackup } from './self-modifier';
 import { sql } from 'drizzle-orm';
 import { processQuery } from './core';
 import { orchestrate as coreOrchestrate } from './core-orchestrator';
@@ -979,36 +979,31 @@ async function selfImproveStep(
       if (!modification) break;
 
       // Quick tsc pre-check before proceeding through the full pipeline
+      // CRASH-SAFE: backup written to disk BEFORE overwriting source file.
+      // If process crashes, pre-start script finds .dgm-backup/ and restores.
       const fs = await import('fs');
       const pathMod = await import('path');
       const targetPath = pathMod.join(MOTHER_DIR, modification.targetFile);
-      const backup = fs.existsSync(targetPath) ? fs.readFileSync(targetPath, 'utf-8') : null;
+      dgmBackupFile(modification.targetFile); // Disk backup BEFORE write
       try {
         fs.writeFileSync(targetPath, modification.proposedCode, 'utf-8');
         const tsResult = validateTypeScript(MOTHER_DIR);
 
         if (tsResult.valid) {
           log.info(`[SELF-IMPROVE] tsc pre-check PASSED on attempt ${attempt}`);
-          // Restore original — applyProposal will write again later
-          if (backup !== null) fs.writeFileSync(targetPath, backup, 'utf-8');
-          else fs.unlinkSync(targetPath);
-          break; // Good — proceed with this modification
+          dgmRestoreFile(modification.targetFile); // Restore original — applyProposal writes later
+          break;
         }
         // tsc failed — feed errors back for next attempt
         tscFeedback = tsResult.errors.join('\n');
         log.warn(`[SELF-IMPROVE] tsc pre-check FAILED on attempt ${attempt}: ${tsResult.errors[0]}`);
-        modification = null; // Mark as failed for this attempt
+        modification = null;
       } catch (preCheckErr) {
         log.warn(`[SELF-IMPROVE] tsc pre-check error on attempt ${attempt}: ${preCheckErr}`);
         modification = null;
       } finally {
-        // ALWAYS restore original file — even if process is crashing
-        try {
-          if (backup !== null) fs.writeFileSync(targetPath, backup, 'utf-8');
-          else if (fs.existsSync(targetPath)) fs.unlinkSync(targetPath);
-        } catch (restoreErr) {
-          log.error(`[SELF-IMPROVE] CRITICAL: Failed to restore ${targetPath} after tsc pre-check: ${restoreErr}`);
-        }
+        // ALWAYS restore from disk backup — survives process crash
+        dgmRestoreFile(modification?.targetFile || '');
       }
     }
     if (!modification) {
@@ -1160,7 +1155,7 @@ async function selfImproveStep(
       const fs = await import('fs');
       const path = await import('path');
       const targetPath = path.join(MOTHER_DIR, modification.targetFile);
-      const backupCode = fs.existsSync(targetPath) ? fs.readFileSync(targetPath, 'utf-8') : null;
+      dgmBackupFile(modification.targetFile); // Disk backup BEFORE write
       let tscPassed = false;
       let tscErrors: string[] = [];
       try {
@@ -1174,21 +1169,8 @@ async function selfImproveStep(
         tscPassed = false;
         tscErrors = [String(tscErr)];
       } finally {
-        // ALWAYS restore original file — crash-safe guarantee
-        try {
-          if (backupCode !== null) {
-            fs.writeFileSync(targetPath, backupCode, 'utf-8');
-          } else if (fs.existsSync(targetPath)) {
-            fs.unlinkSync(targetPath);
-          }
-        } catch (restoreErr) {
-          // Last resort: git checkout
-          log.error(`[SELF-IMPROVE] CRITICAL: Failed to restore ${modification.targetFile}, attempting git checkout: ${restoreErr}`);
-          try {
-            const { execSync } = await import('child_process');
-            execSync(`git checkout -- "${modification.targetFile}"`, { cwd: MOTHER_DIR, stdio: 'pipe' });
-          } catch { /* git checkout also failed — file may be corrupted */ }
-        }
+        // ALWAYS restore from disk backup — survives process crash
+        dgmRestoreFile(modification.targetFile);
       }
       if (!tscPassed) {
         emitDGMEvent({
