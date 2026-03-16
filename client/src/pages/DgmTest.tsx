@@ -62,6 +62,59 @@ interface DGMProposal {
   codeLength?: number;
 }
 
+/** Metadata for each fitness dimension — description, weight, and what low/high scores mean */
+const FITNESS_DIMENSION_INFO: Record<string, { label: string; weight: string; description: string; low: string; high: string }> = {
+  correctness: {
+    label: 'Correctness',
+    weight: '35%',
+    description: 'Compilacao TypeScript + taxa de aprovacao nos testes. Cada erro TS penaliza -20pts, cada teste falhando -10pts.',
+    low: 'Codigo com erros de compilacao ou testes falhando. Necessita correcao antes de aplicar.',
+    high: 'Codigo compila sem erros e todos os testes passam.',
+  },
+  safety: {
+    label: 'Safety',
+    weight: '25%',
+    description: 'Ausencia de padroes perigosos: eval(), exec(), spawn(), rm -rf, process.exit, fs.unlinkSync, acesso a /etc/passwd, mutacoes globais.',
+    low: 'Codigo contem padroes potencialmente perigosos. Violacoes CRITICAS (-50pts), ALTAS (-25pts), MEDIAS (-10pts).',
+    high: 'Nenhum padrao perigoso detectado. Codigo seguro para execucao.',
+  },
+  complexity: {
+    label: 'Complexity',
+    weight: '15%',
+    description: 'Complexidade ciclomatica de McCabe (invertida — menor complexidade = melhor score). Conta: if, else, for, while, case, catch, &&, ||, ternarios.',
+    low: 'Codigo muito complexo (>20 pontos de decisao). Dificil de manter e testar.',
+    high: 'Codigo simples e linear (<=5 pontos de decisao). Facil de entender e manter.',
+  },
+  documentation: {
+    label: 'Documentation',
+    weight: '10%',
+    description: 'Cobertura de JSDoc e proporcao de comentarios. Mede: blocos JSDoc / funcoes exportadas + ratio de linhas comentadas vs total.',
+    low: 'Funcoes sem documentacao JSDoc. Codigo sem comentarios explicativos.',
+    high: 'Todas as funcoes exportadas tem JSDoc. Boa proporcao de comentarios.',
+  },
+  testability: {
+    label: 'Testability',
+    weight: '8%',
+    description: 'Indicadores de testabilidade: presenca de suite de testes (+60pts), funcoes exportadas testáveis (+40pts).',
+    low: 'Sem testes associados e/ou sem funcoes exportadas para testar.',
+    high: 'Possui suite de testes e funcoes exportadas bem definidas.',
+  },
+  integration: {
+    label: 'Integration',
+    weight: '5%',
+    description: 'Compatibilidade com endpoints A2A. Verifica: presenca de Router (+33pts), Request/Response types (+33pts), exports (+33pts).',
+    low: 'Codigo nao segue o padrao de integracao A2A. Sem Router ou exports.',
+    high: 'Codigo totalmente compativel com o padrao A2A do sistema.',
+  },
+  performance: {
+    label: 'Performance',
+    weight: '2%',
+    description: 'Caracteristicas de execucao: penaliza operacoes sincronas (-50pts), recompensa padroes async (+25pts).',
+    low: 'Usa operacoes sincronas bloqueantes (readFileSync, etc).',
+    high: 'Usa padroes asincronos adequados (async/await, streams).',
+  },
+};
+
 const STEP_ICONS: Record<string, string> = {
   init: '1',
   benchmark: '2',
@@ -541,17 +594,13 @@ export default function DgmTest() {
                   {currentProposal.fitnessDimensions && Object.keys(currentProposal.fitnessDimensions).length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                       {Object.entries(currentProposal.fitnessDimensions).map(([dim, score]) => (
-                        <div key={dim} style={{
-                          padding: '4px 8px', borderRadius: '4px', fontSize: '10px',
-                          background: (score as number) >= 70 ? 'rgba(74,255,158,0.1)' : (score as number) >= 50 ? 'rgba(255,160,74,0.1)' : 'rgba(255,96,96,0.1)',
-                          color: (score as number) >= 70 ? '#4aff9e' : (score as number) >= 50 ? '#ffa04a' : '#ff6060',
-                          border: `1px solid ${(score as number) >= 70 ? '#4aff9e20' : (score as number) >= 50 ? '#ffa04a20' : '#ff606020'}`,
-                        }}>
-                          {dim}: <strong>{String(score)}</strong>
-                        </div>
+                        <FitnessBadge key={dim} dim={dim} score={score as number} />
                       ))}
                     </div>
                   )}
+                  <div style={{ marginTop: '6px', fontSize: '9px', color: '#4040a0', fontStyle: 'italic' }}>
+                    Passe o mouse sobre cada dimensao para ver a explicacao detalhada.
+                  </div>
                 </div>
                 {/* Safety + Sandbox */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '8px' }}>
@@ -708,6 +757,80 @@ export default function DgmTest() {
     </div>
   );
 }
+
+/** Fitness dimension badge with hover tooltip explaining what it means */
+const FitnessBadge: React.FC<{ dim: string; score: number }> = ({ dim, score }) => {
+  const [hovered, setHovered] = useState(false);
+  const info = FITNESS_DIMENSION_INFO[dim];
+  const color = score >= 70 ? '#4aff9e' : score >= 50 ? '#ffa04a' : '#ff6060';
+  const bgColor = score >= 70 ? 'rgba(74,255,158,0.1)' : score >= 50 ? 'rgba(255,160,74,0.1)' : 'rgba(255,96,96,0.1)';
+  const borderColor = score >= 70 ? '#4aff9e20' : score >= 50 ? '#ffa04a20' : '#ff606020';
+
+  return (
+    <div
+      style={{ position: 'relative', display: 'inline-block' }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <div style={{
+        padding: '4px 10px', borderRadius: '4px', fontSize: '10px', cursor: 'help',
+        background: bgColor, color, border: `1px solid ${borderColor}`,
+        transition: 'transform 0.15s ease',
+        transform: hovered ? 'scale(1.05)' : 'scale(1)',
+      }}>
+        {info?.label || dim}: <strong>{score}</strong>
+        <span style={{ marginLeft: '4px', fontSize: '8px', opacity: 0.7 }}>({info?.weight || '?'})</span>
+      </div>
+      {/* Tooltip on hover */}
+      {hovered && info && (
+        <div style={{
+          position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)',
+          marginBottom: '6px', width: '300px', zIndex: 100,
+          padding: '10px 12px', borderRadius: '8px',
+          background: '#1a1a2e', border: '1px solid #3d3d6e',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+          pointerEvents: 'none',
+        }}>
+          <div style={{ fontWeight: 700, fontSize: '11px', color, marginBottom: '6px' }}>
+            {info.label} ({info.weight} do score total)
+          </div>
+          <div style={{ fontSize: '10px', color: '#c0c0e0', lineHeight: 1.6, marginBottom: '6px' }}>
+            {info.description}
+          </div>
+          <div style={{
+            fontSize: '10px', lineHeight: 1.5, padding: '6px 8px', borderRadius: '4px',
+            background: score >= 70 ? 'rgba(74,255,158,0.06)' : score >= 50 ? 'rgba(255,160,74,0.06)' : 'rgba(255,96,96,0.06)',
+            border: `1px solid ${borderColor}`,
+          }}>
+            <div style={{ color: score < 50 ? '#ff6060' : '#6060a0', marginBottom: score < 50 ? '4px' : 0 }}>
+              {score < 50 ? (
+                <>
+                  <strong style={{ color: '#ff6060' }}>Score {score}/100 — Atencao:</strong>{' '}
+                  <span style={{ color: '#e0a0a0' }}>{info.low}</span>
+                </>
+              ) : score < 70 ? (
+                <>
+                  <strong style={{ color: '#ffa04a' }}>Score {score}/100 — Aceitavel.</strong>{' '}
+                  <span style={{ color: '#e0c0a0' }}>Pode ser melhorado.</span>
+                </>
+              ) : (
+                <>
+                  <strong style={{ color: '#4aff9e' }}>Score {score}/100 — Excelente.</strong>{' '}
+                  <span style={{ color: '#a0e0c0' }}>{info.high}</span>
+                </>
+              )}
+            </div>
+          </div>
+          {/* Arrow */}
+          <div style={{
+            position: 'absolute', bottom: '-5px', left: '50%', transform: 'translateX(-50%) rotate(45deg)',
+            width: '10px', height: '10px', background: '#1a1a2e', borderRight: '1px solid #3d3d6e', borderBottom: '1px solid #3d3d6e',
+          }} />
+        </div>
+      )}
+    </div>
+  );
+};
 
 const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div style={{
