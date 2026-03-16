@@ -1718,7 +1718,10 @@ RULES:
 6. Include scientific comments (arXiv citations) for non-trivial changes
 7. DO NOT introduce security vulnerabilities
 8. Preserve all existing imports unless replacing them with better ones
-9. CRITICAL: Do NOT hallucinate imports or code that doesn't exist in the file. Verify against the FILE VERIFICATION section above.`;
+9. CRITICAL: Do NOT hallucinate imports or code that doesn't exist in the file. Verify against the FILE VERIFICATION section above.
+10. Do NOT add import statements for modules that don't exist in the project. Only use imports already present in the file or well-known npm packages.
+11. Every variable, function, or type you reference in replacement code MUST be declared in scope. Do NOT use undeclared identifiers.
+12. Ensure each replacement block is syntactically complete — no unclosed braces, strings, or template literals.`;
 
     // Direct LLM call with 90s timeout — bypasses the full orchestrator pipeline
     // Uses gpt-4o for reliable code generation (not gpt-4o-mini which truncates)
@@ -1938,27 +1941,48 @@ async function persistVariantToDb(variant: AgentVariant): Promise<void> {
     const db = await getDb();
     if (!db) return;
 
-    // C358: Fix column names to match actual drizzle schema.ts (verified via DESCRIBE 2026-02-24)
-    // Real columns (snake_case): generation_id, parent_id, code_snapshot, fitness_score, benchmark_results, created_at
-    await db.execute(sql`
-      INSERT INTO dgm_archive (generation_id, parent_id, code_snapshot, fitness_score, benchmark_results)
-      VALUES (
-        ${variant.id},
-        ${variant.parentId || null},
-        ${variant.strategyDescription || 'DGM variant'},
-        ${variant.accuracyScore * 100},
-        ${JSON.stringify({
-          variantId: variant.id,
-          resolvedIds: variant.resolvedIds,
-          unresolvedIds: variant.unresolvedIds,
-          emptyPatchIds: variant.emptyPatchIds,
-          totalSubmittedInstances: variant.totalSubmittedInstances,
-          fitnessBreakdown: variant.fitnessBreakdown,
-          childrenCount: variant.childrenCount,
-          isCompiled: variant.isCompiled,
-        })}
-      )
-    `);
+    // C358: Try production schema first (drizzle/schema.ts, verified 2026-02-24),
+    // then fall back to legacy schema (migration 0000/0002 camelCase columns)
+    const variantData = JSON.stringify({
+      variantId: variant.id,
+      parentId: variant.parentId,
+      resolvedIds: variant.resolvedIds,
+      unresolvedIds: variant.unresolvedIds,
+      emptyPatchIds: variant.emptyPatchIds,
+      totalSubmittedInstances: variant.totalSubmittedInstances,
+      fitnessBreakdown: variant.fitnessBreakdown,
+      childrenCount: variant.childrenCount,
+      isCompiled: variant.isCompiled,
+    });
+
+    try {
+      // Production schema (snake_case): generation_id, parent_id, code_snapshot, fitness_score, benchmark_results
+      await db.execute(sql`
+        INSERT INTO dgm_archive (generation_id, parent_id, code_snapshot, fitness_score, benchmark_results)
+        VALUES (
+          ${variant.id},
+          ${variant.parentId || null},
+          ${variant.strategyDescription || 'DGM variant'},
+          ${variant.accuracyScore * 100},
+          ${variantData}
+        )
+      `);
+    } catch (prodErr) {
+      // Fallback: legacy schema (migration 0000/0002 camelCase): parentId, fitnessScore, codeSnapshotUrl, metadata
+      try {
+        await db.execute(sql`
+          INSERT INTO dgm_archive (parentId, fitnessScore, codeSnapshotUrl, metadata)
+          VALUES (
+            ${variant.parentId || null},
+            ${String(variant.accuracyScore * 100)},
+            ${`dgm://${variant.id}`},
+            ${variantData}
+          )
+        `);
+      } catch (legacyErr: any) {
+        log.warn(`[PERSIST] dgm_archive INSERT failed on both schemas. MySQL error: ${legacyErr?.message || legacyErr}`);
+      }
+    }
   } catch (err) {
     log.warn(`[PERSIST] Failed to save variant to DB: ${String(err)}`);
   }
