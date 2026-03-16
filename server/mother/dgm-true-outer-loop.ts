@@ -34,13 +34,14 @@ import { createLogger } from '../_core/logger';
 import { getDb } from '../db';
 import { sandboxExecutor } from '../dgm/sandbox-executor';
 import { runInSandbox } from './e2b-sandbox';
+import { validateTypeScript, validateTypeScriptInWorktree, MOTHER_DIR } from './self-modifier';
 import { sql } from 'drizzle-orm';
 import { processQuery } from './core';
 import { orchestrate as coreOrchestrate } from './core-orchestrator';
 import { fitnessEvaluator } from './fitness-evaluator';
 import { checkSafetyGate } from './safety-gate';
 import { recordAuditEntry } from './audit-trail';
-import { createProposal, applyProposal } from './self-modifier';
+import { githubWriteService } from './github-write-service';
 
 const log = createLogger('DGM-TRUE');
 
@@ -73,11 +74,165 @@ export interface DGMProposal {
   safetyHash: string;
   fitnessHash: string;
   sandboxHash: string;
+  // C358: Rich context for human review
+  title: string;
+  summary: string;
+  problemStatement: string;
+  rootCause: string;
+  proposedFix: string;
+  mutationType: string;
+  fitnessDimensions: Record<string, number>;
+  safetyWarnings: string[];
+  parentMetrics: {
+    id: string;
+    accuracy: number;
+    resolved: number;
+    total: number;
+    unresolvedIds: string[];
+  };
+  diagnosisLength: number;
+  codeLength: number;
 }
 
 export const dgmEvents = new EventEmitter();
 const pendingProposals = new Map<string, { proposal: DGMProposal; resolve: (approved: boolean) => void }>();
 const eventLog: DGMEvent[] = [];
+
+// ─── Rejection Memory ───────────────────────────────────────────────────────
+// Prevents the same (or very similar) proposals from resurfacing after rejection.
+// Key = targetFile + mutationType → stores rejection signatures for similarity matching.
+interface RejectionRecord {
+  targetFile: string;
+  mutationType: string;
+  rationaleHash: string;       // SHA-256 of the rationale text
+  problemKeywords: string[];   // top keywords from problemStatement for fuzzy matching
+  rejectedAt: string;
+  rejectCount: number;         // how many times similar proposals were blocked
+}
+
+const rejectionMemory: RejectionRecord[] = [];
+const MAX_REJECTION_RECORDS = 200;
+
+/** Extract top keywords (>4 chars, lowercased, deduplicated) from text */
+function extractKeywords(text: string): string[] {
+  const stopWords = new Set(['this', 'that', 'with', 'from', 'have', 'been', 'will', 'should', 'would', 'could', 'which', 'their', 'there', 'about', 'these', 'those', 'para', 'como', 'mais', 'quando', 'pode', 'deve']);
+  return [...new Set(
+    text.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
+      .filter(w => w.length > 4 && !stopWords.has(w))
+  )].slice(0, 20);
+}
+
+/** Compute Jaccard similarity between two keyword sets */
+function keywordSimilarity(a: string[], b: string[]): number {
+  if (a.length === 0 || b.length === 0) return 0;
+  const setA = new Set(a);
+  const setB = new Set(b);
+  let intersection = 0;
+  for (const w of setA) if (setB.has(w)) intersection++;
+  const union = setA.size + setB.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+}
+
+/** Check if a proposal is too similar to a previously rejected one */
+function isBlockedByRejectionMemory(
+  targetFile: string,
+  mutationType: string,
+  rationale: string,
+  problemStatement: string,
+): { blocked: boolean; reason?: string; matchedRecord?: RejectionRecord } {
+  const rationaleHash = createHash('sha256').update(rationale).digest('hex');
+  const keywords = extractKeywords(problemStatement + ' ' + rationale);
+
+  for (const record of rejectionMemory) {
+    // Exact match: same file + same type + same rationale hash
+    if (record.targetFile === targetFile && record.mutationType === mutationType && record.rationaleHash === rationaleHash) {
+      return {
+        blocked: true,
+        reason: `Proposta identica rejeitada anteriormente (${record.rejectedAt}). Rejeicoes acumuladas: ${record.rejectCount}`,
+        matchedRecord: record,
+      };
+    }
+
+    // Fuzzy match: same file + same type + high keyword similarity (>= 0.6)
+    if (record.targetFile === targetFile && record.mutationType === mutationType) {
+      const similarity = keywordSimilarity(keywords, record.problemKeywords);
+      if (similarity >= 0.6) {
+        return {
+          blocked: true,
+          reason: `Proposta similar rejeitada anteriormente (similaridade: ${(similarity * 100).toFixed(0)}%, ${record.rejectedAt}). Rejeicoes acumuladas: ${record.rejectCount}`,
+          matchedRecord: record,
+        };
+      }
+    }
+
+    // Cross-type block: same file + very high similarity (>= 0.8), regardless of mutation type
+    if (record.targetFile === targetFile) {
+      const similarity = keywordSimilarity(keywords, record.problemKeywords);
+      if (similarity >= 0.8) {
+        return {
+          blocked: true,
+          reason: `Proposta muito similar rejeitada anteriormente em tipo diferente (similaridade: ${(similarity * 100).toFixed(0)}%, tipo original: ${record.mutationType}, ${record.rejectedAt}). Rejeicoes acumuladas: ${record.rejectCount}`,
+          matchedRecord: record,
+        };
+      }
+    }
+  }
+
+  return { blocked: false };
+}
+
+/** Record a rejection into memory */
+function recordRejection(targetFile: string, mutationType: string, rationale: string, problemStatement: string): void {
+  const rationaleHash = createHash('sha256').update(rationale).digest('hex');
+  const keywords = extractKeywords(problemStatement + ' ' + rationale);
+
+  // Check if we already have a record for this exact combination — increment counter
+  const existing = rejectionMemory.find(r =>
+    r.targetFile === targetFile && r.mutationType === mutationType && r.rationaleHash === rationaleHash
+  );
+  if (existing) {
+    existing.rejectCount++;
+    existing.rejectedAt = new Date().toISOString();
+    return;
+  }
+
+  // Also check fuzzy match — increment counter on closest match
+  for (const record of rejectionMemory) {
+    if (record.targetFile === targetFile && record.mutationType === mutationType) {
+      const similarity = keywordSimilarity(keywords, record.problemKeywords);
+      if (similarity >= 0.6) {
+        record.rejectCount++;
+        record.rejectedAt = new Date().toISOString();
+        // Merge keywords to widen the rejection signature
+        const merged = [...new Set([...record.problemKeywords, ...keywords])].slice(0, 30);
+        record.problemKeywords = merged;
+        return;
+      }
+    }
+  }
+
+  // New rejection — add record
+  if (rejectionMemory.length >= MAX_REJECTION_RECORDS) {
+    rejectionMemory.shift(); // evict oldest
+  }
+  rejectionMemory.push({
+    targetFile,
+    mutationType,
+    rationaleHash,
+    problemKeywords: keywords,
+    rejectedAt: new Date().toISOString(),
+    rejectCount: 1,
+  });
+  log.info(`[REJECTION-MEMORY] Recorded rejection: ${targetFile} / ${mutationType} (${keywords.length} keywords)`);
+}
+
+/** Get rejection memory stats (for debugging / API) */
+export function getRejectionMemoryStats(): { total: number; records: Array<{ targetFile: string; mutationType: string; rejectCount: number; rejectedAt: string }> } {
+  return {
+    total: rejectionMemory.length,
+    records: rejectionMemory.map(r => ({ targetFile: r.targetFile, mutationType: r.mutationType, rejectCount: r.rejectCount, rejectedAt: r.rejectedAt })),
+  };
+}
 
 function emitDGMEvent(event: DGMEvent) {
   eventLog.push(event);
@@ -788,7 +943,7 @@ async function selfImproveStep(
     emitDGMEvent({ step: 'diagnose', status: 'start', message: `[Passo 1 — DIAGNÓSTICO] Analisando falhas do benchmark para identificar o problema a ser resolvido.\n\n` +
       `Metodologia: Per arXiv:2505.22954 §3.1, o sistema auto-diagnostica analisando quais queries o agente-pai falhou. ` +
       `O diagnóstico gera um "problem statement" que guiará a modificação de código. Tipo de mutação: "${entry.entryType}" — ` +
-      `corresponde ao operador ${entry.entryType === 'solve_low_quality' ? 'solve_low_quality (resolver queries com baixa pontuação)' : entry.entryType === 'solve_new' ? 'solve_new (resolver queries ainda não resolvidas)' : entry.entryType}.`,
+      `corresponde ao operador ${entry.entryType === 'solve_low_quality' ? 'solve_low_quality (resolver queries com baixa pontuação)' : entry.entryType}.`,
       timestamp: new Date().toISOString() });
     const problemStatement = await diagnoseProblem(entry, parent);
     if (!problemStatement) {
@@ -809,10 +964,35 @@ async function selfImproveStep(
       `O LLM recebe o problem statement e o código-fonte atual, e gera um patch. ` +
       `Este é o passo de auto-referência (Self-Referential Improvement, Schmidhuber 2007): MOTHER modifica seu próprio código.`,
       timestamp: new Date().toISOString() });
-    const modification = await generateModification(problemStatement, entry, parent);
+    // Retry loop: if tsc fails, feed errors back to LLM and try again (max 3 attempts)
+    const MAX_MODIFY_ATTEMPTS = 3;
+    let modification: Awaited<ReturnType<typeof generateModification>> = null;
+    let tscFeedback: string | undefined;
+    for (let attempt = 1; attempt <= MAX_MODIFY_ATTEMPTS; attempt++) {
+      if (attempt > 1) {
+        log.info(`[SELF-IMPROVE] Retry ${attempt}/${MAX_MODIFY_ATTEMPTS} for ${runId} with tsc error feedback`);
+        emitDGMEvent({ step: 'modify', status: 'start', message: `[Passo 2 — RETRY ${attempt}/${MAX_MODIFY_ATTEMPTS}] Regenerando código com feedback dos erros de compilação.\n\n` +
+          `Erros anteriores: ${(tscFeedback || '').slice(0, 200)}`,
+          timestamp: new Date().toISOString() });
+      }
+      modification = await generateModification(problemStatement, entry, parent, tscFeedback);
+      if (!modification) break;
+
+      // Quick tsc pre-check using git worktree — NEVER writes to real source files
+      const tsResult = validateTypeScriptInWorktree(modification.targetFile, modification.proposedCode);
+
+      if (tsResult.valid) {
+        log.info(`[SELF-IMPROVE] tsc pre-check PASSED on attempt ${attempt}`);
+        break;
+      }
+      // tsc failed — feed errors back for next attempt
+      tscFeedback = tsResult.errors.join('\n');
+      log.warn(`[SELF-IMPROVE] tsc pre-check FAILED on attempt ${attempt}: ${tsResult.errors[0]}`);
+      modification = null;
+    }
     if (!modification) {
-      emitDGMEvent({ step: 'modify', status: 'fail', message: '[Passo 2 — MODIFICAÇÃO FALHOU] O LLM não conseguiu gerar uma modificação de código válida para o diagnóstico. Pipeline encerrado para esta variante.', timestamp: new Date().toISOString() });
-      log.warn(`[SELF-IMPROVE] Failed to generate modification for ${runId}`);
+      emitDGMEvent({ step: 'modify', status: 'fail', message: `[Passo 2 — MODIFICAÇÃO FALHOU] O LLM não conseguiu gerar código compilável após ${MAX_MODIFY_ATTEMPTS} tentativas. Pipeline encerrado para esta variante.${tscFeedback ? `\n\nÚltimos erros tsc: ${tscFeedback.slice(0, 300)}` : ''}`, timestamp: new Date().toISOString() });
+      log.warn(`[SELF-IMPROVE] Failed to generate compilable modification for ${runId} after ${MAX_MODIFY_ATTEMPTS} attempts`);
       return null;
     }
     const modificationHash = proofHash({ targetFile: modification.targetFile, proposedCode: modification.proposedCode, rationale: modification.rationale });
@@ -896,7 +1076,13 @@ async function selfImproveStep(
       };
 
       // If e2b/tsc check passes, also run in local sandbox executor for runtime validation
-      if (sandboxResult.passed) {
+      // SKIP local runtime execution for code with imports — DGM-generated code always
+      // references project-internal or external modules that won't resolve in an isolated
+      // tmpdir. The E2B + tsc-fallback syntax check is sufficient for validation.
+      // Scientific basis: SICA (arXiv:2504.15228) — "graduated validation prevents false
+      // rejections when runtime dependencies are unavailable in isolated environments"
+      const hasImports = modification.proposedCode.includes('import ') || modification.proposedCode.includes('require(');
+      if (sandboxResult.passed && !hasImports) {
         const localResult = await sandboxExecutor.execute(
           `// DGM Sandbox Validation — ${runId}\n${modification.proposedCode}`,
           { timeoutMs: 10000, maxMemoryMb: 256 },
@@ -916,13 +1102,16 @@ async function selfImproveStep(
           sandboxResult.sandboxId = localResult.sandboxId;
           sandboxResult.output += `\nLocal sandbox: OK (${localResult.durationMs}ms)`;
         }
+      } else if (sandboxResult.passed && hasImports) {
+        log.info(`[SELF-IMPROVE] Skipping local runtime sandbox — code has imports (E2B/tsc check sufficient)`);
+        sandboxResult.sandboxType = `${sandboxResult.sandboxType}+imports-skip`;
       }
     } catch (sandboxErr) {
-      // Sandbox failure is NOT fatal — log and continue with warning
-      log.warn(`[SELF-IMPROVE] Sandbox execution error (non-fatal): ${sandboxErr}`);
+      // Sandbox failure IS fatal — code that can't be validated must be rejected
+      log.warn(`[SELF-IMPROVE] Sandbox execution error (FATAL): ${sandboxErr}`);
       sandboxResult = {
-        passed: true, // non-fatal: allow pipeline to continue
-        output: `Sandbox unavailable: ${sandboxErr}`,
+        passed: false,
+        output: `Sandbox error: ${sandboxErr}`,
         error: String(sandboxErr),
         durationMs: 0,
         sandboxType: 'unavailable',
@@ -941,13 +1130,53 @@ async function selfImproveStep(
     }
     emitDGMEvent({ step: 'sandbox', status: 'success', message: `[Passo 5 — SANDBOX APROVADO] Tipo: ${sandboxResult.sandboxType}, Duração: ${sandboxResult.durationMs}ms.\n\n` +
       `Resultado: Código compilou e passou na validação do sandbox. Hash SHA-256: ${sandboxHash.slice(0, 16)}... ` +
-      `Próximo passo: apresentação da proposta para aprovação humana (Human-in-the-Loop).`,
+      `Próximo passo: validação local tsc --noEmit antes da aprovação humana.`,
       timestamp: new Date().toISOString(), data: { type: sandboxResult.sandboxType, durationMs: sandboxResult.durationMs, hash: sandboxHash } });
 
-    // Step 5: HUMAN APPROVAL — Present proposal to user before applying
-    // Extract scientific basis from diagnosis
-    let diagnosisParsed: { scientificBasis?: string; proposedFix?: string; problem?: string } = {};
+    // Step 5.5: LOCAL TSC GATE — Validate with tsc --noEmit using git worktree (never touches real files)
+    {
+      const tsResult = validateTypeScriptInWorktree(modification.targetFile, modification.proposedCode);
+      if (!tsResult.valid) {
+        emitDGMEvent({
+          step: 'sandbox',
+          status: 'fail',
+          message: `[Passo 5.5 — TSC LOCAL REJEITOU] O código passou no sandbox isolado mas falhou na compilação local (tsc --noEmit via worktree).\n\n` +
+            `Erros: ${tsResult.errors.slice(0, 3).join('; ')}.\n` +
+            `Esta validação usa git worktree isolado — sem risco de corrupção dos arquivos fonte.`,
+          timestamp: new Date().toISOString(),
+          data: { errors: tsResult.errors.slice(0, 5), targetFile: modification.targetFile },
+        });
+        log.warn(`[SELF-IMPROVE] Local tsc --noEmit FAILED for ${modification.targetFile}: ${tsResult.errors[0]}`);
+        return null;
+      }
+      log.info(`[SELF-IMPROVE] Local tsc --noEmit PASSED for ${modification.targetFile}`);
+    }
+
+    // Step 6: HUMAN APPROVAL — Present proposal to user before applying
+    // C358: Parse full diagnosis JSON for rich proposal context
+    let diagnosisParsed: { scientificBasis?: string; proposedFix?: string; problem?: string; rootCause?: string; expectedImprovement?: string; targetFile?: string } = {};
     try { const m = problemStatement.match(/\{[\s\S]*\}/); if (m) diagnosisParsed = JSON.parse(m[0]); } catch { /* ignore */ }
+
+    // Rejection Memory check — block proposals too similar to previously rejected ones
+    const rejectionCheck = isBlockedByRejectionMemory(
+      modification.targetFile,
+      entry.entryType,
+      modification.rationale,
+      problemStatement,
+    );
+    if (rejectionCheck.blocked) {
+      emitDGMEvent({
+        step: 'proposal',
+        status: 'fail',
+        message: `[Passo 6 — BLOQUEADA POR MEMORIA DE REJEICAO] ${rejectionCheck.reason}\n\n` +
+          `A proposta para ${modification.targetFile} (tipo: ${entry.entryType}) foi automaticamente descartada ` +
+          `porque uma proposta similar ja foi rejeitada pelo humano. O DGM prossegue para a proxima mutacao.`,
+        timestamp: new Date().toISOString(),
+        data: { targetFile: modification.targetFile, mutationType: entry.entryType, reason: rejectionCheck.reason },
+      });
+      log.info(`[REJECTION-MEMORY] Blocked proposal for ${modification.targetFile}/${entry.entryType}: ${rejectionCheck.reason}`);
+      return null;
+    }
 
     const proposalForReview: DGMProposal = {
       id: `proposal-${runId}`,
@@ -957,7 +1186,7 @@ async function selfImproveStep(
       originalCode: modification.originalCode,
       rationale: modification.rationale,
       scientificBasis: diagnosisParsed.scientificBasis || 'DGM arXiv:2505.22954',
-      expectedImprovement: `mutation=${entry.entryType}`,
+      expectedImprovement: diagnosisParsed.expectedImprovement || `mutation=${entry.entryType}`,
       fitnessScore: fitnessResult.overall,
       sandboxPassed: sandboxResult.passed,
       sandboxType: sandboxResult.sandboxType,
@@ -967,6 +1196,24 @@ async function selfImproveStep(
       safetyHash,
       fitnessHash,
       sandboxHash,
+      // C358: Rich context for human review
+      title: `${entry.entryType === 'general_improvement' ? 'Melhoria Geral' : entry.entryType === 'solve_low_quality' ? 'Corrigir Baixa Qualidade' : entry.entryType}: ${modification.targetFile.split('/').pop()}`,
+      summary: diagnosisParsed.proposedFix || modification.rationale || `Mutação ${entry.entryType} no arquivo ${modification.targetFile}`,
+      problemStatement: diagnosisParsed.problem || problemStatement.slice(0, 2000),
+      rootCause: diagnosisParsed.rootCause || 'Identificado via auto-diagnóstico DGM',
+      proposedFix: diagnosisParsed.proposedFix || modification.rationale || '',
+      mutationType: entry.entryType,
+      fitnessDimensions: fitnessResult.dimensions || {},
+      safetyWarnings: safetyResult.warnings || [],
+      parentMetrics: {
+        id: parent.id,
+        accuracy: parent.accuracyScore,
+        resolved: parent.resolvedIds.length,
+        total: parent.totalSubmittedInstances,
+        unresolvedIds: parent.unresolvedIds,
+      },
+      diagnosisLength: problemStatement.length,
+      codeLength: modification.proposedCode.length,
     };
 
     emitDGMEvent({
@@ -975,45 +1222,106 @@ async function selfImproveStep(
       message: `[Passo 6 — APROVAÇÃO HUMANA] Proposta pronta para revisão: ${modification.targetFile}.\n\n` +
         `Metodologia: Human-in-the-Loop (HITL) — DGM §3.5. O sistema apresenta a proposta com: código original vs proposto, ` +
         `justificativa científica, parecer de fitness (${fitnessResult.overall}/100), e resultado do sandbox (${sandboxResult.sandboxType}). ` +
-        `O humano pode APROVAR (aplica a modificação) ou REJEITAR (descarta a variante). Timeout: 5 minutos → auto-aprovação.`,
+        `O humano DEVE aprovar ou rejeitar manualmente. Nao ha timeout — a proposta aguarda indefinidamente.`,
       timestamp: new Date().toISOString(),
       data: { proposal: proposalForReview },
     });
 
-    // Wait for human approval (with 5min timeout → auto-approve in test mode)
+    // Wait for human approval — NO timeout. Proposal stays pending until human decides.
     const humanApproved = await new Promise<boolean>((resolve) => {
       pendingProposals.set(proposalForReview.id, { proposal: proposalForReview, resolve });
-      // Auto-approve after 5 minutes if no human response (for background DGM runs)
-      setTimeout(() => {
-        if (pendingProposals.has(proposalForReview.id)) {
-          pendingProposals.delete(proposalForReview.id);
-          log.info(`[PROPOSAL] Auto-approved after timeout: ${proposalForReview.id}`);
-          resolve(true);
-        }
-      }, 5 * 60 * 1000);
     });
 
     if (!humanApproved) {
-      emitDGMEvent({ step: 'proposal', status: 'fail', message: '[Passo 6 — PROPOSTA REJEITADA] O humano rejeitou a modificação proposta. A variante será descartada e o pipeline prossegue para a próxima mutação.', timestamp: new Date().toISOString() });
-      log.info(`[SELF-IMPROVE] Proposal rejected by human: ${proposalForReview.id}`);
+      // Record rejection in memory so similar proposals are blocked in future cycles
+      recordRejection(modification.targetFile, entry.entryType, modification.rationale, problemStatement);
+      emitDGMEvent({ step: 'proposal', status: 'fail', message: `[Passo 6 — PROPOSTA REJEITADA] O humano rejeitou a modificação proposta. A variante será descartada e o pipeline prossegue para a próxima mutação.\n\n` +
+        `Memoria de rejeicao atualizada: propostas similares para ${modification.targetFile} (tipo: ${entry.entryType}) serao bloqueadas automaticamente em ciclos futuros.`,
+        timestamp: new Date().toISOString(), data: { rejectionMemorySize: rejectionMemory.length } });
+      log.info(`[SELF-IMPROVE] Proposal rejected by human: ${proposalForReview.id} — recorded in rejection memory`);
       return null;
     }
-    emitDGMEvent({ step: 'proposal', status: 'success', message: '[Passo 6 — PROPOSTA APROVADA] Humano aprovou a modificação. Aplicando patch ao código-fonte do sistema...', timestamp: new Date().toISOString() });
+    emitDGMEvent({ step: 'proposal', status: 'success', message: '[Passo 6 — PROPOSTA APROVADA] Humano aprovou a modificação. Criando branch e PR no GitHub...', timestamp: new Date().toISOString() });
 
-    // Step 5b: APPLY — Create proposal and apply it
-    const proposal = createProposal({
-      targetFile: modification.targetFile,
-      proposedCode: modification.proposedCode,
-      rationale: modification.rationale,
-      expectedImprovement: `DGM self-improvement (arXiv:2505.22954), mutation=${entry.entryType}`,
-    });
-    const proposalHash = proofHash({ proposalId: proposal.id, targetFile: modification.targetFile, rationale: modification.rationale });
-    log.info(`[PROOF] Step 5 PROPOSAL hash=${proposalHash.slice(0, 16)}... id=${proposal.id}`);
+    // Step 5b: APPLY via GitHub PR — never writes to local source files
+    // Scientific basis: DGM (arXiv:2505.22954) §3.5 — "Version-controlled deployment prevents corruption"
+    // SICA (arXiv:2504.15228) — "Validation-before-commit reduces failure from 83% to 17%"
+    const proposalHash = proofHash({ proposalId: proposalForReview.id, targetFile: modification.targetFile, rationale: modification.rationale });
+    log.info(`[PROOF] Step 5 PROPOSAL hash=${proposalHash.slice(0, 16)}... id=${proposalForReview.id}`);
 
-    const applied = await applyProposal(proposal.id);
-    if (!applied) {
-      emitDGMEvent({ step: 'proposal', status: 'fail', message: `[Passo 6 — APLICAÇÃO FALHOU] Não foi possível aplicar a proposta ${proposal.id} ao código-fonte. Possíveis causas: conflito de merge, arquivo removido, ou erro de I/O.`, timestamp: new Date().toISOString() });
-      log.warn(`[SELF-IMPROVE] Failed to apply proposal ${proposal.id}`);
+    // Validate in worktree before creating PR (don't waste GitHub API calls on broken code)
+    const worktreeResult = validateTypeScriptInWorktree(modification.targetFile, modification.proposedCode);
+    if (!worktreeResult.valid) {
+      emitDGMEvent({ step: 'proposal', status: 'fail', message: `[Passo 6 — TSC FALHOU PRÉ-PR] O código aprovado não compila: ${worktreeResult.errors[0]}.\n\nA proposta não será enviada ao GitHub.`, timestamp: new Date().toISOString() });
+      log.warn(`[SELF-IMPROVE] Pre-PR tsc validation failed: ${worktreeResult.errors[0]}`);
+      return null;
+    }
+
+    // Create GitHub PR via existing GitHubWriteService
+    const branchName = `dgm/proposal-${proposalForReview.id}-${Date.now()}`;
+    try {
+      const prBody = [
+        `## DGM Self-Improvement Proposal`,
+        ``,
+        `**Proposal ID:** \`${proposalForReview.id}\``,
+        `**Mutation Type:** ${entry.entryType}`,
+        `**Target File:** \`${modification.targetFile}\``,
+        `**Parent Variant:** ${entry.parentId} (accuracy: ${(parent.accuracyScore * 100).toFixed(1)}%)`,
+        ``,
+        `### Rationale`,
+        modification.rationale,
+        ``,
+        `### Scientific Basis`,
+        proposalForReview.scientificBasis || 'DGM (arXiv:2505.22954)',
+        ``,
+        `### Validation`,
+        `- Fitness Score: ${proposalForReview.fitnessScore.toFixed(2)}`,
+        `- Sandbox: ${proposalForReview.sandboxPassed ? 'PASSED' : 'FAILED'} (${proposalForReview.sandboxType}, ${proposalForReview.sandboxDurationMs}ms)`,
+        `- tsc --noEmit (worktree): PASSED`,
+        `- Safety Warnings: ${proposalForReview.safetyWarnings.length > 0 ? proposalForReview.safetyWarnings.join(', ') : 'None'}`,
+        ``,
+        `### Proof Hashes`,
+        `- Diagnosis: \`${proposalForReview.diagnosisHash.slice(0, 16)}...\``,
+        `- Modification: \`${proposalForReview.modificationHash.slice(0, 16)}...\``,
+        `- Safety: \`${proposalForReview.safetyHash.slice(0, 16)}...\``,
+        `- Fitness: \`${proposalForReview.fitnessHash.slice(0, 16)}...\``,
+        ``,
+        `---`,
+        `*Generated by MOTHER DGM (Darwin Gödel Machine, arXiv:2505.22954)*`,
+      ].join('\n');
+
+      const result = await githubWriteService.autonomousSelfModification({
+        branchName,
+        files: [{ path: modification.targetFile, content: modification.proposedCode }],
+        prTitle: `[DGM] ${entry.entryType}: ${modification.targetFile}`,
+        prBody,
+        autoMerge: false, // Human must merge the PR on GitHub
+        proposalId: proposalForReview.id,
+        analysisContext: `Fitness: ${proposalForReview.fitnessScore.toFixed(2)}, Sandbox: ${proposalForReview.sandboxType}, tsc: PASSED`,
+      });
+
+      emitDGMEvent({
+        step: 'proposal',
+        status: 'success',
+        message: `[Passo 6 — PR CRIADO] Pull Request #${result.pr.number} criado no GitHub.\n\n` +
+          `Branch: ${branchName}\nURL: ${result.pr.url}\n` +
+          `O código NÃO foi aplicado localmente — merge o PR no GitHub para aplicar.`,
+        timestamp: new Date().toISOString(),
+        data: { prNumber: result.pr.number, prUrl: result.pr.url, branch: branchName },
+      });
+      log.info(`[SELF-IMPROVE] GitHub PR created: #${result.pr.number} — ${result.pr.url}`);
+    } catch (prErr) {
+      // GitHub PR creation failed — DO NOT fall back to local writes.
+      // Local applyProposal() can corrupt source files (hipporag2.ts, intelligence.ts, etc.)
+      log.error(`[SELF-IMPROVE] GitHub PR creation failed: ${prErr}. Proposal DISCARDED (no local fallback).`);
+      emitDGMEvent({
+        step: 'proposal',
+        status: 'fail',
+        message: `[Passo 6 — PR FALHOU] Erro ao criar PR no GitHub: ${String(prErr).slice(0, 200)}.\n\n` +
+          `A proposta foi DESCARTADA. Não há fallback local — escrita direta nos arquivos fonte foi desabilitada ` +
+          `para prevenir corrupção. Configure GITHUB_TOKEN ou GITHUB_PAT no .env para habilitar o DGM.`,
+        timestamp: new Date().toISOString(),
+      });
       return null;
     }
 
@@ -1283,6 +1591,7 @@ async function generateModification(
   problemStatement: string,
   entry: MutationEntry,
   parent: AgentVariant,
+  tscErrorFeedback?: string,
 ): Promise<{
   targetFile: string;
   proposedCode: string;
@@ -1339,6 +1648,9 @@ async function generateModification(
     }
 
     // Self-referential: use MOTHER's own pipeline to generate code modifications
+    // CRITICAL: The LLM must output the COMPLETE modified file, not a snippet.
+    // applyProposal() does writeFileSync(targetPath, proposedCode) — replacing the entire file.
+    // Then tsc --noEmit validates the whole project. A snippet replacing the full file = compilation failure.
     const modificationQuery = `[DGM CODE EVOLUTION — ${entry.entryType}]
 
 You are operating as a DGM (Darwin Gödel Machine, arXiv:2505.22954) code evolution agent.
@@ -1350,31 +1662,33 @@ ${problemStatement}
 TARGET FILE: ${actualTargetFile}
 SCIENTIFIC BASIS: ${scientificBasis}
 
-ORIGINAL CODE (first 6000 chars):
+COMPLETE ORIGINAL FILE:
 \`\`\`typescript
-${originalCode.slice(0, 6000)}
+${originalCode}
 \`\`\`
 
 RULES:
 1. Output ONLY a JSON object with the modification (no markdown, no explanation outside JSON)
-2. Preserve all existing functionality — only ADD or MODIFY relevant sections
-3. Include scientific comments citing relevant arXiv papers
-4. DO NOT introduce security vulnerabilities (OWASP Top 10)
-5. Maintain TypeScript strict mode compatibility
-6. Preserve all existing exports and interfaces
-7. Every change MUST have a scientific justification
-8. The codeChanges field MUST contain valid TypeScript with proper import statements and export declarations
-9. The codeChanges MUST be a complete, self-contained code block that can pass TypeScript compilation
-10. Include necessary import statements at the top of codeChanges (e.g., import { ... } from '...')
-11. Export any new functions or constants you create (e.g., export function ..., export const ...)
+2. The "codeChanges" field MUST contain the COMPLETE MODIFIED FILE — not a snippet, not a diff, not just the changed section
+3. The complete file must include ALL original imports, ALL original exports, ALL original functions — with your modifications integrated
+4. Preserve all existing functionality — only ADD or MODIFY relevant sections within the complete file
+5. Include scientific comments citing relevant arXiv papers for your changes
+6. DO NOT introduce security vulnerabilities (OWASP Top 10)
+7. Maintain TypeScript strict mode compatibility — the code must pass \`tsc --noEmit\`
+8. Every change MUST have a scientific justification
+9. DO NOT remove or rename any existing exports — other modules depend on them
+10. The file will be validated with \`tsc --noEmit\` against the full project — incomplete files WILL be rejected
 
-RESPOND WITH EXACTLY THIS JSON FORMAT:
+${tscErrorFeedback ? `PREVIOUS ATTEMPT FAILED — TypeScript compilation errors:
+${tscErrorFeedback}
+Fix these errors in your output. The code MUST compile with tsc --noEmit.
+
+` : ''}RESPOND WITH EXACTLY THIS JSON FORMAT:
 {
   "targetFile": "${actualTargetFile}",
   "rationale": "Why this change improves the system",
   "scientificBasis": "arXiv:XXXX.XXXXX — paper title and relevant finding",
-  "codeChanges": "MUST include import/export statements. Complete TypeScript code block.",
-  "insertAfterLine": "The line content after which to insert (for context matching)",
+  "codeChanges": "THE COMPLETE MODIFIED FILE (all imports, all exports, all functions — with your changes integrated)",
   "expectedMetricImprovement": "e.g., +5pp accuracy, -200ms latency, +10% cache hit rate"
 }`;
 
@@ -1412,18 +1726,18 @@ RESPOND WITH EXACTLY THIS JSON FORMAT:
     let proposedCode = modResult.codeChanges || result.response;
     if (!proposedCode || proposedCode.length < 20) return null;
 
-    // If the LLM returned a partial snippet without import/export,
-    // prepend original file's imports to help sandbox validation pass.
-    const hasExportOrFunction = /export\s|function\s+\w+|const\s+\w+\s*=/.test(proposedCode);
-    if (!proposedCode.includes('import') && originalCode.includes('import')) {
-      const importLines = originalCode.split('\n').filter(l => l.startsWith('import ')).join('\n');
-      if (importLines) {
-        proposedCode = `${importLines}\n\n${proposedCode}`;
-      }
-    }
-    if (!hasExportOrFunction && !proposedCode.includes('export')) {
-      // Wrap as exported function to ensure sandbox validation passes
-      proposedCode = `export function dgmPatch() {\n${proposedCode}\n}`;
+    // Strip markdown code fences if the LLM wrapped the output
+    proposedCode = proposedCode.replace(/^```(?:typescript|ts)?\s*\n/m, '').replace(/\n```\s*$/, '');
+
+    // Sanity check: the proposed code must look like a complete file, not a snippet.
+    // Check for imports OR exports OR top-level declarations (some files have exports without imports).
+    const originalHasImports = originalCode.includes('import ');
+    const looksLikeCompleteFile = proposedCode.includes('import ') ||
+      proposedCode.includes('export ') ||
+      /^(import|export|const|function|class|interface|type)\s/m.test(proposedCode);
+    if (originalHasImports && !looksLikeCompleteFile) {
+      log.warn(`[MODIFY] LLM returned a snippet instead of the complete file — rejecting`);
+      return null;
     }
 
     // Build a descriptive patch
@@ -1507,23 +1821,28 @@ async function persistVariantToDb(variant: AgentVariant): Promise<void> {
     const db = await getDb();
     if (!db) return;
 
+    // C357: Fix column names to match actual dgm_archive table schema (migration 0028)
+    // Real columns: cycleNumber, eventType, title, description, metadata, qualityScore, etc.
     await db.execute(sql`
-      INSERT INTO dgm_archive (generation_id, parent_id, code_snapshot, fitness_score, benchmark_results)
+      INSERT INTO dgm_archive (cycleNumber, eventType, title, description, qualityScore, metadata, createdAt)
       VALUES (
-        ${variant.id},
-        ${variant.parentId},
+        ${variant.generation},
+        'variant_created',
+        ${`DGM Variant: ${variant.id} (parent: ${variant.parentId || 'none'})`},
         ${variant.strategyDescription},
-        ${variant.accuracyScore},
+        ${variant.accuracyScore * 100},
         ${JSON.stringify({
+          variantId: variant.id,
+          parentId: variant.parentId,
           resolvedIds: variant.resolvedIds,
           unresolvedIds: variant.unresolvedIds,
           emptyPatchIds: variant.emptyPatchIds,
           totalSubmittedInstances: variant.totalSubmittedInstances,
           fitnessBreakdown: variant.fitnessBreakdown,
-          generation: variant.generation,
           childrenCount: variant.childrenCount,
           isCompiled: variant.isCompiled,
-        })}
+        })},
+        NOW()
       )
     `);
   } catch (err) {

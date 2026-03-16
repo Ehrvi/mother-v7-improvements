@@ -292,12 +292,27 @@ function layer2_adaptiveRouting(
   // Apply dynamic timeout and model override based on estimated output length
   // Scientific basis: FrugalGPT (Chen et al., 2023) — output length is primary routing signal
   const outputEst = estimateOutputLength(req.query);
-  const dynamicTimeoutMs = computeDynamicTimeout(outputEst.estimatedTokens);
+  // DGM internal queries (diagnose/modify) are system prompts that trigger VERY_LONG classification
+  // due to high semantic complexity scores (action verbs, arXiv refs, artifact nouns).
+  // But DGM responses are SHORT/MEDIUM JSON — cap timeout so Gemini fits within budget reserve.
+  const isDGMInternal = typeof req.metadata?.source === 'string' && req.metadata.source.startsWith('dgm-');
+  const dynamicTimeoutMs = isDGMInternal
+    ? Math.min(computeDynamicTimeout(outputEst.estimatedTokens), 60000) // 60s cap for DGM — responses are JSON, not long-form
+    : computeDynamicTimeout(outputEst.estimatedTokens);
 
   // Override maxTokens based on OLAR category and selected model
   const olarMaxTokens = getMaxTokensForCategory(outputEst.category, routing.primaryModel);
   if (olarMaxTokens > (routing.maxTokens ?? 0)) {
     (routing as any).maxTokens = olarMaxTokens;
+  }
+
+  // DGM code generation: cap maxTokens at 16384 so gpt-4o can serve as secondary.
+  // DGM queries trigger VERY_LONG (65536) due to high semantic complexity (arXiv refs, code, action verbs),
+  // but actual output is a complete .ts file (~500 lines = ~8000 tokens), well within 16384.
+  // Without this cap: Gemini timeout → gpt-4o rejects 65536 → fallback to gpt-4o-mini (too weak).
+  // Scientific basis: arXiv:2502.05605 (Zeng et al.) — "Provider-aware token budget allocation"
+  if (isDGMInternal && (routing.maxTokens ?? 0) > 16384) {
+    (routing as any).maxTokens = 16384;
   }
 
   // For LONG/VERY_LONG: upgrade model to gemini-2.5-pro if not already TIER_3+
@@ -584,10 +599,15 @@ async function layer4_neuralGeneration(
   // Ciclo 105: Use DPO_CIRCUIT_CONFIG for fine-tuned models (higher timeout, more tolerant)
   const isDpoModel = routing.primaryModel.startsWith('ft:') || routing.primaryModel.includes(':personal:');
   // C241: Use dynamic timeout for iteration budget (long-form needs longer per-iteration budget)
-  const baseIterationMs = Math.max(REACT_TIMEOUT_CONFIG.iterationTimeoutMs, Math.ceil(effectiveBudgetMs / 2));
+  // FIX: The old Math.max(90000, effectiveBudgetMs/2) forced iterationBudget to ≥90s even when
+  // effectiveBudgetMs was 85s. Then C349 Budget Reserve compared iterationBudget (90s) against
+  // maxPrimaryBudget (85s × 0.65 = 55s), ALWAYS rejecting Google → permanent gpt-4o fallback.
+  // Fix: cap iterationBudget at effectiveBudgetMs so the C349 comparison is meaningful.
+  // The circuit breaker timeout (90s) is an upper bound on individual API calls, not a minimum.
+  const baseIterationMs = Math.ceil(effectiveBudgetMs / 2);
   const iterationBudget = isDpoModel
     ? Math.min(DPO_CIRCUIT_CONFIG.timeoutMs, effectiveBudgetMs)
-    : Math.min(ORCHESTRATOR_CIRCUIT_CONFIG.timeoutMs, baseIterationMs); // dynamic per-iteration budget
+    : Math.min(ORCHESTRATOR_CIRCUIT_CONFIG.timeoutMs, baseIterationMs, effectiveBudgetMs); // dynamic per-iteration budget, capped at total
   const circuitConfig = isDpoModel
     ? { ...DPO_CIRCUIT_CONFIG, timeoutMs: iterationBudget }
     : { ...ORCHESTRATOR_CIRCUIT_CONFIG, timeoutMs: iterationBudget };
@@ -639,7 +659,7 @@ async function layer4_neuralGeneration(
       ),
       circuitConfig,
     );
-    console.log(`[Orchestrator] F1-1 ReAct: primary succeeded in ${Date.now() - totalBudgetStart}ms (budget: ${REACT_TIMEOUT_CONFIG.totalBudgetMs}ms)`);
+    console.log(`[Orchestrator] F1-1 ReAct: primary succeeded in ${Date.now() - totalBudgetStart}ms (budget: ${effectiveBudgetMs}ms)`);
 
     return {
       response,
@@ -690,8 +710,10 @@ async function layer4_neuralGeneration(
     const fallbackController = new AbortController();
     const fallbackTimer = setTimeout(() => fallbackController.abort(), fallbackBudget);
     try {
+      // Use routing maxTokens (clamped by callProvider safety net to 16384 for gpt-4o-mini)
+      const fallbackMaxTokens = Math.min(routing.maxTokens ?? 4096, 16384);
       const fallbackResponse = await callProvider(
-        'openai', 'gpt-4o-mini', messages, 0.3, 1024, req.onChunk, fallbackController.signal,
+        'openai', 'gpt-4o-mini', messages, routing.temperature, fallbackMaxTokens, req.onChunk, fallbackController.signal,
       );
       clearTimeout(fallbackTimer);
       console.log(`[Orchestrator] F1-1 ReAct: total ${Date.now() - totalBudgetStart}ms (3 iterations)`);
@@ -726,6 +748,21 @@ async function callProvider(
   onChunk?: (chunk: string) => void,
   signal?: AbortSignal,
 ): Promise<string> {
+  // Safety net: clamp max_tokens per model to prevent API rejections
+  // Scientific basis: Each provider enforces model-specific limits. Sending max_tokens > limit
+  // causes immediate 400 errors (OpenAI) or silent truncation (Anthropic).
+  // arXiv:2502.05605 (Zeng et al.): "Provider-aware token budget allocation"
+  const MODEL_MAX_TOKENS: Record<string, number> = {
+    'gpt-4o': 16384, 'gpt-4o-mini': 16384, 'gpt-4.1-mini': 16384,
+    'claude-sonnet-4-6': 8192, 'claude-opus-4-6': 8192,
+    'gemini-2.5-pro': 65536, 'gemini-2.5-flash': 65536,
+    'deepseek-reasoner': 8192, 'mistral-large-latest': 8192,
+  };
+  // For fine-tuned models (ft:gpt-4.1-mini-...), extract base model name
+  const baseModel = model.startsWith('ft:') ? model.split(':')[1] || model : model;
+  const modelLimit = MODEL_MAX_TOKENS[baseModel] ?? MODEL_MAX_TOKENS[model] ?? 8192;
+  const clampedMaxTokens = Math.min(maxTokens, modelLimit);
+
   const { ENV } = await import('../_core/env');
 
   if (provider === 'openai') {
@@ -744,7 +781,7 @@ async function callProvider(
         model,
         messages,
         temperature,
-        max_tokens: maxTokens,
+        max_tokens: clampedMaxTokens,
         stream: !!onChunk,
       }),
       signal,
@@ -778,7 +815,7 @@ async function callProvider(
       },
       body: JSON.stringify({
         model,
-        max_tokens: maxTokens,
+        max_tokens: clampedMaxTokens,
         messages: messages.filter(m => m.role !== 'system'),
         system: messages.find(m => m.role === 'system')?.content ?? '',
         temperature,
@@ -813,7 +850,7 @@ async function callProvider(
             .filter(m => m.role !== 'system')
             .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
           systemInstruction: { parts: [{ text: messages.find(m => m.role === 'system')?.content ?? '' }] },
-          generationConfig: { temperature, maxOutputTokens: maxTokens },
+          generationConfig: { temperature, maxOutputTokens: clampedMaxTokens },
         }),
         signal,
       }

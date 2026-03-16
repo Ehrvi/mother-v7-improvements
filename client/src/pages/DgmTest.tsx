@@ -42,7 +42,78 @@ interface DGMProposal {
   safetyHash: string;
   fitnessHash: string;
   sandboxHash: string;
+  // C358: Rich context
+  title?: string;
+  summary?: string;
+  problemStatement?: string;
+  rootCause?: string;
+  proposedFix?: string;
+  mutationType?: string;
+  fitnessDimensions?: Record<string, number>;
+  safetyWarnings?: string[];
+  parentMetrics?: {
+    id: string;
+    accuracy: number;
+    resolved: number;
+    total: number;
+    unresolvedIds: string[];
+  };
+  diagnosisLength?: number;
+  codeLength?: number;
 }
+
+/** Metadata for each fitness dimension — description, weight, and what low/high scores mean */
+const FITNESS_DIMENSION_INFO: Record<string, { label: string; weight: string; description: string; low: string; high: string }> = {
+  correctness: {
+    label: 'Correctness',
+    weight: '35%',
+    description: 'Compilacao TypeScript + taxa de aprovacao nos testes. Cada erro TS penaliza -20pts, cada teste falhando -10pts.',
+    low: 'Codigo com erros de compilacao ou testes falhando. Necessita correcao antes de aplicar.',
+    high: 'Codigo compila sem erros e todos os testes passam.',
+  },
+  safety: {
+    label: 'Safety',
+    weight: '25%',
+    description: 'Ausencia de padroes perigosos: eval(), exec(), spawn(), rm -rf, process.exit, fs.unlinkSync, acesso a /etc/passwd, mutacoes globais.',
+    low: 'Codigo contem padroes potencialmente perigosos. Violacoes CRITICAS (-50pts), ALTAS (-25pts), MEDIAS (-10pts).',
+    high: 'Nenhum padrao perigoso detectado. Codigo seguro para execucao.',
+  },
+  complexity: {
+    label: 'Complexity',
+    weight: '15%',
+    description: 'Complexidade ciclomatica de McCabe (invertida — menor complexidade = melhor score). Conta: if, else, for, while, case, catch, &&, ||, ternarios.',
+    low: 'Codigo muito complexo (>20 pontos de decisao). Dificil de manter e testar.',
+    high: 'Codigo simples e linear (<=5 pontos de decisao). Facil de entender e manter.',
+  },
+  documentation: {
+    label: 'Documentation',
+    weight: '10%',
+    description: 'Cobertura de JSDoc e proporcao de comentarios. Mede: blocos JSDoc / funcoes exportadas + ratio de linhas comentadas vs total.',
+    low: 'Funcoes sem documentacao JSDoc. Codigo sem comentarios explicativos.',
+    high: 'Todas as funcoes exportadas tem JSDoc. Boa proporcao de comentarios.',
+  },
+  testability: {
+    label: 'Testability',
+    weight: '8%',
+    description: 'Indicadores de testabilidade: presenca de suite de testes (+60pts), funcoes exportadas testáveis (+40pts).',
+    low: 'Sem testes associados e/ou sem funcoes exportadas para testar.',
+    high: 'Possui suite de testes e funcoes exportadas bem definidas.',
+  },
+  integration: {
+    label: 'Integration',
+    weight: '5%',
+    description: 'Compatibilidade com endpoints A2A. Verifica: presenca de Router (+33pts), Request/Response types (+33pts), exports (+33pts).',
+    low: 'Codigo nao segue o padrao de integracao A2A. Sem Router ou exports.',
+    high: 'Codigo totalmente compativel com o padrao A2A do sistema.',
+  },
+  performance: {
+    label: 'Performance',
+    weight: '2%',
+    description: 'Caracteristicas de execucao: penaliza operacoes sincronas (-50pts), recompensa padroes async (+25pts).',
+    low: 'Usa operacoes sincronas bloqueantes (readFileSync, etc).',
+    high: 'Usa padroes asincronos adequados (async/await, streams).',
+  },
+};
 
 const STEP_ICONS: Record<string, string> = {
   init: '1',
@@ -273,11 +344,24 @@ export default function DgmTest() {
     });
   };
 
+  const [expiredMsg, setExpiredMsg] = useState<string | null>(null);
   const handleApprove = (proposalId: string) => {
-    resolveMutation.mutate({ proposalId, approved: true });
+    setExpiredMsg(null);
+    resolveMutation.mutate({ proposalId, approved: true }, {
+      onSuccess: (data) => {
+        if (!data.resolved) setExpiredMsg('Proposta nao encontrada no servidor. O servidor pode ter reiniciado. Rode o pipeline novamente.');
+      },
+      onError: (err) => console.error('[DGM] Failed to approve:', err.message),
+    });
   };
   const handleReject = (proposalId: string) => {
-    resolveMutation.mutate({ proposalId, approved: false });
+    setExpiredMsg(null);
+    resolveMutation.mutate({ proposalId, approved: false }, {
+      onSuccess: (data) => {
+        if (!data.resolved) setExpiredMsg('Proposta nao encontrada no servidor. O servidor pode ter reiniciado. Rode o pipeline novamente.');
+      },
+      onError: (err) => console.error('[DGM] Failed to reject:', err.message),
+    });
   };
 
   const isRunning = testMutation.isPending;
@@ -401,65 +485,176 @@ export default function DgmTest() {
             </div>
           )}
 
-          {/* PROPOSAL REVIEW (when a proposal is pending) */}
+          {/* PROPOSAL REVIEW (when a proposal is pending) — C358: Rich context */}
           {currentProposal && (
-            <div style={{ margin: '12px', borderRadius: '10px', border: '2px solid #ffa04a60', overflow: 'hidden' }}>
-              {/* Header */}
-              <div style={{ padding: '12px 16px', background: 'rgba(255, 160, 74, 0.08)', borderBottom: '1px solid #ffa04a40', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: '14px', color: '#ffa04a' }}>PROPOSTA AGUARDANDO APROVACAO</div>
-                  <div style={{ fontSize: '10px', color: '#6060a0', marginTop: '2px' }}>{currentProposal.targetFile} | Fitness: {currentProposal.fitnessScore}/100 | Sandbox: {currentProposal.sandboxPassed ? 'OK' : 'FAIL'} ({currentProposal.sandboxType})</div>
+            <div style={{ margin: '12px', borderRadius: '10px', border: '2px solid #ffa04a60', overflow: 'hidden', overflowY: 'auto', maxHeight: 'calc(100vh - 200px)' }}>
+              {/* Header with title + action buttons */}
+              <div style={{ padding: '14px 16px', background: 'rgba(255, 160, 74, 0.08)', borderBottom: '1px solid #ffa04a40' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: '15px', color: '#ffa04a' }}>
+                      {currentProposal.title || 'PROPOSTA AGUARDANDO APROVACAO'}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#c0c0e0', marginTop: '4px', lineHeight: 1.5 }}>
+                      {currentProposal.summary || currentProposal.rationale}
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#6060a0', marginTop: '4px' }}>
+                      {currentProposal.targetFile} | Tipo: {currentProposal.mutationType || 'general'} | Run: {currentProposal.runId}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', flexShrink: 0, marginLeft: '12px' }}>
+                    <button onClick={() => handleApprove(currentProposal.id)} disabled={resolveMutation.isPending} style={{
+                      background: resolveMutation.isPending ? '#555' : 'linear-gradient(135deg, #22c55e, #16a34a)', color: '#fff', border: 'none',
+                      borderRadius: '8px', padding: '10px 24px', cursor: resolveMutation.isPending ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '13px',
+                    }}>
+                      {resolveMutation.isPending ? 'ENVIANDO...' : 'APROVAR'}
+                    </button>
+                    <button onClick={() => handleReject(currentProposal.id)} disabled={resolveMutation.isPending} style={{
+                      background: resolveMutation.isPending ? 'rgba(100,100,100,0.15)' : 'rgba(255, 96, 96, 0.15)', color: resolveMutation.isPending ? '#888' : '#ff6060', border: '1px solid #ff606040',
+                      borderRadius: '8px', padding: '10px 24px', cursor: resolveMutation.isPending ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '13px',
+                    }}>
+                      {resolveMutation.isPending ? 'ENVIANDO...' : 'REJEITAR'}
+                    </button>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={() => handleApprove(currentProposal.id)} style={{
-                    background: 'linear-gradient(135deg, #22c55e, #16a34a)', color: '#fff', border: 'none',
-                    borderRadius: '8px', padding: '8px 20px', cursor: 'pointer', fontWeight: 700, fontSize: '13px',
+                {expiredMsg && (
+                  <div style={{
+                    marginTop: '8px', padding: '8px 12px', borderRadius: '6px',
+                    background: 'rgba(255, 96, 96, 0.12)', border: '1px solid #ff606060',
+                    color: '#ff8080', fontSize: '11px', fontWeight: 600,
                   }}>
-                    APROVAR
-                  </button>
-                  <button onClick={() => handleReject(currentProposal.id)} style={{
-                    background: 'rgba(255, 96, 96, 0.15)', color: '#ff6060', border: '1px solid #ff606040',
-                    borderRadius: '8px', padding: '8px 20px', cursor: 'pointer', fontWeight: 700, fontSize: '13px',
-                  }}>
-                    REJEITAR
-                  </button>
-                </div>
+                    {expiredMsg}
+                  </div>
+                )}
               </div>
 
-              {/* Scientific Justification */}
+              {/* 1. DIAGNOSTICO — Why this change is needed */}
               <div style={{ padding: '12px 16px', borderBottom: '1px solid #2d2d4e' }}>
-                <SectionLabel>Justificativa Cientifica</SectionLabel>
+                <SectionLabel>1. Diagnostico — Por que esta mudanca e necessaria</SectionLabel>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '6px' }}>
+                  <div style={{ padding: '10px', background: 'rgba(255, 96, 96, 0.04)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
+                    <div style={{ color: '#ff8080', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Problema Identificado</div>
+                    <div style={{ color: '#e0e0ff', fontSize: '11px', lineHeight: 1.6 }}>
+                      {currentProposal.problemStatement || currentProposal.rationale}
+                    </div>
+                  </div>
+                  <div style={{ padding: '10px', background: 'rgba(255, 160, 74, 0.04)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
+                    <div style={{ color: '#ffa04a', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Causa Raiz</div>
+                    <div style={{ color: '#e0e0ff', fontSize: '11px', lineHeight: 1.6 }}>
+                      {currentProposal.rootCause || 'Identificado via auto-diagnostico DGM'}
+                    </div>
+                  </div>
+                </div>
+                {/* Parent metrics — real data proving the need */}
+                {currentProposal.parentMetrics && (
+                  <div style={{ marginTop: '8px', padding: '10px', background: 'rgba(74, 158, 255, 0.04)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
+                    <div style={{ color: '#4a9eff', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Dados do Agente-Pai (Baseline)</div>
+                    <div style={{ color: '#a0a0c0', fontSize: '11px', lineHeight: 1.6 }}>
+                      Variante: <strong style={{ color: '#e0e0ff' }}>{currentProposal.parentMetrics.id}</strong> |{' '}
+                      Accuracy: <strong style={{ color: currentProposal.parentMetrics.accuracy >= 0.8 ? '#4aff9e' : '#ffa04a' }}>
+                        {(currentProposal.parentMetrics.accuracy * 100).toFixed(1)}%
+                      </strong> |{' '}
+                      Resolvidas: <strong style={{ color: '#e0e0ff' }}>{currentProposal.parentMetrics.resolved}/{currentProposal.parentMetrics.total}</strong>
+                      {currentProposal.parentMetrics.unresolvedIds.length > 0 && (
+                        <span> | Nao resolvidas: <strong style={{ color: '#ff8080' }}>{currentProposal.parentMetrics.unresolvedIds.join(', ')}</strong></span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. PROPOSTA — What the fix is */}
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #2d2d4e' }}>
+                <SectionLabel>2. Proposta de Solucao</SectionLabel>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '6px' }}>
+                  <div style={{ padding: '10px', background: 'rgba(74, 255, 158, 0.04)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
+                    <div style={{ color: '#4aff9e', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Correcao Proposta</div>
+                    <div style={{ color: '#e0e0ff', fontSize: '11px', lineHeight: 1.6 }}>
+                      {currentProposal.proposedFix || currentProposal.rationale}
+                    </div>
+                  </div>
                   <div style={{ padding: '10px', background: 'rgba(139, 92, 246, 0.04)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
-                    <div style={{ color: '#8b5cf6', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Base Cientifica</div>
-                    <div style={{ color: '#e0e0ff', fontSize: '11px', lineHeight: 1.5 }}>{currentProposal.scientificBasis}</div>
+                    <div style={{ color: '#8b5cf6', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Melhoria Esperada</div>
+                    <div style={{ color: '#e0e0ff', fontSize: '11px', lineHeight: 1.6 }}>
+                      {currentProposal.expectedImprovement}
+                    </div>
                   </div>
-                  <div style={{ padding: '10px', background: 'rgba(74, 158, 255, 0.04)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
-                    <div style={{ color: '#4a9eff', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Rationale</div>
-                    <div style={{ color: '#e0e0ff', fontSize: '11px', lineHeight: 1.5 }}>{currentProposal.rationale}</div>
-                  </div>
-                </div>
-                {/* Parecer */}
-                <div style={{ marginTop: '8px', padding: '10px', background: 'rgba(74, 255, 158, 0.03)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
-                  <div style={{ color: '#4aff9e', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Parecer do Sistema</div>
-                  <div style={{ color: '#a0a0c0', fontSize: '11px', lineHeight: 1.5 }}>
-                    Fitness Score: <strong style={{ color: currentProposal.fitnessScore >= 70 ? '#4aff9e' : '#ffa04a' }}>{currentProposal.fitnessScore}/100</strong> |{' '}
-                    Safety Gate: <strong style={{ color: '#4aff9e' }}>PASSED</strong> |{' '}
-                    Sandbox ({currentProposal.sandboxType}): <strong style={{ color: currentProposal.sandboxPassed ? '#4aff9e' : '#ff6060' }}>{currentProposal.sandboxPassed ? 'PASSED' : 'FAILED'}</strong> ({currentProposal.sandboxDurationMs}ms)
-                  </div>
-                </div>
-                {/* Hashes */}
-                <div style={{ marginTop: '6px', fontSize: '9px', color: '#4040a0' }}>
-                  diagnosis: <code style={{ color: '#4aff9e' }}>{currentProposal.diagnosisHash.slice(0, 16)}...</code> |{' '}
-                  modify: <code style={{ color: '#4aff9e' }}>{currentProposal.modificationHash.slice(0, 16)}...</code> |{' '}
-                  safety: <code style={{ color: '#4aff9e' }}>{currentProposal.safetyHash.slice(0, 16)}...</code> |{' '}
-                  sandbox: <code style={{ color: '#4aff9e' }}>{currentProposal.sandboxHash.slice(0, 16)}...</code>
                 </div>
               </div>
 
-              {/* Code Diff */}
+              {/* 3. EMBASAMENTO CIENTIFICO */}
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #2d2d4e' }}>
+                <SectionLabel>3. Embasamento Cientifico</SectionLabel>
+                <div style={{ padding: '10px', background: 'rgba(139, 92, 246, 0.04)', borderRadius: '6px', border: '1px solid #2d2d4e', marginTop: '6px' }}>
+                  <div style={{ color: '#8b5cf6', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Base Cientifica</div>
+                  <div style={{ color: '#e0e0ff', fontSize: '11px', lineHeight: 1.6 }}>{currentProposal.scientificBasis}</div>
+                </div>
+                <div style={{ marginTop: '8px', padding: '10px', background: 'rgba(74, 158, 255, 0.04)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
+                  <div style={{ color: '#4a9eff', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Raciocinio Completo (Rationale)</div>
+                  <div style={{ color: '#e0e0ff', fontSize: '11px', lineHeight: 1.6 }}>{currentProposal.rationale}</div>
+                </div>
+              </div>
+
+              {/* 4. RELATORIO DE VALIDACAO */}
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #2d2d4e' }}>
+                <SectionLabel>4. Relatorio de Validacao</SectionLabel>
+                {/* Fitness dimensions */}
+                <div style={{ marginTop: '6px', padding: '10px', background: 'rgba(74, 255, 158, 0.03)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
+                  <div style={{ color: '#4aff9e', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
+                    Fitness Score: {currentProposal.fitnessScore}/100
+                  </div>
+                  {currentProposal.fitnessDimensions && Object.keys(currentProposal.fitnessDimensions).length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {Object.entries(currentProposal.fitnessDimensions).map(([dim, score]) => (
+                        <FitnessBadge key={dim} dim={dim} score={score as number} />
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ marginTop: '6px', fontSize: '9px', color: '#4040a0', fontStyle: 'italic' }}>
+                    Passe o mouse sobre cada dimensao para ver a explicacao detalhada.
+                  </div>
+                </div>
+                {/* Safety + Sandbox */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '8px' }}>
+                  <div style={{ padding: '10px', background: 'rgba(74, 255, 158, 0.03)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
+                    <div style={{ color: '#4aff9e', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Safety Gate</div>
+                    <div style={{ color: '#a0a0c0', fontSize: '11px' }}>
+                      Status: <strong style={{ color: '#4aff9e' }}>PASSED</strong>
+                      {currentProposal.safetyWarnings && currentProposal.safetyWarnings.length > 0 && (
+                        <div style={{ marginTop: '4px', color: '#ffa04a', fontSize: '10px' }}>
+                          Warnings: {currentProposal.safetyWarnings.join('; ')}
+                        </div>
+                      )}
+                      {(!currentProposal.safetyWarnings || currentProposal.safetyWarnings.length === 0) && (
+                        <span style={{ color: '#6060a0' }}> (0 warnings)</span>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ padding: '10px', background: 'rgba(74, 255, 158, 0.03)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
+                    <div style={{ color: '#4aff9e', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Sandbox</div>
+                    <div style={{ color: '#a0a0c0', fontSize: '11px' }}>
+                      Status: <strong style={{ color: currentProposal.sandboxPassed ? '#4aff9e' : '#ff6060' }}>{currentProposal.sandboxPassed ? 'PASSED' : 'FAILED'}</strong> |{' '}
+                      Tipo: {currentProposal.sandboxType} |{' '}
+                      Duracao: {currentProposal.sandboxDurationMs}ms
+                    </div>
+                  </div>
+                </div>
+                {/* Proof hashes */}
+                <div style={{ marginTop: '8px', padding: '8px 10px', background: 'rgba(64,64,160,0.06)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
+                  <div style={{ color: '#4040a0', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Cadeia de Provas (SHA-256)</div>
+                  <div style={{ fontSize: '9px', color: '#4040a0', lineHeight: 1.8 }}>
+                    diagnostico: <code style={{ color: '#4aff9e' }}>{currentProposal.diagnosisHash?.slice(0, 16)}...</code>{' '}
+                    modificacao: <code style={{ color: '#4aff9e' }}>{currentProposal.modificationHash?.slice(0, 16)}...</code>{' '}
+                    safety: <code style={{ color: '#4aff9e' }}>{currentProposal.safetyHash?.slice(0, 16)}...</code>{' '}
+                    fitness: <code style={{ color: '#4aff9e' }}>{currentProposal.fitnessHash?.slice(0, 16)}...</code>{' '}
+                    sandbox: <code style={{ color: '#4aff9e' }}>{currentProposal.sandboxHash?.slice(0, 16)}...</code>
+                  </div>
+                </div>
+              </div>
+
+              {/* 5. CODE DIFF */}
               <div style={{ padding: '12px 16px' }}>
-                <SectionLabel>Preview do Codigo</SectionLabel>
+                <SectionLabel>5. Preview do Codigo</SectionLabel>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '6px' }}>
                   <div>
                     <div style={{ fontSize: '10px', color: '#ff6060', fontWeight: 700, marginBottom: '4px' }}>ORIGINAL ({currentProposal.targetFile})</div>
@@ -473,7 +668,7 @@ export default function DgmTest() {
                     </pre>
                   </div>
                   <div>
-                    <div style={{ fontSize: '10px', color: '#4aff9e', fontWeight: 700, marginBottom: '4px' }}>PROPOSTA (modificacao)</div>
+                    <div style={{ fontSize: '10px', color: '#4aff9e', fontWeight: 700, marginBottom: '4px' }}>PROPOSTA ({currentProposal.codeLength || currentProposal.proposedCode.length} chars)</div>
                     <pre style={{
                       background: '#0a0a16', border: '1px solid #4aff9e30', borderRadius: '6px',
                       padding: '10px', fontSize: '10px', color: '#c0ffc0',
@@ -527,10 +722,10 @@ export default function DgmTest() {
                           {detail}
                         </div>
                       )}
-                      {ev.data && (ev.data.hash || ev.data.score || ev.data.dimensions) && (
+                      {ev.data && !!(ev.data.hash || ev.data.score || ev.data.dimensions) && (
                         <div style={{ marginTop: '3px', fontSize: '9px', color: '#4a4a6a' }}>
-                          {ev.data.hash && <>Hash: <code style={{ color: '#6a6aff' }}>{String(ev.data.hash).slice(0, 16)}...</code> </>}
-                          {ev.data.score != null && <>Score: <strong style={{ color: ev.data.score as number >= 50 ? '#4aff9e' : '#ff6060' }}>{String(ev.data.score)}/100</strong> </>}
+                          {ev.data.hash ? <>Hash: <code style={{ color: '#6a6aff' }}>{String(ev.data.hash).slice(0, 16)}...</code> </> : null}
+                          {ev.data.score != null ? <>Score: <strong style={{ color: Number(ev.data.score) >= 50 ? '#4aff9e' : '#ff6060' }}>{String(ev.data.score)}/100</strong> </> : null}
                         </div>
                       )}
                     </div>
@@ -574,6 +769,80 @@ export default function DgmTest() {
     </div>
   );
 }
+
+/** Fitness dimension badge with hover tooltip explaining what it means */
+const FitnessBadge: React.FC<{ dim: string; score: number }> = ({ dim, score }) => {
+  const [hovered, setHovered] = useState(false);
+  const info = FITNESS_DIMENSION_INFO[dim];
+  const color = score >= 70 ? '#4aff9e' : score >= 50 ? '#ffa04a' : '#ff6060';
+  const bgColor = score >= 70 ? 'rgba(74,255,158,0.1)' : score >= 50 ? 'rgba(255,160,74,0.1)' : 'rgba(255,96,96,0.1)';
+  const borderColor = score >= 70 ? '#4aff9e20' : score >= 50 ? '#ffa04a20' : '#ff606020';
+
+  return (
+    <div
+      style={{ position: 'relative', display: 'inline-block' }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <div style={{
+        padding: '4px 10px', borderRadius: '4px', fontSize: '10px', cursor: 'help',
+        background: bgColor, color, border: `1px solid ${borderColor}`,
+        transition: 'transform 0.15s ease',
+        transform: hovered ? 'scale(1.05)' : 'scale(1)',
+      }}>
+        {info?.label || dim}: <strong>{score}</strong>
+        <span style={{ marginLeft: '4px', fontSize: '8px', opacity: 0.7 }}>({info?.weight || '?'})</span>
+      </div>
+      {/* Tooltip on hover */}
+      {hovered && info && (
+        <div style={{
+          position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)',
+          marginBottom: '6px', width: '300px', zIndex: 100,
+          padding: '10px 12px', borderRadius: '8px',
+          background: '#1a1a2e', border: '1px solid #3d3d6e',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+          pointerEvents: 'none',
+        }}>
+          <div style={{ fontWeight: 700, fontSize: '11px', color, marginBottom: '6px' }}>
+            {info.label} ({info.weight} do score total)
+          </div>
+          <div style={{ fontSize: '10px', color: '#c0c0e0', lineHeight: 1.6, marginBottom: '6px' }}>
+            {info.description}
+          </div>
+          <div style={{
+            fontSize: '10px', lineHeight: 1.5, padding: '6px 8px', borderRadius: '4px',
+            background: score >= 70 ? 'rgba(74,255,158,0.06)' : score >= 50 ? 'rgba(255,160,74,0.06)' : 'rgba(255,96,96,0.06)',
+            border: `1px solid ${borderColor}`,
+          }}>
+            <div style={{ color: score < 50 ? '#ff6060' : '#6060a0', marginBottom: score < 50 ? '4px' : 0 }}>
+              {score < 50 ? (
+                <>
+                  <strong style={{ color: '#ff6060' }}>Score {score}/100 — Atencao:</strong>{' '}
+                  <span style={{ color: '#e0a0a0' }}>{info.low}</span>
+                </>
+              ) : score < 70 ? (
+                <>
+                  <strong style={{ color: '#ffa04a' }}>Score {score}/100 — Aceitavel.</strong>{' '}
+                  <span style={{ color: '#e0c0a0' }}>Pode ser melhorado.</span>
+                </>
+              ) : (
+                <>
+                  <strong style={{ color: '#4aff9e' }}>Score {score}/100 — Excelente.</strong>{' '}
+                  <span style={{ color: '#a0e0c0' }}>{info.high}</span>
+                </>
+              )}
+            </div>
+          </div>
+          {/* Arrow */}
+          <div style={{
+            position: 'absolute', bottom: '-5px', left: '50%', transform: 'translateX(-50%) rotate(45deg)',
+            width: '10px', height: '10px', background: '#1a1a2e', borderRight: '1px solid #3d3d6e', borderBottom: '1px solid #3d3d6e',
+          }} />
+        </div>
+      )}
+    </div>
+  );
+};
 
 const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div style={{
