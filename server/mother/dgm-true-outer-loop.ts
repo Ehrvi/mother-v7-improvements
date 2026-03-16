@@ -977,7 +977,11 @@ async function selfImproveStep(
           timestamp: new Date().toISOString() });
       }
       modification = await generateModification(problemStatement, entry, parent, tscFeedback);
-      if (!modification) break;
+      if (!modification) {
+        // Feed back the failure reason so the next attempt can adjust
+        tscFeedback = (tscFeedback || '') + '\n[SEARCH/REPLACE FAILED] The search strings did not match the actual file content. Use EXACT text from the file, preserving all whitespace and indentation precisely.';
+        continue; // Try again instead of breaking
+      }
 
       // Quick tsc pre-check using git worktree — NEVER writes to real source files
       const tsResult = validateTypeScriptInWorktree(modification.targetFile, modification.proposedCode);
@@ -1760,19 +1764,60 @@ RULES:
           log.warn(`[MODIFY] Invalid search/replace pair — skipping`);
           continue;
         }
-        if (!proposedCode.includes(sr.search)) {
-          // Try trimmed match (LLM sometimes adds/removes whitespace)
-          const trimmedSearch = sr.search.trim();
-          if (trimmedSearch.length > 20 && proposedCode.includes(trimmedSearch)) {
-            proposedCode = proposedCode.replace(trimmedSearch, sr.replace.trim());
-            log.info(`[MODIFY] Applied trimmed search/replace (${trimmedSearch.length} chars)`);
-          } else {
-            log.warn(`[MODIFY] Search string not found in file (${sr.search.slice(0, 80)}...)`);
-            return null; // Abort — LLM hallucinated the search string
-          }
-        } else {
+        // Try exact match first
+        if (proposedCode.includes(sr.search)) {
           proposedCode = proposedCode.replace(sr.search, sr.replace);
+          continue;
         }
+        // Fuzzy matching: normalize whitespace (LLMs often mangle indentation)
+        // Strategy 1: trimmed match
+        const trimmedSearch = sr.search.trim();
+        if (trimmedSearch.length > 20 && proposedCode.includes(trimmedSearch)) {
+          proposedCode = proposedCode.replace(trimmedSearch, sr.replace.trim());
+          log.info(`[MODIFY] Applied via trimmed match (${trimmedSearch.length} chars)`);
+          continue;
+        }
+        // Strategy 2: whitespace-normalized match — collapse all runs of whitespace
+        // to single space, then find the matching region in the original
+        const normalizeWS = (s: string) => s.replace(/\s+/g, ' ').trim();
+        const normalizedSearch = normalizeWS(sr.search);
+        if (normalizedSearch.length > 20) {
+          // Find the matching region in originalCode by sliding a window
+          const lines = proposedCode.split('\n');
+          const searchLines = sr.search.trim().split('\n');
+          let matchStart = -1;
+          let matchEnd = -1;
+          // Find first line that matches (normalized)
+          for (let i = 0; i < lines.length; i++) {
+            if (normalizeWS(lines[i]) === normalizeWS(searchLines[0])) {
+              // Check if subsequent lines match
+              let allMatch = true;
+              for (let j = 1; j < searchLines.length && i + j < lines.length; j++) {
+                if (normalizeWS(lines[i + j]) !== normalizeWS(searchLines[j])) {
+                  allMatch = false;
+                  break;
+                }
+              }
+              if (allMatch && searchLines.length > 0) {
+                matchStart = i;
+                matchEnd = i + searchLines.length;
+                break;
+              }
+            }
+          }
+          if (matchStart >= 0) {
+            // Replace the matched region with the replacement lines
+            const before = lines.slice(0, matchStart);
+            const after = lines.slice(matchEnd);
+            const replaceLines = sr.replace.split('\n');
+            proposedCode = [...before, ...replaceLines, ...after].join('\n');
+            log.info(`[MODIFY] Applied via whitespace-normalized match (lines ${matchStart}-${matchEnd})`);
+            continue;
+          }
+        }
+        // All strategies failed
+        log.warn(`[MODIFY] Search string not found in file (${sr.search.slice(0, 80)}...)`);
+        return null; // Abort — LLM hallucinated the search string
       }
       log.info(`[MODIFY] Applied ${modResult.searchReplace.length} surgical modifications`);
     } else if (modResult.codeChanges) {
