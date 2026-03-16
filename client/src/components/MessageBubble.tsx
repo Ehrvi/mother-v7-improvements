@@ -89,7 +89,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
           {/* Rich content via Streamdown v1.4.0 */}
           {/* Supports: Mermaid diagrams, KaTeX math, Shiki syntax highlighting, GFM tables */}
           <div className="prose prose-sm prose-invert max-w-none">
-            <Streamdown mermaidConfig={MERMAID_CONFIG}>
+            <Streamdown mermaid={{ config: MERMAID_CONFIG }}>
               {message.content}
             </Streamdown>
           </div>

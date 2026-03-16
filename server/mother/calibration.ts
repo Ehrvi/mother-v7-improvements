@@ -161,19 +161,14 @@ export async function runCalibration(): Promise<CalibrationResult> {
     if (!db) throw new Error('Database not available');
     type KnowledgeRow = { quality_score: number; content: string; tags: string[] | null };
     // Use promise-based query to get rows directly
-    const queryResult = await new Promise<KnowledgeRow[]>((resolve, reject) => {
-      db.$client.query(
-        `SELECT quality_score, content, tags, created_at
-         FROM knowledge 
-         WHERE quality_score IS NOT NULL AND quality_score > 0
-           AND content IS NOT NULL AND LENGTH(content) > 100
-         ORDER BY created_at DESC LIMIT 200`,
-        (err: Error | null, results: KnowledgeRow[]) => {
-          if (err) reject(err);
-          else resolve(results || []);
-        }
-      );
-    });
+    const [rows] = await (db.$client as any).promise().query(
+      `SELECT quality_score, content, tags, created_at
+       FROM knowledge
+       WHERE quality_score IS NOT NULL AND quality_score > 0
+         AND content IS NOT NULL AND LENGTH(content) > 100
+       ORDER BY created_at DESC LIMIT 200`
+    );
+    const queryResult = (rows || []) as KnowledgeRow[];
     const typedRows = queryResult;
     
 

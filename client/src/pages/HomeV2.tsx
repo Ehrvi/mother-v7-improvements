@@ -746,7 +746,7 @@ export default function HomeV2() {
                           <ErrorBoundary componentName="Streamdown">
                             <Streamdown
                               key={isCurrentlyStreaming ? `${msg.id}-streaming` : `${msg.id}-final`}
-                              mermaidConfig={MERMAID_CONFIG}
+                              mermaid={{ config: MERMAID_CONFIG }}
                               isAnimating={isCurrentlyStreaming}
                               parseIncompleteMarkdown={isCurrentlyStreaming}
                               shikiTheme={['github-dark', 'github-dark']}

@@ -943,7 +943,7 @@ async function selfImproveStep(
     emitDGMEvent({ step: 'diagnose', status: 'start', message: `[Passo 1 — DIAGNÓSTICO] Analisando falhas do benchmark para identificar o problema a ser resolvido.\n\n` +
       `Metodologia: Per arXiv:2505.22954 §3.1, o sistema auto-diagnostica analisando quais queries o agente-pai falhou. ` +
       `O diagnóstico gera um "problem statement" que guiará a modificação de código. Tipo de mutação: "${entry.entryType}" — ` +
-      `corresponde ao operador ${entry.entryType === 'solve_low_quality' ? 'solve_low_quality (resolver queries com baixa pontuação)' : entry.entryType === 'solve_new' ? 'solve_new (resolver queries ainda não resolvidas)' : entry.entryType}.`,
+      `corresponde ao operador ${entry.entryType === 'solve_low_quality' ? 'solve_low_quality (resolver queries com baixa pontuação)' : entry.entryType}.`,
       timestamp: new Date().toISOString() });
     const problemStatement = await diagnoseProblem(entry, parent);
     if (!problemStatement) {
@@ -1197,7 +1197,7 @@ async function selfImproveStep(
       fitnessHash,
       sandboxHash,
       // C358: Rich context for human review
-      title: `${entry.entryType === 'general_improvement' ? 'Melhoria Geral' : entry.entryType === 'solve_low_quality' ? 'Corrigir Baixa Qualidade' : entry.entryType === 'solve_new' ? 'Resolver Query Nova' : entry.entryType}: ${modification.targetFile.split('/').pop()}`,
+      title: `${entry.entryType === 'general_improvement' ? 'Melhoria Geral' : entry.entryType === 'solve_low_quality' ? 'Corrigir Baixa Qualidade' : entry.entryType}: ${modification.targetFile.split('/').pop()}`,
       summary: diagnosisParsed.proposedFix || modification.rationale || `Mutação ${entry.entryType} no arquivo ${modification.targetFile}`,
       problemStatement: diagnosisParsed.problem || problemStatement.slice(0, 2000),
       rootCause: diagnosisParsed.rootCause || 'Identificado via auto-diagnóstico DGM',

@@ -722,10 +722,10 @@ export default function DgmTest() {
                           {detail}
                         </div>
                       )}
-                      {ev.data && (ev.data.hash || ev.data.score || ev.data.dimensions) && (
+                      {ev.data && !!(ev.data.hash || ev.data.score || ev.data.dimensions) && (
                         <div style={{ marginTop: '3px', fontSize: '9px', color: '#4a4a6a' }}>
-                          {ev.data.hash && <>Hash: <code style={{ color: '#6a6aff' }}>{String(ev.data.hash).slice(0, 16)}...</code> </>}
-                          {ev.data.score != null && <>Score: <strong style={{ color: ev.data.score as number >= 50 ? '#4aff9e' : '#ff6060' }}>{String(ev.data.score)}/100</strong> </>}
+                          {ev.data.hash ? <>Hash: <code style={{ color: '#6a6aff' }}>{String(ev.data.hash).slice(0, 16)}...</code> </> : null}
+                          {ev.data.score != null ? <>Score: <strong style={{ color: Number(ev.data.score) >= 50 ? '#4aff9e' : '#ff6060' }}>{String(ev.data.score)}/100</strong> </> : null}
                         </div>
                       )}
                     </div>
