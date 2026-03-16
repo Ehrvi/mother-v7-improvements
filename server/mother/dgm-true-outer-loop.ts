@@ -29,6 +29,7 @@
  */
 
 import { createHash, randomUUID } from 'crypto';
+import { EventEmitter } from 'events';
 import { createLogger } from '../_core/logger';
 import { getDb } from '../db';
 import { sandboxExecutor } from '../dgm/sandbox-executor';
@@ -42,6 +43,64 @@ import { recordAuditEntry } from './audit-trail';
 import { createProposal, applyProposal } from './self-modifier';
 
 const log = createLogger('DGM-TRUE');
+
+// ─── DGM Event System ──────────────────────────────────────────────────────
+// Emits real-time events during the DGM pipeline for UI feedback.
+
+export interface DGMEvent {
+  step: 'init' | 'benchmark' | 'diagnose' | 'modify' | 'safety' | 'fitness' | 'sandbox' | 'proposal' | 'evaluate' | 'complete' | 'error';
+  status: 'start' | 'success' | 'fail' | 'waiting';
+  message: string;
+  timestamp: string;
+  data?: Record<string, unknown>;
+}
+
+export interface DGMProposal {
+  id: string;
+  runId: string;
+  targetFile: string;
+  proposedCode: string;
+  originalCode: string;
+  rationale: string;
+  scientificBasis: string;
+  expectedImprovement: string;
+  fitnessScore: number;
+  sandboxPassed: boolean;
+  sandboxType: string;
+  sandboxDurationMs: number;
+  diagnosisHash: string;
+  modificationHash: string;
+  safetyHash: string;
+  fitnessHash: string;
+  sandboxHash: string;
+}
+
+export const dgmEvents = new EventEmitter();
+const pendingProposals = new Map<string, { proposal: DGMProposal; resolve: (approved: boolean) => void }>();
+const eventLog: DGMEvent[] = [];
+
+function emitDGMEvent(event: DGMEvent) {
+  eventLog.push(event);
+  if (eventLog.length > 200) eventLog.splice(0, eventLog.length - 200);
+  dgmEvents.emit('dgm-event', event);
+  log.info(`[EVENT] ${event.step}:${event.status} — ${event.message}`);
+}
+
+export function getDGMEventLog(): DGMEvent[] {
+  return [...eventLog];
+}
+
+export function getPendingProposals(): DGMProposal[] {
+  return Array.from(pendingProposals.values()).map(p => p.proposal);
+}
+
+export function resolveProposal(proposalId: string, approved: boolean): boolean {
+  const entry = pendingProposals.get(proposalId);
+  if (!entry) return false;
+  entry.resolve(approved);
+  pendingProposals.delete(proposalId);
+  return true;
+}
 
 // ─── Proof Hash Utility ──────────────────────────────────────────────────────
 // Gödel Machine (Schmidhuber, 2007): "Every self-modification must be verifiable"
@@ -719,36 +778,47 @@ async function selfImproveStep(
   }
 
   log.info(`[SELF-IMPROVE] Starting ${runId}: parent=${entry.parentId}, type=${entry.entryType}, target=${entry.target || 'none'}`);
+  emitDGMEvent({ step: 'init', status: 'start', message: `Iniciando mutação ${entry.entryType} (parent: ${entry.parentId})`, timestamp: new Date().toISOString(), data: { runId, parentId: entry.parentId, mutationType: entry.entryType } });
 
   try {
     // Step 1: DIAGNOSE — Generate problem statement from benchmark failures
+    emitDGMEvent({ step: 'diagnose', status: 'start', message: `Diagnosticando problema via pipeline MOTHER (tipo: ${entry.entryType})...`, timestamp: new Date().toISOString() });
     const problemStatement = await diagnoseProblem(entry, parent);
     if (!problemStatement) {
+      emitDGMEvent({ step: 'diagnose', status: 'fail', message: 'Diagnóstico falhou — sem statement gerado', timestamp: new Date().toISOString() });
       log.warn(`[SELF-IMPROVE] Failed to diagnose problem for ${runId}`);
       return null;
     }
     const diagnosisHash = proofHash({ input: { entryType: entry.entryType, parentId: entry.parentId, target: entry.target }, output: problemStatement });
     log.info(`[PROOF] Step 1 DIAGNOSE hash=${diagnosisHash.slice(0, 16)}... (${problemStatement.length} chars)`);
+    emitDGMEvent({ step: 'diagnose', status: 'success', message: `Diagnóstico completo (${problemStatement.length} chars) — hash: ${diagnosisHash.slice(0, 16)}...`, timestamp: new Date().toISOString(), data: { hash: diagnosisHash, length: problemStatement.length } });
 
     // Step 2: SELF-MODIFY — Ask LLM to propose code changes
+    emitDGMEvent({ step: 'modify', status: 'start', message: 'Gerando modificação de código via LLM...', timestamp: new Date().toISOString() });
     const modification = await generateModification(problemStatement, entry, parent);
     if (!modification) {
+      emitDGMEvent({ step: 'modify', status: 'fail', message: 'LLM não gerou modificação válida', timestamp: new Date().toISOString() });
       log.warn(`[SELF-IMPROVE] Failed to generate modification for ${runId}`);
       return null;
     }
     const modificationHash = proofHash({ targetFile: modification.targetFile, proposedCode: modification.proposedCode, rationale: modification.rationale });
     log.info(`[PROOF] Step 2 MODIFY hash=${modificationHash.slice(0, 16)}... target=${modification.targetFile} (${modification.proposedCode.length} chars)`);
+    emitDGMEvent({ step: 'modify', status: 'success', message: `Código gerado para ${modification.targetFile} (${modification.proposedCode.length} chars)`, timestamp: new Date().toISOString(), data: { targetFile: modification.targetFile, rationale: modification.rationale, hash: modificationHash, codeLength: modification.proposedCode.length } });
 
     // Step 3: SAFETY CHECK — Validate modification before applying
+    emitDGMEvent({ step: 'safety', status: 'start', message: `Verificando segurança para ${modification.targetFile}...`, timestamp: new Date().toISOString() });
     const safetyResult = checkSafetyGate(modification.targetFile, modification.proposedCode, runId);
     const safetyHash = proofHash({ file: modification.targetFile, allowed: safetyResult.allowed, violations: safetyResult.violations, warnings: safetyResult.warnings });
     log.info(`[PROOF] Step 3 SAFETY hash=${safetyHash.slice(0, 16)}... allowed=${safetyResult.allowed}`);
     if (!safetyResult.allowed) {
+      emitDGMEvent({ step: 'safety', status: 'fail', message: `Safety Gate BLOQUEOU: ${safetyResult.violations.join(', ')}`, timestamp: new Date().toISOString(), data: { violations: safetyResult.violations } });
       log.warn(`[SELF-IMPROVE] Safety gate blocked modification: ${safetyResult.violations.join(', ')}`);
       return null;
     }
+    emitDGMEvent({ step: 'safety', status: 'success', message: `Safety Gate: APROVADO (${safetyResult.warnings.length} warnings)`, timestamp: new Date().toISOString(), data: { warnings: safetyResult.warnings, hash: safetyHash } });
 
     // Step 4: VALIDATE — Static fitness check (existing MOTHER evaluator)
+    emitDGMEvent({ step: 'fitness', status: 'start', message: 'Avaliando fitness estático do código...', timestamp: new Date().toISOString() });
     const fitnessResult = await fitnessEvaluator.evaluate({
       filePath: modification.targetFile,
       content: modification.proposedCode,
@@ -759,14 +829,15 @@ async function selfImproveStep(
     log.info(`[PROOF] Step 4 FITNESS hash=${fitnessHash.slice(0, 16)}... overall=${fitnessResult.overall}`);
 
     if (fitnessResult.overall < 50) {
+      emitDGMEvent({ step: 'fitness', status: 'fail', message: `Fitness muito baixo: ${fitnessResult.overall}/100 (mínimo: 50)`, timestamp: new Date().toISOString(), data: { score: fitnessResult.overall } });
       log.warn(`[SELF-IMPROVE] Static fitness too low: ${fitnessResult.overall}`);
       return null;
     }
+    emitDGMEvent({ step: 'fitness', status: 'success', message: `Fitness: ${fitnessResult.overall}/100`, timestamp: new Date().toISOString(), data: { score: fitnessResult.overall, dimensions: fitnessResult.dimensions, hash: fitnessHash } });
 
     // Step 4.5: SANDBOX — Execute code in isolated environment BEFORE applying
     // Scientific basis: Sakana AI DGM (arXiv:2505.22954) — "Objective Hacking" prevention
-    // The sandbox validates that modified code compiles and runs without errors
-    // in an isolated environment before it touches production code.
+    emitDGMEvent({ step: 'sandbox', status: 'start', message: `Executando código em sandbox isolado (${modification.targetFile})...`, timestamp: new Date().toISOString() });
     let sandboxResult: { passed: boolean; output: string; error?: string; durationMs: number; sandboxType: string; sandboxId: string };
     try {
       // Try e2b sandbox first (full isolation), fallback to local sandbox
@@ -823,11 +894,66 @@ async function selfImproveStep(
     log.info(`[PROOF] Step 4.5 SANDBOX hash=${sandboxHash.slice(0, 16)}... passed=${sandboxResult.passed} type=${sandboxResult.sandboxType} (${sandboxResult.durationMs}ms)`);
 
     if (!sandboxResult.passed) {
+      emitDGMEvent({ step: 'sandbox', status: 'fail', message: `Sandbox REJEITOU: ${sandboxResult.error || 'compilation failed'}`, timestamp: new Date().toISOString(), data: { type: sandboxResult.sandboxType, durationMs: sandboxResult.durationMs } });
       log.warn(`[SELF-IMPROVE] Sandbox validation FAILED — blocking modification: ${sandboxResult.error}`);
       return null;
     }
+    emitDGMEvent({ step: 'sandbox', status: 'success', message: `Sandbox APROVADO (${sandboxResult.sandboxType}, ${sandboxResult.durationMs}ms)`, timestamp: new Date().toISOString(), data: { type: sandboxResult.sandboxType, durationMs: sandboxResult.durationMs, hash: sandboxHash } });
 
-    // Step 5: APPLY — Create proposal and apply it
+    // Step 5: HUMAN APPROVAL — Present proposal to user before applying
+    // Extract scientific basis from diagnosis
+    let diagnosisParsed: { scientificBasis?: string; proposedFix?: string; problem?: string } = {};
+    try { const m = problemStatement.match(/\{[\s\S]*\}/); if (m) diagnosisParsed = JSON.parse(m[0]); } catch { /* ignore */ }
+
+    const proposalForReview: DGMProposal = {
+      id: `proposal-${runId}`,
+      runId,
+      targetFile: modification.targetFile,
+      proposedCode: modification.proposedCode,
+      originalCode: modification.originalCode,
+      rationale: modification.rationale,
+      scientificBasis: diagnosisParsed.scientificBasis || 'DGM arXiv:2505.22954',
+      expectedImprovement: `mutation=${entry.entryType}`,
+      fitnessScore: fitnessResult.overall,
+      sandboxPassed: sandboxResult.passed,
+      sandboxType: sandboxResult.sandboxType,
+      sandboxDurationMs: sandboxResult.durationMs,
+      diagnosisHash,
+      modificationHash,
+      safetyHash,
+      fitnessHash,
+      sandboxHash,
+    };
+
+    emitDGMEvent({
+      step: 'proposal',
+      status: 'waiting',
+      message: `Proposta pronta para aprovação humana — ${modification.targetFile}`,
+      timestamp: new Date().toISOString(),
+      data: { proposal: proposalForReview },
+    });
+
+    // Wait for human approval (with 5min timeout → auto-approve in test mode)
+    const humanApproved = await new Promise<boolean>((resolve) => {
+      pendingProposals.set(proposalForReview.id, { proposal: proposalForReview, resolve });
+      // Auto-approve after 5 minutes if no human response (for background DGM runs)
+      setTimeout(() => {
+        if (pendingProposals.has(proposalForReview.id)) {
+          pendingProposals.delete(proposalForReview.id);
+          log.info(`[PROPOSAL] Auto-approved after timeout: ${proposalForReview.id}`);
+          resolve(true);
+        }
+      }, 5 * 60 * 1000);
+    });
+
+    if (!humanApproved) {
+      emitDGMEvent({ step: 'proposal', status: 'fail', message: 'Proposta REJEITADA pelo humano', timestamp: new Date().toISOString() });
+      log.info(`[SELF-IMPROVE] Proposal rejected by human: ${proposalForReview.id}`);
+      return null;
+    }
+    emitDGMEvent({ step: 'proposal', status: 'success', message: 'Proposta APROVADA — aplicando modificação...', timestamp: new Date().toISOString() });
+
+    // Step 5b: APPLY — Create proposal and apply it
     const proposal = createProposal({
       targetFile: modification.targetFile,
       proposedCode: modification.proposedCode,
@@ -839,11 +965,13 @@ async function selfImproveStep(
 
     const applied = await applyProposal(proposal.id);
     if (!applied) {
+      emitDGMEvent({ step: 'proposal', status: 'fail', message: `Falha ao aplicar proposta ${proposal.id}`, timestamp: new Date().toISOString() });
       log.warn(`[SELF-IMPROVE] Failed to apply proposal ${proposal.id}`);
       return null;
     }
 
     // Step 6: EMPIRICAL EVALUATION — The core DGM innovation
+    emitDGMEvent({ step: 'evaluate', status: 'start', message: 'Avaliando empiricamente com benchmark...', timestamp: new Date().toISOString() });
     // First: small benchmark (quick check)
     const smallResult = await evaluateVariant(
       runId,
@@ -939,6 +1067,8 @@ async function selfImproveStep(
 
     log.info(`[SELF-IMPROVE] Success: ${runId} accuracy=${(finalResult.accuracy * 100).toFixed(1)}%, ` +
       `fitness=${fitnessResult.overall}, parent=${entry.parentId}`);
+
+    emitDGMEvent({ step: 'complete', status: 'success', message: `Variante ${runId} criada — accuracy=${(finalResult.accuracy * 100).toFixed(1)}%, fitness=${fitnessResult.overall}`, timestamp: new Date().toISOString(), data: { runId, accuracy: finalResult.accuracy, fitness: fitnessResult.overall, proofHash: variant.proofHash } });
 
     return variant;
 

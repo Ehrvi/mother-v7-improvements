@@ -1,128 +1,126 @@
 /**
- * DgmTest — Pagina dedicada para testes DGM com relatorio completo
+ * DgmTest — Página DGM Test Lab com feedback em tempo real
  *
- * Permite:
- * 1. Configurar benchmark queries (custom ou padrao)
- * 2. Rodar 1 geracao DGM com sandbox + provas cientificas
- * 3. Visualizar resultados em 4 tabs com detalhes completos
- * 4. Ver historico de runs anteriores
+ * Features:
+ * 1. Feed textual passo a passo em tempo real
+ * 2. Preview da proposta de código (diff original vs modificado)
+ * 3. Aprovação humana com botão Aprovar/Rejeitar + parecer
+ * 4. Justificativa científica com paper, rationale, e parecer
  *
  * Scientific basis: Darwin Gödel Machine (arXiv:2505.22954, Zhang et al. 2025)
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { trpc } from '@/lib/trpc';
 
 /* ── Types ── */
 
-interface VariantInfo {
+interface DGMEvent {
+  step: string;
+  status: string;
+  message: string;
+  timestamp: string;
+  data?: Record<string, unknown>;
+}
+
+interface DGMProposal {
   id: string;
-  parentId: string;
-  generation: number;
-  accuracy: number;
-  childrenCount: number;
-  strategy: string;
-  isCompiled: boolean;
-  createdAt: string;
-  proofHash: string;
-  diagnosisHash?: string;
-  modificationHash?: string;
-  benchmarkHash?: string;
-  sandboxHash?: string;
-  sandboxPassed?: boolean;
-  sandboxType?: string;
+  runId: string;
+  targetFile: string;
+  proposedCode: string;
+  originalCode: string;
+  rationale: string;
+  scientificBasis: string;
+  expectedImprovement: string;
+  fitnessScore: number;
+  sandboxPassed: boolean;
+  sandboxType: string;
+  sandboxDurationMs: number;
+  diagnosisHash: string;
+  modificationHash: string;
+  safetyHash: string;
+  fitnessHash: string;
+  sandboxHash: string;
 }
 
-interface ScientificProof {
-  reproducibility: {
-    valid: boolean;
-    parentProofHash: string;
-    modificationHash: string;
-    childProofHash: string;
-    recomputedChildHash: string;
-    hashesMatch: boolean;
-  };
-  empiricalGain: {
-    valid: boolean;
-    parentAccuracy: number;
-    childAccuracy: number;
-    delta: number;
-    verdict: 'improvement' | 'neutral' | 'regression';
-    parentResolvedCount: number;
-    childResolvedCount: number;
-    benchmarkSize: number;
-  };
-  integrity: {
-    valid: boolean;
-    safetyGatePassed: boolean;
-    safetyHash: string;
-    sandboxPassed: boolean;
-    sandboxHash: string;
-    sandboxOutput: string;
-    sandboxDurationMs: number;
-    preApplyValidation: boolean;
-  };
-  overallValid: boolean;
-  timestamp: string;
-}
+const STEP_ICONS: Record<string, string> = {
+  init: '1',
+  benchmark: '2',
+  diagnose: '3',
+  modify: '4',
+  safety: '5',
+  fitness: '6',
+  sandbox: '7',
+  proposal: '8',
+  evaluate: '9',
+  complete: '!',
+  error: 'X',
+};
 
-interface TestResult {
-  generation: {
-    generation: number;
-    childrenIds: string[];
-    childrenCompiledIds: string[];
-    archiveSize: number;
-    bestAccuracy: number;
-    generationHash: string;
-    timestamp: string;
-    scientificProofs: ScientificProof[];
-  };
-  archive: {
-    size: number;
-    variants: VariantInfo[];
-    bestVariantId: string | null;
-    bestAccuracy: number;
-    initialAccuracy: number;
-    archiveHash: string;
-  };
-  tree: Array<{
-    id: string;
-    parentId: string;
-    generation: number;
-    accuracy: number;
-    children: string[];
-  }>;
-  elapsedMs: number;
-  timestamp: string;
-}
-
-type TabId = 'report' | 'proofs' | 'hashes' | 'tree' | 'log';
-
-/* ── Component ── */
+const STEP_COLORS: Record<string, string> = {
+  start: '#4a9eff',
+  success: '#4aff9e',
+  fail: '#ff6060',
+  waiting: '#ffa04a',
+};
 
 export default function DgmTest() {
   const navigate = useNavigate();
   const [customQueries, setCustomQueries] = useState('');
-  const [result, setResult] = useState<TestResult | null>(null);
-  const [activeTab, setActiveTab] = useState<TabId>('report');
+  const [events, setEvents] = useState<DGMEvent[]>([]);
+  const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [runHistory, setRunHistory] = useState<Array<{ result: TestResult; startedAt: string }>>([]);
+  const [pollEnabled, setPollEnabled] = useState(false);
+  const feedRef = useRef<HTMLDivElement>(null);
+
+  // Polling for events
+  const eventsQuery = trpc.mother.dgmEvents.useQuery(
+    { since: events.length },
+    { enabled: pollEnabled, refetchInterval: 1000 },
+  );
+
+  // Polling for pending proposals
+  const proposalsQuery = trpc.mother.dgmPendingProposals.useQuery(
+    undefined,
+    { enabled: pollEnabled, refetchInterval: 1500 },
+  );
+
+  const resolveMutation = trpc.mother.dgmResolveProposal.useMutation();
 
   const testMutation = trpc.mother.dgmTestRun.useMutation({
     onSuccess: (data) => {
-      const r = data as TestResult;
-      setResult(r);
+      setResult(data as Record<string, unknown>);
       setError(null);
-      setRunHistory(prev => [{ result: r, startedAt: r.timestamp }, ...prev].slice(0, 10));
+      setPollEnabled(false);
     },
     onError: (err) => {
       setError(err.message);
       setResult(null);
+      setPollEnabled(false);
     },
   });
 
+  // Append new events
+  useEffect(() => {
+    if (eventsQuery.data && eventsQuery.data.length > 0) {
+      setEvents(prev => [...prev, ...(eventsQuery.data as DGMEvent[])]);
+    }
+  }, [eventsQuery.data]);
+
+  // Auto-scroll feed
+  useEffect(() => {
+    if (feedRef.current) {
+      feedRef.current.scrollTop = feedRef.current.scrollHeight;
+    }
+  }, [events]);
+
   const handleRun = () => {
+    setEvents([]);
+    setResult(null);
+    setError(null);
+    setPollEnabled(true);
+
     const queries = customQueries.trim()
       ? customQueries.split('\n').filter(q => q.trim()).map((q, i) => ({
           id: `custom-${String(i + 1).padStart(3, '0')}`,
@@ -138,78 +136,59 @@ export default function DgmTest() {
     });
   };
 
+  const handleApprove = (proposalId: string) => {
+    resolveMutation.mutate({ proposalId, approved: true });
+  };
+  const handleReject = (proposalId: string) => {
+    resolveMutation.mutate({ proposalId, approved: false });
+  };
+
   const isRunning = testMutation.isPending;
-  const proofs = result?.generation.scientificProofs ?? [];
+  const pendingProposals = (proposalsQuery.data ?? []) as DGMProposal[];
+  const currentProposal = pendingProposals[0] ?? null;
+  const lastStep = events.length > 0 ? events[events.length - 1] : null;
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: '#08081a',
-      color: '#e0e0ff',
-      fontFamily: 'monospace',
-    }}>
+    <div style={{ minHeight: '100vh', background: '#08081a', color: '#e0e0ff', fontFamily: 'monospace' }}>
+
       {/* Top bar */}
       <div style={{
-        padding: '12px 24px',
-        borderBottom: '1px solid #2d2d4e',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        padding: '10px 20px', borderBottom: '1px solid #2d2d4e',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         background: 'rgba(139, 92, 246, 0.03)',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <button
-            onClick={() => navigate('/')}
-            style={{
-              background: 'none', border: '1px solid #2d2d4e', borderRadius: '6px',
-              color: '#6060a0', cursor: 'pointer', padding: '4px 10px', fontSize: '12px',
-            }}
-          >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <button onClick={() => navigate('/')} style={{ background: 'none', border: '1px solid #2d2d4e', borderRadius: '6px', color: '#6060a0', cursor: 'pointer', padding: '4px 10px', fontSize: '12px' }}>
             &#x2190; Home
           </button>
           <div>
-            <div style={{ fontWeight: 700, fontSize: '16px', color: '#8b5cf6' }}>
-              DGM Test Lab
-            </div>
-            <div style={{ color: '#4040a0', fontSize: '10px' }}>
-              Darwin Gödel Machine (arXiv:2505.22954) — Sandbox + Provas Científicas SHA-256
-            </div>
+            <span style={{ fontWeight: 700, fontSize: '15px', color: '#8b5cf6' }}>DGM Test Lab</span>
+            <span style={{ color: '#4040a0', fontSize: '10px', marginLeft: '10px' }}>Darwin Godel Machine (arXiv:2505.22954)</span>
           </div>
         </div>
-        <button
-          onClick={handleRun}
-          disabled={isRunning}
-          style={{
-            background: isRunning ? '#2d2d4e' : 'linear-gradient(135deg, #8b5cf6, #4a9eff)',
-            color: isRunning ? '#6060a0' : '#fff',
-            border: 'none', borderRadius: '8px', padding: '10px 24px',
-            cursor: isRunning ? 'not-allowed' : 'pointer',
-            fontWeight: 700, fontSize: '14px',
-            boxShadow: isRunning ? 'none' : '0 2px 16px rgba(139, 92, 246, 0.4)',
-          }}
-        >
-          {isRunning ? 'Executando DGM...' : 'Rodar Teste DGM'}
+        <button onClick={handleRun} disabled={isRunning} style={{
+          background: isRunning ? '#2d2d4e' : 'linear-gradient(135deg, #8b5cf6, #4a9eff)',
+          color: isRunning ? '#6060a0' : '#fff', border: 'none', borderRadius: '8px',
+          padding: '8px 20px', cursor: isRunning ? 'not-allowed' : 'pointer',
+          fontWeight: 700, fontSize: '13px',
+        }}>
+          {isRunning ? 'Executando...' : 'Rodar Teste DGM'}
         </button>
       </div>
 
-      <div style={{ display: 'flex', height: 'calc(100vh - 54px)' }}>
+      <div style={{ display: 'flex', height: 'calc(100vh - 49px)' }}>
 
-        {/* Left panel: Config + Run History */}
-        <div style={{
-          width: '280px',
-          borderRight: '1px solid #2d2d4e',
-          overflowY: 'auto',
-          flexShrink: 0,
-        }}>
-          {/* Benchmark config */}
-          <div style={{ padding: '14px' }}>
-            <Label>Benchmark Queries</Label>
+        {/* Left: Config + Pipeline Progress */}
+        <div style={{ width: '320px', borderRight: '1px solid #2d2d4e', overflowY: 'auto', flexShrink: 0 }}>
+          {/* Config */}
+          <div style={{ padding: '12px' }}>
+            <SectionLabel>Benchmark Queries</SectionLabel>
             <textarea
               value={customQueries}
               onChange={e => setCustomQueries(e.target.value)}
-              placeholder={"1 query por linha\nEx: O que é DGM?\nEx: Como funciona o fitness?\n\n(vazio = benchmark padrão)"}
+              placeholder={"1 query por linha\n(vazio = benchmark padrao)"}
               disabled={isRunning}
-              rows={6}
+              rows={3}
               style={{
                 width: '100%', background: '#0f0f1a', border: '1px solid #2d2d4e',
                 borderRadius: '6px', color: '#e0e0ff', padding: '8px',
@@ -217,473 +196,230 @@ export default function DgmTest() {
                 outline: 'none', boxSizing: 'border-box',
               }}
             />
-            <div style={{ marginTop: '8px', fontSize: '10px', color: '#4040a0' }}>
-              Pipeline: Diagnose &#x2192; Modify &#x2192; Safety &#x2192; Fitness &#x2192; <strong style={{ color: '#8b5cf6' }}>Sandbox</strong> &#x2192; Apply &#x2192; Benchmark
-            </div>
           </div>
 
-          {/* Running indicator */}
-          {isRunning && (
-            <div style={{
-              margin: '0 14px', padding: '12px', borderRadius: '8px',
-              background: 'rgba(139, 92, 246, 0.08)', border: '1px solid #8b5cf640',
-              textAlign: 'center',
-            }}>
-              <div style={{ fontSize: '18px', marginBottom: '6px' }}>&#x21BB;</div>
-              <div style={{ fontSize: '11px', color: '#8b5cf6' }}>Executando pipeline DGM...</div>
-              <div style={{ fontSize: '9px', color: '#4040a0', marginTop: '4px' }}>~3-5 min (chamadas LLM reais)</div>
+          {/* Pipeline Steps */}
+          <div style={{ padding: '12px', borderTop: '1px solid #2d2d4e' }}>
+            <SectionLabel>Pipeline DGM</SectionLabel>
+            <div style={{ fontSize: '10px', color: '#4040a0', marginBottom: '8px' }}>
+              Cada etapa gera hash SHA-256 para auditoria
             </div>
-          )}
-
-          {/* Run history */}
-          <div style={{ padding: '14px', borderTop: '1px solid #2d2d4e', marginTop: '8px' }}>
-            <Label>Historico de Runs</Label>
-            {runHistory.length === 0 ? (
-              <div style={{ fontSize: '10px', color: '#4040a0', padding: '8px 0' }}>
-                Nenhum run executado ainda
-              </div>
-            ) : (
-              runHistory.map((h, i) => (
-                <button
-                  key={i}
-                  onClick={() => { setResult(h.result); setActiveTab('report'); }}
-                  style={{
-                    display: 'block', width: '100%', textAlign: 'left',
-                    background: result === h.result ? 'rgba(139, 92, 246, 0.1)' : 'rgba(255,255,255,0.02)',
-                    border: result === h.result ? '1px solid #8b5cf640' : '1px solid #2d2d4e',
-                    borderRadius: '6px', padding: '8px', marginBottom: '4px',
-                    cursor: 'pointer', color: '#e0e0ff', fontFamily: 'monospace', fontSize: '10px',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#4a9eff' }}>Run #{runHistory.length - i}</span>
-                    <span style={{ color: '#ffa04a' }}>{(h.result.archive.bestAccuracy * 100).toFixed(0)}%</span>
+            {['init', 'diagnose', 'modify', 'safety', 'fitness', 'sandbox', 'proposal', 'evaluate', 'complete'].map(step => {
+              const stepEvents = events.filter(e => e.step === step);
+              const lastEvent = stepEvents[stepEvents.length - 1];
+              const status = lastEvent?.status ?? 'pending';
+              const isActive = lastStep?.step === step && status === 'start';
+              return (
+                <div key={step} style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '6px 8px', marginBottom: '3px', borderRadius: '6px',
+                  background: isActive ? 'rgba(74, 158, 255, 0.08)' : 'rgba(255,255,255,0.01)',
+                  borderLeft: `3px solid ${status === 'pending' ? '#2d2d4e' : STEP_COLORS[status] ?? '#6060a0'}`,
+                }}>
+                  <div style={{
+                    width: '20px', height: '20px', borderRadius: '50%', fontSize: '10px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700,
+                    background: status === 'pending' ? '#1a1a2e' : status === 'start' ? '#1a2a4e' : status === 'success' ? 'rgba(74,255,158,0.15)' : status === 'fail' ? 'rgba(255,96,96,0.15)' : 'rgba(255,160,74,0.15)',
+                    color: STEP_COLORS[status] ?? '#4040a0',
+                    animation: isActive ? 'pulse 1.5s infinite' : undefined,
+                  }}>
+                    {isActive ? '...' : STEP_ICONS[step]}
                   </div>
-                  <div style={{ color: '#4040a0', marginTop: '2px' }}>
-                    {h.result.archive.size} variantes | {h.result.generation.scientificProofs.length} provas | {(h.result.elapsedMs / 1000).toFixed(0)}s
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '11px', fontWeight: 600, color: status === 'pending' ? '#4040a0' : '#e0e0ff', textTransform: 'uppercase' }}>
+                      {step === 'init' ? 'Inicializar' : step === 'diagnose' ? 'Diagnosticar' : step === 'modify' ? 'Gerar Codigo' : step === 'safety' ? 'Safety Gate' : step === 'fitness' ? 'Fitness Check' : step === 'sandbox' ? 'Sandbox' : step === 'proposal' ? 'Aprovacao Humana' : step === 'evaluate' ? 'Benchmark' : 'Concluido'}
+                    </div>
+                    {lastEvent && <div style={{ fontSize: '9px', color: STEP_COLORS[status] ?? '#4040a0', marginTop: '1px' }}>{lastEvent.message.slice(0, 80)}</div>}
                   </div>
-                </button>
-              ))
-            )}
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* Main content */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        {/* Center: Main Content */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+
           {/* Error */}
           {error && (
-            <div style={{
-              margin: '14px', padding: '12px 16px', borderRadius: '8px',
-              background: 'rgba(255, 96, 96, 0.1)', border: '1px solid #ff606040',
-              color: '#ff6060', fontSize: '12px',
-            }}>
+            <div style={{ margin: '12px', padding: '10px 14px', borderRadius: '8px', background: 'rgba(255, 96, 96, 0.1)', border: '1px solid #ff606040', color: '#ff6060', fontSize: '12px' }}>
               Erro: {error}
             </div>
           )}
 
           {/* Empty state */}
-          {!result && !isRunning && !error && (
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              height: '100%', color: '#4040a0',
-            }}>
+          {events.length === 0 && !isRunning && !error && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#4040a0' }}>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '48px', marginBottom: '16px' }}>&#x1F9EC;</div>
                 <div style={{ fontSize: '14px', marginBottom: '8px' }}>DGM Test Lab</div>
                 <div style={{ fontSize: '11px', maxWidth: '400px', lineHeight: 1.6 }}>
-                  Clique em <strong style={{ color: '#8b5cf6' }}>Rodar Teste DGM</strong> para executar
-                  1 geracao completa com sandbox isolado e provas cientificas SHA-256.
+                  Clique em <strong style={{ color: '#8b5cf6' }}>Rodar Teste DGM</strong> para executar o pipeline completo.
+                  Cada passo sera mostrado em tempo real com justificativa cientifica.
                 </div>
               </div>
             </div>
           )}
 
-          {/* Results */}
-          {result && (
-            <>
-              {/* Stats bar */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(6, 1fr)',
-                borderBottom: '1px solid #2d2d4e',
-              }}>
-                {[
-                  { label: 'Variantes', value: String(result.archive.size), color: '#a0a0c0' },
-                  { label: 'Filhos', value: String(result.generation.childrenIds.length), color: '#4a9eff' },
-                  { label: 'Compilados', value: String(result.generation.childrenCompiledIds.length), color: '#4aff9e' },
-                  { label: 'Best Acc', value: `${(result.archive.bestAccuracy * 100).toFixed(1)}%`, color: '#ffa04a' },
-                  { label: 'Provas', value: `${proofs.filter(p => p.overallValid).length}/${proofs.length}`, color: proofs.every(p => p.overallValid) ? '#4aff9e' : '#ff6060' },
-                  { label: 'Tempo', value: `${(result.elapsedMs / 1000).toFixed(0)}s`, color: '#8b5cf6' },
-                ].map(stat => (
-                  <div key={stat.label} style={{
-                    padding: '10px 8px', textAlign: 'center',
-                    borderRight: '1px solid #2d2d4e',
+          {/* PROPOSAL REVIEW (when a proposal is pending) */}
+          {currentProposal && (
+            <div style={{ margin: '12px', borderRadius: '10px', border: '2px solid #ffa04a60', overflow: 'hidden' }}>
+              {/* Header */}
+              <div style={{ padding: '12px 16px', background: 'rgba(255, 160, 74, 0.08)', borderBottom: '1px solid #ffa04a40', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '14px', color: '#ffa04a' }}>PROPOSTA AGUARDANDO APROVACAO</div>
+                  <div style={{ fontSize: '10px', color: '#6060a0', marginTop: '2px' }}>{currentProposal.targetFile} | Fitness: {currentProposal.fitnessScore}/100 | Sandbox: {currentProposal.sandboxPassed ? 'OK' : 'FAIL'} ({currentProposal.sandboxType})</div>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => handleApprove(currentProposal.id)} style={{
+                    background: 'linear-gradient(135deg, #22c55e, #16a34a)', color: '#fff', border: 'none',
+                    borderRadius: '8px', padding: '8px 20px', cursor: 'pointer', fontWeight: 700, fontSize: '13px',
                   }}>
-                    <div style={{ color: stat.color, fontWeight: 700, fontSize: '16px' }}>{stat.value}</div>
-                    <div style={{ color: '#4040a0', fontSize: '10px' }}>{stat.label}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Tabs */}
-              <div style={{ display: 'flex', borderBottom: '1px solid #2d2d4e' }}>
-                {([
-                  { id: 'report' as TabId, label: 'Relatorio' },
-                  { id: 'proofs' as TabId, label: `Provas Cientificas (${proofs.length})` },
-                  { id: 'hashes' as TabId, label: 'SHA-256 Hashes' },
-                  { id: 'tree' as TabId, label: 'Arvore Evolutiva' },
-                  { id: 'log' as TabId, label: 'Log Completo' },
-                ]).map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    style={{
-                      flex: 1, background: activeTab === tab.id ? 'rgba(139, 92, 246, 0.1)' : 'none',
-                      border: 'none',
-                      borderBottom: activeTab === tab.id ? '2px solid #8b5cf6' : '2px solid transparent',
-                      color: activeTab === tab.id ? '#8b5cf6' : '#6060a0',
-                      cursor: 'pointer', padding: '10px 8px', fontSize: '11px',
-                      fontWeight: activeTab === tab.id ? 700 : 400,
-                    }}
-                  >
-                    {tab.label}
+                    APROVAR
                   </button>
-                ))}
+                  <button onClick={() => handleReject(currentProposal.id)} style={{
+                    background: 'rgba(255, 96, 96, 0.15)', color: '#ff6060', border: '1px solid #ff606040',
+                    borderRadius: '8px', padding: '8px 20px', cursor: 'pointer', fontWeight: 700, fontSize: '13px',
+                  }}>
+                    REJEITAR
+                  </button>
+                </div>
               </div>
 
-              {/* Tab content */}
-              <div style={{ padding: '16px 20px' }}>
-
-                {/* Report tab */}
-                {activeTab === 'report' && (
-                  <div>
-                    <SectionTitle>Resultado da Geracao</SectionTitle>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                      <InfoCard label="Geracao" value={String(result.generation.generation)} />
-                      <InfoCard label="Archive" value={`${result.generation.archiveSize} variantes`} />
-                      <InfoCard label="Best Accuracy" value={`${(result.generation.bestAccuracy * 100).toFixed(1)}%`} />
-                      <InfoCard label="Filhos" value={`${result.generation.childrenIds.length} gerados, ${result.generation.childrenCompiledIds.length} compilados`} />
-                      <InfoCard label="Tempo" value={`${(result.elapsedMs / 1000).toFixed(1)}s`} />
-                      <InfoCard label="Sandbox" value={result.archive.variants.some(v => v.sandboxPassed) ? 'PASSED' : result.archive.variants.length > 1 ? 'BLOCKED (correto)' : 'N/A'} color={result.archive.variants.some(v => v.sandboxPassed) ? '#4aff9e' : '#ffa04a'} />
-                    </div>
-
-                    <SectionTitle>Variantes no Archive</SectionTitle>
-                    {result.archive.variants.map(v => (
-                      <div key={v.id} style={{
-                        padding: '12px', marginBottom: '8px',
-                        background: 'rgba(255,255,255,0.02)', borderRadius: '8px',
-                        borderLeft: `3px solid ${v.accuracy >= 0.8 ? '#4aff9e' : v.accuracy >= 0.5 ? '#ffa04a' : '#ff6060'}`,
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ color: '#4a9eff', fontWeight: 700, fontSize: '13px' }}>{v.id}</span>
-                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            {v.sandboxPassed !== undefined && (
-                              <span style={{
-                                padding: '2px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 700,
-                                background: v.sandboxPassed ? 'rgba(74, 255, 158, 0.15)' : 'rgba(255, 96, 96, 0.15)',
-                                color: v.sandboxPassed ? '#4aff9e' : '#ff6060',
-                              }}>
-                                SANDBOX {v.sandboxPassed ? 'OK' : 'FAIL'}
-                              </span>
-                            )}
-                            <span style={{ color: '#ffa04a', fontWeight: 700 }}>{(v.accuracy * 100).toFixed(1)}%</span>
-                          </div>
-                        </div>
-                        <div style={{ color: '#6060a0', fontSize: '10px', marginTop: '4px' }}>
-                          Gen {v.generation} | Parent: {v.parentId || '(root)'} | {v.strategy.slice(0, 100)}
-                        </div>
-                        <div style={{ color: '#4040a0', fontSize: '9px', marginTop: '2px' }}>
-                          proof: {v.proofHash.slice(0, 24)}...
-                        </div>
-                      </div>
-                    ))}
+              {/* Scientific Justification */}
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #2d2d4e' }}>
+                <SectionLabel>Justificativa Cientifica</SectionLabel>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '6px' }}>
+                  <div style={{ padding: '10px', background: 'rgba(139, 92, 246, 0.04)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
+                    <div style={{ color: '#8b5cf6', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Base Cientifica</div>
+                    <div style={{ color: '#e0e0ff', fontSize: '11px', lineHeight: 1.5 }}>{currentProposal.scientificBasis}</div>
                   </div>
-                )}
-
-                {/* Scientific Proofs tab */}
-                {activeTab === 'proofs' && (
-                  <div>
-                    {proofs.length === 0 ? (
-                      <div style={{
-                        padding: '40px', textAlign: 'center', color: '#6060a0',
-                        background: 'rgba(255,255,255,0.02)', borderRadius: '8px',
-                      }}>
-                        <div style={{ fontSize: '24px', marginBottom: '12px' }}>&#x1F50D;</div>
-                        <div style={{ fontSize: '13px', marginBottom: '8px' }}>Nenhuma prova cientifica gerada</div>
-                        <div style={{ fontSize: '11px', maxWidth: '500px', margin: '0 auto', lineHeight: 1.6 }}>
-                          Isso acontece quando o sandbox bloqueia todas as modificacoes (correto!) ou
-                          nenhum filho foi compilado. O pipeline esta funcionando — rejeitou codigo invalido
-                          antes de aplicar.
-                        </div>
-                      </div>
-                    ) : (
-                      proofs.map((proof, i) => (
-                        <div key={i} style={{
-                          marginBottom: '20px',
-                          border: `1px solid ${proof.overallValid ? '#4aff9e30' : '#ff606030'}`,
-                          borderRadius: '10px', overflow: 'hidden',
-                        }}>
-                          {/* Proof header */}
-                          <div style={{
-                            padding: '12px 16px',
-                            background: proof.overallValid ? 'rgba(74, 255, 158, 0.05)' : 'rgba(255, 96, 96, 0.05)',
-                            borderBottom: '1px solid #2d2d4e',
-                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                          }}>
-                            <span style={{ fontWeight: 700, fontSize: '14px', color: '#e0e0ff' }}>
-                              Prova Cientifica #{i + 1}
-                            </span>
-                            <span style={{
-                              padding: '3px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 700,
-                              background: proof.overallValid ? 'rgba(74, 255, 158, 0.15)' : 'rgba(255, 96, 96, 0.15)',
-                              color: proof.overallValid ? '#4aff9e' : '#ff6060',
-                            }}>
-                              {proof.overallValid ? 'VALIDA' : 'INVALIDA'}
-                            </span>
-                          </div>
-
-                          <div style={{ padding: '16px' }}>
-                            {/* Proof 1 */}
-                            <ProofBlock
-                              num="1"
-                              title="REPRODUTIBILIDADE"
-                              subtitle="Hash chain deterministico parent → child (Schmidhuber, 2007)"
-                              valid={proof.reproducibility.valid}
-                              rows={[
-                                ['Parent Proof Hash', proof.reproducibility.parentProofHash],
-                                ['Modification Hash', proof.reproducibility.modificationHash],
-                                ['Child Proof Hash', proof.reproducibility.childProofHash],
-                                ['Recomputed Hash', proof.reproducibility.recomputedChildHash],
-                                ['Deterministico', proof.reproducibility.hashesMatch ? 'SIM' : 'NAO'],
-                              ]}
-                            />
-
-                            {/* Proof 2 */}
-                            <ProofBlock
-                              num="2"
-                              title="GANHO EMPIRICO"
-                              subtitle="Before/after benchmark comparison (Zhang et al., 2025)"
-                              valid={proof.empiricalGain.valid}
-                              rows={[
-                                ['Parent Accuracy', `${(proof.empiricalGain.parentAccuracy * 100).toFixed(1)}% (${proof.empiricalGain.parentResolvedCount}/${proof.empiricalGain.benchmarkSize} resolved)`],
-                                ['Child Accuracy', `${(proof.empiricalGain.childAccuracy * 100).toFixed(1)}% (${proof.empiricalGain.childResolvedCount}/${proof.empiricalGain.benchmarkSize} resolved)`],
-                                ['Delta', `${proof.empiricalGain.delta >= 0 ? '+' : ''}${(proof.empiricalGain.delta * 100).toFixed(1)} percentage points`],
-                                ['Veredicto', proof.empiricalGain.verdict.toUpperCase()],
-                              ]}
-                              highlight={proof.empiricalGain.verdict === 'improvement' ? '#4aff9e' : proof.empiricalGain.verdict === 'neutral' ? '#ffa04a' : '#ff6060'}
-                            />
-
-                            {/* Proof 3 */}
-                            <ProofBlock
-                              num="3"
-                              title="INTEGRIDADE"
-                              subtitle="Anti-objective-hacking via sandbox + safety gate (Sakana AI)"
-                              valid={proof.integrity.valid}
-                              rows={[
-                                ['Safety Gate', proof.integrity.safetyGatePassed ? 'PASSED' : 'FAILED'],
-                                ['Safety Hash', proof.integrity.safetyHash],
-                                ['Sandbox', proof.integrity.sandboxPassed ? 'PASSED' : 'FAILED'],
-                                ['Sandbox Hash', proof.integrity.sandboxHash],
-                                ['Sandbox Duration', `${proof.integrity.sandboxDurationMs}ms`],
-                                ['Pre-Apply Validation', proof.integrity.preApplyValidation ? 'SIM (antes do commit)' : 'NAO'],
-                              ]}
-                            />
-                          </div>
-                        </div>
-                      ))
-                    )}
+                  <div style={{ padding: '10px', background: 'rgba(74, 158, 255, 0.04)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
+                    <div style={{ color: '#4a9eff', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Rationale</div>
+                    <div style={{ color: '#e0e0ff', fontSize: '11px', lineHeight: 1.5 }}>{currentProposal.rationale}</div>
                   </div>
-                )}
-
-                {/* Hashes tab */}
-                {activeTab === 'hashes' && (
-                  <div>
-                    <SectionTitle>Archive Hash (SHA-256)</SectionTitle>
-                    <HashRow label="archiveHash" value={result.archive.archiveHash} />
-                    <HashRow label="generationHash" value={result.generation.generationHash} />
-
-                    <SectionTitle>Proof Hashes por Variante</SectionTitle>
-                    {result.archive.variants.map(v => (
-                      <div key={v.id} style={{
-                        padding: '12px', marginBottom: '10px',
-                        background: 'rgba(139, 92, 246, 0.04)', borderRadius: '8px',
-                        border: '1px solid #2d2d4e',
-                      }}>
-                        <div style={{ color: '#8b5cf6', fontWeight: 700, marginBottom: '8px', fontSize: '12px' }}>
-                          {v.id} <span style={{ color: '#4040a0', fontWeight: 400 }}>(Gen {v.generation})</span>
-                        </div>
-                        <HashRow label="proofHash" value={v.proofHash} />
-                        {v.diagnosisHash && <HashRow label="diagnosisHash" value={v.diagnosisHash} />}
-                        {v.modificationHash && <HashRow label="modificationHash" value={v.modificationHash} />}
-                        {v.benchmarkHash && <HashRow label="benchmarkHash" value={v.benchmarkHash} />}
-                        {v.sandboxHash && <HashRow label="sandboxHash" value={v.sandboxHash} />}
-                        {v.sandboxPassed !== undefined && (
-                          <div style={{ marginTop: '4px', fontSize: '10px' }}>
-                            <span style={{ color: '#6060a0' }}>sandbox: </span>
-                            <span style={{ color: v.sandboxPassed ? '#4aff9e' : '#ff6060', fontWeight: 700 }}>
-                              {v.sandboxPassed ? 'PASSED' : 'FAILED'}
-                            </span>
-                            {v.sandboxType && <span style={{ color: '#4040a0' }}> ({v.sandboxType})</span>}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-
-                    <SectionTitle>Proof Chain</SectionTitle>
-                    <div style={{
-                      padding: '12px', background: 'rgba(139, 92, 246, 0.04)',
-                      borderRadius: '8px', border: '1px solid #2d2d4e',
-                      fontSize: '10px', wordBreak: 'break-all', color: '#a0a0c0', lineHeight: 2,
-                    }}>
-                      {result.archive.variants.map((v, i) => (
-                        <span key={v.id}>
-                          {i > 0 && <span style={{ color: '#8b5cf6' }}> &#x2192; </span>}
-                          <span style={{ color: '#4a9eff' }}>{v.id.slice(0, 16)}</span>
-                          <span style={{ color: '#4040a0' }}>:{v.proofHash.slice(0, 12)}</span>
-                        </span>
-                      ))}
-                    </div>
+                </div>
+                {/* Parecer */}
+                <div style={{ marginTop: '8px', padding: '10px', background: 'rgba(74, 255, 158, 0.03)', borderRadius: '6px', border: '1px solid #2d2d4e' }}>
+                  <div style={{ color: '#4aff9e', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Parecer do Sistema</div>
+                  <div style={{ color: '#a0a0c0', fontSize: '11px', lineHeight: 1.5 }}>
+                    Fitness Score: <strong style={{ color: currentProposal.fitnessScore >= 70 ? '#4aff9e' : '#ffa04a' }}>{currentProposal.fitnessScore}/100</strong> |{' '}
+                    Safety Gate: <strong style={{ color: '#4aff9e' }}>PASSED</strong> |{' '}
+                    Sandbox ({currentProposal.sandboxType}): <strong style={{ color: currentProposal.sandboxPassed ? '#4aff9e' : '#ff6060' }}>{currentProposal.sandboxPassed ? 'PASSED' : 'FAILED'}</strong> ({currentProposal.sandboxDurationMs}ms)
                   </div>
-                )}
+                </div>
+                {/* Hashes */}
+                <div style={{ marginTop: '6px', fontSize: '9px', color: '#4040a0' }}>
+                  diagnosis: <code style={{ color: '#4aff9e' }}>{currentProposal.diagnosisHash.slice(0, 16)}...</code> |{' '}
+                  modify: <code style={{ color: '#4aff9e' }}>{currentProposal.modificationHash.slice(0, 16)}...</code> |{' '}
+                  safety: <code style={{ color: '#4aff9e' }}>{currentProposal.safetyHash.slice(0, 16)}...</code> |{' '}
+                  sandbox: <code style={{ color: '#4aff9e' }}>{currentProposal.sandboxHash.slice(0, 16)}...</code>
+                </div>
+              </div>
 
-                {/* Tree tab */}
-                {activeTab === 'tree' && (
+              {/* Code Diff */}
+              <div style={{ padding: '12px 16px' }}>
+                <SectionLabel>Preview do Codigo</SectionLabel>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '6px' }}>
                   <div>
-                    <SectionTitle>Arvore Evolutiva</SectionTitle>
-                    {result.tree.map(node => {
-                      const indent = node.generation * 32;
-                      return (
-                        <div key={node.id} style={{
-                          marginLeft: `${indent}px`,
-                          padding: '8px 12px', marginBottom: '6px',
-                          background: 'rgba(255,255,255,0.02)', borderRadius: '6px',
-                          borderLeft: `3px solid ${(node.accuracy ?? 0) >= 0.8 ? '#4aff9e' : '#ffa04a'}`,
-                        }}>
-                          {node.generation > 0 && <span style={{ color: '#6060a0' }}>&#x2514;&#x2192; </span>}
-                          <span style={{ color: '#4a9eff', fontWeight: 700 }}>{node.id}</span>
-                          <span style={{ color: '#6060a0', marginLeft: '10px', fontSize: '11px' }}>
-                            gen={node.generation} | acc={((node.accuracy ?? 0) * 100).toFixed(1)}% | children={node.children?.length ?? 0}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Log tab */}
-                {activeTab === 'log' && (
-                  <div>
-                    <SectionTitle>JSON Completo (para debug/auditoria)</SectionTitle>
+                    <div style={{ fontSize: '10px', color: '#ff6060', fontWeight: 700, marginBottom: '4px' }}>ORIGINAL ({currentProposal.targetFile})</div>
                     <pre style={{
-                      background: '#0a0a16', border: '1px solid #2d2d4e',
-                      borderRadius: '8px', padding: '14px',
-                      fontSize: '10px', color: '#a0a0c0',
-                      overflowX: 'auto', whiteSpace: 'pre-wrap',
-                      maxHeight: '600px', overflowY: 'auto',
+                      background: '#0a0a16', border: '1px solid #2d2d4e', borderRadius: '6px',
+                      padding: '10px', fontSize: '10px', color: '#a0a0c0',
+                      maxHeight: '300px', overflowY: 'auto', overflowX: 'auto', whiteSpace: 'pre-wrap',
                     }}>
-                      {JSON.stringify(result, null, 2)}
+                      {currentProposal.originalCode ? currentProposal.originalCode.slice(0, 3000) : '(arquivo novo)'}
+                      {currentProposal.originalCode && currentProposal.originalCode.length > 3000 && '\n... (truncado)'}
                     </pre>
                   </div>
+                  <div>
+                    <div style={{ fontSize: '10px', color: '#4aff9e', fontWeight: 700, marginBottom: '4px' }}>PROPOSTA (modificacao)</div>
+                    <pre style={{
+                      background: '#0a0a16', border: '1px solid #4aff9e30', borderRadius: '6px',
+                      padding: '10px', fontSize: '10px', color: '#c0ffc0',
+                      maxHeight: '300px', overflowY: 'auto', overflowX: 'auto', whiteSpace: 'pre-wrap',
+                    }}>
+                      {currentProposal.proposedCode.slice(0, 3000)}
+                      {currentProposal.proposedCode.length > 3000 && '\n... (truncado)'}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Event Feed */}
+          {events.length > 0 && (
+            <div style={{ margin: '12px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+              <SectionLabel>Feed em Tempo Real</SectionLabel>
+              <div ref={feedRef} style={{
+                flex: 1, background: '#0a0a16', borderRadius: '8px', border: '1px solid #2d2d4e',
+                padding: '10px', overflowY: 'auto', maxHeight: currentProposal ? '200px' : '500px',
+              }}>
+                {events.map((ev, i) => (
+                  <div key={i} style={{
+                    padding: '4px 8px', marginBottom: '2px', borderRadius: '4px',
+                    borderLeft: `3px solid ${STEP_COLORS[ev.status] ?? '#4040a0'}`,
+                    background: ev.status === 'fail' ? 'rgba(255,96,96,0.05)' : ev.status === 'waiting' ? 'rgba(255,160,74,0.05)' : 'transparent',
+                  }}>
+                    <span style={{ color: '#4040a0', fontSize: '9px' }}>
+                      {new Date(ev.timestamp).toLocaleTimeString()}
+                    </span>
+                    <span style={{
+                      marginLeft: '8px', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase',
+                      color: STEP_COLORS[ev.status] ?? '#6060a0',
+                      padding: '1px 4px', borderRadius: '3px',
+                      background: ev.status === 'success' ? 'rgba(74,255,158,0.1)' : ev.status === 'fail' ? 'rgba(255,96,96,0.1)' : ev.status === 'waiting' ? 'rgba(255,160,74,0.1)' : 'transparent',
+                    }}>
+                      {ev.step}:{ev.status}
+                    </span>
+                    <span style={{ marginLeft: '8px', fontSize: '11px', color: '#c0c0e0' }}>
+                      {ev.message}
+                    </span>
+                  </div>
+                ))}
+                {isRunning && !currentProposal && (
+                  <div style={{ padding: '4px 8px', color: '#4a9eff', fontSize: '11px' }}>
+                    &#x21BB; Processando...
+                  </div>
                 )}
               </div>
-            </>
+            </div>
+          )}
+
+          {/* Result summary */}
+          {result && (
+            <div style={{ margin: '12px', padding: '12px 16px', background: 'rgba(74, 255, 158, 0.04)', borderRadius: '8px', border: '1px solid #4aff9e30' }}>
+              <SectionLabel>Resultado Final</SectionLabel>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginTop: '6px' }}>
+                {[
+                  { label: 'Archive', value: String((result.archive as Record<string, unknown>)?.size ?? '?'), color: '#a0a0c0' },
+                  { label: 'Best Acc', value: `${(((result.archive as Record<string, unknown>)?.bestAccuracy as number ?? 0) * 100).toFixed(1)}%`, color: '#ffa04a' },
+                  { label: 'Proofs', value: String(((result.generation as Record<string, unknown>)?.scientificProofs as unknown[] ?? []).length), color: '#4aff9e' },
+                  { label: 'Tempo', value: `${((result.elapsedMs as number ?? 0) / 1000).toFixed(0)}s`, color: '#8b5cf6' },
+                ].map(s => (
+                  <div key={s.label} style={{ textAlign: 'center', padding: '8px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px' }}>
+                    <div style={{ color: s.color, fontWeight: 700, fontSize: '16px' }}>{s.value}</div>
+                    <div style={{ color: '#4040a0', fontSize: '10px' }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </div>
 
       <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
       `}</style>
     </div>
   );
 }
 
-/* ── Subcomponents ── */
-
-const Label: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div style={{
     color: '#6060a0', fontSize: '10px', fontWeight: 700,
-    textTransform: 'uppercase', letterSpacing: '0.5px',
-    marginBottom: '6px',
+    textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px',
   }}>
     {children}
-  </div>
-);
-
-const SectionTitle: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div style={{
-    color: '#8b5cf6', fontWeight: 700, fontSize: '12px',
-    textTransform: 'uppercase', letterSpacing: '0.5px',
-    marginTop: '16px', marginBottom: '8px', paddingBottom: '4px',
-    borderBottom: '1px solid #2d2d4e',
-  }}>
-    {children}
-  </div>
-);
-
-const InfoCard: React.FC<{ label: string; value: string; color?: string }> = ({ label, value, color }) => (
-  <div style={{
-    padding: '10px 12px', background: 'rgba(255,255,255,0.02)',
-    borderRadius: '6px', border: '1px solid #2d2d4e',
-  }}>
-    <div style={{ color: '#4040a0', fontSize: '10px', marginBottom: '2px' }}>{label}</div>
-    <div style={{ color: color ?? '#e0e0ff', fontWeight: 700, fontSize: '13px' }}>{value}</div>
-  </div>
-);
-
-const HashRow: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div style={{ marginBottom: '4px', fontSize: '10px' }}>
-    <span style={{ color: '#6060a0' }}>{label}: </span>
-    <code style={{
-      color: '#4aff9e', background: 'rgba(74, 255, 158, 0.05)',
-      padding: '1px 4px', borderRadius: '3px', wordBreak: 'break-all',
-    }}>
-      {value}
-    </code>
-  </div>
-);
-
-const ProofBlock: React.FC<{
-  num: string;
-  title: string;
-  subtitle: string;
-  valid: boolean;
-  rows: Array<[string, string]>;
-  highlight?: string;
-}> = ({ num, title, subtitle, valid, rows, highlight }) => (
-  <div style={{
-    marginBottom: '14px', padding: '12px',
-    background: 'rgba(255,255,255,0.02)', borderRadius: '8px',
-    borderLeft: `3px solid ${valid ? '#4aff9e' : '#ff6060'}`,
-  }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-      <div>
-        <span style={{ color: '#8b5cf6', fontWeight: 700, fontSize: '12px' }}>{num}. {title}</span>
-        <span style={{ color: '#4040a0', fontSize: '9px', marginLeft: '8px' }}>{subtitle}</span>
-      </div>
-      <span style={{
-        color: valid ? '#4aff9e' : '#ff6060', fontSize: '10px', fontWeight: 700,
-      }}>
-        {valid ? 'VALIDO' : 'INVALIDO'}
-      </span>
-    </div>
-    {rows.map(([label, value]) => (
-      <div key={label} style={{
-        display: 'flex', justifyContent: 'space-between', padding: '3px 0',
-        fontSize: '10px', borderBottom: '1px solid rgba(255,255,255,0.03)',
-      }}>
-        <span style={{ color: '#6060a0', flexShrink: 0 }}>{label}</span>
-        <span style={{
-          color: highlight && label === 'Veredicto' ? highlight :
-                 value.length > 24 ? '#4aff9e' : '#e0e0ff',
-          fontWeight: label === 'Veredicto' || label === 'Deterministico' ? 700 : 400,
-          maxWidth: '65%', wordBreak: 'break-all', textAlign: 'right',
-          fontFamily: value.length > 24 ? 'monospace' : 'inherit',
-          fontSize: value.length > 48 ? '9px' : '10px',
-        }}>
-          {value}
-        </span>
-      </div>
-    ))}
   </div>
 );
