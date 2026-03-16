@@ -964,10 +964,48 @@ async function selfImproveStep(
       `O LLM recebe o problem statement e o código-fonte atual, e gera um patch. ` +
       `Este é o passo de auto-referência (Self-Referential Improvement, Schmidhuber 2007): MOTHER modifica seu próprio código.`,
       timestamp: new Date().toISOString() });
-    const modification = await generateModification(problemStatement, entry, parent);
+    // Retry loop: if tsc fails, feed errors back to LLM and try again (max 3 attempts)
+    const MAX_MODIFY_ATTEMPTS = 3;
+    let modification: Awaited<ReturnType<typeof generateModification>> = null;
+    let tscFeedback: string | undefined;
+    for (let attempt = 1; attempt <= MAX_MODIFY_ATTEMPTS; attempt++) {
+      if (attempt > 1) {
+        log.info(`[SELF-IMPROVE] Retry ${attempt}/${MAX_MODIFY_ATTEMPTS} for ${runId} with tsc error feedback`);
+        emitDGMEvent({ step: 'modify', status: 'start', message: `[Passo 2 — RETRY ${attempt}/${MAX_MODIFY_ATTEMPTS}] Regenerando código com feedback dos erros de compilação.\n\n` +
+          `Erros anteriores: ${(tscFeedback || '').slice(0, 200)}`,
+          timestamp: new Date().toISOString() });
+      }
+      modification = await generateModification(problemStatement, entry, parent, tscFeedback);
+      if (!modification) break;
+
+      // Quick tsc pre-check before proceeding through the full pipeline
+      const fs = await import('fs');
+      const pathMod = await import('path');
+      const targetPath = pathMod.join(MOTHER_DIR, modification.targetFile);
+      const backup = fs.existsSync(targetPath) ? fs.readFileSync(targetPath, 'utf-8') : null;
+      try {
+        fs.writeFileSync(targetPath, modification.proposedCode, 'utf-8');
+        const tsResult = validateTypeScript(MOTHER_DIR);
+        if (backup !== null) fs.writeFileSync(targetPath, backup, 'utf-8');
+        else fs.unlinkSync(targetPath);
+
+        if (tsResult.valid) {
+          log.info(`[SELF-IMPROVE] tsc pre-check PASSED on attempt ${attempt}`);
+          break; // Good — proceed with this modification
+        }
+        // tsc failed — feed errors back for next attempt
+        tscFeedback = tsResult.errors.join('\n');
+        log.warn(`[SELF-IMPROVE] tsc pre-check FAILED on attempt ${attempt}: ${tsResult.errors[0]}`);
+        modification = null; // Mark as failed for this attempt
+      } catch (preCheckErr) {
+        if (backup !== null) fs.writeFileSync(targetPath, backup, 'utf-8');
+        log.warn(`[SELF-IMPROVE] tsc pre-check error on attempt ${attempt}: ${preCheckErr}`);
+        modification = null;
+      }
+    }
     if (!modification) {
-      emitDGMEvent({ step: 'modify', status: 'fail', message: '[Passo 2 — MODIFICAÇÃO FALHOU] O LLM não conseguiu gerar uma modificação de código válida para o diagnóstico. Pipeline encerrado para esta variante.', timestamp: new Date().toISOString() });
-      log.warn(`[SELF-IMPROVE] Failed to generate modification for ${runId}`);
+      emitDGMEvent({ step: 'modify', status: 'fail', message: `[Passo 2 — MODIFICAÇÃO FALHOU] O LLM não conseguiu gerar código compilável após ${MAX_MODIFY_ATTEMPTS} tentativas. Pipeline encerrado para esta variante.${tscFeedback ? `\n\nÚltimos erros tsc: ${tscFeedback.slice(0, 300)}` : ''}`, timestamp: new Date().toISOString() });
+      log.warn(`[SELF-IMPROVE] Failed to generate compilable modification for ${runId} after ${MAX_MODIFY_ATTEMPTS} attempts`);
       return null;
     }
     const modificationHash = proofHash({ targetFile: modification.targetFile, proposedCode: modification.proposedCode, rationale: modification.rationale });
@@ -1529,6 +1567,7 @@ async function generateModification(
   problemStatement: string,
   entry: MutationEntry,
   parent: AgentVariant,
+  tscErrorFeedback?: string,
 ): Promise<{
   targetFile: string;
   proposedCode: string;
@@ -1585,6 +1624,9 @@ async function generateModification(
     }
 
     // Self-referential: use MOTHER's own pipeline to generate code modifications
+    // CRITICAL: The LLM must output the COMPLETE modified file, not a snippet.
+    // applyProposal() does writeFileSync(targetPath, proposedCode) — replacing the entire file.
+    // Then tsc --noEmit validates the whole project. A snippet replacing the full file = compilation failure.
     const modificationQuery = `[DGM CODE EVOLUTION — ${entry.entryType}]
 
 You are operating as a DGM (Darwin Gödel Machine, arXiv:2505.22954) code evolution agent.
@@ -1596,31 +1638,33 @@ ${problemStatement}
 TARGET FILE: ${actualTargetFile}
 SCIENTIFIC BASIS: ${scientificBasis}
 
-ORIGINAL CODE (first 6000 chars):
+COMPLETE ORIGINAL FILE:
 \`\`\`typescript
-${originalCode.slice(0, 6000)}
+${originalCode}
 \`\`\`
 
 RULES:
 1. Output ONLY a JSON object with the modification (no markdown, no explanation outside JSON)
-2. Preserve all existing functionality — only ADD or MODIFY relevant sections
-3. Include scientific comments citing relevant arXiv papers
-4. DO NOT introduce security vulnerabilities (OWASP Top 10)
-5. Maintain TypeScript strict mode compatibility
-6. Preserve all existing exports and interfaces
-7. Every change MUST have a scientific justification
-8. The codeChanges field MUST contain valid TypeScript with proper import statements and export declarations
-9. The codeChanges MUST be a complete, self-contained code block that can pass TypeScript compilation
-10. Include necessary import statements at the top of codeChanges (e.g., import { ... } from '...')
-11. Export any new functions or constants you create (e.g., export function ..., export const ...)
+2. The "codeChanges" field MUST contain the COMPLETE MODIFIED FILE — not a snippet, not a diff, not just the changed section
+3. The complete file must include ALL original imports, ALL original exports, ALL original functions — with your modifications integrated
+4. Preserve all existing functionality — only ADD or MODIFY relevant sections within the complete file
+5. Include scientific comments citing relevant arXiv papers for your changes
+6. DO NOT introduce security vulnerabilities (OWASP Top 10)
+7. Maintain TypeScript strict mode compatibility — the code must pass \`tsc --noEmit\`
+8. Every change MUST have a scientific justification
+9. DO NOT remove or rename any existing exports — other modules depend on them
+10. The file will be validated with \`tsc --noEmit\` against the full project — incomplete files WILL be rejected
 
-RESPOND WITH EXACTLY THIS JSON FORMAT:
+${tscErrorFeedback ? `PREVIOUS ATTEMPT FAILED — TypeScript compilation errors:
+${tscErrorFeedback}
+Fix these errors in your output. The code MUST compile with tsc --noEmit.
+
+` : ''}RESPOND WITH EXACTLY THIS JSON FORMAT:
 {
   "targetFile": "${actualTargetFile}",
   "rationale": "Why this change improves the system",
   "scientificBasis": "arXiv:XXXX.XXXXX — paper title and relevant finding",
-  "codeChanges": "MUST include import/export statements. Complete TypeScript code block.",
-  "insertAfterLine": "The line content after which to insert (for context matching)",
+  "codeChanges": "THE COMPLETE MODIFIED FILE (all imports, all exports, all functions — with your changes integrated)",
   "expectedMetricImprovement": "e.g., +5pp accuracy, -200ms latency, +10% cache hit rate"
 }`;
 
@@ -1658,18 +1702,15 @@ RESPOND WITH EXACTLY THIS JSON FORMAT:
     let proposedCode = modResult.codeChanges || result.response;
     if (!proposedCode || proposedCode.length < 20) return null;
 
-    // If the LLM returned a partial snippet without import/export,
-    // prepend original file's imports to help sandbox validation pass.
-    const hasExportOrFunction = /export\s|function\s+\w+|const\s+\w+\s*=/.test(proposedCode);
-    if (!proposedCode.includes('import') && originalCode.includes('import')) {
-      const importLines = originalCode.split('\n').filter(l => l.startsWith('import ')).join('\n');
-      if (importLines) {
-        proposedCode = `${importLines}\n\n${proposedCode}`;
-      }
-    }
-    if (!hasExportOrFunction && !proposedCode.includes('export')) {
-      // Wrap as exported function to ensure sandbox validation passes
-      proposedCode = `export function dgmPatch() {\n${proposedCode}\n}`;
+    // Strip markdown code fences if the LLM wrapped the output
+    proposedCode = proposedCode.replace(/^```(?:typescript|ts)?\s*\n/m, '').replace(/\n```\s*$/, '');
+
+    // Sanity check: the proposed code must be a complete file (has imports + exports like the original)
+    const originalHasImports = originalCode.includes('import ');
+    const proposedHasImports = proposedCode.includes('import ');
+    if (originalHasImports && !proposedHasImports) {
+      log.warn(`[MODIFY] LLM returned a snippet instead of the complete file — rejecting`);
+      return null;
     }
 
     // Build a descriptive patch
