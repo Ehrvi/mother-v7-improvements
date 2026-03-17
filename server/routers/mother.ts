@@ -4,6 +4,7 @@
  */
 
 import { z } from 'zod';
+import { TRPCError } from '@trpc/server';
 import { publicProcedure, protectedProcedure, router } from '../_core/trpc';
 import { checkAllProviders } from '../mother/provider-health';
 import { processQuery, getSystemStats } from '../mother/core';
@@ -357,7 +358,7 @@ export const motherRouter = router({
    * Scientific basis: Darwin Gödel Machine (arXiv:2505.22954)
    * Returns: generation result + archive state + evolutionary tree + all SHA-256 proof hashes
    */
-  dgmTestRun: publicProcedure
+  dgmTestRun: protectedProcedure
     .input(
       z.object({
         benchmarkQueries: z.array(z.object({
@@ -369,7 +370,10 @@ export const motherRouter = router({
         selfImproveSize: z.number().min(1).max(5).optional().default(1),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.email !== CREATOR) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Requires creator authorization' });
+      }
       const { runSingleGeneration, getArchiveState, getEvolutionaryTree } = await import('../mother/dgm-true-outer-loop.js');
 
       const defaultBenchmark = [
@@ -408,9 +412,12 @@ export const motherRouter = router({
   /**
    * DGM Event Log — Poll for real-time DGM pipeline events
    */
-  dgmEvents: publicProcedure
+  dgmEvents: protectedProcedure
     .input(z.object({ since: z.number().optional().default(0) }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      if (ctx.user.email !== CREATOR) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Requires creator authorization' });
+      }
       const { getDGMEventLog } = await import('../mother/dgm-true-outer-loop.js');
       const allEvents = getDGMEventLog();
       return allEvents.slice(input.since);
@@ -419,8 +426,11 @@ export const motherRouter = router({
   /**
    * DGM Pending Proposals — Get proposals waiting for human approval
    */
-  dgmPendingProposals: publicProcedure
-    .query(async () => {
+  dgmPendingProposals: protectedProcedure
+    .query(async ({ ctx }) => {
+      if (ctx.user.email !== CREATOR) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Requires creator authorization' });
+      }
       const { getPendingProposals } = await import('../mother/dgm-true-outer-loop.js');
       return getPendingProposals();
     }),
@@ -428,12 +438,15 @@ export const motherRouter = router({
   /**
    * DGM Resolve Proposal — Approve or reject a pending proposal
    */
-  dgmResolveProposal: publicProcedure
+  dgmResolveProposal: protectedProcedure
     .input(z.object({
       proposalId: z.string(),
       approved: z.boolean(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.email !== CREATOR) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Requires creator authorization' });
+      }
       const { resolveProposal } = await import('../mother/dgm-true-outer-loop.js');
       const resolved = resolveProposal(input.proposalId, input.approved);
       return { resolved, proposalId: input.proposalId, approved: input.approved };
@@ -444,13 +457,16 @@ export const motherRouter = router({
    * Scientific basis: Darwin Godel Machine (Sakana AI, 2025)
    */
   supervisor: router({
-    evolve: publicProcedure
+    evolve: protectedProcedure
       .input(
         z.object({
           goal: z.string().min(1).max(2000),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.email !== CREATOR) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Requires creator authorization' });
+        }
         const runId = randomUUID();
         const SERVICE_URL = process.env.SERVICE_URL || 'https://mother-interface-qtvghovzxa-ts.a.run.app';
         const PROJECT = process.env.GOOGLE_CLOUD_PROJECT || 'mothers-library-mcp';
