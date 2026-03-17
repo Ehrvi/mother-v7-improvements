@@ -9,7 +9,7 @@ import { publicProcedure, protectedProcedure, router } from '../_core/trpc';
 import { checkAllProviders } from '../mother/provider-health';
 import { processQuery, getSystemStats } from '../mother/core';
 import { addKnowledge } from '../mother/knowledge';
-import { getRecentQueries, getQueryStats, getAllKnowledge, getDgmLineage } from '../db';
+import { getRecentQueries, getQueriesByUser, getQueryStats, getAllKnowledge, getDgmLineage } from '../db';
 import { runCodeAgent } from '../mother/code_agent';
 import { invokeSupervisor, getSupervisorStatus } from '../mother/supervisor';
 import { getAgentPool, getFitnessHistory } from '../mother/gea_supervisor';
@@ -247,8 +247,13 @@ export const motherRouter = router({
         limit: z.number().min(1).max(100).optional().default(100),
       })
     )
-    .query(async ({ input }) => {
-      return await getRecentQueries(input.limit);
+    .query(async ({ input, ctx }) => {
+      const isCreator = ctx.user?.email === CREATOR;
+      if (isCreator) {
+        return await getRecentQueries(input.limit);
+      }
+      // Non-creator: filter to own queries only (DB-level filtering)
+      return await getQueriesByUser(ctx.user.id, input.limit);
     }),
 
   /**
