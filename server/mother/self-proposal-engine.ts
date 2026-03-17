@@ -435,11 +435,63 @@ const HIGH_RISK_KEYWORDS = [
   'billing', 'payment', 'credential', 'secret', 'API key',
 ];
 
+// Security: file-path patterns that always force HIGH risk
+// Any proposal touching these paths cannot be auto-approved
+const BLOCKED_PATH_PATTERNS = [
+  'auth',
+  'routers',
+  '/db',
+  'schema',
+  'autonomous',
+  'middleware',
+  'production-entry',
+];
+
+// Security: ONLY these file patterns are eligible for LOW-risk auto-approval
+const ALLOWLISTED_PATHS = [
+  'server/mother/semantic-cache.ts',
+  'server/mother/cache',
+];
+
 export function classifyProposalRisk(proposal: SelfProposal): 'low' | 'medium' | 'high' {
+  // --- Step 1: Validate proposed_changes structure ---
+  if (!proposal.proposedChanges) return 'high';
+
+  let parsedChanges: { files?: string[] } | null = null;
+  try {
+    parsedChanges = JSON.parse(proposal.proposedChanges);
+  } catch {
+    return 'high'; // Unparseable JSON → HIGH risk
+  }
+
+  if (!parsedChanges || !Array.isArray(parsedChanges.files) || parsedChanges.files.length === 0) {
+    return 'high'; // Missing or empty files array → HIGH risk
+  }
+
+  const files: string[] = parsedChanges.files;
+
+  // --- Step 2: File-path blocklist (BEFORE title/description keywords) ---
+  for (const file of files) {
+    const normalizedFile = file.toLowerCase().replace(/\\/g, '/');
+    if (BLOCKED_PATH_PATTERNS.some(pattern => normalizedFile.includes(pattern))) {
+      return 'high';
+    }
+  }
+
+  // --- Step 3: File-path allowlist check ---
+  const allFilesAllowed = files.every(file => {
+    const normalizedFile = file.toLowerCase().replace(/\\/g, '/');
+    return ALLOWLISTED_PATHS.some(allowed => normalizedFile.startsWith(allowed));
+  });
+
+  // --- Step 4: Title/description keyword matching (secondary signal only) ---
   const text = `${proposal.title} ${proposal.description}`.toLowerCase();
-  
+
   if (HIGH_RISK_KEYWORDS.some(kw => text.includes(kw))) return 'high';
-  if (LOW_RISK_KEYWORDS.some(kw => text.includes(kw))) return 'low';
+
+  // LOW risk requires BOTH: no high-risk keywords AND all files in allowlist
+  if (allFilesAllowed && LOW_RISK_KEYWORDS.some(kw => text.includes(kw))) return 'low';
+
   return 'medium';
 }
 
