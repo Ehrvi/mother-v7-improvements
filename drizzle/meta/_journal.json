@@ -5,22 +5,304 @@
     {
       "idx": 0,
       "version": "5",
-      "when": 1771429260826,
-      "tag": "0000_slimy_roxanne_simpson",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "5",
-      "when": 1771429410613,
-      "tag": "0001_deep_bastion",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "5",
       "when": 1771910178305,
-      "tag": "0002_ancient_joshua_kane",
+      "tag": "0000_v57_foundation_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1771910178405,
+      "tag": "0003_omniscient_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1771910178505,
+      "tag": "0004_amem_zettelkasten",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1771910178605,
+      "tag": "0005_gea_agent_pool",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1771910178705,
+      "tag": "0006_v47_fitness_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1771910178805,
+      "tag": "0007_v49_native_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1771910178905,
+      "tag": "0008_v50_cleanup_stuck_users",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1771910179005,
+      "tag": "0009_v51_cleanup_invalid_session_users",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1771910179105,
+      "tag": "0010_self_proposals_schema_drift_fix",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1771910179205,
+      "tag": "0011_v56_user_memory_proposals_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1771910179305,
+      "tag": "0012_v58_creator_auth_and_improvements",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1771910179405,
+      "tag": "0013_v58_fix_config_and_knowledge",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "5",
+      "when": 1771910179505,
+      "tag": "0014_v62_knowledge_index_milestone",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "5",
+      "when": 1771910179605,
+      "tag": "0015_v62_knowledge_index_fixed",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "5",
+      "when": 1771910179705,
+      "tag": "0016_v63_auth_fix_and_dgm_fix",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1771910179805,
+      "tag": "0017_v63_creator_password_reset",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1771910179905,
+      "tag": "0018_v63_correct_column_names",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1771910180005,
+      "tag": "0019_v63_seed_creator_account",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1771910180105,
+      "tag": "0020_v65_reproposal_and_knowledge_wisdom",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1771910180205,
+      "tag": "0021_v65_fix_reproposal_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1771910180305,
+      "tag": "0022_v65_fix_knowledge_wisdom_duplicates",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1771910180405,
+      "tag": "0023_v67_schema_alignment",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1771910180505,
+      "tag": "0024_v68_sprint3_metrics",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1771910180605,
+      "tag": "0025_v68_knowledge_hierarchy",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1771910180705,
+      "tag": "0026_v69_8_udc_full_taxonomy",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1771910180805,
+      "tag": "0027_c189_6_missing_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1771910180905,
+      "tag": "0028_c189_missing_tables_v2",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "5",
+      "when": 1771910181005,
+      "tag": "0037_c206_learning_evaluations",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "5",
+      "when": 1771910181105,
+      "tag": "0038_c211_calibration_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "5",
+      "when": 1771910181205,
+      "tag": "0039_c213_c217_knowledge",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "5",
+      "when": 1771910181305,
+      "tag": "0040_c218_sgm_proofs_shell_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "5",
+      "when": 1771910181405,
+      "tag": "0041_c218_c220_knowledge",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "5",
+      "when": 1771910181505,
+      "tag": "0042_c221_chain1_diagnostics_knowledge",
+      "breakpoints": true
+    },
+    { "idx": 43, "version": "5", "when": 1771910183000, "tag": "0043_c_vector_indexes", "breakpoints": true },
+    { "idx": 44, "version": "5", "when": 1771910183100, "tag": "0044_b5_user_feedback_column", "breakpoints": true },
+    {
+      "idx": 51,
+      "version": "5",
+      "when": 1771910181605,
+      "tag": "0051_v52_cleanup_test_users",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "5",
+      "when": 1771910181705,
+      "tag": "0052_multi_provider_cascade",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "5",
+      "when": 1771910181805,
+      "tag": "0053_shms_timescaledb_conselho",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "5",
+      "when": 1771910181905,
+      "tag": "0054_autonomy_knowledge",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "5",
+      "when": 1771910182005,
+      "tag": "0055_test_engineering_knowledge",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "5",
+      "when": 1771910182105,
+      "tag": "0056_v74_8_research_knowledge",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "5",
+      "when": 1771910182205,
+      "tag": "0057_v74_9_monitoring_knowledge",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "5",
+      "when": 1771910182305,
+      "tag": "0058_v74_10_build_fix_knowledge",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "5",
+      "when": 1771910182405,
+      "tag": "0059_v74_11_quality_fix_knowledge",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "5",
+      "when": 1771910182505,
+      "tag": "0060_v69_routing_columns",
       "breakpoints": true
     }
   ]
