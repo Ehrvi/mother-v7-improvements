@@ -259,7 +259,11 @@ export async function executeAutonomousUpdate(proposalId: number): Promise<Updat
     
     if (githubToken) {
       const authenticatedUrl = repoUrl.replace('https://', `https://x-access-token:${githubToken}@`);
-      runCommand(tempDir, `git clone ${authenticatedUrl} repo`);
+      execFileSync('git', ['clone', authenticatedUrl, 'repo'], {
+        cwd: tempDir,
+        encoding: 'utf-8',
+        stdio: 'pipe',
+      });
     } else {
       // v74.1 CRITICAL FIX: Resilient fallback for production Docker (no GITHUB_TOKEN)
       // BEFORE: cp -r /home/ubuntu/... — path does NOT exist in Docker container → ENOENT → proposal fails
