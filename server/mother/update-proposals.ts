@@ -200,12 +200,22 @@ export async function rejectProposal(
     const db = await getDb();
     if (!db) return { success: false, reason: 'DB not available' };
 
-    await (db as any).$client.query(
-      `UPDATE update_proposals 
+    const [manualResult] = await (db as any).$client.query(
+      `UPDATE update_proposals
        SET status = 'rejected', rejected_reason = ?, updated_at = NOW()
        WHERE id = ? AND status = 'pending'`,
       [reason, proposalId]
     );
+    const [dgmResult] = await (db as any).$client.query(
+      `UPDATE self_proposals
+       SET status = 'rejected', updated_at = NOW()
+       WHERE id = ? AND status IN ('pending', 'failed')`,
+      [proposalId]
+    );
+    const affectedRows = ((manualResult as any).affectedRows || 0) + ((dgmResult as any).affectedRows || 0);
+    if (affectedRows === 0) {
+      log.warn(`[Proposals] ⚠️ No rows updated for rejection of proposal ${proposalId} — may already be rejected or not found`);
+    }
 
     await logAuditEvent({
       action: 'proposal_rejected',
