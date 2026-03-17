@@ -23,7 +23,7 @@
  * - All actions are logged to MOTHER's audit_log table
  */
 
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -155,11 +155,15 @@ function applyChange(repoPath: string, change: ProposedChange): boolean {
 // GIT OPERATIONS
 // ============================================================
 
-function runGitCommand(repoPath: string, command: string): string {
+// SECURITY: replaces runGitCommand — no shell interpolation, no injection risk
+function gitExec(cwd: string, args: string[]): string {
   try {
-    return execSync(`git -C ${repoPath} ${command}`, { encoding: 'utf-8', stdio: 'pipe' }).trim();
+    return execFileSync('git', ['-C', cwd, ...args], {
+      encoding: 'utf-8',
+      stdio: 'pipe',
+    }).trim();
   } catch (error: any) {
-    throw new Error(`Git command failed: git ${command}\n${error.message}`);
+    throw new Error(`Git command failed: git -C ${cwd} ${args.join(' ')}\n${error.message}`);
   }
 }
 
@@ -176,6 +180,11 @@ function runCommand(cwd: string, command: string): string {
 // ============================================================
 
 export async function executeAutonomousUpdate(proposalId: number): Promise<UpdateJobResult> {
+  // Security: validate proposalId is a strict positive integer before any use
+  if (!Number.isInteger(proposalId) || proposalId <= 0) {
+    throw new Error(`Invalid proposalId: must be a positive integer, got ${proposalId}`);
+  }
+
   const startTime = Date.now();
   log.info(`\n${'='.repeat(60)}`);
   log.info(`[MOTHER-SWE] 🚀 AUTONOMOUS UPDATE JOB STARTED`);
@@ -284,7 +293,7 @@ export async function executeAutonomousUpdate(proposalId: number): Promise<Updat
       }
       
       reactObserve(`Using source path: ${sourcePath}`);
-      execSync(`cp -r ${sourcePath} ${repoPath}`, { stdio: 'pipe' });
+      fs.cpSync(sourcePath, repoPath, { recursive: true });
     }
     
     reactObserve(`Repository cloned to ${repoPath}`);
@@ -295,9 +304,9 @@ export async function executeAutonomousUpdate(proposalId: number): Promise<Updat
     const branchName = `feature/auto-proposal-${proposalId}-${Date.now()}`;
     reactThink('Creating new branch', `Branch: ${branchName}`);
     
-    runGitCommand(repoPath, `checkout -b ${branchName}`);
-    runGitCommand(repoPath, `config user.name "MOTHER Autonomous Agent"`);
-    runGitCommand(repoPath, `config user.email "mother@intelltech.ai"`);
+    gitExec(repoPath, ['checkout', '-b', branchName]);
+    gitExec(repoPath, ['config', 'user.name', 'MOTHER Autonomous Agent']);
+    gitExec(repoPath, ['config', 'user.email', 'mother@intelltech.ai']);
     
     reactObserve(`Branch created: ${branchName}`);
     
@@ -373,7 +382,7 @@ export async function executeAutonomousUpdate(proposalId: number): Promise<Updat
     // ============================================================
     reactThink('Committing and pushing changes', `Branch: ${branchName}`);
     
-    runGitCommand(repoPath, 'add -A');
+    gitExec(repoPath, ['add', '-A']);
     
     const commitMessage = `auto: ${proposal.title} [proposal-${proposalId}]
 
@@ -385,13 +394,13 @@ Scientific basis: ${proposal.scientificBasis}
 
 DGM Loop (Zhang et al., 2025 arXiv:2505.22954)`;
     
-    runGitCommand(repoPath, `commit -m "${commitMessage.replace(/"/g, '\\"')}"`);
-    
-    const commitSha = runGitCommand(repoPath, 'rev-parse HEAD');
+    gitExec(repoPath, ['commit', '-m', commitMessage]);
+
+    const commitSha = gitExec(repoPath, ['rev-parse', 'HEAD']);
     reactObserve(`Committed: ${commitSha.slice(0, 8)}`);
     
     if (githubToken) {
-      runGitCommand(repoPath, `push origin ${branchName}`);
+      gitExec(repoPath, ['push', 'origin', branchName]);
       reactObserve(`Pushed to GitHub: ${branchName}`);
     } else {
       reactObserve('WARNING: No GITHUB_TOKEN — skipping push. Changes are committed locally.');
@@ -484,7 +493,7 @@ DGM Loop (Zhang et al., 2025 arXiv:2505.22954)`;
   } finally {
     // Cleanup temp directory
     try {
-      execSync(`rm -rf ${tempDir}`, { stdio: 'pipe' });
+      fs.rmSync(tempDir, { recursive: true, force: true });
     } catch (e) {
       // Ignore cleanup errors
     }
