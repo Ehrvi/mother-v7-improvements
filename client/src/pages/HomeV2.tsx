@@ -347,6 +347,7 @@ export default function HomeV2() {
   }, []);
 
   // ─── tRPC fallback mutation ──────────────────────────────────────────────────
+  const submitFeedbackMutation = trpc.mother.submitFeedback.useMutation();
   const queryMutation = trpc.mother.query.useMutation({
     onSuccess: (data) => {
       setMessages(prev => [...prev, {
@@ -847,7 +848,11 @@ export default function HomeV2() {
                       <div className="flex items-center gap-1 mt-1.5">
                         {(['up', 'down'] as const).map(dir => (
                           <button key={dir}
-                            onClick={() => setFeedback(f => ({ ...f, [msg.id]: f[msg.id] === dir ? undefined as unknown as 'up' : dir }))}
+                            onClick={() => {
+                              const next = feedback[msg.id] === dir ? undefined as unknown as 'up' : dir;
+                              setFeedback(f => ({ ...f, [msg.id]: next }));
+                              if (next) submitFeedbackMutation.mutate({ queryId: msg.id, feedback: next });
+                            }}
                             title={dir === 'up' ? 'Boa resposta' : 'Resposta ruim'}
                             style={{
                               padding: '2px 8px', borderRadius: 6, fontSize: 12, cursor: 'pointer',

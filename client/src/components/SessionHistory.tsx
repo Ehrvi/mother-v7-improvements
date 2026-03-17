@@ -6,7 +6,8 @@
  * Scientific basis: Information Scent (Pirolli & Card, 1999) — users need cues to find past content
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { trpc } from "@/lib/trpc";
 
 interface Session {
   id: string;
@@ -49,35 +50,16 @@ export function SessionHistory({
   onDeleteSession,
   className = "",
 }: SessionHistoryProps) {
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [loading, setLoading] = useState(true);
+  const sessionsQuery = trpc.mother.getSessions.useQuery(undefined, { staleTime: 30_000 });
+  const sessions = sessionsQuery.data ?? [];
+  const loading = sessionsQuery.isLoading;
+  const deleteSessionMutation = trpc.mother.deleteSession.useMutation({
+    onSuccess: () => sessionsQuery.refetch(),
+  });
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("recent");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-
-  // Fetch sessions from API
-  useEffect(() => {
-    const fetchSessions = async () => {
-      try {
-        const response = await fetch("/api/trpc/mother.getSessions", {
-          method: "GET",
-          headers: { "Content-Type": "application/json" },
-        });
-        if (response.ok) {
-          const data = (await response.json()) as { result?: { data?: Session[] } };
-          setSessions(data?.result?.data ?? []);
-        }
-      } catch {
-        // Sessions not available — show empty state
-        setSessions([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchSessions();
-  }, []);
 
   // Filter and sort sessions
   const filteredSessions = useMemo(() => {
@@ -118,7 +100,7 @@ export function SessionHistory({
 
   const handleDelete = (sessionId: string) => {
     if (confirmDelete === sessionId) {
-      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+      deleteSessionMutation.mutate({ sessionId });
       onDeleteSession?.(sessionId);
       setConfirmDelete(null);
     } else {

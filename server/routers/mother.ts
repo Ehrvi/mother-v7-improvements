@@ -757,4 +757,68 @@ export const motherRouter = router({
     .query(async () => {
       return await testArxivPipeline();
     }),
+
+  /**
+   * B5: Submit feedback for a query response (stub — logs only)
+   * user_feedback column added in Worktree C migration.
+   */
+  submitFeedback: protectedProcedure
+    .input(
+      z.object({
+        queryId: z.string(),
+        feedback: z.enum(['up', 'down']),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      // Stub — logs only. user_feedback column added in Worktree C migration.
+      const log = (await import('../_core/logger')).createLogger('FEEDBACK');
+      log.info(
+        `[B5-stub] Feedback received: queryId=${input.queryId} value=${input.feedback} userId=${ctx.user?.id ?? 'unknown'}`
+      );
+      return { success: true, persisted: false, note: 'Worktree C migration pending' };
+    }),
+
+  /**
+   * B6: Get session history for current user
+   * session_id column added in Worktree C migration.
+   */
+  getSessions: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return [];
+    try {
+      const [rows] = await (db as any).$client.query(
+        `SELECT session_id AS id, MIN(query) AS title, MAX(query) AS preview,
+                MIN(created_at) AS createdAt, MAX(updated_at) AS updatedAt,
+                COUNT(*) AS messageCount
+         FROM queries
+         WHERE user_id = ? AND session_id IS NOT NULL
+         GROUP BY session_id
+         ORDER BY MAX(updated_at) DESC LIMIT 50`,
+        [ctx.user.id]
+      );
+      return (rows as any[]) ?? [];
+    } catch {
+      return []; // session_id column added in Worktree C
+    }
+  }),
+
+  /**
+   * B6: Delete a session for current user
+   * session_id column added in Worktree C migration.
+   */
+  deleteSession: protectedProcedure
+    .input(z.object({ sessionId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) return { success: false };
+      try {
+        await (db as any).$client.query(
+          `DELETE FROM queries WHERE session_id = ? AND user_id = ?`,
+          [input.sessionId, ctx.user.id]
+        );
+        return { success: true };
+      } catch {
+        return { success: false }; // session_id column not yet added (Worktree C)
+      }
+    }),
 });
