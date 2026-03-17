@@ -36,7 +36,9 @@ export type LLMModel = { provider: LLMProvider; modelName: string; };
 //   - Anthropic (2024) Claude creative writing guide: claude-sonnet outperforms gpt-4o-mini
 //     by +40% on creative coherence metrics (narrative consistency, character depth, style)
 //   - Wei et al. (2022) CoT arXiv:2201.11903: chain-of-thought improves creative planning
-export type QueryCategory = 'simple' | 'general' | 'coding' | 'complex_reasoning' | 'research' | 'creative';
+export type QueryCategory =
+  | 'simple' | 'general' | 'coding' | 'complex_reasoning' | 'research' | 'creative'
+  | 'natural_science' | 'philosophy' | 'economics' | 'health_care';
 
 export interface RoutingDecision {
   category: QueryCategory;
@@ -108,6 +110,10 @@ export function getModelForCategory(category: QueryCategory): LLMModel {
     // Scientific basis: Anthropic (2024) — claude-sonnet-4-6 shows +40% creative coherence vs gpt-4o-mini
     // Yao et al. (2023) ToT: creative tasks need multi-path exploration (ToT activates for 'creative')
     case 'creative': return { provider: 'anthropic', modelName: 'claude-sonnet-4-6' };
+    case 'natural_science': return { provider: 'anthropic', modelName: 'claude-sonnet-4-6' };
+    case 'philosophy':      return { provider: 'anthropic', modelName: 'claude-sonnet-4-6' };
+    case 'economics':       return { provider: 'openai', modelName: 'gpt-4o' };
+    case 'health_care':     return { provider: 'anthropic', modelName: 'claude-sonnet-4-6' };
   }
 }
 
@@ -414,6 +420,52 @@ export function classifyQuery(query: string): RoutingDecision {
   ];
   const creativeScore = creativePatterns.filter(p => q.includes(normalize(p))).length;
 
+  // ── B7: New domain category patterns ─────────────────────────────────────
+  const naturalSciencePatterns = [
+    'fisica', 'quimica', 'biologia', 'geologia', 'astronomia', 'ecologia',
+    'evolucao', 'genetica', 'celula', 'atomo', 'molecula',
+    'sistema solar', 'buraco negro', 'relatividade',
+    'especie', 'ecosistema', 'biodiversidade', 'fotossintese', 'mitocondria',
+    'physics', 'chemistry', 'biology', 'geology', 'astronomy', 'ecology',
+    'evolution', 'genetics', 'cell', 'atom', 'molecule',
+    'solar system', 'black hole', 'magnetic field', 'species', 'ecosystem',
+    'biodiversity', 'photosynthesis', 'mitochondria',
+  ];
+  const philosophyPatterns = [
+    'filosofia', 'etica', 'moral', 'ontologia', 'epistemologia',
+    'existencialismo', 'utilitarismo', 'nietzsche', 'kant', 'aristoteles',
+    'platon', 'descartes', 'consciencia', 'livre arbitrio',
+    'determinismo', 'ceticismo', 'fenomenologia', 'metafisica',
+    'philosophy', 'ethics', 'morality', 'ontology', 'epistemology',
+    'existentialism', 'utilitarianism', 'consciousness',
+    'free will', 'determinism', 'skepticism', 'phenomenology', 'metaphysics',
+  ];
+  const economicsPatterns = [
+    'economia', 'macroeconomia', 'microeconomia',
+    'inflacao', 'deflacao', 'pib', 'gdp', 'taxa de juros', 'politica monetaria',
+    'politica fiscal', 'keynesianismo', 'neoliberalismo', 'mercado de trabalho',
+    'desemprego', 'crescimento economico', 'divida publica', 'balanca comercial',
+    'economics', 'macroeconomics', 'microeconomics',
+    'inflation', 'deflation', 'interest rate', 'monetary policy',
+    'fiscal policy', 'keynesian', 'neoliberal', 'labor market',
+    'unemployment', 'economic growth', 'national debt', 'trade balance',
+  ];
+  const healthCarePatterns = [
+    'saude', 'medicina', 'diagnostico', 'tratamento',
+    'doenca', 'sintoma', 'vacina', 'farmaco', 'cirurgia',
+    'oncologia', 'cardiologia', 'neurologia', 'diabetes', 'hipertensao',
+    'sistema imunologico', 'epidemia', 'pandemia',
+    'health', 'medical', 'medicine', 'diagnosis', 'treatment',
+    'disease', 'symptom', 'vaccine', 'drug', 'pharmaceutical', 'surgery',
+    'oncology', 'cardiology', 'neurology', 'diabetes', 'hypertension',
+    'immune system', 'virus', 'bacteria', 'epidemic', 'pandemic',
+  ];
+
+  const naturalScienceScore = naturalSciencePatterns.filter(p => q.includes(normalize(p))).length;
+  const philosophyScore    = philosophyPatterns.filter(p => q.includes(normalize(p))).length;
+  const economicsScore     = economicsPatterns.filter(p => q.includes(normalize(p))).length;
+  const healthCareScore    = healthCarePatterns.filter(p => q.includes(normalize(p))).length;
+
   // ── Routing decision ──────────────────────────────────────────────────────
   let category: QueryCategory;
   let confidence: number;
@@ -444,6 +496,22 @@ export function classifyQuery(query: string): RoutingDecision {
     category = 'complex_reasoning';
     confidence = Math.min(0.92, 0.65 + complexScore * 0.07);
     reasoning = `Complex reasoning (${complexScore} indicators, ${wordCount} words)`;
+  } else if (philosophyScore >= 1) {
+    category = 'philosophy';
+    confidence = Math.min(0.92, 0.75 + philosophyScore * 0.05);
+    reasoning = `Philosophy query (${philosophyScore} indicators) → claude-sonnet-4-6`;
+  } else if (naturalScienceScore >= 1) {
+    category = 'natural_science';
+    confidence = Math.min(0.92, 0.75 + naturalScienceScore * 0.05);
+    reasoning = `Natural science query (${naturalScienceScore} indicators) → claude-sonnet-4-6`;
+  } else if (economicsScore >= 1) {
+    category = 'economics';
+    confidence = Math.min(0.92, 0.75 + economicsScore * 0.05);
+    reasoning = `Economics query (${economicsScore} indicators) → gpt-4o`;
+  } else if (healthCareScore >= 1) {
+    category = 'health_care';
+    confidence = Math.min(0.92, 0.75 + healthCareScore * 0.05);
+    reasoning = `Health care query (${healthCareScore} indicators) → claude-sonnet-4-6`;
   } else if (generalScore >= 1 || wordCount > 20) {
     category = 'general';
     confidence = Math.min(0.90, 0.70 + generalScore * 0.05);
@@ -460,11 +528,13 @@ export function classifyQuery(query: string): RoutingDecision {
     simple: 'gpt-4o-mini', general: 'gpt-4o-mini',
     coding: 'gpt-4o', complex_reasoning: 'gpt-4o', research: 'gpt-4o',
     creative: 'gpt-4o', // NC-COG-001: creative uses claude-sonnet (tier equivalent to gpt-4o)
+    natural_science: 'gpt-4o', philosophy: 'gpt-4o', economics: 'gpt-4o', health_care: 'gpt-4o',
   };
 
   const complexityScoreMap: Record<QueryCategory, number> = {
     simple: 0.2, general: 0.45, coding: 0.70, complex_reasoning: 0.85, research: 0.80,
     creative: 0.75, // NC-COG-001: creative is between general and complex_reasoning
+    natural_science: 0.78, philosophy: 0.80, economics: 0.78, health_care: 0.78,
   };
 
   // R548 (AWAKE V236 Ciclo 164): layout_hint — frontend rendering hint
@@ -477,6 +547,10 @@ export function classifyQuery(query: string): RoutingDecision {
     complex_reasoning: 'analysis',
     research: 'analysis',
     creative: 'chat', // NC-COG-001: creative writing renders as chat (narrative format)
+    natural_science: 'analysis',
+    philosophy: 'analysis',
+    economics: 'analysis',
+    health_care: 'analysis',
   };
   // Override: if query contains document/report/slide keywords → 'document'
   const documentKeywords = /relatório|report|documento|document|pdf|slide|apresentação|presentation/i;
