@@ -74,7 +74,11 @@ export const queries = mysqlTable("queries", {
   
   // Episodic Memory (v30.0: Active Memory)
   embedding: text("embedding"), // JSON array of 1536 floats (text-embedding-3-small)
-  
+
+  // RLHF signal (B5, C7): user satisfaction feedback
+  // Scientific basis: Christiano et al. (2017) arXiv:1706.03741
+  userFeedback: int("user_feedback"), // 1=positive, 0=negative, NULL=no feedback
+
   // Metadata
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
