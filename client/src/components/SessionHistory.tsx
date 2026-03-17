@@ -72,7 +72,7 @@ export function SessionHistory({
         (s) =>
           s.title.toLowerCase().includes(query) ||
           s.preview.toLowerCase().includes(query) ||
-          s.tags?.some((t) => t.toLowerCase().includes(query))
+          s.tags?.some((t: string) => t.toLowerCase().includes(query))
       );
     }
 
