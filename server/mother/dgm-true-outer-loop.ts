@@ -1893,7 +1893,7 @@ RULES:
           },
           expectedMetricImprovement: { type: 'string', description: 'Expected improvement' },
         },
-        required: ['targetFile', 'rationale', 'searchReplace'],
+        required: ['targetFile', 'rationale', 'scientificBasis', 'searchReplace', 'expectedMetricImprovement'],
         additionalProperties: false,
       },
       strict: true,
