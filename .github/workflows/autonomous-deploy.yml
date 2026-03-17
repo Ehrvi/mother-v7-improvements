@@ -170,7 +170,7 @@ jobs:
             --service-account=mother-cloudrun-sa@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
             --add-cloudsql-instances=${{ env.PROJECT_ID }}:${{ env.REGION }}:mother-db-sydney \
             --set-secrets=DATABASE_URL=mother-db-url:latest,OPENAI_API_KEY=mother-openai-api-key:latest,JWT_SECRET=mother-jwt-secret:latest,BUILT_IN_FORGE_API_URL=mother-forge-api-url:latest,BUILT_IN_FORGE_API_KEY=mother-forge-api-key:latest,GITHUB_TOKEN=mother-github-token:latest,ANTHROPIC_API_KEY=mother-anthropic-api-key:latest,GOOGLE_AI_API_KEY=mother-google-ai-api-key:latest,DEEPSEEK_API_KEY=mother-deepseek-api-key:latest,MISTRAL_API_KEY=mother-mistral-api-key:latest \
-            --set-env-vars=GIT_COMMIT_SHA=${{ github.sha }},VITE_APP_ID=mother-interface,DPO_FINE_TUNED_MODEL=ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v8e:DFay6MHy
+            --set-env-vars=GIT_COMMIT_SHA=${{ github.sha }},VITE_APP_ID=mother-interface,DPO_FINE_TUNED_MODEL=ft:gpt-4.1-mini-2025-04-14:personal:mother-v82-dpo-v8e:DFay6MHy,NODE_OPTIONS=--max-old-space-size=6144,MOTHER_VERSION=v122.36,MOTHER_CYCLE=368,SHMS_SIMULATION_ONLY=false,MOTHER_CITATION_DEBUG=true,MOTHER_COMPLEXITY_THRESHOLD=4,MOTHER_STEALTH_PLANNER=true,MOTHER_PRM_ENABLED=true,MOTHER_CITATION_ENGINE=true,MOTHER_VERTE_RAG=true,MOTHER_ADAPTIVE_THRESHOLD=true,TIMESCALE_DB_URL=postgres://tsdbadmin:kbdtdc719antdsw4@np88jyj5mj.e8uars6xuw.tsdb.cloud.timescale.com:31052/tsdb?sslmode=require
 
       - name: Verify deployment
         run: |
