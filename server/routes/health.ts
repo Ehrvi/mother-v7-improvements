@@ -41,10 +41,11 @@ function getVersion(): string {
 
 function getMotherVersion(): string {
   if (cachedMotherVersion) return cachedMotherVersion;
+  // FIX (Bug 7): Updated stale fallback from "v87.0" to "v122.26" (current version)
   cachedMotherVersion =
     process.env.MOTHER_VERSION ??
     process.env.MOTHER_V ??
-    "v87.0";
+    "v122.26";
   return cachedMotherVersion;
 }
 

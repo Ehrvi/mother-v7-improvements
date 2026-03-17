@@ -401,7 +401,10 @@ function cosineSimilarity(a: number[], b: number[]): number {
     normA += a[i] * a[i];
     normB += b[i] * b[i];
   }
-  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+  // FIX (Bug 3): Guard against zero-magnitude vectors that cause NaN (division by zero)
+  // Matches the fixed version in semantic-cache.ts:168-169
+  const denom = Math.sqrt(normA) * Math.sqrt(normB);
+  return denom === 0 ? 0 : dot / denom;
 }
 
 // C2: Module-level LRU cache for semantic cache entries

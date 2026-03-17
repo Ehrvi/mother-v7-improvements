@@ -10,6 +10,11 @@ vi.mock('../server/db', () => ({
   }),
 }));
 
+// Mock CREATOR_EMAIL so the authorization check passes with our test email
+vi.mock('../server/_core/env', () => ({
+  ENV: { creatorEmail: 'test@test.com' },
+}));
+
 beforeEach(() => {
   mockQuery.mockClear();
   mockQuery.mockResolvedValue([{ affectedRows: 1 }]);

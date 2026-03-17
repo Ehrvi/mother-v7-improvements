@@ -1,0 +1,25 @@
+{
+    "workbench.editor.autoLockGroups": {
+        "jupyter-notebook": true,
+        "notebookOutputEditor": true,
+        "workbench.editor.chatSession": true,
+        "workbench.editorinputs.searchEditorInput": true,
+        "default": true,
+        "repl": true,
+        "workbench.editors.gettingStartedInput": true,
+        "antigravity.globalArtifactsEditorInput": true,
+        "antigravity.artifactsEditorInput": true,
+        "antigravity.workflowEditor": true,
+        "antigravity.ruleEditor": true,
+        "imagePreview.previewEditor": true,
+        "vscode.audioPreview": true,
+        "vscode.videoPreview": true,
+        "jsProfileVisualizer.cpuprofile.table": true,
+        "jsProfileVisualizer.heapsnapshot.table": true,
+        "jsProfileVisualizer.heapprofile.table": true,
+        "java.formatterSettingsEditor": true,
+        "phpprofiler.cachegrind": true,
+        "workbench.input.interactive": true,
+        "mainThreadWebview-markdown.preview": true
+    }
+}

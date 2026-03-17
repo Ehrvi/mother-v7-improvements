@@ -1,6 +1,6 @@
 import { Streamdown } from 'streamdown';
 import type { MermaidConfig } from 'mermaid';
-import { Cpu, Shield, TrendingDown, Zap } from 'lucide-react';
+import { Cpu, Shield, TrendingDown, Zap, Activity, Dna, BookOpen } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 import { useChatStore, type Message } from '@/store/chatStore';
 import ErrorBoundary from '@/components/ErrorBoundary';
@@ -123,7 +123,7 @@ export default function MessageBubble({ msg, isCurrentlyStreaming, isLastMotherM
                     shikiTheme={['github-dark', 'github-dark']}
                     className="text-sm leading-relaxed [&_h1]:text-xl [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mt-4 [&_h2]:mb-2 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-3 [&_h3]:mb-1.5 [&_p]:mb-2 [&_ul]:mb-2 [&_ol]:mb-2 [&_li]:mb-0.5 [&_code]:text-[13px] [&_pre]:text-[13px] [&_blockquote]:border-l-2 [&_table]:text-sm"
                   >
-                    {seg.content}
+                    {seg.content.replace(/\[(SHMS|DGM|KNOWLEDGE):\s*([^\]]+)\]/g, '')}
                   </Streamdown>
                 </ErrorBoundary>
               ) : null)
@@ -137,10 +137,51 @@ export default function MessageBubble({ msg, isCurrentlyStreaming, isLastMotherM
                   shikiTheme={['github-dark', 'github-dark']}
                   className="text-sm leading-relaxed [&_h1]:text-xl [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mt-4 [&_h2]:mb-2 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-3 [&_h3]:mb-1.5 [&_p]:mb-2 [&_ul]:mb-2 [&_ol]:mb-2 [&_li]:mb-0.5 [&_code]:text-[13px] [&_pre]:text-[13px] [&_blockquote]:border-l-2 [&_table]:text-sm"
                 >
-                  {msg.content}
+                  {msg.content.replace(/\[(SHMS|DGM|KNOWLEDGE):\s*([^\]]+)\]/g, '')}
                 </Streamdown>
               </ErrorBoundary>
             )}
+
+            {/* Semantic Context Cards */}
+            {(() => {
+              if (msg.role !== 'mother' || isCurrentlyStreaming) return null;
+              const matches = Array.from(msg.content.matchAll(/\[(SHMS|DGM|KNOWLEDGE):\s*([^\]]+)\]/g));
+              if (matches.length === 0) return null;
+              
+              return (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {matches.map((m, i) => {
+                    const type = m[1];
+                    const val = m[2];
+                    if (type === 'SHMS') {
+                      return (
+                        <div key={i} className="flex flex-col gap-1 p-2.5 rounded-xl border border-blue-500/20 bg-blue-500/10 cursor-pointer hover:bg-blue-500/15 transition-colors" onClick={() => store.setDisplayMode('shms-dashboard')}>
+                          <div className="flex items-center gap-1.5 text-blue-400 text-[10px] font-bold uppercase"><Activity className="w-3 h-3" /> G-Trust Sentinel</div>
+                          <div className="text-xs text-blue-100">{val}</div>
+                        </div>
+                      );
+                    }
+                    if (type === 'DGM') {
+                      return (
+                        <div key={i} className="flex flex-col gap-1 p-2.5 rounded-xl border border-purple-500/20 bg-purple-500/10 cursor-pointer hover:bg-purple-500/15 transition-colors" onClick={() => store.setDisplayMode('dgm-pipeline')}>
+                          <div className="flex items-center gap-1.5 text-purple-400 text-[10px] font-bold uppercase"><Dna className="w-3 h-3" /> Darwin-Twin Optimizer</div>
+                          <div className="text-xs text-purple-100">{val}</div>
+                        </div>
+                      );
+                    }
+                    if (type === 'KNOWLEDGE') {
+                      return (
+                        <div key={i} className="flex flex-col gap-1 p-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/10 cursor-pointer hover:bg-emerald-500/15 transition-colors" onClick={() => store.setDisplayMode('knowledge')}>
+                          <div className="flex items-center gap-1.5 text-emerald-400 text-[10px] font-bold uppercase"><BookOpen className="w-3 h-3" /> Lex-Mining Advisor</div>
+                          <div className="text-xs text-emerald-100">{val}</div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })}
+                </div>
+              );
+            })()}
 
             {/* Streaming cursor */}
             {isCurrentlyStreaming && msg.content.length > 0 && (

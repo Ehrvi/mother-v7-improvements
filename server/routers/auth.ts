@@ -39,12 +39,25 @@ const BCRYPT_ROUNDS = 12;
 
 // ─── IN-MEMORY RATE LIMITER ───────────────────────────────────────────────────
 // OWASP ASVS 2.2.1: Brute force protection
-// For multi-instance deployments, replace with Redis-backed rate limiter
+// TODO (Bug 6): Replace with Redis-backed rate limiter for multi-instance Cloud Run deployments.
+// Current implementation resets on restart and each instance has independent state.
+// Recommended: `ioredis` with sliding window counter (INCR + EXPIRE).
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
 interface RateLimitEntry { count: number; firstAttempt: number; lockedUntil?: number; }
 const rateLimitMap = new Map<string, RateLimitEntry>();
+
+// FIX (Bug 6): Periodic cleanup of expired rate limit entries to prevent memory accumulation
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of rateLimitMap) {
+    const expired = entry.lockedUntil
+      ? now > entry.lockedUntil
+      : now - entry.firstAttempt > LOCKOUT_WINDOW_MS;
+    if (expired) rateLimitMap.delete(ip);
+  }
+}, 10 * 60 * 1000); // every 10 minutes
 
 function checkRateLimit(ip: string): { blocked: boolean; retryAfterMs?: number } {
   const now = Date.now();

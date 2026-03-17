@@ -1552,23 +1552,39 @@ export async function executeTool(
 
       // Safe math evaluation using Node.js math sandbox
       // Supports: arithmetic, trigonometry, logarithms, constants (pi, e)
-      const mathEnv = {
+      const mathFns: Record<string, (...args: number[]) => number> = {
         sqrt: Math.sqrt, abs: Math.abs, ceil: Math.ceil, floor: Math.floor,
         round: Math.round, pow: Math.pow, log: Math.log, log2: Math.log2,
         log10: Math.log10, exp: Math.exp, sin: Math.sin, cos: Math.cos,
         tan: Math.tan, asin: Math.asin, acos: Math.acos, atan: Math.atan,
-        atan2: Math.atan2, min: Math.min, max: Math.max, PI: Math.PI,
-        pi: Math.PI, E: Math.E, e: Math.E, Infinity, NaN,
+        atan2: Math.atan2, min: Math.min, max: Math.max,
       };
+      const mathConsts: Record<string, number> = {
+        PI: Math.PI, pi: Math.PI, E: Math.E, e: Math.E,
+      };
+
+      // FIX (Bug 4): Sanitize more strictly — block property access patterns like
+      // "constructor", "prototype", "__proto__", "process", "require", "import", "eval"
+      // that could escape the sandbox via new Function()
+      const BLOCKED_PATTERNS = /\b(constructor|prototype|__proto__|process|require|import|export|eval|Function|window|global|this|return|var|let|const|class|for|while|do|if|else|switch|try|catch|throw|new|delete|typeof|void|in|of|instanceof|with|yield|async|await)\b/i;
+      if (BLOCKED_PATTERNS.test(expression)) {
+        return { success: false, error: 'Expression contains blocked keywords. Only mathematical expressions are allowed.' };
+      }
 
       // Sanitize: only allow math operators, numbers, and whitelisted functions
       const sanitized = expression
         .replace(/[^0-9+\-*/().,^%\s\w]/g, '')
         .replace(/\^/g, '**'); // Convert ^ to ** for exponentiation
 
-      // Evaluate in restricted context
-      const fn = new Function(...Object.keys(mathEnv), `"use strict"; return (${sanitized});`);
-      const rawResult = fn(...Object.values(mathEnv));
+      // Replace known function names and constants with their values
+      let evalExpr = sanitized;
+      for (const [name, val] of Object.entries(mathConsts)) {
+        evalExpr = evalExpr.replace(new RegExp(`\\b${name}\\b`, 'g'), String(val));
+      }
+
+      // Evaluate in restricted context (still uses Function but with blocked keywords)
+      const fn = new Function(...Object.keys(mathFns), `"use strict"; return (${evalExpr});`);
+      const rawResult = fn(...Object.values(mathFns));
 
       const result = typeof rawResult === 'number'
         ? parseFloat(rawResult.toFixed(precision))

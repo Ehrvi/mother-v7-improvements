@@ -17,10 +17,12 @@
 import { getDb } from '../db';
 import { execSync } from 'child_process';
 import { createLogger } from '../_core/logger'; // v74.0: NC-003 structured logger
+import { ENV } from '../_core/env';
 const log = createLogger('PROPOSALS');
 
 // The ONLY authorized email for approving updates
-export const CREATOR_EMAIL = 'elgarcia.eng@gmail.com';
+// FIX (Bug 5): Read from ENV instead of hardcoding — consistent with user-hierarchy.ts
+export const CREATOR_EMAIL = ENV.creatorEmail;
 
 export type ProposalStatus = 'pending' | 'approved' | 'rejected' | 'implementing' | 'completed' | 'failed';
 export type ProposedBy = 'creator' | 'mother' | 'system';
@@ -280,7 +282,10 @@ export async function getProposals(status?: ProposalStatus, limit = 20): Promise
     const db = await getDb();
     if (!db) return [];
 
-    const whereClause = status ? `WHERE status = '${status}'` : '';
+    // FIX (Bug 2): Use parameterized query instead of string interpolation to prevent SQL injection
+    const whereClause = status ? 'WHERE status = ?' : '';
+    const manualParams: (string | number)[] = status ? [status, Math.ceil(limit / 2)] : [Math.ceil(limit / 2)];
+    const dgmParams: (string | number)[] = status ? [status, limit] : [limit];
 
     // Query update_proposals (manual proposals)
     const [manualRows] = await (db as any).$client.query(
@@ -290,7 +295,7 @@ export async function getProposals(status?: ProposalStatus, limit = 20): Promise
               NULL as rejected_reason, NULL as implementation_notes,
               created_at, updated_at, 'manual' as source
        FROM update_proposals ${whereClause} ORDER BY created_at DESC LIMIT ?`,
-      [Math.ceil(limit / 2)]
+      manualParams
     ).catch(() => [[]]);
 
     // Query self_proposals (DGM autonomous proposals)
@@ -301,7 +306,7 @@ export async function getProposals(status?: ProposalStatus, limit = 20): Promise
               NULL as rejected_reason, fitness_function as implementation_notes,
               created_at, updated_at, 'dgm' as source
        FROM self_proposals ${whereClause} ORDER BY created_at DESC LIMIT ?`,
-      [limit]
+      dgmParams
     ).catch(() => [[]]);
 
     // Merge and sort by created_at descending

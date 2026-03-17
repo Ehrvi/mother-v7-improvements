@@ -35,6 +35,8 @@ interface ChatState {
   showSessionHistory: boolean;
   showDGMTest: boolean;
   showDropZone: boolean;
+  // Semantic display mode (AI-driven UI — Vercel AI SDK 6 Generative UI pattern)
+  displayMode: 'auto' | 'chat' | 'analysis' | 'shms-dashboard' | 'shms-sensor' | 'shms-alert' | 'shms-3d' | 'shms-datalab' | 'dgm-pipeline' | 'dgm-review' | 'knowledge' | 'code' | 'document';
   // Session stats
   stats: SessionStats;
   // Streaming state
@@ -57,6 +59,7 @@ interface ChatState {
   setShowSessionHistory: (v: boolean) => void;
   setShowDGMTest: (v: boolean) => void;
   setShowDropZone: (v: boolean) => void;
+  setDisplayMode: (v: ChatState['displayMode']) => void;
   setFileContext: (v: string) => void;
   setStreamSpeed: (v: 0.5 | 1 | 1.5 | 2) => void;
   setFeedback: (msgId: string, dir: 'up' | 'down') => void;
@@ -92,6 +95,7 @@ export const useChatStore = create<ChatState>()(
       showSessionHistory: false,
       showDGMTest: false,
       showDropZone: false,
+      displayMode: 'auto',
       stats: initialStats,
       isStreaming: false,
       currentPhase: null,
@@ -108,6 +112,7 @@ export const useChatStore = create<ChatState>()(
       setShowSessionHistory: (v) => set({ showSessionHistory: v }),
       setShowDGMTest: (v) => set({ showDGMTest: v }),
       setShowDropZone: (v) => set({ showDropZone: v }),
+      setDisplayMode: (v) => set({ displayMode: v }),
       setFileContext: (v) => set({ fileContext: v }),
       setStreamSpeed: (v) => set({ streamSpeed: v }),
       setFeedback: (msgId, dir) => set((s) => ({ feedback: { ...s.feedback, [msgId]: dir } })),
