@@ -225,6 +225,18 @@ function findPeaks(freqs: number[], mags: number[], topN: number = 5): { freq: n
  * statistical moments for feature extraction.
  */
 export function processSignal(readings: number[], sampleRateHz: number): SignalAnalysisResult {
+  if (readings.length === 0) {
+    return {
+      fundamentalFreqHz: 0,
+      peakFrequencies: [],
+      rmsValue: 0,
+      crestFactor: 0,
+      kurtosis: 0,
+      waveletEnergyRatio: 0,
+      psdEstimate: { frequencies: [], magnitudes: [] },
+      timestamp: new Date(),
+    };
+  }
   if (readings.length < 8) {
     logger.warn('Signal too short for analysis', { length: readings.length });
   }

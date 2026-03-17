@@ -202,6 +202,9 @@ export function exportRiskMapAsSVG(
   }
 
   const allPts = snapshot.polygons.flatMap((p) => p.polygon);
+  if (allPts.length === 0) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="#111"/><text x="50%" y="50%" fill="#888" text-anchor="middle">No points</text></svg>`;
+  }
   const minLat = Math.min(...allPts.map((p) => p.lat));
   const maxLat = Math.max(...allPts.map((p) => p.lat));
   const minLng = Math.min(...allPts.map((p) => p.lng));
