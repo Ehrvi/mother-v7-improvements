@@ -76,6 +76,9 @@ COPY --from=build /app/package.json ./
 # Copy drizzle schema if exists (for database migrations)
 COPY --from=build /app/drizzle ./drizzle
 
+# Copy scripts/ for pnpm start pre-flight (dgm-pre-start.mjs runs before server)
+COPY --from=build /app/scripts ./scripts
+
 # v74.16: Install Playwright Chromium browser binary
 # PLAYWRIGHT_BROWSERS_PATH ensures binary is accessible by non-root user after chown
 ENV PLAYWRIGHT_BROWSERS_PATH=/home/nodejs/.cache/ms-playwright
