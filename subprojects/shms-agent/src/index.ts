@@ -1,68 +1,53 @@
 // Generated autonomously by MOTHER v80.0 — Ciclo C119
 import express from 'express';
 import dotenv from 'dotenv';
-import { setupRoutes as setupDashboardRoutes } from './api/dashboard-api';
-import { SensorIngestionService } from './services/SensorIngestionService';
-import { AlertManager } from './services/AlertManager';
-import { logger } from './utils/logger';
-import { config } from './config';
-import { connectToMother } from './utils/motherConnection';
+import { setupRoutes } from './dashboard-api';
+import { SensorIngestionService } from './sensor-ingestion';
+import { AlertManager } from './alert-manager';
+import { MotherClient } from './mother-client';
 
 dotenv.config();
 
 const app = express();
-const PORT = config.port;
+const PORT = parseInt(process.env.PORT ?? '3000', 10);
 
 app.use(express.json());
 
-// Setup routes
-setupDashboardRoutes(app);
+// Initialize MOTHER client and services
+const motherClient = new MotherClient();
+const sensorIngestionService = new SensorIngestionService(motherClient);
+const alertManager = new AlertManager(motherClient);
 
-// Initialize services
-const sensorIngestionService = new SensorIngestionService();
-const alertManager = new AlertManager();
+// Setup routes
+setupRoutes(app, motherClient);
+app.use('/api', sensorIngestionService.getRouter());
 
 const startServer = async () => {
   try {
-    logger.info('Starting SHMS Agent...');
+    console.log('Starting SHMS Agent...');
 
-    // Connect to MOTHER
-    await connectToMother();
-
-    // Start sensor ingestion and alert management
-    sensorIngestionService.start();
-    alertManager.start();
+    // Start alert polling
+    alertManager.startPolling();
 
     const server = app.listen(PORT, () => {
-      logger.info(`SHMS Agent listening on port ${PORT}`);
-      logger.info(`MOTHER Endpoint: ${config.motherEndpoint}`);
+      console.log(`SHMS Agent listening on port ${PORT}`);
     });
 
     // Graceful shutdown
-    process.on('SIGTERM', () => {
-      logger.info('SIGTERM signal received: closing HTTP server');
-      server.close(async () => {
-        logger.info('HTTP server closed.');
-        await sensorIngestionService.stop();
-        await alertManager.stop();
-        logger.info('SHMS Agent gracefully shut down.');
+    const shutdown = () => {
+      console.log('Shutting down SHMS Agent...');
+      server.close(() => {
+        alertManager.stopPolling();
+        console.log('SHMS Agent gracefully shut down.');
         process.exit(0);
       });
-    });
+    };
 
-    process.on('SIGINT', () => {
-      logger.info('SIGINT signal received: closing HTTP server');
-      server.close(async () => {
-        logger.info('HTTP server closed.');
-        await sensorIngestionService.stop();
-        await alertManager.stop();
-        logger.info('SHMS Agent gracefully shut down.');
-        process.exit(0);
-      });
-    });
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
 
   } catch (error) {
-    logger.error(`Failed to start SHMS Agent: ${error}`);
+    console.error(`Failed to start SHMS Agent: ${error}`);
     process.exit(1);
   }
 };

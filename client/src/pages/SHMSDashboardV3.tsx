@@ -154,6 +154,7 @@ interface MiniChartProps {
 function MiniChart({ data, title, unit, color }: MiniChartProps) {
   if (!data.length) return null;
   const values = data.map(d => d.actual ?? d.predicted ?? 0).filter(v => !isNaN(v));
+  if (!values.length) return null;
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || 1;

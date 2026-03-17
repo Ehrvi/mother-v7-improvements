@@ -2,7 +2,7 @@
 import express from 'express';
 import { z } from 'zod';
 import { MotherClient } from './mother-client';
-import { SensorReadingSchema, SensorReading } from './types';
+import { SensorReadingSchema, type SensorReading } from './types';
 
 const BatchSensorReadingSchema = z.array(SensorReadingSchema).max(100);
 
@@ -30,7 +30,7 @@ export class SensorIngestionService {
                     const validatedReadings = BatchSensorReadingSchema.parse(body);
                     console.log(`Received batch of ${validatedReadings.length} sensor readings.`);
                     const results = await Promise.allSettled(
-                        validatedReadings.map(reading => this.motherClient.ingestReading(reading))
+                        validatedReadings.map(reading => this.motherClient.ingestReading(reading as SensorReading))
                     );
 
                     const successfulIngestions = results.filter(r => r.status === 'fulfilled').length;
@@ -49,15 +49,15 @@ export class SensorIngestionService {
 
                 } else {
                     const validatedReading = SensorReadingSchema.parse(body);
-                    console.log(`Received single sensor reading for device ${validatedReading.device_id}.`);
-                    await this.motherClient.ingestReading(validatedReading);
-                    console.log(`Successfully ingested single sensor reading for device ${validatedReading.device_id}.`);
+                    console.log(`Received single sensor reading for device ${validatedReading.sensorId}.`);
+                    await this.motherClient.ingestReading(validatedReading as SensorReading);
+                    console.log(`Successfully ingested single sensor reading for device ${validatedReading.sensorId}.`);
                     res.status(200).json({ message: 'Sensor reading ingested successfully.' });
                 }
             } catch (error: any) {
                 if (error instanceof z.ZodError) {
-                    console.error('Validation error during sensor ingestion:', error.errors);
-                    res.status(400).json({ message: 'Invalid sensor data format.', errors: error.errors });
+                    console.error('Validation error during sensor ingestion:', error.issues);
+                    res.status(400).json({ message: 'Invalid sensor data format.', errors: error.issues });
                 } else {
                     console.error('Error during sensor ingestion:', error.message);
                     res.status(500).json({ message: 'Failed to ingest sensor reading.', error: error.message });

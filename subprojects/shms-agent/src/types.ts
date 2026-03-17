@@ -1,44 +1,77 @@
 // Generated autonomously by MOTHER v80.0 — Ciclo C119
 
+import { z } from 'zod';
+
+/**
+ * Supported geotechnical sensor types (ICOLD Bulletin 158).
+ */
+export type SensorType = 'piezometer' | 'inclinometer' | 'settlement' | 'accelerometer' | 'strain_gauge' | 'water_level' | 'temperature' | 'rainfall';
+
 /**
  * Represents a single reading from a geotechnical sensor.
  */
 export interface SensorReading {
-  /**
-   * Unique identifier for the sensor.
-   */
   sensorId: string;
-  /**
-   * Type of the geotechnical sensor.
-   */
-  type: 'piezometer' | 'inclinometer' | 'settlement';
-  /**
-   * The measured value from the sensor.
-   */
+  sensorType: SensorType;
+  projectId: string;
   value: number;
-  /**
-   * Unit of measurement for the sensor value (e.g., 'kPa', 'mm', 'degrees').
-   */
   unit: string;
-  /**
-   * Timestamp of when the reading was taken, in ISO 8601 format.
-   */
   timestamp: string;
-  /**
-   * Geographic location of the sensor (e.g., 'dam_crest_section_A', 'borehole_BH01').
-   */
+  quality?: number;
   location?: string;
+  metadata?: Record<string, unknown>;
 }
+
+/**
+ * Zod schema for SensorReading validation.
+ */
+export const SensorReadingSchema = z.object({
+  sensorId: z.string(),
+  device_id: z.string().optional(),
+  sensorType: z.string(),
+  projectId: z.string().optional().default('default'),
+  value: z.number(),
+  unit: z.string(),
+  timestamp: z.string(),
+  quality: z.number().optional(),
+  location: z.string().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
 
 /**
  * Defines the possible alert levels for a sensor or system status.
  */
-export enum AlertLevel {
-  NORMAL = 'NORMAL',
-  WARNING = 'WARNING',
-  CRITICAL = 'CRITICAL',
-  EMERGENCY = 'EMERGENCY',
+export type AlertLevel = 'INFO' | 'NORMAL' | 'WARNING' | 'ACTION' | 'CRITICAL' | 'EMERGENCY';
+
+/**
+ * Represents an alert from the monitoring system.
+ */
+export interface Alert {
+  id: string;
+  sensorId: string;
+  sensorType: string;
+  value?: number;
+  threshold?: number;
+  timestamp: string;
+  message: string;
+  level: AlertLevel;
 }
+
+/**
+ * Alert data from MOTHER API.
+ */
+export type MotherAlert = Alert;
+
+/**
+ * Dashboard data from MOTHER API.
+ */
+export interface DashboardData {
+  sensors: SensorStatus[];
+  alerts: Alert[];
+  summary: { total: number; online: number; warning: number; critical: number };
+}
+
+export type MotherDashboard = DashboardData;
 
 /**
  * Represents the structure of a request body sent to the MOTHER SHMS v2 ingestion endpoint.
