@@ -939,7 +939,7 @@ function generateScientificProof(
   // If deterministic, recomputed hash should match child.proofHash
   const recomputedChildHash = proofHash({
     parentProofHash: parent.proofHash,
-    modificationHash: child.modificationHash,
+    modificationHash: child.modificationHash ?? '',
     childState: {
       id: child.id,
       parentId: child.parentId,
@@ -956,7 +956,7 @@ function generateScientificProof(
     modificationHash: child.modificationHash ?? '',
     childProofHash: child.proofHash,
     recomputedChildHash,
-    hashesMatch: recomputedChildHash === recomputedChildHash, // Always true — proves determinism
+    hashesMatch: recomputedChildHash === child.proofHash, // Verify deterministic derivation
   };
 
   // Proof 2: GANHO EMPÍRICO
@@ -1009,6 +1009,7 @@ async function selfImproveStep(
   const parent = archive.get(entry.parentId);
 
   if (!parent) {
+    emitDGMEvent({ step: 'init', status: 'fail', message: `[Passo 0 — ERRO] Parent ${entry.parentId} não encontrado no arquivo.`, timestamp: new Date().toISOString() });
     log.error(`[SELF-IMPROVE] Parent ${entry.parentId} not found in archive`);
     return null;
   }
@@ -2348,7 +2349,7 @@ export async function runDGMOuterLoop(
       childrenIds,
       childrenCompiledIds: compiledIds,
       archiveSize: archive.size,
-      bestAccuracy: Math.max(...Array.from(archive.values()).map(v => v.accuracyScore)),
+      bestAccuracy: archive.size > 0 ? Math.max(...Array.from(archive.values()).map(v => v.accuracyScore)) : 0,
       timestamp: new Date().toISOString(),
       generationHash: '', // computed below
       scientificProofs: [...generationProofs],
@@ -2427,7 +2428,7 @@ export async function runSingleGeneration(
     childrenIds,
     childrenCompiledIds: compiledIds,
     archiveSize: archive.size,
-    bestAccuracy: Math.max(...Array.from(archive.values()).map(v => v.accuracyScore)),
+    bestAccuracy: archive.size > 0 ? Math.max(...Array.from(archive.values()).map(v => v.accuracyScore)) : 0,
     timestamp: new Date().toISOString(),
     generationHash: '',
     scientificProofs: [...generationProofs],
