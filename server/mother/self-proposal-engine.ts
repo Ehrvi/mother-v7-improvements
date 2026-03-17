@@ -50,7 +50,7 @@ export interface SelfProposal {
   metricTarget: number;
   proposedChanges: string; // JSON
   fitnessFunction: string;
-  status: 'pending' | 'approved' | 'implementing' | 'testing' | 'deployed' | 'rejected' | 'failed';
+  status: 'pending' | 'approved' | 'rejected' | 'in_progress' | 'implemented' | 'failed';
   versionTag: string;
   scientificBasis: string;
 }

@@ -131,7 +131,7 @@ function applyChange(repoPath: string, change: ProposedChange): boolean {
         reactObserve(`WARNING: findText not found in ${change.file}. Skipping this change.`);
         return false;
       }
-      const newContent = currentContent.replace(change.findText, change.replaceWith);
+      const newContent = currentContent.replaceAll(change.findText, change.replaceWith);
       writeFile(fullPath, newContent);
       return true;
     }
@@ -242,7 +242,7 @@ export async function executeAutonomousUpdate(proposalId: number): Promise<Updat
     // ============================================================
     reactThink('Updating proposal status to implementing', '');
     await (db as any).$client.query(
-      `UPDATE self_proposals SET status = 'implementing', updated_at = NOW() WHERE id = ?`,
+      `UPDATE self_proposals SET status = 'in_progress', updated_at = NOW() WHERE id = ?`,
       [proposalId]
     );
     reactObserve('Proposal status updated to implementing');
@@ -435,7 +435,7 @@ DGM Loop (Zhang et al., 2025 arXiv:2505.22954)`;
     
     // Update proposal status to 'testing'
     await (db as any).$client.query(
-      `UPDATE self_proposals SET status = 'testing', updated_at = NOW() WHERE id = ?`,
+      `UPDATE self_proposals SET status = 'in_progress', updated_at = NOW() WHERE id = ?`,
       [proposalId]
     );
     
