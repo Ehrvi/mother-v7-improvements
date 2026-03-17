@@ -97,7 +97,11 @@ export async function getDb() {
         password: decodeURIComponent(url.password),
         database: url.pathname.slice(1), // remove leading '/'
         connectTimeout: 30000,
-        ssl: (host === '127.0.0.1' || host === 'localhost') ? false : (process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false }),
+        ssl: (host === '127.0.0.1' || host === 'localhost')
+          ? false
+          : (process.env.DB_SSL === 'false'
+              ? false
+              : { rejectUnauthorized: true }),
         ...POOL_CONFIG_BASE,
       };
     }
@@ -400,10 +404,36 @@ function cosineSimilarity(a: number[], b: number[]): number {
   return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
+// C2: Module-level LRU cache for semantic cache entries
+// Cap: 200 entries × ~8KB avg ≈ 1.6 MB overhead (acceptable for Cloud Run 4Gi)
+const SEMANTIC_LRU_MAX = 200;
+const _semanticLruCache = new Map<string, { entry: any; accessedAt: number }>();
+
+function _lruGet(key: string): any | undefined {
+  const item = _semanticLruCache.get(key);
+  if (!item) return undefined;
+  _semanticLruCache.delete(key);
+  _semanticLruCache.set(key, { entry: item.entry, accessedAt: Date.now() });
+  return item.entry;
+}
+
+function _lruSet(key: string, entry: any): void {
+  if (_semanticLruCache.has(key)) _semanticLruCache.delete(key);
+  if (_semanticLruCache.size >= SEMANTIC_LRU_MAX) {
+    const oldest = _semanticLruCache.keys().next().value;
+    if (oldest) _semanticLruCache.delete(oldest);
+  }
+  _semanticLruCache.set(key, { entry, accessedAt: Date.now() });
+}
+
 export async function getSemanticCacheEntry(
   queryEmbedding: number[],
   threshold = 0.75 // v120.0 C223: 0.85 → 0.75 (Conselho v98, 2026-03-10) — aligned with semantic-cache.ts
 ): Promise<SemanticCache | undefined> {
+  const embeddingKey = Buffer.from(new Float64Array(queryEmbedding.slice(0, 8)).buffer).toString('base64');
+  const cached = _lruGet(embeddingKey);
+  if (cached !== undefined) return cached;
+
   const db = await getDb();
   if (!db) return undefined;
   // Fetch recent cache entries and compute cosine similarity in-memory
@@ -413,10 +443,10 @@ export async function getSemanticCacheEntry(
     .from(semanticCache)
     .orderBy(desc(semanticCache.createdAt))
     .limit(500);
-  
+
   let bestEntry: SemanticCache | undefined;
   let bestScore = threshold;
-  
+
   for (const entry of entries) {
     try {
       if (!entry.queryEmbedding) continue; // skip entries without embedding
@@ -430,15 +460,16 @@ export async function getSemanticCacheEntry(
       // skip malformed entries
     }
   }
-  
+
   if (bestEntry) {
     await db
       .update(semanticCache)
       .set({ hitCount: sql`${semanticCache.hitCount} + 1` })
       .where(eq(semanticCache.id, bestEntry.id));
     console.log(`[SEMANTIC_CACHE] Hit! similarity=${bestScore.toFixed(4)}, id=${bestEntry.id}`);
+    _lruSet(embeddingKey, bestEntry);
   }
-  
+
   return bestEntry;
 }
 

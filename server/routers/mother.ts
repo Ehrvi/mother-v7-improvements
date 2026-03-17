@@ -4,11 +4,12 @@
  */
 
 import { z } from 'zod';
+import { TRPCError } from '@trpc/server';
 import { publicProcedure, protectedProcedure, router } from '../_core/trpc';
 import { checkAllProviders } from '../mother/provider-health';
 import { processQuery, getSystemStats } from '../mother/core';
 import { addKnowledge } from '../mother/knowledge';
-import { getRecentQueries, getQueryStats, getAllKnowledge, getDgmLineage } from '../db';
+import { getRecentQueries, getQueriesByUser, getQueryStats, getAllKnowledge, getDgmLineage } from '../db';
 import { runCodeAgent } from '../mother/code_agent';
 import { invokeSupervisor, getSupervisorStatus } from '../mother/supervisor';
 import { getAgentPool, getFitnessHistory } from '../mother/gea_supervisor';
@@ -246,8 +247,13 @@ export const motherRouter = router({
         limit: z.number().min(1).max(100).optional().default(100),
       })
     )
-    .query(async ({ input }) => {
-      return await getRecentQueries(input.limit);
+    .query(async ({ input, ctx }) => {
+      const isCreator = ctx.user?.email === CREATOR;
+      if (isCreator) {
+        return await getRecentQueries(input.limit);
+      }
+      // Non-creator: filter to own queries only (DB-level filtering)
+      return await getQueriesByUser(ctx.user.id, input.limit);
     }),
 
   /**
@@ -357,7 +363,7 @@ export const motherRouter = router({
    * Scientific basis: Darwin Gödel Machine (arXiv:2505.22954)
    * Returns: generation result + archive state + evolutionary tree + all SHA-256 proof hashes
    */
-  dgmTestRun: publicProcedure
+  dgmTestRun: protectedProcedure
     .input(
       z.object({
         benchmarkQueries: z.array(z.object({
@@ -369,7 +375,10 @@ export const motherRouter = router({
         selfImproveSize: z.number().min(1).max(5).optional().default(1),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.email !== CREATOR) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Requires creator authorization' });
+      }
       const { runSingleGeneration, getArchiveState, getEvolutionaryTree } = await import('../mother/dgm-true-outer-loop.js');
 
       const defaultBenchmark = [
@@ -408,9 +417,12 @@ export const motherRouter = router({
   /**
    * DGM Event Log — Poll for real-time DGM pipeline events
    */
-  dgmEvents: publicProcedure
+  dgmEvents: protectedProcedure
     .input(z.object({ since: z.number().optional().default(0) }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      if (ctx.user.email !== CREATOR) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Requires creator authorization' });
+      }
       const { getDGMEventLog } = await import('../mother/dgm-true-outer-loop.js');
       const allEvents = getDGMEventLog();
       return allEvents.slice(input.since);
@@ -419,8 +431,11 @@ export const motherRouter = router({
   /**
    * DGM Pending Proposals — Get proposals waiting for human approval
    */
-  dgmPendingProposals: publicProcedure
-    .query(async () => {
+  dgmPendingProposals: protectedProcedure
+    .query(async ({ ctx }) => {
+      if (ctx.user.email !== CREATOR) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Requires creator authorization' });
+      }
       const { getPendingProposals } = await import('../mother/dgm-true-outer-loop.js');
       return getPendingProposals();
     }),
@@ -428,12 +443,15 @@ export const motherRouter = router({
   /**
    * DGM Resolve Proposal — Approve or reject a pending proposal
    */
-  dgmResolveProposal: publicProcedure
+  dgmResolveProposal: protectedProcedure
     .input(z.object({
       proposalId: z.string(),
       approved: z.boolean(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.email !== CREATOR) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Requires creator authorization' });
+      }
       const { resolveProposal } = await import('../mother/dgm-true-outer-loop.js');
       const resolved = resolveProposal(input.proposalId, input.approved);
       return { resolved, proposalId: input.proposalId, approved: input.approved };
@@ -444,13 +462,16 @@ export const motherRouter = router({
    * Scientific basis: Darwin Godel Machine (Sakana AI, 2025)
    */
   supervisor: router({
-    evolve: publicProcedure
+    evolve: protectedProcedure
       .input(
         z.object({
           goal: z.string().min(1).max(2000),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.email !== CREATOR) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Requires creator authorization' });
+        }
         const runId = randomUUID();
         const SERVICE_URL = process.env.SERVICE_URL || 'https://mother-interface-qtvghovzxa-ts.a.run.app';
         const PROJECT = process.env.GOOGLE_CLOUD_PROJECT || 'mothers-library-mcp';
@@ -735,5 +756,69 @@ export const motherRouter = router({
   testArxivPipeline: protectedProcedure
     .query(async () => {
       return await testArxivPipeline();
+    }),
+
+  /**
+   * B5: Submit feedback for a query response (stub — logs only)
+   * user_feedback column added in Worktree C migration.
+   */
+  submitFeedback: protectedProcedure
+    .input(
+      z.object({
+        queryId: z.string(),
+        feedback: z.enum(['up', 'down']),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      // Stub — logs only. user_feedback column added in Worktree C migration.
+      const log = (await import('../_core/logger')).createLogger('FEEDBACK');
+      log.info(
+        `[B5-stub] Feedback received: queryId=${input.queryId} value=${input.feedback} userId=${ctx.user?.id ?? 'unknown'}`
+      );
+      return { success: true, persisted: false, note: 'Worktree C migration pending' };
+    }),
+
+  /**
+   * B6: Get session history for current user
+   * session_id column added in Worktree C migration.
+   */
+  getSessions: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return [];
+    try {
+      const [rows] = await (db as any).$client.query(
+        `SELECT session_id AS id, MIN(query) AS title, MAX(query) AS preview,
+                MIN(created_at) AS createdAt, MAX(updated_at) AS updatedAt,
+                COUNT(*) AS messageCount
+         FROM queries
+         WHERE user_id = ? AND session_id IS NOT NULL
+         GROUP BY session_id
+         ORDER BY MAX(updated_at) DESC LIMIT 50`,
+        [ctx.user.id]
+      );
+      return (rows as any[]) ?? [];
+    } catch {
+      return []; // session_id column added in Worktree C
+    }
+  }),
+
+  /**
+   * B6: Delete a session for current user
+   * session_id column added in Worktree C migration.
+   */
+  deleteSession: protectedProcedure
+    .input(z.object({ sessionId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) return { success: false };
+      try {
+        await (db as any).$client.query(
+          `DELETE FROM queries WHERE session_id = ? AND user_id = ?`,
+          [input.sessionId, ctx.user.id]
+        );
+        return { success: true };
+      } catch {
+        return { success: false }; // session_id column not yet added (Worktree C)
+      }
     }),
 });

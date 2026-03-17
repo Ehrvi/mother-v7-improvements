@@ -27,6 +27,56 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ================================================================
+ * MOTHER Design System — Semantic CSS Variables (D5)
+ * Used by chat components via var(--color-*)
+ * ================================================================ */
+:root {
+  --color-bg-base: oklch(8% 0.02 280);
+  --color-bg-surface: oklch(10% 0.02 280);
+  --color-bg-elevated: oklch(12% 0.02 280);
+  --color-bg-raised: oklch(16% 0.04 280);
+  --color-border-subtle: oklch(18% 0.02 280);
+  --color-border-base: oklch(22% 0.03 280);
+  --color-border-accent: oklch(35% 0.10 300);
+  --color-fg-base: oklch(92% 0.01 280);
+  --color-fg-muted: oklch(62% 0.02 280);
+  --color-fg-subtle: oklch(42% 0.02 280);
+  --color-fg-dim: oklch(38% 0.02 280);
+  --color-accent-violet: oklch(68% 0.16 285);
+  --color-accent-violet-bg: oklch(20% 0.06 290);
+  --color-accent-cyan: oklch(72% 0.14 195);
+  --color-accent-green: oklch(72% 0.18 145);
+  --color-accent-amber: oklch(75% 0.14 70);
+  --color-accent-red: oklch(65% 0.22 25);
+  --color-gradient-start: oklch(55% 0.25 300);
+  --color-gradient-end: oklch(50% 0.22 260);
+}
+
+/* ================================================================
+ * Chat component animations (extracted from HomeV2 inline <style>)
+ * ================================================================ */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30%            { transform: translateY(-4px); opacity: 1; }
+}
+
+/* Prose invert — markdown content inside dark chat bubbles */
+.prose-invert a { color: oklch(72% 0.14 195) !important; }
+.prose-invert code { color: oklch(80% 0.12 280) !important; background: oklch(16% 0.04 285) !important; border-radius: 4px; padding: 1px 5px; }
+.prose-invert pre { background: oklch(12% 0.02 280) !important; border: 1px solid oklch(20% 0.02 280) !important; border-radius: 12px; }
+.prose-invert strong { color: oklch(88% 0.04 280) !important; }
+.prose-invert h1, .prose-invert h2, .prose-invert h3 { color: oklch(90% 0.03 280) !important; }
+.prose-invert blockquote { border-left-color: oklch(35% 0.08 285) !important; color: oklch(65% 0.02 280) !important; }
+.prose-invert table { border-color: oklch(22% 0.02 280) !important; }
+.prose-invert th { background: oklch(14% 0.02 280) !important; }
+.prose-invert td { border-color: oklch(18% 0.02 280) !important; }
+
 /* ============================================================
    C239: WCAG AA Light Mode — NC-WCAG-001
    Scientific basis:

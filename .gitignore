@@ -12,3 +12,10 @@ logs/
 *.orig
 .dgm-backup/
 .dgm-worktree-*
+
+# Security hardening — exclude all production/local env variants
+.env.production
+.env.*.local
+*.env
+# Track the example file so contributors know what vars are needed
+!.env.example

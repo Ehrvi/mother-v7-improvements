@@ -1,6 +1,6 @@
 // Generated autonomously by MOTHER v80.0 — Ciclo C119
 import axios, { AxiosInstance, AxiosError } from 'axios';
-import { SensorReading, MotherAlert, MotherDashboard } from './types';
+import type { SensorReading, MotherAlert, MotherDashboard } from './types';
 
 const MOTHER_BASE_URL = 'https://mother-interface-qtvghovzxa-ts.a.run.app/api/a2a/shms/v2';
 
@@ -35,7 +35,7 @@ export class MotherClient {
         await new Promise(resolve => setTimeout(resolve, delay));
         return this.requestWithRetry<T>(method, url, data, attempt + 1);
       }
-      console.error(`MOTHER Client: Final attempt to ${url} failed after ${attempt} retries.`, error.message);
+      console.error(`MOTHER Client: Final attempt to ${url} failed after ${attempt} retries.`, (error as Error).message);
       throw error;
     }
   }

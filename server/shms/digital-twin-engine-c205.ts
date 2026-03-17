@@ -289,18 +289,43 @@ export function acknowledgeAlert(alertId: string): boolean {
  * STUB: LSTM-based predictive engine planned for C207 (Sprint 8).
  * Scientific basis: Hochreiter & Schmidhuber (1997) LSTM + Farrar & Worden (2012) SHM.
  * Will predict: displacement trend, failure probability, maintenance window.
+ *
+ * Returns status='not_implemented' + warning on every call until C207 is complete.
  */
 export async function predictStructuralBehavior(
   structureId: string,
   horizonHours: number = 24
-): Promise<{ prediction: 'stable' | 'degrading' | 'critical'; confidence: number; horizonHours: number }> {
+): Promise<{
+  status: 'not_implemented' | 'ok';
+  prediction: 'stable' | 'degrading' | 'critical';
+  predictions: never[];
+  confidence: number;
+  horizonHours: number;
+  warning?: string;
+}> {
+  const WARNING = 'PredictiveEngine LSTM integration pending (C207)';
+
   const twin = twinRegistry.get(structureId);
-  if (!twin) return { prediction: 'stable', confidence: 0, horizonHours };
+  if (!twin) {
+    return { status: 'not_implemented', prediction: 'stable', predictions: [], confidence: 0, horizonHours, warning: WARNING };
+  }
 
   // C205 stub: simple rule-based prediction (LSTM in C207)
-  if (twin.riskLevel === 'critical') return { prediction: 'critical', confidence: 0.7, horizonHours };
-  if (twin.riskLevel === 'high') return { prediction: 'degrading', confidence: 0.6, horizonHours };
-  return { prediction: 'stable', confidence: 0.8, horizonHours };
+  let ruleBasedPrediction: 'stable' | 'degrading' | 'critical';
+  let ruleBasedConfidence: number;
+
+  if (twin.riskLevel === 'critical') {
+    ruleBasedPrediction = 'critical';
+    ruleBasedConfidence = 0.7;
+  } else if (twin.riskLevel === 'high') {
+    ruleBasedPrediction = 'degrading';
+    ruleBasedConfidence = 0.6;
+  } else {
+    ruleBasedPrediction = 'stable';
+    ruleBasedConfidence = 0.8;
+  }
+
+  return { status: 'not_implemented', prediction: ruleBasedPrediction, predictions: [], confidence: ruleBasedConfidence, horizonHours, warning: WARNING };
 }
 
 // ─── Startup ──────────────────────────────────────────────────────────────────

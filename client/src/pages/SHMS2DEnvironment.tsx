@@ -184,6 +184,7 @@ function MapSVG({
 }) {
   const W = 800, H = 520;
   const bounds = useMemo<Bounds>(() => {
+    if (sensors.length === 0) return { minLat: -0.002, maxLat: 0.002, minLng: -0.002, maxLng: 0.002 };
     const lats = sensors.map((s) => s.lat);
     const lngs = sensors.map((s) => s.lng);
     const pad = 0.002;

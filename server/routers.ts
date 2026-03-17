@@ -7,13 +7,18 @@ import { nativeAuthRouter } from "./routers/auth";
 import { proposalsRouter } from "./routers/proposals";
 import { autonomousRouter } from "./routers/autonomous";
 import { publicProcedure, router } from "./_core/trpc";
+import { CREATOR_EMAIL as CREATOR } from "./mother/update-proposals";
 
 export const appRouter = router({
   system: systemRouter,
 
   auth: router({
     // Session management (existing)
-    me: publicProcedure.query(opts => opts.ctx.user),
+    me: publicProcedure.query(opts => {
+      const user = opts.ctx.user;
+      if (!user) return null;
+      return { ...user, isCreator: user.email === CREATOR };
+    }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });

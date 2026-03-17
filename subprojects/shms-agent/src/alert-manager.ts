@@ -1,6 +1,6 @@
 // Generated autonomously by MOTHER v80.0 — Ciclo C119
 import { MotherClient } from './mother-client';
-import { Alert, AlertLevel, SensorData } from './types';
+import { Alert, AlertLevel } from './types';
 import axios from 'axios';
 
 export class AlertManager {
@@ -87,7 +87,7 @@ export class AlertManager {
     // This logic needs to be refined based on actual sensor types and thresholds.
     // For now, a basic comparison:
     if (alert.value === undefined || alert.threshold === undefined) {
-      return AlertLevel.INFO; // Cannot determine without values
+      return 'INFO'; // Cannot determine without values
     }
 
     const deviation = Math.abs(alert.value - alert.threshold);
@@ -95,13 +95,13 @@ export class AlertManager {
 
     // These percentages are illustrative and should be configured per sensor type
     if (relativeDeviation > 0.20) { // e.g., 20% deviation from threshold
-      return AlertLevel.CRITICAL;
+      return 'CRITICAL';
     } else if (relativeDeviation > 0.05) { // e.g., 5% deviation from threshold
-      return AlertLevel.ACTION;
+      return 'ACTION';
     } else if (relativeDeviation > 0) { // Any deviation above threshold
-      return AlertLevel.WARNING;
+      return 'WARNING';
     } else {
-      return AlertLevel.INFO; // Below or at threshold, but still an 'alert' from MOTHER
+      return 'INFO'; // Below or at threshold, but still an 'alert' from MOTHER
     }
   }
 
