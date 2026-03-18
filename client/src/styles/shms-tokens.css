@@ -1,0 +1,433 @@
+/**
+ * SHMS Design Tokens — HPHMI Compliant
+ * 
+ * Scientific basis:
+ * - ISA-18.2 / IEC 62682:2014 — High-Performance HMI grayscale-first
+ * - IEC 60073 — Color coding for alarms
+ * - WCAG 2.1 AA — Contrast ≥ 4.5:1
+ * - oklch color space — perceptual uniformity
+ */
+
+:root {
+  /* ─── Background Layers (HPHMI: dark, subdued) ─── */
+  --shms-bg-0: oklch(8% 0.015 230);      /* page background */
+  --shms-bg-1: oklch(11% 0.015 230);     /* surface / cards */
+  --shms-bg-2: oklch(14% 0.018 230);     /* elevated / hover */
+  --shms-bg-3: oklch(17% 0.020 230);     /* active / sidebar */
+
+  /* ─── Borders ─── */
+  --shms-border: oklch(18% 0.020 230);
+  --shms-border-hover: oklch(24% 0.025 230);
+  --shms-border-active: oklch(30% 0.030 230);
+
+  /* ─── Text (WCAG AA on dark bg) ─── */
+  --shms-text: oklch(88% 0.010 230);
+  --shms-text-secondary: oklch(62% 0.015 230);
+  --shms-text-muted: oklch(42% 0.012 230);
+  --shms-text-dim: oklch(32% 0.010 230);
+
+  /* ─── Accent (cool blue — data emphasis, not alarm) ─── */
+  --shms-accent: oklch(68% 0.16 240);
+  --shms-accent-hover: oklch(74% 0.18 240);
+  --shms-accent-bg: oklch(14% 0.05 240);
+  --shms-accent-border: oklch(22% 0.07 240);
+
+  /* ─── Alarm Colors (IEC 60073 / ICOLD L1-L3) ─── */
+  /* GREEN: Normal operation (ICOLD L1) */
+  --shms-green: oklch(72% 0.17 148);
+  --shms-green-bg: oklch(14% 0.05 148);
+  --shms-green-border: oklch(22% 0.07 148);
+
+  /* YELLOW: Watch / Attention (ICOLD L2 low) */
+  --shms-yellow: oklch(80% 0.15 85);
+  --shms-yellow-bg: oklch(14% 0.05 85);
+  --shms-yellow-border: oklch(22% 0.07 85);
+
+  /* ORANGE: Warning / High (ICOLD L2 high) */
+  --shms-orange: oklch(74% 0.17 55);
+  --shms-orange-bg: oklch(14% 0.05 55);
+  --shms-orange-border: oklch(22% 0.07 55);
+
+  /* RED: Critical / Emergency (ICOLD L3) */
+  --shms-red: oklch(62% 0.22 28);
+  --shms-red-bg: oklch(14% 0.06 28);
+  --shms-red-border: oklch(22% 0.08 28);
+
+  /* BLUE: Informational */
+  --shms-blue: oklch(68% 0.15 260);
+  --shms-blue-bg: oklch(14% 0.04 260);
+  --shms-blue-border: oklch(22% 0.06 260);
+
+  /* ─── Typography (Inter) ─── */
+  --shms-font: 'Inter', system-ui, -apple-system, sans-serif;
+  --shms-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --shms-fs-xs: 10px;
+  --shms-fs-sm: 12px;
+  --shms-fs-base: 13px;
+  --shms-fs-md: 14px;
+  --shms-fs-lg: 16px;
+  --shms-fs-xl: 20px;
+  --shms-fs-2xl: 24px;
+
+  /* ─── Spacing (8px grid) ─── */
+  --shms-sp-1: 4px;
+  --shms-sp-2: 8px;
+  --shms-sp-3: 12px;
+  --shms-sp-4: 16px;
+  --shms-sp-5: 20px;
+  --shms-sp-6: 24px;
+  --shms-sp-8: 32px;
+
+  /* ─── Layout ─── */
+  --shms-sidebar-w: 220px;
+  --shms-sidebar-collapsed: 56px;
+  --shms-topbar-h: 48px;
+  --shms-radius: 10px;
+  --shms-radius-sm: 6px;
+  --shms-radius-lg: 14px;
+
+  /* ─── Transitions ─── */
+  --shms-transition: 200ms ease;
+  --shms-transition-slow: 400ms ease;
+}
+
+/* ─── Global SHMS styles ─── */
+.shms-root {
+  font-family: var(--shms-font);
+  font-size: var(--shms-fs-base);
+  color: var(--shms-text);
+  background: var(--shms-bg-0);
+  min-height: 100vh;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Layout Shell ─── */
+.shms-shell {
+  display: grid;
+  grid-template-columns: var(--shms-sidebar-w) 1fr;
+  grid-template-rows: var(--shms-topbar-h) 1fr;
+  grid-template-areas:
+    "sidebar topbar"
+    "sidebar content";
+  min-height: 100vh;
+}
+
+.shms-shell--collapsed {
+  grid-template-columns: var(--shms-sidebar-collapsed) 1fr;
+}
+
+/* ─── Sidebar ─── */
+.shms-sidebar {
+  grid-area: sidebar;
+  background: var(--shms-bg-1);
+  border-right: 1px solid var(--shms-border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  transition: width var(--shms-transition);
+}
+
+.shms-sidebar__logo {
+  padding: var(--shms-sp-4);
+  display: flex;
+  align-items: center;
+  gap: var(--shms-sp-3);
+  border-bottom: 1px solid var(--shms-border);
+  height: var(--shms-topbar-h);
+  flex-shrink: 0;
+}
+
+.shms-sidebar__logo-icon {
+  width: 24px;
+  height: 24px;
+  background: linear-gradient(135deg, var(--shms-accent), var(--shms-green));
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.shms-sidebar__logo-text {
+  font-size: var(--shms-fs-md);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.shms-sidebar__nav {
+  flex: 1;
+  padding: var(--shms-sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--shms-sp-1);
+}
+
+.shms-sidebar__section {
+  margin-top: var(--shms-sp-3);
+}
+
+.shms-sidebar__section-label {
+  font-size: var(--shms-fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--shms-text-dim);
+  padding: var(--shms-sp-1) var(--shms-sp-2);
+  white-space: nowrap;
+}
+
+.shms-sidebar__item {
+  display: flex;
+  align-items: center;
+  gap: var(--shms-sp-2);
+  padding: var(--shms-sp-2) var(--shms-sp-3);
+  border-radius: var(--shms-radius-sm);
+  cursor: pointer;
+  transition: all var(--shms-transition);
+  color: var(--shms-text-secondary);
+  font-size: var(--shms-fs-sm);
+  font-weight: 500;
+  border: 1px solid transparent;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.shms-sidebar__item:hover {
+  background: var(--shms-bg-2);
+  color: var(--shms-text);
+}
+
+.shms-sidebar__item--active {
+  background: var(--shms-accent-bg);
+  color: var(--shms-accent);
+  border-color: var(--shms-accent-border);
+}
+
+.shms-sidebar__item-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.shms-sidebar__item--active .shms-sidebar__item-icon {
+  opacity: 1;
+}
+
+/* ─── Topbar ─── */
+.shms-topbar {
+  grid-area: topbar;
+  background: var(--shms-bg-1);
+  border-bottom: 1px solid var(--shms-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--shms-sp-4);
+  gap: var(--shms-sp-3);
+}
+
+.shms-topbar__left,
+.shms-topbar__right {
+  display: flex;
+  align-items: center;
+  gap: var(--shms-sp-3);
+}
+
+.shms-topbar__title {
+  font-size: var(--shms-fs-md);
+  font-weight: 600;
+}
+
+.shms-topbar__subtitle {
+  font-size: var(--shms-fs-xs);
+  color: var(--shms-text-dim);
+}
+
+/* ─── Content ─── */
+.shms-content {
+  grid-area: content;
+  overflow-y: auto;
+  padding: var(--shms-sp-5);
+}
+
+/* ─── Shared Components ─── */
+.shms-card {
+  background: var(--shms-bg-1);
+  border: 1px solid var(--shms-border);
+  border-radius: var(--shms-radius);
+  overflow: hidden;
+  transition: border-color var(--shms-transition);
+}
+
+.shms-card:hover {
+  border-color: var(--shms-border-hover);
+}
+
+.shms-card__header {
+  padding: var(--shms-sp-3) var(--shms-sp-4);
+  border-bottom: 1px solid var(--shms-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--shms-sp-2);
+}
+
+.shms-card__title {
+  font-size: var(--shms-fs-sm);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: var(--shms-sp-2);
+}
+
+.shms-card__body {
+  padding: var(--shms-sp-4);
+}
+
+/* ─── Status Badge (ICOLD) ─── */
+.shms-badge {
+  font-size: var(--shms-fs-xs);
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.shms-badge--green { background: var(--shms-green-bg); border: 1px solid var(--shms-green-border); color: var(--shms-green); }
+.shms-badge--yellow { background: var(--shms-yellow-bg); border: 1px solid var(--shms-yellow-border); color: var(--shms-yellow); }
+.shms-badge--orange { background: var(--shms-orange-bg); border: 1px solid var(--shms-orange-border); color: var(--shms-orange); }
+.shms-badge--red { background: var(--shms-red-bg); border: 1px solid var(--shms-red-border); color: var(--shms-red); }
+.shms-badge--blue { background: var(--shms-blue-bg); border: 1px solid var(--shms-blue-border); color: var(--shms-blue); }
+
+/* ─── KPI Card ─── */
+.shms-kpi {
+  padding: var(--shms-sp-4);
+  background: var(--shms-bg-1);
+  border: 1px solid var(--shms-border);
+  border-radius: var(--shms-radius);
+  transition: all var(--shms-transition);
+}
+
+.shms-kpi:hover { border-color: var(--shms-border-hover); }
+.shms-kpi__label { font-size: var(--shms-fs-xs); color: var(--shms-text-muted); font-weight: 500; margin-bottom: var(--shms-sp-2); display: flex; align-items: center; justify-content: space-between; }
+.shms-kpi__value { font-size: var(--shms-fs-xl); font-weight: 700; }
+.shms-kpi__sub { font-size: var(--shms-fs-xs); color: var(--shms-text-dim); margin-top: var(--shms-sp-1); }
+
+/* ─── Data Table ─── */
+.shms-table { width: 100%; border-collapse: collapse; }
+.shms-table th { font-size: var(--shms-fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--shms-text-dim); text-align: left; padding: var(--shms-sp-2) var(--shms-sp-3); border-bottom: 1px solid var(--shms-border); }
+.shms-table td { font-size: var(--shms-fs-sm); padding: var(--shms-sp-2) var(--shms-sp-3); border-bottom: 1px solid oklch(13% 0.015 230); }
+.shms-table tr:hover td { background: var(--shms-bg-2); }
+.shms-table .mono { font-family: var(--shms-font-mono); font-size: var(--shms-fs-xs); }
+
+/* ─── Skeleton Loader ─── */
+.shms-skeleton {
+  background: oklch(15% 0.015 230);
+  border-radius: var(--shms-radius-sm);
+  animation: shms-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* ─── Button ─── */
+.shms-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--shms-sp-2);
+  padding: var(--shms-sp-2) var(--shms-sp-3);
+  border-radius: var(--shms-radius-sm);
+  font-size: var(--shms-fs-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--shms-transition);
+  border: 1px solid var(--shms-border);
+  background: var(--shms-bg-2);
+  color: var(--shms-text-secondary);
+}
+
+.shms-btn:hover { background: var(--shms-bg-3); color: var(--shms-text); border-color: var(--shms-border-hover); }
+.shms-btn--accent { background: var(--shms-accent); color: var(--shms-bg-0); border-color: transparent; }
+.shms-btn--accent:hover { background: var(--shms-accent-hover); }
+.shms-btn--danger { background: var(--shms-red-bg); color: var(--shms-red); border-color: var(--shms-red-border); }
+.shms-btn--danger:hover { background: var(--shms-red); color: var(--shms-bg-0); }
+
+/* ─── Grid Layouts ─── */
+.shms-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--shms-sp-4); }
+.shms-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--shms-sp-4); }
+.shms-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--shms-sp-4); }
+.shms-grid-sidebar { display: grid; grid-template-columns: 320px 1fr; gap: var(--shms-sp-4); }
+
+@media (max-width: 1024px) {
+  .shms-grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .shms-grid-3 { grid-template-columns: repeat(2, 1fr); }
+  .shms-grid-sidebar { grid-template-columns: 1fr; }
+}
+
+/* ─── Pulse indicator ─── */
+.shms-pulse {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  position: relative;
+}
+
+.shms-pulse::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: inherit;
+  animation: shms-ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* ─── Empty state ─── */
+.shms-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--shms-sp-8);
+  gap: var(--shms-sp-3);
+  color: var(--shms-text-muted);
+  text-align: center;
+}
+
+.shms-empty__icon { width: 40px; height: 40px; opacity: 0.3; }
+.shms-empty__text { font-size: var(--shms-fs-sm); }
+
+/* ─── Section header ─── */
+.shms-section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--shms-sp-2);
+  margin-bottom: var(--shms-sp-4);
+}
+
+.shms-section-header__title {
+  font-size: var(--shms-fs-md);
+  font-weight: 600;
+}
+
+.shms-section-header__count {
+  font-size: var(--shms-fs-xs);
+  color: var(--shms-text-dim);
+  margin-left: auto;
+}
+
+/* ─── Scrollbar ─── */
+.shms-root ::-webkit-scrollbar { width: 4px; height: 4px; }
+.shms-root ::-webkit-scrollbar-track { background: transparent; }
+.shms-root ::-webkit-scrollbar-thumb { background: oklch(22% 0.02 230); border-radius: 4px; }
+
+/* ─── Animations ─── */
+@keyframes shms-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+@keyframes shms-ping { 75%, 100% { transform: scale(2); opacity: 0; } }
+@keyframes shms-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes shms-slide-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+.shms-animate-spin { animation: shms-spin 1s linear infinite; }
+.shms-animate-slide-in { animation: shms-slide-in 0.3s ease; }

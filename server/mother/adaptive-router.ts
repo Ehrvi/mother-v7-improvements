@@ -27,6 +27,7 @@
 
 import { detectDomain, getDomainMinimumTier } from './domain-rules';
 import { getOptimalModelForDomain } from './domain-model-matrix';
+import { predictRouting, recordRoutingOutcome } from './learned-router';
 
 export type RoutingTier = 'TIER_1' | 'TIER_2' | 'TIER_3' | 'TIER_4';
 
@@ -182,6 +183,21 @@ export function buildRoutingDecision(query: string, availableProviders?: Set<str
   const signals = computeComplexitySignals(query);
   const complexityScore = computeComplexityScore(signals);
   const complexityTier = scoreTier(complexityScore);
+
+  // ═══ P2 UPGRADE: RouteLLM Learned Router (try ML-based prediction first) ═══
+  // Scientific basis: RouteLLM (Ong et al., arXiv:2406.18665, 2024)
+  // If the learned classifier has sufficient training data and high confidence,
+  // use its prediction. Otherwise, fall back to heuristic routing.
+  let learnedRouterUsed = false;
+  const learnedPrediction = predictRouting(query, 0.5);
+  if (learnedPrediction && learnedPrediction.confidence > 0.6) {
+    const tierOrder: Record<string, number> = { TIER_1: 1, TIER_2: 2, TIER_3: 3, TIER_4: 4 };
+    // Learned router can only UPGRADE tier (quality-first policy), never downgrade
+    if ((tierOrder[learnedPrediction.suggestedTier] || 0) > (tierOrder[complexityTier] || 0)) {
+      console.log(`[Router] P2 Learned override: ${complexityTier} → ${learnedPrediction.suggestedTier} (confidence=${learnedPrediction.confidence.toFixed(2)}, source=learned)`);
+      learnedRouterUsed = true;
+    }
+  }
 
   // C232: Domain detection — runs BEFORE complexity scoring
   // Quality-first policy: domain minimum tier acts as a floor

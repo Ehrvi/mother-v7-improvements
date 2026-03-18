@@ -620,20 +620,27 @@ export async function getDgmLineage(limit: number = 200): Promise<Array<{
   if (!db) {
     return [];
   }
-  const { dgmArchive } = await import("../drizzle/schema");
-  const { desc, sql: sqlExpr } = await import("drizzle-orm");
-  const results = await db
-    .select({
-      id: dgmArchive.id,
-      generationId: dgmArchive.generationId,
-      parentId: dgmArchive.parentId,
-      fitnessScore: dgmArchive.fitnessScore,
-      benchmarkResults: dgmArchive.benchmarkResults,
-      createdAt: dgmArchive.createdAt,
-      codeSnapshotLength: sqlExpr<number>`LENGTH(${dgmArchive.codeSnapshot})`,
-    })
-    .from(dgmArchive)
-    .orderBy(desc(dgmArchive.createdAt))
-    .limit(limit);
-  return results;
+  try {
+    const { dgmArchive } = await import("../drizzle/schema");
+    const { desc, sql: sqlExpr } = await import("drizzle-orm");
+    const results = await db
+      .select({
+        id: dgmArchive.id,
+        generationId: dgmArchive.generationId,
+        parentId: dgmArchive.parentId,
+        fitnessScore: dgmArchive.fitnessScore,
+        benchmarkResults: dgmArchive.benchmarkResults,
+        createdAt: dgmArchive.createdAt,
+        codeSnapshotLength: sqlExpr<number>`LENGTH(${dgmArchive.codeSnapshot})`,
+      })
+      .from(dgmArchive)
+      .orderBy(desc(dgmArchive.createdAt))
+      .limit(limit);
+    return results;
+  } catch (err: any) {
+    // Graceful fallback: if dgm_archive table doesn't exist yet, return empty
+    console.warn(`[getDgmLineage] Failed query: ${err.message?.slice(0, 100)}`);
+    return [];
+  }
 }
+

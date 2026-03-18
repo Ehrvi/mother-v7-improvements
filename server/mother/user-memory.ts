@@ -19,6 +19,7 @@
 
 import { getDb } from '../db';
 import { getEmbedding, cosineSimilarity } from './embeddings';
+import { invokeLLM } from '../_core/llm';
 
 export interface UserMemory {
   id: number;
@@ -354,3 +355,160 @@ export async function getUserMemoryStats(userId: number): Promise<{
     return { totalMemories: 0, categories: {}, mostAccessed: [] };
   }
 }
+
+// ============================================================
+// v82.0 SOTA UPGRADES
+// ============================================================
+
+/**
+ * LLM-based memory extraction (replaces regex heuristics).
+ * Uses GPT-4o-mini with structured output to identify memorable content.
+ *
+ * Scientific basis:
+ * - MemoryOS (Kang et al., 2025, arXiv:2506.06326): +49% F1 with hierarchical memory
+ * - A-MEM (Xu et al., 2025, arXiv:2502.12110): LLM extracts semantic metadata
+ * - MemGPT (Packer et al., 2023): LLMs as memory managers
+ *
+ * Cost: ~$0.001 per interaction (500 input + 100 output tokens on gpt-4o-mini)
+ */
+export async function extractMemoriesWithLLM(
+  userId: number,
+  query: string,
+  response: string,
+  qualityScore: number
+): Promise<void> {
+  // Only extract from quality interactions
+  if (qualityScore < 60) return;
+
+  try {
+    const prompt = `Analyze this interaction and extract important MEMORIES about the USER.
+Types: preference, fact, skill, context, goal, interest
+Return ONLY a JSON array (no text around it):
+[{"content": "what to remember", "category": "type", "importance": 0.0-1.0}]
+If nothing memorable, return: []
+
+User query: ${query.slice(0, 400)}
+Response: ${response.slice(0, 400)}`;
+
+    const result = await invokeLLM({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      maxTokens: 300,
+    });
+
+    const content = typeof result === 'string' ? result :
+      (typeof result?.choices?.[0]?.message?.content === 'string'
+        ? result.choices[0].message.content : '');
+    const jsonMatch = content.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) return;
+
+    const memories = JSON.parse(jsonMatch[0]);
+    if (!Array.isArray(memories)) return;
+
+    for (const mem of memories) {
+      if (!mem.content || mem.content.length < 10) continue;
+
+      // Dedup check
+      const existing = await retrieveUserMemories(userId, mem.content, 1, 0.85);
+      if (existing.length > 0) continue;
+
+      await storeUserMemory({
+        userId,
+        content: mem.content,
+        context: `Extracted from conversation`,
+        category: mem.category || 'General',
+        importanceScore: mem.importance || 0.5,
+      });
+    }
+  } catch (error) {
+    console.error('[UserMemory] LLM extraction failed (non-blocking):', error);
+    // Fall back to regex extraction
+    await extractAndStoreMemories(userId, query, response, qualityScore);
+  }
+}
+
+/**
+ * Consolidate user's top memories into a concise profile.
+ * Returns a natural language summary of the user's preferences, interests, and context.
+ *
+ * Scientific basis:
+ * - MemoryOS (Kang et al., 2025): Long-term Personal Memory (LPM) = consolidated profile
+ * - Generative Agents (Park et al., 2023): Higher-order reflection from experience
+ */
+export async function consolidateUserProfile(userId: number): Promise<string> {
+  try {
+    const db = await getDb();
+    if (!db) return '';
+
+    // Get top 20 most accessed/important memories
+    const [rows] = await (db as any).$client.query(
+      `SELECT content, category FROM user_memory
+       WHERE user_id = ?
+       ORDER BY retrieval_count DESC, importance_score DESC
+       LIMIT 20`,
+      [userId]
+    );
+
+    if (!rows || rows.length === 0) return '';
+
+    const memoryList = rows.map((m: any) => `[${m.category}] ${m.content}`).join('\n');
+
+    const result = await invokeLLM({
+      model: 'gpt-4o-mini',
+      messages: [{
+        role: 'user',
+        content: `Synthesize a user profile from these memories (max 150 words):
+${memoryList}
+
+Return a concise paragraph describing the user's interests, preferences, skills, and context.`,
+      }],
+      maxTokens: 200,
+    });
+
+    const profile = typeof result === 'string' ? result :
+      (typeof result?.choices?.[0]?.message?.content === 'string'
+        ? result.choices[0].message.content : '');
+    return profile.trim();
+  } catch (error) {
+    console.error('[UserMemory] Profile consolidation failed:', error);
+    return '';
+  }
+}
+
+/**
+ * Apply temporal decay to unaccessed memories.
+ * Reduces importance of memories not accessed in 30+ days.
+ *
+ * Scientific basis:
+ * - ALMA (Xiong et al., 2026, arXiv:2602.07755): Meta-learned memory designs
+ *   include active forgetting mechanisms
+ * - SleepGate (Xie, 2026, arXiv:2603.14517): Sleep-inspired consolidation
+ *   reduces interference from O(n) to O(log n)
+ * - Ebbinghaus Forgetting Curve (1885): Memory strength decays exponentially
+ */
+export async function applyTemporalDecay(userId: number): Promise<number> {
+  try {
+    const db = await getDb();
+    if (!db) return 0;
+
+    // Decay importance by 10% for memories not accessed in 30+ days
+    const [result] = await (db as any).$client.query(
+      `UPDATE user_memory
+       SET importance_score = importance_score * 0.9
+       WHERE user_id = ?
+       AND (last_accessed IS NULL OR last_accessed < NOW() - INTERVAL 30 DAY)
+       AND importance_score > 0.1`,
+      [userId]
+    );
+
+    const affected = result?.affectedRows || 0;
+    if (affected > 0) {
+      console.log(`[UserMemory] Temporal decay applied: ${affected} memories for user ${userId}`);
+    }
+    return affected;
+  } catch (error) {
+    console.error('[UserMemory] Temporal decay failed:', error);
+    return 0;
+  }
+}
+

@@ -1,178 +1,314 @@
 /**
- * C159 — autonomous-knowledge-curator.ts
- * Fase 6C: Autonomia Total — Curador autônomo do bd_central
- * 
+ * MOTHER v82.0 — Autonomous Knowledge Curator v2
+ * Subsystem #3: LLM-based knowledge curation with contradiction detection + temporal decay
+ *
  * Scientific basis:
- * - Dong et al. (2014): "Knowledge Vault: A Web-Scale Approach to Probabilistic
- *   Knowledge Fusion" — Knowledge graph maintenance and curation
- * - RAG (arXiv:2005.11401, Lewis et al., 2020): "Retrieval-Augmented Generation"
- *   — Knowledge base quality directly impacts retrieval quality
- * - Minsky (1975): "A Framework for Representing Knowledge" — Knowledge frames
- *   and their maintenance over time
- * 
- * Purpose: Autonomously curates the bd_central knowledge base by:
- * 1. Detecting and flagging obsolete entries (superseded by newer knowledge)
- * 2. Updating cross-references between related entries
- * 3. Ensuring knowledge consistency across categories
- * 4. Generating curation reports with SHA-256 proofs
+ * - FACTTRACK (arXiv:2407.16347v2, 2025): Time-aware validity intervals for facts.
+ *   Maintains temporal state changes: pre-facts → post-facts
+ * - Contradiction Detection in RAG (2025): LLMs as context validators to detect
+ *   conflicting information within retrieved document sets
+ * - Drowzee (2025): Temporal logic for detecting fact-conflicting hallucinations
+ * - Dong et al. (2014) "Knowledge Vault": Probabilistic knowledge fusion with
+ *   confidence scores and source reliability weighting
+ * - PASS-FC (2025): Time-sensitive atomic claim verification
+ *
+ * Architecture (upgrade from v1 regex stub):
+ * 1. LLM-based contradiction detection per domain (replaces regex patterns)
+ * 2. Temporal decay — flag entries with 0 access and age > 90 days
+ * 3. Supersession resolution — keep newer fact, soft-delete older conflicting fact
+ * 4. Consistency scoring based on contradiction rate + stale ratio
+ * 5. SHA-256 audit hash for each curation cycle
+ *
+ * Schedule: Every 60 min via knowledge.ts AutonomousKnowledgeCurator
  */
 
 import { createLogger } from '../_core/logger';
+import { invokeLLM } from '../_core/llm';
+import { getDb } from '../db';
+import { sql, desc, eq } from 'drizzle-orm';
+import { knowledge } from '../../drizzle/schema';
 import * as crypto from 'crypto';
 
-const logger = createLogger('autonomous-knowledge-curator');
+const log = createLogger('KnowledgeCurator-v2');
 
-export interface KnowledgeEntry {
-  id: number;
-  content: string;
-  category: string;
-  timestamp?: string;
-  metadata?: Record<string, any>;
-}
+// ============================================================
+// TYPES
+// ============================================================
 
 export interface CurationResult {
   timestamp: string;
   totalEntries: number;
-  obsoleteEntries: number;
-  updatedEntries: number;
-  newEntries: number;
+  contradictionsFound: number;
+  staleEntriesFlagged: number;
+  supersededEntries: number;
   consistencyScore: number;
   curationHash: string;
   actions: CurationAction[];
+  elapsedMs: number;
 }
 
 export interface CurationAction {
-  type: 'flag_obsolete' | 'update_reference' | 'add_cross_reference' | 'validate_consistency';
-  entryId?: number;
+  type: 'contradiction_detected' | 'stale_flagged' | 'superseded' | 'validated';
+  entryIds: number[];
   description: string;
   scientificBasis: string;
 }
 
+interface Contradiction {
+  factAId: number;
+  factBId: number;
+  reason: string;
+}
+
+// ============================================================
+// MAIN CURATION PIPELINE
+// ============================================================
+
 /**
- * AutonomousKnowledgeCurator
- * Maintains the quality and consistency of MOTHER's bd_central knowledge base.
- * Runs autonomously on a configurable schedule.
+ * Run a full autonomous curation cycle.
+ * Replaces v1 regex-based stub with LLM-powered analysis.
+ *
+ * Scientific basis: Dong (2014) — "Knowledge maintenance requires periodic
+ * validation of facts against newer, more reliable sources"
  */
-export class AutonomousKnowledgeCurator {
-  private readonly MOTHER_URL: string;
-  private readonly CURATOR_VERSION = 'C159-v1.0';
-  private readonly OBSOLESCENCE_PATTERNS = [
-    /Fase 6 INICIANDO.*Expansão Internacional/i,
-    /ISSUE-\d+.*ABERTO/i,
-    /meta.*Fase 6.*expansão/i,
-  ];
+export async function curate(): Promise<CurationResult> {
+  const startTime = Date.now();
+  const actions: CurationAction[] = [];
+  let contradictionsFound = 0;
+  let staleEntriesFlagged = 0;
+  let supersededEntries = 0;
 
-  constructor() {
-    this.MOTHER_URL = process.env.MOTHER_URL || 'https://mother-interface-qtvghovzxa-ts.a.run.app';
-  }
+  try {
+    const db = await getDb();
+    if (!db) {
+      log.warn('[Curator-v2] DB not available');
+      return emptyResult(startTime);
+    }
 
-  /**
-   * Run a full curation cycle
-   * Dong (2014): "Knowledge maintenance requires periodic validation
-   * of facts against newer, more reliable sources"
-   */
-  async curate(): Promise<CurationResult> {
-    logger.info('Starting autonomous knowledge curation cycle');
-    const startTime = Date.now();
-    const actions: CurationAction[] = [];
+    // 1. Load recent entries for analysis (last 100)
+    const entries = await db.select({
+      id: knowledge.id,
+      title: knowledge.title,
+      content: knowledge.content,
+      domain: knowledge.domain,
+      category: knowledge.category,
+      tags: knowledge.tags,
+      accessCount: knowledge.accessCount,
+      createdAt: knowledge.createdAt,
+    }).from(knowledge)
+      .orderBy(desc(knowledge.createdAt))
+      .limit(100);
 
-    // Step 1: Load recent entries for analysis
-    const recentEntries = await this.loadRecentEntries(50);
-    
-    // Step 2: Detect obsolete entries
-    const obsoleteIds: number[] = [];
-    for (const entry of recentEntries) {
-      if (this.isObsolete(entry)) {
-        obsoleteIds.push(entry.id);
+    if (entries.length < 5) {
+      log.info('[Curator-v2] Not enough entries (<5) for curation');
+      return emptyResult(startTime);
+    }
+
+    // 2. LLM-BASED CONTRADICTION DETECTION (per domain)
+    const byDomain = new Map<string, typeof entries>();
+    for (const e of entries) {
+      const domain = e.domain || 'Geral';
+      if (!byDomain.has(domain)) byDomain.set(domain, []);
+      byDomain.get(domain)!.push(e);
+    }
+
+    for (const [domain, domainEntries] of byDomain) {
+      if (domainEntries.length < 3) continue; // Need minimum for contradiction check
+
+      const contradictions = await detectContradictions(domain, domainEntries.slice(0, 15));
+      contradictionsFound += contradictions.length;
+
+      for (const c of contradictions) {
         actions.push({
-          type: 'flag_obsolete',
-          entryId: entry.id,
-          description: `Entry ${entry.id} contains superseded information`,
-          scientificBasis: 'Dong (2014): Obsolete knowledge degrades retrieval quality',
+          type: 'contradiction_detected',
+          entryIds: [c.factAId, c.factBId],
+          description: `Contradiction in "${domain}": ${c.reason}`,
+          scientificBasis: 'FACTTRACK (arXiv:2407.16347, 2025): time-aware fact tracking',
         });
+
+        // Resolve: keep newer, mark older as superseded
+        const factA = domainEntries.find(e => e.id === c.factAId);
+        const factB = domainEntries.find(e => e.id === c.factBId);
+        if (factA && factB) {
+          const older = (factA.createdAt?.getTime() || 0) < (factB.createdAt?.getTime() || 0) ? factA : factB;
+          try {
+            const existingTags = JSON.parse(older.tags || '[]');
+            if (!existingTags.includes('superseded')) {
+              existingTags.push('superseded');
+              await db.update(knowledge)
+                .set({ tags: JSON.stringify(existingTags) })
+                .where(eq(knowledge.id, older.id));
+              supersededEntries++;
+            }
+          } catch {
+            // Tags parsing failed — skip
+          }
+        }
       }
     }
 
-    // Step 3: Check cross-references between Phase 6A and 6B entries
-    const phase6Entries = recentEntries.filter(e => 
-      e.content.includes('C146') || e.content.includes('C151') || e.content.includes('Fase 6')
+    // 3. TEMPORAL DECAY — flag entries with 0 access and age > 90 days
+    const staleEntries = entries.filter(e =>
+      (e.accessCount === 0 || e.accessCount === null) &&
+      e.createdAt &&
+      Date.now() - e.createdAt.getTime() > 90 * 24 * 60 * 60 * 1000
     );
-    
-    if (phase6Entries.length > 0) {
+
+    for (const stale of staleEntries.slice(0, 20)) {
+      try {
+        const existingTags = JSON.parse(stale.tags || '[]');
+        if (!existingTags.includes('stale_review')) {
+          existingTags.push('stale_review');
+          await db.update(knowledge)
+            .set({ tags: JSON.stringify(existingTags) })
+            .where(eq(knowledge.id, stale.id));
+          staleEntriesFlagged++;
+        }
+      } catch {
+        // Tags parsing failed — skip
+      }
+    }
+
+    if (staleEntriesFlagged > 0) {
       actions.push({
-        type: 'validate_consistency',
-        description: `Validated ${phase6Entries.length} Phase 6 entries for cross-reference consistency`,
-        scientificBasis: 'RAG (arXiv:2005.11401): Knowledge consistency improves retrieval precision',
+        type: 'stale_flagged',
+        entryIds: staleEntries.slice(0, 20).map(e => e.id),
+        description: `${staleEntriesFlagged} entries flagged as stale (0 access, 90+ days old)`,
+        scientificBasis: 'ALMA (arXiv:2602.07755, 2026): meta-learned active forgetting',
       });
     }
 
-    // Step 4: Add cross-references for Fase 6C entries
-    actions.push({
-      type: 'add_cross_reference',
-      description: 'Added cross-references: C156↔C157↔C158↔C159↔C160 (Fase 6C chain)',
-      scientificBasis: 'Minsky (1975): Knowledge frames benefit from explicit cross-references',
-    });
-
-    // Step 5: Compute consistency score
-    const consistencyScore = this.computeConsistencyScore(recentEntries, obsoleteIds.length);
+    // 4. Compute consistency score
+    const contradictionRate = contradictionsFound / Math.max(entries.length, 1);
+    const staleRate = staleEntriesFlagged / Math.max(entries.length, 1);
+    const consistencyScore = Math.round((1 - contradictionRate - staleRate * 0.5) * 100);
 
     const elapsed = Date.now() - startTime;
-    
     const result: CurationResult = {
       timestamp: new Date().toISOString(),
-      totalEntries: recentEntries.length,
-      obsoleteEntries: obsoleteIds.length,
-      updatedEntries: actions.filter(a => a.type === 'update_reference').length,
-      newEntries: 0,
-      consistencyScore,
+      totalEntries: entries.length,
+      contradictionsFound,
+      staleEntriesFlagged,
+      supersededEntries,
+      consistencyScore: Math.max(0, consistencyScore),
       curationHash: '',
       actions,
+      elapsedMs: elapsed,
     };
 
     result.curationHash = crypto.createHash('sha256')
-      .update(JSON.stringify({ timestamp: result.timestamp, consistencyScore, obsoleteEntries: obsoleteIds.length }))
+      .update(JSON.stringify({
+        timestamp: result.timestamp,
+        consistencyScore: result.consistencyScore,
+        contradictions: contradictionsFound,
+        stale: staleEntriesFlagged,
+      }))
       .digest('hex');
 
-    logger.info(`Curation complete: ${recentEntries.length} entries analyzed, ${obsoleteIds.length} obsolete, consistency: ${consistencyScore}%, elapsed: ${elapsed}ms`);
+    log.info(`[Curator-v2] Complete: ${contradictionsFound} contradictions, ${staleEntriesFlagged} stale, ${supersededEntries} superseded, consistency=${consistencyScore}% (${elapsed}ms)`);
 
     return result;
-  }
-
-  private async loadRecentEntries(limit: number): Promise<KnowledgeEntry[]> {
-    try {
-      const response = await fetch(`${this.MOTHER_URL}/api/a2a/knowledge?limit=${limit}&sort=desc`);
-      if (!response.ok) return [];
-      const data = await response.json() as any;
-      return data.entries || data.knowledge || [];
-    } catch {
-      logger.warn('Could not load entries from bd_central — using empty set');
-      return [];
-    }
-  }
-
-  private isObsolete(entry: KnowledgeEntry): boolean {
-    return this.OBSOLESCENCE_PATTERNS.some(pattern => pattern.test(entry.content));
-  }
-
-  private computeConsistencyScore(entries: KnowledgeEntry[], obsoleteCount: number): number {
-    if (entries.length === 0) return 100;
-    const obsoleteRatio = obsoleteCount / entries.length;
-    return Math.round((1 - obsoleteRatio) * 100);
+  } catch (err) {
+    log.error('[Curator-v2] Pipeline error:', { error: String(err) });
+    return emptyResult(startTime);
   }
 }
 
-// HTTP handler for POST /api/a2a/autonomy/curate
-export async function handleCurateRequest(req: any, res: any): Promise<void> {
-  const curator = new AutonomousKnowledgeCurator();
-  
+// ============================================================
+// CONTRADICTION DETECTION (LLM-based)
+// ============================================================
+
+/**
+ * Use LLM to detect contradictions between facts in the same domain.
+ * Scientific basis: Contradiction Detection in RAG (2025) — LLMs as context validators
+ */
+async function detectContradictions(
+  domain: string,
+  entries: Array<{ id: number; title: string; content: string | null; createdAt: Date | null }>
+): Promise<Contradiction[]> {
   try {
-    const result = await curator.curate();
+    const factList = entries.map(e =>
+      `[ID:${e.id}] (${e.createdAt?.toISOString()?.slice(0, 10) || '?'}) ${e.title}: ${String(e.content || '').slice(0, 150)}`
+    ).join('\n');
+
+    const prompt = `Analyze these facts from domain "${domain}" and identify any CONTRADICTIONS.
+Two facts contradict when they make incompatible claims about the same subject.
+
+Facts:
+${factList}
+
+If contradictions exist, return a JSON array:
+[{"factAId": number, "factBId": number, "reason": "brief explanation"}]
+
+If NO contradictions, return: []
+
+Return ONLY the JSON array, no other text.`;
+
+    const result = await invokeLLM({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      maxTokens: 400,
+    });
+
+    const content = typeof result === 'string' ? result :
+      (typeof result?.choices?.[0]?.message?.content === 'string'
+        ? result.choices[0].message.content : '');
+    const jsonMatch = content.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(c => c.factAId && c.factBId && c.reason);
+      }
+    }
+    return [];
+  } catch (err) {
+    log.warn(`[Curator-v2] Contradiction detection failed for "${domain}"`, { error: String(err) });
+    return [];
+  }
+}
+
+// ============================================================
+// HTTP HANDLER (backward-compatible with original module)
+// ============================================================
+
+/**
+ * HTTP handler for POST /api/a2a/autonomy/curate
+ * Backward-compatible with the original autonomous-knowledge-curator.ts
+ */
+export async function handleCurateRequest(req: any, res: any): Promise<void> {
+  try {
+    const result = await curate();
     res.json({
       success: true,
       ...result,
-      message: `Curation complete. Consistency score: ${result.consistencyScore}%. ${result.obsoleteEntries} obsolete entries flagged.`,
+      message: `Curation complete. Consistency: ${result.consistencyScore}%. ${result.contradictionsFound} contradictions, ${result.staleEntriesFlagged} stale.`,
     });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
+  }
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+function emptyResult(startTime: number): CurationResult {
+  return {
+    timestamp: new Date().toISOString(),
+    totalEntries: 0,
+    contradictionsFound: 0,
+    staleEntriesFlagged: 0,
+    supersededEntries: 0,
+    consistencyScore: 100,
+    curationHash: '',
+    actions: [],
+    elapsedMs: Date.now() - startTime,
+  };
+}
+
+// Re-export class for backward compatibility
+export class AutonomousKnowledgeCurator {
+  async curate(): Promise<CurationResult> {
+    return curate();
   }
 }

@@ -21,6 +21,13 @@ import { getSanitizedUserContext, QUALITY_LAB_ACCESS } from '../mother/user-hier
 import { BENCHMARK_QUERIES, evaluateBenchmarkResponse, calculateBenchmarkStats, type BenchmarkResult } from '../mother/benchmark-suite';
 import { runArxivPipeline, testArxivPipeline } from '../mother/arxiv-pipeline';
 
+/** Check if user has DGM access: creator email OR admin role */
+function hasDgmAccess(user: { email?: string | null; role?: string | null }): boolean {
+  if (user.email === CREATOR) return true;
+  if (user.role === 'admin' || user.role === 'creator') return true;
+  return false;
+}
+
 export const motherRouter = router({
   /**
    * Main query endpoint — v63.0
@@ -376,8 +383,8 @@ export const motherRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      if (ctx.user.email !== CREATOR) {
-        throw new TRPCError({ code: 'FORBIDDEN', message: 'Requires creator authorization' });
+      if (!hasDgmAccess(ctx.user)) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Requires creator or admin authorization' });
       }
       const { runSingleGeneration, getArchiveState, getEvolutionaryTree } = await import('../mother/dgm-true-outer-loop.js');
 
@@ -415,13 +422,149 @@ export const motherRouter = router({
     }),
 
   /**
+   * DGM Quick Test — Validate all pipeline stages without LLM cost.
+   * Tests: fitness evaluation, proposal generation, safety validation, audit log.
+   * Returns structured pass/fail report for each stage.
+   */
+  dgmQuickTest: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      if (!hasDgmAccess(ctx.user)) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Requires creator or admin authorization' });
+      }
+      const startTime = Date.now();
+      const stages: Array<{ name: string; status: 'pass' | 'fail' | 'warn'; detail: string; durationMs: number }> = [];
+
+      // Stage 1: Fitness Evaluation
+      let fitnessResult: any = null;
+      try {
+        const stageStart = Date.now();
+        const { evaluateFitness, getCurrentFitness, getDGMStatus } = await import('../mother/dgm-agent.js');
+        fitnessResult = await evaluateFitness();
+        const status = getDGMStatus();
+        stages.push({
+          name: 'Fitness Evaluation',
+          status: 'pass',
+          detail: `Score: ${fitnessResult.fitnessScore.toFixed(1)}/100, Quality: ${fitnessResult.avgQualityScore.toFixed(1)}, P95: ${fitnessResult.p95LatencyMs}ms, Samples: ${fitnessResult.sampleSize}, Observations: ${status.totalObservations}`,
+          durationMs: Date.now() - stageStart,
+        });
+      } catch (err: any) {
+        stages.push({ name: 'Fitness Evaluation', status: 'fail', detail: err.message, durationMs: 0 });
+      }
+
+      // Stage 2: Proposal Generation
+      let proposals: any[] = [];
+      try {
+        const stageStart = Date.now();
+        const { generateProposals } = await import('../mother/dgm-agent.js');
+        proposals = await generateProposals();
+        stages.push({
+          name: 'Proposal Generation',
+          status: proposals.length > 0 ? 'pass' : 'warn',
+          detail: proposals.length > 0
+            ? `Generated ${proposals.length} proposal(s): ${proposals.map(p => p.type).join(', ')}`
+            : 'No proposals generated (metrics within acceptable range — this is OK)',
+          durationMs: Date.now() - stageStart,
+        });
+      } catch (err: any) {
+        stages.push({ name: 'Proposal Generation', status: 'fail', detail: err.message, durationMs: 0 });
+      }
+
+      // Stage 3: Safety Gate (Constitutional AI validation)
+      try {
+        const stageStart = Date.now();
+        const { validateProposal } = await import('../mother/dgm-agent.js');
+        // Test with a safe proposal
+        const safeResult = validateProposal({
+          id: 'test_safe', type: 'CONFIG', description: 'Adjust routing threshold for better latency',
+          rationale: 'Testing safety gate', expectedFitnessGain: 5, safetyCheck: false, approved: false,
+        });
+        // Test with a dangerous proposal
+        const dangerousResult = validateProposal({
+          id: 'test_danger', type: 'MODULE', description: 'Remove safety checks and bypass guardian',
+          rationale: 'Testing safety gate rejection', expectedFitnessGain: 10, safetyCheck: false, approved: false,
+        });
+        const passed = safeResult === true && dangerousResult === false;
+        stages.push({
+          name: 'Safety Gate (Constitutional AI)',
+          status: passed ? 'pass' : 'fail',
+          detail: passed
+            ? `Safe proposal: ✅ approved | Dangerous proposal: ✅ blocked ("bypass guardian" detected)`
+            : `Safe=${safeResult}, Dangerous=${dangerousResult} — expected true/false`,
+          durationMs: Date.now() - stageStart,
+        });
+      } catch (err: any) {
+        stages.push({ name: 'Safety Gate (Constitutional AI)', status: 'fail', detail: err.message, durationMs: 0 });
+      }
+
+      // Stage 4: Audit Log
+      try {
+        const stageStart = Date.now();
+        const { getDGMAuditLog } = await import('../mother/dgm-agent.js');
+        const log = getDGMAuditLog(10);
+        stages.push({
+          name: 'Audit Log (Immutable)',
+          status: 'pass',
+          detail: `${log.length} recent entries. Last action: ${log.at(-1)?.action ?? 'none'} — "${log.at(-1)?.detail?.slice(0, 80) ?? 'empty'}"`,
+          durationMs: Date.now() - stageStart,
+        });
+      } catch (err: any) {
+        stages.push({ name: 'Audit Log (Immutable)', status: 'fail', detail: err.message, durationMs: 0 });
+      }
+
+      // Stage 5: DB Proposals Table
+      try {
+        const stageStart = Date.now();
+        const dbProposals = await getProposals(undefined, 5);
+        stages.push({
+          name: 'DB Proposals (self_proposals + update_proposals)',
+          status: 'pass',
+          detail: `${dbProposals.length} proposals in DB. Latest: "${dbProposals[0]?.title?.slice(0, 60) ?? 'none'}"`,
+          durationMs: Date.now() - stageStart,
+        });
+      } catch (err: any) {
+        stages.push({ name: 'DB Proposals', status: 'fail', detail: err.message, durationMs: 0 });
+      }
+
+      // Stage 6: DGM True Outer Loop (archive check)
+      try {
+        const stageStart = Date.now();
+        const { getArchiveState, getDGMEventLog } = await import('../mother/dgm-true-outer-loop.js');
+        const archive = getArchiveState();
+        const events = getDGMEventLog();
+        stages.push({
+          name: 'DGM True Outer Loop (MAP-Elites Archive)',
+          status: 'pass',
+          detail: `Archive: ${archive.size} variant(s), Best accuracy: ${((archive.bestAccuracy ?? 0) * 100).toFixed(1)}%, Events: ${events.length}`,
+          durationMs: Date.now() - stageStart,
+        });
+      } catch (err: any) {
+        stages.push({ name: 'DGM True Outer Loop', status: 'warn', detail: `Archive not initialized yet: ${err.message}`, durationMs: 0 });
+      }
+
+      const totalMs = Date.now() - startTime;
+      const passCount = stages.filter(s => s.status === 'pass').length;
+      const failCount = stages.filter(s => s.status === 'fail').length;
+      const warnCount = stages.filter(s => s.status === 'warn').length;
+
+      return {
+        summary: `${passCount}/${stages.length} passed${warnCount ? `, ${warnCount} warnings` : ''}${failCount ? `, ${failCount} FAILED` : ''}`,
+        allPassed: failCount === 0,
+        stages,
+        fitness: fitnessResult,
+        proposalCount: proposals.length,
+        totalMs,
+        timestamp: new Date().toISOString(),
+      };
+    }),
+
+  /**
    * DGM Event Log — Poll for real-time DGM pipeline events
    */
   dgmEvents: protectedProcedure
     .input(z.object({ since: z.number().optional().default(0) }))
     .query(async ({ input, ctx }) => {
-      if (ctx.user.email !== CREATOR) {
-        throw new TRPCError({ code: 'FORBIDDEN', message: 'Requires creator authorization' });
+      if (!hasDgmAccess(ctx.user)) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Requires creator or admin authorization' });
       }
       const { getDGMEventLog } = await import('../mother/dgm-true-outer-loop.js');
       const allEvents = getDGMEventLog();
@@ -433,8 +576,8 @@ export const motherRouter = router({
    */
   dgmPendingProposals: protectedProcedure
     .query(async ({ ctx }) => {
-      if (ctx.user.email !== CREATOR) {
-        throw new TRPCError({ code: 'FORBIDDEN', message: 'Requires creator authorization' });
+      if (!hasDgmAccess(ctx.user)) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Requires creator or admin authorization' });
       }
       const { getPendingProposals } = await import('../mother/dgm-true-outer-loop.js');
       return getPendingProposals();
@@ -449,8 +592,8 @@ export const motherRouter = router({
       approved: z.boolean(),
     }))
     .mutation(async ({ input, ctx }) => {
-      if (ctx.user.email !== CREATOR) {
-        throw new TRPCError({ code: 'FORBIDDEN', message: 'Requires creator authorization' });
+      if (!hasDgmAccess(ctx.user)) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Requires creator or admin authorization' });
       }
       const { resolveProposal } = await import('../mother/dgm-true-outer-loop.js');
       const resolved = resolveProposal(input.proposalId, input.approved);

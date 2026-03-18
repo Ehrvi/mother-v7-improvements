@@ -268,3 +268,139 @@ export async function forceStudy(
 
   return { papersIngested, knowledgeAdded };
 }
+
+// ============================================================
+// v82.0 SOTA UPGRADES
+// ============================================================
+
+/**
+ * Validate a fact before storing — check if it contradicts existing knowledge.
+ * Uses embedding similarity to find related facts, then LLM to check for contradiction.
+ *
+ * Scientific basis:
+ * - FACTTRACK (arXiv:2407.16347, 2025): Time-aware fact tracking with validity intervals
+ * - Contradiction Detection in RAG (2025): LLM as context validator
+ * - SimpleMem (2026): Semantic lossless compression prevents duplicate storage
+ */
+export async function validateFactBeforeStoring(
+  title: string,
+  content: string,
+  category: string
+): Promise<{ isValid: boolean; isDuplicate: boolean; contradictsId?: number; reason: string }> {
+  try {
+    const { queryKnowledge } = await import('./knowledge');
+    const existing = await queryKnowledge(content.slice(0, 200));
+
+    if (!existing || existing.length === 0) {
+      return { isValid: true, isDuplicate: false, reason: 'No existing related facts' };
+    }
+
+    // Check for exact duplicate (high similarity)
+    for (const fact of existing.slice(0, 3)) {
+      if (fact.content && content.length > 0) {
+        const overlap = calculateTextOverlap(content, fact.content);
+        if (overlap > 0.85) {
+          return { isValid: false, isDuplicate: true, reason: `Duplicate of existing fact: "${fact.content.slice(0, 80)}..."` };
+        }
+      }
+    }
+
+    // LLM contradiction check (only if we have closely related facts)
+    const relatedFacts = existing.slice(0, 3).map((f, i) =>
+      `[${i + 1}] ${f.content.slice(0, 200)}`
+    ).join('\n');
+
+    const result = await invokeLLM({
+      model: 'gpt-4o-mini',
+      messages: [{
+        role: 'user',
+        content: `Does the NEW FACT contradict any EXISTING FACT?
+
+NEW FACT: ${title}: ${content.slice(0, 200)}
+
+EXISTING FACTS:
+${relatedFacts}
+
+Answer with JSON only: {"contradicts": false} or {"contradicts": true, "contradictedFactId": number, "reason": "brief explanation"}`,
+      }],
+      maxTokens: 150,
+    });
+
+    const llmContent = typeof result === 'string' ? result :
+      (typeof result?.choices?.[0]?.message?.content === 'string'
+        ? result.choices[0].message.content : '');
+    const jsonMatch = llmContent.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed.contradicts) {
+        return {
+          isValid: false,
+          isDuplicate: false,
+          contradictsId: parsed.contradictedFactId,
+          reason: `Contradicts fact: ${parsed.reason}`,
+        };
+      }
+    }
+
+    return { isValid: true, isDuplicate: false, reason: 'Validated — no contradictions found' };
+  } catch (error) {
+    console.error('[AgenticLearning] Fact validation failed (proceeding with storage):', error);
+    return { isValid: true, isDuplicate: false, reason: 'Validation failed — proceeding cautiously' };
+  }
+}
+
+/**
+ * Prune stale knowledge entries that are unused and old.
+ * Implements active forgetting to maintain signal-to-noise ratio.
+ *
+ * Scientific basis:
+ * - ALMA (Xiong et al., 2026, arXiv:2602.07755): Meta-learned memory designs
+ *   include forgetting mechanisms that outperform unlimited accumulation
+ * - SleepGate (Xie, 2026, arXiv:2603.14517): Targeted forgetting
+ * - CL Survey (arXiv:2603.12658, 2026): Without consolidation, S/N degrades
+ */
+export async function pruneStaleKnowledge(): Promise<{ archived: number }> {
+  try {
+    const { getDb: getDatabase } = await import('../db');
+    const db = await getDatabase();
+    if (!db) return { archived: 0 };
+
+    // Soft-archive: tag entries with 0 access, 90+ days old, non-core category
+    const result = await (db as any).execute(
+      `UPDATE knowledge
+       SET tags = CONCAT(COALESCE(tags, '[]'), ',"archived"')
+       WHERE accessCount = 0
+       AND createdAt < NOW() - INTERVAL 90 DAY
+       AND (category IS NULL OR category NOT IN ('core', 'system', 'episodic_memory'))
+       AND (tags IS NULL OR tags NOT LIKE '%archived%')
+       LIMIT 30`
+    );
+
+    const archived = (result as any)?.affectedRows || 0;
+    if (archived > 0) {
+      console.log(`[AgenticLearning] Pruned ${archived} stale knowledge entries`);
+    }
+    return { archived };
+  } catch (error) {
+    console.error('[AgenticLearning] Pruning failed:', error);
+    return { archived: 0 };
+  }
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+/**
+ * Calculate text overlap ratio between two strings.
+ * Uses word-level Jaccard similarity.
+ */
+function calculateTextOverlap(a: string, b: string): number {
+  const wordsA = new Set(a.toLowerCase().split(/\s+/).filter(w => w.length > 3));
+  const wordsB = new Set(b.toLowerCase().split(/\s+/).filter(w => w.length > 3));
+  if (wordsA.size === 0 || wordsB.size === 0) return 0;
+  let intersection = 0;
+  for (const w of wordsA) { if (wordsB.has(w)) intersection++; }
+  return intersection / Math.max(wordsA.size, wordsB.size);
+}
+

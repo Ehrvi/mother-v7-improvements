@@ -1,0 +1,187 @@
+/**
+ * MOTHER — WCAG 2.1 AA Accessibility Styles
+ * P5 Upgrade: Web Content Accessibility Guidelines compliance
+ *
+ * Scientific basis:
+ * - W3C WCAG 2.1 (2018) — AA compliance level
+ * - EAA (EU) mandatory Jun 28, 2025
+ * - ADA (US) WCAG 2.1 AA alignment 2025-2026
+ * - Nielsen (1994) Heuristic #7 — Flexibility and efficiency of use
+ *
+ * Key features:
+ * - Skip navigation link
+ * - Focus indicators (:focus-visible)
+ * - Reduced motion media query
+ * - High contrast support
+ * - Minimum 4.5:1 contrast ratio
+ * - Screen reader support (sr-only class)
+ */
+
+/* ==============================
+   SKIP NAVIGATION
+   ============================== */
+.skip-nav {
+  position: absolute;
+  top: -100%;
+  left: 0;
+  z-index: 10000;
+  background: hsl(220, 20%, 10%);
+  color: hsl(220, 20%, 95%);
+  padding: 0.75rem 1.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 0 0 8px 0;
+  transition: top 0.2s ease;
+}
+.skip-nav:focus {
+  top: 0;
+}
+
+/* ==============================
+   FOCUS INDICATORS
+   WCAG 2.1 SC 2.4.7 — Focus Visible
+   ============================== */
+:focus-visible {
+  outline: 3px solid hsl(210, 100%, 60%);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Remove default focus for mouse users */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Enhanced focus for interactive elements */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid hsl(210, 100%, 60%);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px hsla(210, 100%, 60%, 0.2);
+}
+
+/* ==============================
+   SCREEN READER ONLY
+   ============================== */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* ==============================
+   REDUCED MOTION
+   WCAG 2.1 SC 2.3.3 — Reduced motion preference
+   ============================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ==============================
+   HIGH CONTRAST MODE
+   WCAG 2.1 SC 1.4.11 — Non-text Contrast
+   ============================== */
+@media (prefers-contrast: high) {
+  :root {
+    --border-color: hsl(0, 0%, 100%);
+    --text-color: hsl(0, 0%, 100%);
+    --bg-color: hsl(0, 0%, 0%);
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    border: 2px solid hsl(0, 0%, 100%);
+  }
+
+  a {
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+  }
+}
+
+/* ==============================
+   MINIMUM CONTRAST
+   WCAG 2.1 SC 1.4.3 — 4.5:1 for normal text
+   WCAG 2.1 SC 1.4.6 — 7:1 for AAA (enhanced)
+   ============================== */
+
+/* Ensure chat messages have proper contrast */
+[data-message-role="user"] {
+  color: hsl(220, 20%, 95%);
+  background: hsla(220, 60%, 30%, 0.5);
+}
+
+[data-message-role="assistant"] {
+  color: hsl(220, 20%, 90%);
+  background: hsla(220, 20%, 15%, 0.5);
+}
+
+/* ==============================
+   INTERACTIVE ELEMENT ENHANCEMENTS
+   ============================== */
+
+/* Touch target minimum size — WCAG 2.1 SC 2.5.5 (44x44px) */
+button,
+[role="button"],
+a[href],
+input[type="submit"],
+input[type="button"] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Keyboard-navigable chat input */
+[data-chat-input] {
+  caret-color: hsl(210, 100%, 60%);
+}
+
+/* Live region for screen reader announcements */
+[aria-live] {
+  contain: layout;
+}
+
+/* ==============================
+   LANDMARK ROLES STYLING
+   ============================== */
+[role="banner"] {
+  position: relative;
+}
+
+[role="main"] {
+  position: relative;
+  min-height: 100vh;
+}
+
+[role="complementary"] {
+  position: relative;
+}
+
+/* ==============================
+   SELECTION TEXT CONTRAST
+   ============================== */
+::selection {
+  background: hsl(210, 100%, 40%);
+  color: hsl(0, 0%, 100%);
+}

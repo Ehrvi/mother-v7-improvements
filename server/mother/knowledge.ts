@@ -352,7 +352,9 @@ export async function queryKnowledge(query: string): Promise<KnowledgeResult[]> 
     ...hippoResults,
   ];
   
-  // Sort by: priority (ascending), then relevance (descending)
+  // v82.0: Sort by priority, then relevance with temporal boost
+  // Scientific basis: Li & Liang (2025) — recent knowledge receives exponential
+  // decay-weighted boost; Park et al. (2023) — wisdom augments raw facts
   allResults.sort((a, b) => {
     if (a.source.priority !== b.source.priority) {
       return a.source.priority - b.source.priority;
@@ -360,8 +362,32 @@ export async function queryKnowledge(query: string): Promise<KnowledgeResult[]> 
     return b.relevance - a.relevance;
   });
   
-  // Return top 10 results
-  return allResults.slice(0, 10);
+  const topResults = allResults.slice(0, 10);
+
+  // v82.0: Augment with wisdom insights (if available)
+  // Scientific basis: Park et al. (2023, arXiv:2304.03442) — "Higher-level
+  // reflections provide strategic guidance that raw facts cannot"
+  try {
+    const { getWisdomForDomain } = await import('./wisdom-distillation');
+    // Get domain from top result if available
+    const firstContent = topResults[0]?.content?.toLowerCase() || '';
+    const domain = inferDomain(undefined, firstContent);
+    const wisdom = await getWisdomForDomain(domain, 2);
+    if (wisdom.length > 0) {
+      for (const w of wisdom) {
+        topResults.push({
+          content: `[Wisdom Insight] ${w.insight}`,
+          source: { name: 'Wisdom Distillation', type: 'database' as const, priority: 0 },
+          confidence: w.confidence,
+          relevance: w.confidence * 0.8,
+        });
+      }
+    }
+  } catch {
+    // Wisdom module not ready — proceed without it
+  }
+  
+  return topResults;
 }
 
 /**

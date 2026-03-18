@@ -1076,10 +1076,25 @@ async function selfImproveStep(
 
     // Phase 1: Generate 2 diverse candidates in parallel
     log.info(`[SELF-IMPROVE] Phase 1: Generating 2 diverse candidates in parallel (arXiv:2306.09896)`);
+    emitDGMEvent({ step: 'modify', status: 'waiting',
+      message: `[Passo 2.1 — GERANDO 2 CANDIDATOS] Gerando 2 modificações de código em paralelo (sample diversity, arXiv:2306.09896).\n\n` +
+        `Candidato 1: abordagem padrão (temp=0). Candidato 2: abordagem diversa (temp=0.15). O melhor que compilar será selecionado.`,
+      timestamp: new Date().toISOString(),
+      data: { subStep: 'parallel-gen', candidates: 2 },
+    });
+    const modStart = Date.now();
     const [candidate1, candidate2] = await Promise.all([
       generateModification(problemStatement, entry, parent, undefined),
       generateModification(problemStatement, entry, parent, '[DIVERSITY HINT] Generate a DIFFERENT approach than your default. Focus on minimal, conservative changes using only existing imports and functions.'),
     ]);
+    emitDGMEvent({ step: 'modify', status: 'waiting',
+      message: `[Passo 2.2 — CANDIDATOS GERADOS] 2 candidatos gerados em ${Date.now() - modStart}ms. Validando via import check + TypeScript compiler...`,
+      timestamp: new Date().toISOString(),
+      data: { subStep: 'validating', latencyMs: Date.now() - modStart,
+        candidate1: candidate1 ? `${candidate1.targetFile} (${candidate1.proposedCode.length} chars)` : 'falhou',
+        candidate2: candidate2 ? `${candidate2.targetFile} (${candidate2.proposedCode.length} chars)` : 'falhou',
+      },
+    });
 
     // Validate candidates in order
     const candidates = [candidate1, candidate2] as Array<Awaited<ReturnType<typeof generateModification>>>;
@@ -1679,13 +1694,29 @@ RESPOND WITH A JSON OBJECT (and nothing else):
 }`;
 
   try {
-    // Use coreOrchestrate directly (bypasses LFSA interceptor — DGM queries are internal,
-    // not user-facing long-form requests). This leverages the full 8-layer pipeline:
-    // L1 cache → L2 routing → L3 context → L4 generation → L5 guardian.
+    // ── Debug sub-event: LLM call starting ──
+    emitDGMEvent({ step: 'diagnose', status: 'waiting',
+      message: `[Passo 1.1 — INVOCANDO LLM] Chamando coreOrchestrate (8 camadas: cache → routing → context → generation → guardian).\n\n` +
+        `O diagnóstico usa a pipeline completa da MOTHER para auto-análise. Tipo de mutação: "${entry.entryType}". ` +
+        `Aguardando resposta do LLM...`,
+      timestamp: new Date().toISOString(),
+      data: { subStep: 'llm-invoke', mutationType: entry.entryType, promptLength: diagnosticQuery.length },
+    });
+
+    const llmStart = Date.now();
     const result = await coreOrchestrate({
       query: diagnosticQuery,
       conversationHistory: [],
       metadata: { source: 'dgm-diagnose', mutationType: entry.entryType },
+    });
+    const llmMs = Date.now() - llmStart;
+
+    // ── Debug sub-event: LLM response received ──
+    emitDGMEvent({ step: 'diagnose', status: 'waiting',
+      message: `[Passo 1.2 — LLM RESPONDEU] Resposta recebida em ${llmMs}ms (provider=${result.provider}, model=${result.model}, quality=${result.qualityScore}).\n\n` +
+        `Tamanho da resposta: ${result.response?.length ?? 0} chars. Processando diagnóstico...`,
+      timestamp: new Date().toISOString(),
+      data: { subStep: 'llm-response', latencyMs: llmMs, provider: result.provider, model: result.model, quality: result.qualityScore, responseLength: result.response?.length ?? 0 },
     });
 
     if (!result.response || result.response.trim().length < 20) {
@@ -1693,9 +1724,38 @@ RESPOND WITH A JSON OBJECT (and nothing else):
       return null;
     }
 
-    log.info(`[DIAGNOSE] Diagnosis complete via MOTHER pipeline — provider=${result.provider}, model=${result.model}, quality=${result.qualityScore}, latency=${result.latencyMs}ms`);
+    // Try to parse structured diagnosis JSON for richer UI display
+    let parsedDiagnosis: Record<string, string> | null = null;
+    try {
+      const jsonMatch = result.response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) parsedDiagnosis = JSON.parse(jsonMatch[0]);
+    } catch { /* not JSON, use raw response */ }
+
+    // ── Debug sub-event: diagnosis parsed ──
+    if (parsedDiagnosis) {
+      emitDGMEvent({ step: 'diagnose', status: 'waiting',
+        message: `[Passo 1.3 — DIAGNÓSTICO ESTRUTURADO]\n\n` +
+          `🔍 PROBLEMA: ${parsedDiagnosis.problem || '(não especificado)'}\n\n` +
+          `🔧 CAUSA RAIZ: ${parsedDiagnosis.rootCause || '(não especificado)'}\n\n` +
+          `📁 ARQUIVO ALVO: ${parsedDiagnosis.targetFile || '(não especificado)'}\n\n` +
+          `💡 CORREÇÃO PROPOSTA: ${parsedDiagnosis.proposedFix || '(não especificado)'}\n\n` +
+          `📈 MELHORIA ESPERADA: ${parsedDiagnosis.expectedImprovement || '(não especificado)'}\n\n` +
+          `📚 BASE CIENTÍFICA: ${parsedDiagnosis.scientificBasis || '(não especificado)'}`,
+        timestamp: new Date().toISOString(),
+        data: {
+          subStep: 'diagnosis-parsed', ...parsedDiagnosis,
+          llmProvider: result.provider, llmModel: result.model, llmQuality: result.qualityScore, llmLatencyMs: llmMs,
+        },
+      });
+    }
+
+    log.info(`[DIAGNOSE] Diagnosis complete via MOTHER pipeline — provider=${result.provider}, model=${result.model}, quality=${result.qualityScore}, latency=${llmMs}ms`);
     return result.response;
   } catch (err) {
+    emitDGMEvent({ step: 'diagnose', status: 'fail',
+      message: `[Passo 1 — ERRO NO LLM] coreOrchestrate falhou: ${String(err)}`,
+      timestamp: new Date().toISOString(), data: { error: String(err) },
+    });
     log.error(`[DIAGNOSE] coreOrchestrate failed: ${String(err)}`);
     return null;
   }

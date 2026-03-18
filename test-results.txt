@@ -1,0 +1,503 @@
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mC:/Users/elgar/OneDrive/Documentos/GitHub/mother-v7-improvements[39m
+
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mParent Selection (arXiv:2505.22954 Algorithm 1)[2m > [22mscore_child_prop (default, DGM_outer.py line 76)[2m > [22mshould favor high-accuracy parents with few children
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mParent Selection (arXiv:2505.22954 Algorithm 1)[2m > [22mscore_child_prop (default, DGM_outer.py line 76)[2m > [22mshould use sigmoid centered at 0.5 accuracy
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mParent Selection (arXiv:2505.22954 Algorithm 1)[2m > [22mscore_child_prop (default, DGM_outer.py line 76)[2m > [22mshould produce valid probability distribution
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mParent Selection (arXiv:2505.22954 Algorithm 1)[2m > [22mscore_prop (accuracy only)[2m > [22mshould ignore children count
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mParent Selection (arXiv:2505.22954 Algorithm 1)[2m > [22mbest (deterministic top-K)[2m > [22mshould select highest accuracy variants
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mArchive Management (MAP-Elites-style, arXiv:1504.04909)[2m > [22mshould initialize with "initial" variant
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mArchive Management (MAP-Elites-style, arXiv:1504.04909)[2m > [22mshould keep_all: add all compiled variants
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mArchive Management (MAP-Elites-style, arXiv:1504.04909)[2m > [22mshould keep_better: only keep variants above (initial - noise_leeway)
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mArchive Management (MAP-Elites-style, arXiv:1504.04909)[2m > [22mshould track children count for exploration bonus
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mMutation Entry Selection (DGM self_improve_step.py adaptation)[2m > [22mshould prioritize empty responses when > 10% are empty
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mMutation Entry Selection (DGM self_improve_step.py adaptation)[2m > [22mshould cover all mutation types
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mMutation Entry Selection (DGM self_improve_step.py adaptation)[2m > [22mshould fall back to general_improvement when no unresolved queries
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mEmpirical Benchmark Evaluation (arXiv:2505.22954 Section 3.3)[2m > [22mshould calculate accuracy as resolved/total
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mEmpirical Benchmark Evaluation (arXiv:2505.22954 Section 3.3)[2m > [22mshould classify queries into resolved/unresolved/empty
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mEmpirical Benchmark Evaluation (arXiv:2505.22954 Section 3.3)[2m > [22mshould use no-cache for benchmark evaluation
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mEmpirical Benchmark Evaluation (arXiv:2505.22954 Section 3.3)[2m > [22mshould trigger deeper evaluation when accuracy >= threshold
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mEmpirical Benchmark Evaluation (arXiv:2505.22954 Section 3.3)[2m > [22mshould merge small and medium results for final accuracy
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mFull Evaluation Threshold (DGM_outer.py get_full_eval_threshold)[2m > [22mshould return second-highest accuracy in archive
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mFull Evaluation Threshold (DGM_outer.py get_full_eval_threshold)[2m > [22mshould enforce minimum threshold of 0.4
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mConvergence Detection[2m > [22mshould detect plateau when no improvement in 5 generations
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mConvergence Detection[2m > [22mshould NOT detect plateau when improvement exists
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mWeighted Random Sampling[2m > [22mshould respect probability distribution over many samples
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mWeighted Random Sampling[2m > [22mshould handle zero total weight gracefully
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mDefault Benchmark Queries[2m > [22mshould cover all required categories
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mDefault Benchmark Queries[2m > [22mshould have reasonable quality thresholds per category
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mDGM Integration Contract[2m > [22mshould follow the paper algorithm sequence
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mDGM Integration Contract[2m > [22mshould maintain invariants throughout execution
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mExpected Results[2m > [22mshould define expected metrics for a successful DGM run
+ [32m✓[39m server/mother/__tests__/dgm-true-outer-loop.test.ts[2m > [22mExpected Results[2m > [22mshould define ablation study expectations
+[90mstdout[2m | tests/ux-ui-benchmark.spec.ts[2m > [22m[2mISO 9241-11:2018 — Effectiveness, Efficiency, Satisfaction[2m > [22m[2mISO-EFF-1: Task Completion Rate (effectiveness) ≥ 0.75 for good system
+[22m[39m[ISO 9241-11] Effectiveness: 80.0%
+
+[90mstdout[2m | tests/response-quality-benchmark.spec.ts[2m > [22m[2mRAGAS — Faithfulness (arXiv:2309.15217)[2m > [22m[2mFAITHFUL-1: High faithfulness when response stays within context
+[22m[39m[RAGAS] Faithfulness (grounded): 1.000
+
+[90mstdout[2m | tests/ux-ui-benchmark.spec.ts[2m > [22m[2mISO 9241-11:2018 — Effectiveness, Efficiency, Satisfaction[2m > [22m[2mISO-EFF-3: Efficiency metric is positive for successful tasks
+[22m[39m[ISO 9241-11] Efficiency: 3.236
+
+[90mstdout[2m | tests/response-quality-benchmark.spec.ts[2m > [22m[2mRAGAS — Faithfulness (arXiv:2309.15217)[2m > [22m[2mFAITHFUL-2: Low faithfulness when response introduces out-of-context claims
+[22m[39m[RAGAS] Faithfulness (hallucinated): 0.000
+
+[90mstdout[2m | tests/ux-ui-benchmark.spec.ts[2m > [22m[2mBUS-11/BUS-15 — Bot Usability Scale (5 factors)[2m > [22m[2mBUS-PERSONALITY: Natural, consistent tone scores ≥ 0.6
+[22m[39m[BUS] Personality: 0.700
+
+[90mstdout[2m | tests/response-quality-benchmark.spec.ts[2m > [22m[2mRAGAS — Answer Relevance (arXiv:2309.15217)[2m > [22m[2mRELEVANCE-1: On-topic response scores higher than off-topic
+[22m[39m[RAGAS] Relevance on-topic: 0.188, off-topic: 0.000
+
+[90mstdout[2m | tests/ux-ui-benchmark.spec.ts[2m > [22m[2mBUS-11/BUS-15 — Bot Usability Scale (5 factors)[2m > [22m[2mBUS-UX: Well-structured responses score ≥ 0.6
+[22m[39m[BUS] User Experience: 0.567
+
+[90mstdout[2m | tests/response-quality-benchmark.spec.ts[2m > [22m[2mRAGAS — Answer Relevance (arXiv:2309.15217)[2m > [22m[2mRELEVANCE-2: Portuguese query/response relevance
+[22m[39m[RAGAS] Relevance PT: 0.176
+
+[90mstdout[2m | tests/ux-ui-benchmark.spec.ts[2m > [22m[2mBUS-11/BUS-15 — Bot Usability Scale (5 factors)[2m > [22m[2mBUS-ERROR: Ambiguous queries get helpful responses
+[22m[39m[BUS] Error Handling: 0.667
+
+[90mstdout[2m | tests/response-quality-benchmark.spec.ts[2m > [22m[2mRAGAS — Context Precision (arXiv:2309.15217)[2m > [22m[2mPRECISION-1: All relevant contexts yield precision 1.0
+[22m[39m[RAGAS] Context Precision: 1.000
+
+[90mstdout[2m | tests/ux-ui-benchmark.spec.ts[2m > [22m[2mBUS-11/BUS-15 — Bot Usability Scale (5 factors)[2m > [22m[2mBUS-ONBOARDING: Good first message scores ≥ 0.6
+[22m[39m[BUS] Onboarding: 1.000
+
+[90mstdout[2m | tests/response-quality-benchmark.spec.ts[2m > [22m[2mFLASK — Logical Thinking (Fine-Grained Language Alignment)[2m > [22m[2mFLASK-LT-1: Structured reasoning with connectors scores higher
+[22m[39m[FLASK-LT] Logical: 0.700, Vague: 0.000
+
+[90mstdout[2m | tests/ux-ui-benchmark.spec.ts[2m > [22m[2mBUS-11/BUS-15 — Bot Usability Scale (5 factors)[2m > [22m[2mBUS-CONV-EFF: Tasks completed in ≤ max turns scores high
+[22m[39m[BUS] Conv. Efficiency: 0.633
+
+[90mstdout[2m | tests/response-quality-benchmark.spec.ts[2m > [22m[2mFLASK — Background Knowledge[2m > [22m[2mFLASK-BK-1: Technical response with numbers and citations scores higher
+[22m[39m[FLASK-BK] Technical: 0.730, Superficial: 0.080
+
+[90mstdout[2m | tests/ux-ui-benchmark.spec.ts[2m > [22m[2mNielsen-Norman Group Heuristics (adapted for chatbots)[2m > [22m[2mNNG-H1 to H11: Good response passes majority of heuristics
+[22m[39m[NNG] Heuristics passed: 11/11 (100%)
+
+[90mstdout[2m | tests/response-quality-benchmark.spec.ts[2m > [22m[2mFLASK — Problem Handling (Comprehension + Completeness)[2m > [22m[2mFLASK-PH-1: Response covering query keywords scores higher
+[22m[39m[FLASK-PH] Complete: 0.286, Incomplete: 0.057
+
+[90mstdout[2m | tests/ux-ui-benchmark.spec.ts[2m > [22m[2mPerformance SLA — Google SRE Book (P50/P95/P99)[2m > [22m[2mSLA-1: Well-performing system passes all SLA thresholds
+[22m[39m[SLA] P50: 1200ms (target ≤1500ms) ✓
+[SLA] P95: 3200ms (target ≤4000ms) ✓
+[SLA] P99: 3500ms (target ≤6000ms) ✓
+[SLA] SLA Score: 100%
+
+[90mstdout[2m | tests/response-quality-benchmark.spec.ts[2m > [22m[2mFLASK — User Alignment (Conciseness + Readability + Harmlessness)[2m > [22m[2mFLASK-UA-1: Filler phrases reduce user alignment score
+[22m[39m[FLASK-UA] With fillers: 0.400, Clean: 0.550
+
+[90mstdout[2m | tests/ux-ui-benchmark.spec.ts[2m > [22m[2mPerformance SLA — Google SRE Book (P50/P95/P99)[2m > [22m[2mSLA-CHAT: Chat response latency target <3000ms (P95)
+[22m[39m[SLA-CHAT] P50: 950ms, P95: 1600ms
+
+[90mstdout[2m | tests/response-quality-benchmark.spec.ts[2m > [22m[2mDEER — Citation Quality (arXiv:2512.17776)[2m > [22m[2mCITATION-1: Response with arXiv citations detected correctly
+[22m[39m[DEER] Citations: 6, arXiv: 3, Precision: 0.50
+
+[90mstdout[2m | tests/ux-ui-benchmark.spec.ts[2m > [22m[2mTD-EVAL — Turn and Dialogue-level (arXiv:2504.19982)[2m > [22m[2mTD-TURN-1: High-quality turn scores ≥ 0.5 overall
+[22m[39m[TD-EVAL] Turn: relevance=0.21, understanding=0.70, specificity=0.30, overall=0.40
+
+[90mstdout[2m | tests/response-quality-benchmark.spec.ts[2m > [22m[2mHallucination Detection (SelfCheckGPT pattern)[2m > [22m[2mHALLUC-1: Response with hedging has low hallucination risk
+[22m[39m[HALLUC] Hedged risk: 0.000 (low)
+
+[90mstdout[2m | tests/ux-ui-benchmark.spec.ts[2m > [22m[2mTD-EVAL — Turn and Dialogue-level (arXiv:2504.19982)[2m > [22m[2mTD-SESSION-1: Coherent multi-turn session scores ≥ 0.4 overall
+[22m[39m[TD-EVAL] Session: coherence=0.11, informativeness=0.12, engagingness=0.00
+
+[90mstdout[2m | tests/response-quality-benchmark.spec.ts[2m > [22m[2mHallucination Detection (SelfCheckGPT pattern)[2m > [22m[2mHALLUC-2: Response with absolute claims has higher hallucination risk
+[22m[39m[HALLUC] Absolute claims risk: 0.250, indicators: absolute_claims, unverified_attribution
+
+[90mstdout[2m | tests/ux-ui-benchmark.spec.ts[2m > [22m[2mTD-EVAL — Turn and Dialogue-level (arXiv:2504.19982)[2m > [22m[2mTD-SESSION-2: Incoherent session has low coherence score
+[22m[39m[TD-EVAL] Incoherent session coherence: 0.00
+
+[90mstdout[2m | tests/response-quality-benchmark.spec.ts[2m > [22m[2mMulti-Turn Coherence (arXiv:2503.22458)[2m > [22m[2mCOHERENCE-1: Consistent topic turns have high coherence
+[22m[39m[COHERENCE] Consistent turns: 0.200
+
+[90mstdout[2m | tests/ux-ui-benchmark.spec.ts[2m > [22m[2mFED Dataset — 18 Quality Aspects[2m > [22m[2mFED-TURN: High-quality response scores ≥ 0.7 on key turn aspects
+[22m[39m[FED] specific: 0.90
+[FED] relevant: 0.80
+[FED] understandable: 1.00
+
+[90mstdout[2m | tests/response-quality-benchmark.spec.ts[2m > [22m[2mMulti-Turn Coherence (arXiv:2503.22458)[2m > [22m[2mCOHERENCE-2: Completely unrelated turns have low coherence
+[22m[39m[COHERENCE] Unrelated turns: 0.000
+
+[90mstdout[2m | tests/ux-ui-benchmark.spec.ts[2m > [22m[2mFED Dataset — 18 Quality Aspects[2m > [22m[2mFED-SESSION: Depth score scales with response length
+[22m[39m[FED] Depth — short: 0.40, long: 0.70
+
+[90mstdout[2m | tests/response-quality-benchmark.spec.ts[2m > [22m[2mComposite Quality Score — Full Pipeline[2m > [22m[2mCOMPOSITE-1: High-quality scientific response scores ≥ 60/100
+[22m[39m[COMPOSITE] Score: 58/100, Category: stem
+  Faithfulness: 1.00, Relevance: 0.03
+  LogicalThinking: 0.60, BGKnowledge: 0.61
+  ProblemHandling: 0.33, UserAlign: 1.00
+
+[90mstdout[2m | tests/ux-ui-benchmark.spec.ts[2m > [22m[2mTask Completion Rate (BUS target: >85%)[2m > [22m[2mTCR-1: Well-crafted responses achieve ≥ 85% task completion
+[22m[39m[TCR] Completion rate: 100.0% (7/7)
+
+[90mstdout[2m | tests/response-quality-benchmark.spec.ts[2m > [22m[2mComposite Quality Score — Full Pipeline[2m > [22m[2mCOMPOSITE-2: Low-quality response scores < 40/100
+[22m[39m[COMPOSITE] Low-quality score: 22/100
+
+[90mstdout[2m | tests/ux-ui-benchmark.spec.ts[2m > [22m[2mHallucination Rate Target (<5%) (arXiv:2310.05189)[2m > [22m[2mHALLUC-RATE-1: Batch of good responses has low hallucination risk
+[22m[39m[HALLUC-RATE] High-risk rate: 0.0% (target: <5%)
+
+[90mstdout[2m | tests/response-quality-benchmark.spec.ts[2m > [22m[2mComposite Quality Score — Full Pipeline[2m > [22m[2mCOMPOSITE-4: RAG-grounded response has higher faithfulness than hallucinated
+[22m[39m[COMPOSITE] Grounded faith: 1.00, Hallucinated faith: 0.00
+
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mISO 9241-11:2018 — Effectiveness, Efficiency, Satisfaction[2m > [22mISO-EFF-1: Task Completion Rate (effectiveness) ≥ 0.75 for good system
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mISO 9241-11:2018 — Effectiveness, Efficiency, Satisfaction[2m > [22mISO-EFF-2: Failed-all tasks returns 0 effectiveness
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mISO 9241-11:2018 — Effectiveness, Efficiency, Satisfaction[2m > [22mISO-EFF-3: Efficiency metric is positive for successful tasks
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mISO 9241-11:2018 — Effectiveness, Efficiency, Satisfaction[2m > [22mISO-EFF-4: Empty task list returns 0 for all metrics
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mBUS-11/BUS-15 — Bot Usability Scale (5 factors)[2m > [22mBUS-PERSONALITY: Natural, consistent tone scores ≥ 0.6
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mBUS-11/BUS-15 — Bot Usability Scale (5 factors)[2m > [22mBUS-PERSONALITY: Robotic/error outputs score low
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mBUS-11/BUS-15 — Bot Usability Scale (5 factors)[2m > [22mBUS-UX: Well-structured responses score ≥ 0.6
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mBUS-11/BUS-15 — Bot Usability Scale (5 factors)[2m > [22mBUS-ERROR: Ambiguous queries get helpful responses
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mBUS-11/BUS-15 — Bot Usability Scale (5 factors)[2m > [22mBUS-ONBOARDING: Good first message scores ≥ 0.6
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mBUS-11/BUS-15 — Bot Usability Scale (5 factors)[2m > [22mBUS-CONV-EFF: Tasks completed in ≤ max turns scores high
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mNielsen-Norman Group Heuristics (adapted for chatbots)[2m > [22mNNG-H1 to H11: Good response passes majority of heuristics
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mNielsen-Norman Group Heuristics (adapted for chatbots)[2m > [22mNNG-H2: Technical errors exposed to user fail heuristic
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mNielsen-Norman Group Heuristics (adapted for chatbots)[2m > [22mNNG-H8: Excessive whitespace fails aesthetics heuristic
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mNielsen-Norman Group Heuristics (adapted for chatbots)[2m > [22mNNG-H11: Overconfident claims fail trustworthiness
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mPerformance SLA — Google SRE Book (P50/P95/P99)[2m > [22mSLA-1: Well-performing system passes all SLA thresholds
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mPerformance SLA — Google SRE Book (P50/P95/P99)[2m > [22mSLA-2: Slow system fails P95 threshold
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mPerformance SLA — Google SRE Book (P50/P95/P99)[2m > [22mSLA-3: P50 < P95 < P99 ordering is always maintained
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mPerformance SLA — Google SRE Book (P50/P95/P99)[2m > [22mSLA-CHAT: Chat response latency target <3000ms (P95)
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mTD-EVAL — Turn and Dialogue-level (arXiv:2504.19982)[2m > [22mTD-TURN-1: High-quality turn scores ≥ 0.5 overall
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mTD-EVAL — Turn and Dialogue-level (arXiv:2504.19982)[2m > [22mTD-TURN-2: Off-topic response has low context relevance
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mTD-EVAL — Turn and Dialogue-level (arXiv:2504.19982)[2m > [22mTD-SESSION-1: Coherent multi-turn session scores ≥ 0.4 overall
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mTD-EVAL — Turn and Dialogue-level (arXiv:2504.19982)[2m > [22mTD-SESSION-2: Incoherent session has low coherence score
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mFED Dataset — 18 Quality Aspects[2m > [22mFED-TURN: High-quality response scores ≥ 0.7 on key turn aspects
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mFED Dataset — 18 Quality Aspects[2m > [22mFED-SESSION: Depth score scales with response length
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mTask Completion Rate (BUS target: >85%)[2m > [22mTCR-1: Well-crafted responses achieve ≥ 85% task completion
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mTask Completion Rate (BUS target: >85%)[2m > [22mTCR-2: Off-topic responses have <50% task completion
+ [32m✓[39m tests/ux-ui-benchmark.spec.ts[2m > [22mHallucination Rate Target (<5%) (arXiv:2310.05189)[2m > [22mHALLUC-RATE-1: Batch of good responses has low hallucination risk
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mRAGAS — Faithfulness (arXiv:2309.15217)[2m > [22mFAITHFUL-1: High faithfulness when response stays within context
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mRAGAS — Faithfulness (arXiv:2309.15217)[2m > [22mFAITHFUL-2: Low faithfulness when response introduces out-of-context claims
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mRAGAS — Faithfulness (arXiv:2309.15217)[2m > [22mFAITHFUL-3: Perfect context reuse yields high faithfulness
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mRAGAS — Answer Relevance (arXiv:2309.15217)[2m > [22mRELEVANCE-1: On-topic response scores higher than off-topic
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mRAGAS — Answer Relevance (arXiv:2309.15217)[2m > [22mRELEVANCE-2: Portuguese query/response relevance
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mRAGAS — Answer Relevance (arXiv:2309.15217)[2m > [22mRELEVANCE-3: Empty response has zero relevance
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mRAGAS — Context Precision (arXiv:2309.15217)[2m > [22mPRECISION-1: All relevant contexts yield precision 1.0
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mRAGAS — Context Precision (arXiv:2309.15217)[2m > [22mPRECISION-2: Mixed relevance contexts yield intermediate precision
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mFLASK — Logical Thinking (Fine-Grained Language Alignment)[2m > [22mFLASK-LT-1: Structured reasoning with connectors scores higher
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mFLASK — Logical Thinking (Fine-Grained Language Alignment)[2m > [22mFLASK-LT-2: Counter-argument increases robustness score
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mFLASK — Background Knowledge[2m > [22mFLASK-BK-1: Technical response with numbers and citations scores higher
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mFLASK — Background Knowledge[2m > [22mFLASK-BK-2: Research references detected correctly
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mFLASK — Problem Handling (Comprehension + Completeness)[2m > [22mFLASK-PH-1: Response covering query keywords scores higher
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mFLASK — Problem Handling (Comprehension + Completeness)[2m > [22mFLASK-PH-2: Markdown structure increases comprehension score
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mFLASK — User Alignment (Conciseness + Readability + Harmlessness)[2m > [22mFLASK-UA-1: Filler phrases reduce user alignment score
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mFLASK — User Alignment (Conciseness + Readability + Harmlessness)[2m > [22mFLASK-UA-2: Harmful content detected reduces score to near zero
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mFLASK — User Alignment (Conciseness + Readability + Harmlessness)[2m > [22mFLASK-UA-3: Optimal word count (50-500) yields full readability score
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mMT-Bench — Category Detection (arXiv:2306.05685)[2m > [22mMT-BENCH: "Calculate the integral of x² from 0 to 3..." → category: math
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mMT-Bench — Category Detection (arXiv:2306.05685)[2m > [22mMT-BENCH: "Implement a binary search function in Ty..." → category: coding
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mMT-Bench — Category Detection (arXiv:2306.05685)[2m > [22mMT-BENCH: "Explain quantum entanglement in physics..." → category: stem
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mMT-Bench — Category Detection (arXiv:2306.05685)[2m > [22mMT-BENCH: "Prove that the square root of 2 is irrat..." → category: reasoning
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mMT-Bench — Category Detection (arXiv:2306.05685)[2m > [22mMT-BENCH: "Summarize the key points from this text..." → category: extraction
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mMT-Bench — Category Detection (arXiv:2306.05685)[2m > [22mMT-BENCH: "Write a poem about artificial intelligen..." → category: writing
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mMT-Bench — Category Detection (arXiv:2306.05685)[2m > [22mMT-BENCH: "Act as a Shakespearean character explain..." → category: roleplay
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mMT-Bench — Category Detection (arXiv:2306.05685)[2m > [22mMT-BENCH: "What do you think about climate change?..." → category: social
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mDEER — Citation Quality (arXiv:2512.17776)[2m > [22mCITATION-1: Response with arXiv citations detected correctly
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mDEER — Citation Quality (arXiv:2512.17776)[2m > [22mCITATION-2: Response without citations has zero count
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mDEER — Citation Quality (arXiv:2512.17776)[2m > [22mCITATION-3: Mother research responses should include citations for scientific queries
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mHallucination Detection (SelfCheckGPT pattern)[2m > [22mHALLUC-1: Response with hedging has low hallucination risk
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mHallucination Detection (SelfCheckGPT pattern)[2m > [22mHALLUC-2: Response with absolute claims has higher hallucination risk
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mHallucination Detection (SelfCheckGPT pattern)[2m > [22mHALLUC-3: Clean factual response has low risk
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mMulti-Turn Coherence (arXiv:2503.22458)[2m > [22mCOHERENCE-1: Consistent topic turns have high coherence
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mMulti-Turn Coherence (arXiv:2503.22458)[2m > [22mCOHERENCE-2: Completely unrelated turns have low coherence
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mMulti-Turn Coherence (arXiv:2503.22458)[2m > [22mCOHERENCE-3: Single turn returns perfect coherence
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mComposite Quality Score — Full Pipeline[2m > [22mCOMPOSITE-1: High-quality scientific response scores ≥ 60/100
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mComposite Quality Score — Full Pipeline[2m > [22mCOMPOSITE-2: Low-quality response scores < 40/100
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mComposite Quality Score — Full Pipeline[2m > [22mCOMPOSITE-3: Category classification works for all MT-Bench types
+ [32m✓[39m tests/response-quality-benchmark.spec.ts[2m > [22mComposite Quality Score — Full Pipeline[2m > [22mCOMPOSITE-4: RAG-grounded response has higher faithfulness than hallucinated
+ [32m✓[39m tests/quality-benchmark-runner.spec.ts[2m > [22mevaluateBenchmarkResponse – scoring logic[2m > [22mpasses with no issues when response has all traits and meets score
+ [32m✓[39m tests/quality-benchmark-runner.spec.ts[2m > [22mevaluateBenchmarkResponse – scoring logic[2m > [22mlogs a missing-trait issue for every absent expected trait
+ [32m✓[39m tests/quality-benchmark-runner.spec.ts[2m > [22mevaluateBenchmarkResponse – scoring logic[2m > [22mflags response below minQualityScore
+ [32m✓[39m tests/quality-benchmark-runner.spec.ts[2m > [22mevaluateBenchmarkResponse – scoring logic[2m > [22mfails a short (<80 word) response for a non-factual category
+ [32m✓[39m tests/quality-benchmark-runner.spec.ts[2m > [22mevaluateBenchmarkResponse – scoring logic[2m > [22mdoes NOT fail a short response for a factual query
+ [32m✓[39m tests/quality-benchmark-runner.spec.ts[2m > [22mevaluateBenchmarkResponse – scoring logic[2m > [22msets hasCitations=true when response contains [1]-style references
+ [32m✓[39m tests/quality-benchmark-runner.spec.ts[2m > [22mevaluateBenchmarkResponse – scoring logic[2m > [22msets hasCitations=false when no bracket citations are present
+ [32m✓[39m tests/quality-benchmark-runner.spec.ts[2m > [22mevaluateBenchmarkResponse – scoring logic[2m > [22msets hasStructure=true when response contains ## headings
+ [32m✓[39m tests/quality-benchmark-runner.spec.ts[2m > [22mevaluateBenchmarkResponse – scoring logic[2m > [22msets hasStructure=false when no ## headings are present
+ [32m✓[39m tests/quality-benchmark-runner.spec.ts[2m > [22mevaluateBenchmarkResponse – scoring logic[2m > [22mresult carries correct metadata fields
+ [32m✓[39m tests/quality-benchmark-runner.spec.ts[2m > [22maggregateBenchmarkResults – aggregation logic[2m > [22mgroups results correctly by category
+ [32m✓[39m tests/quality-benchmark-runner.spec.ts[2m > [22maggregateBenchmarkResults – aggregation logic[2m > [22mcalculates avgScore correctly per category
+ [32m✓[39m tests/quality-benchmark-runner.spec.ts[2m > [22maggregateBenchmarkResults – aggregation logic[2m > [22mcounts passed and failed correctly
+ [32m✓[39m tests/quality-benchmark-runner.spec.ts[2m > [22maggregateBenchmarkResults – aggregation logic[2m > [22mtimestamp is a Date instance
+ [32m✓[39m tests/quality-benchmark-runner.spec.ts[2m > [22maggregateBenchmarkResults – aggregation logic[2m > [22mavgQualityScore rounds correctly
+ [32m✓[39m tests/quality-benchmark-runner.spec.ts[2m > [22mbenchmark run – passing scenario[2m > [22machieves >= 80% pass rate across one query per category
+ [32m✓[39m tests/quality-benchmark-runner.spec.ts[2m > [22mbenchmark run – failing scenario[2m > [22mall empty responses fail with appropriate issues
+ [32m✓[39m tests/quality-benchmark-runner.spec.ts[2m > [22mbenchmark run – failing scenario[2m > [22mshort responses for non-factual categories include a too-short issue
+ [32m✓[39m tests/classifyQuery.test.ts[2m > [22mphilosophy query returns philosophy category
+ [31m×[39m tests/classifyQuery.test.ts[2m > [22mnatural_science query returns natural_science category
+[31m   → expected 'complex_reasoning' to be 'natural_science' // Object.is equality[39m
+ [32m✓[39m tests/classifyQuery.test.ts[2m > [22meconomics query returns economics category
+ [32m✓[39m tests/classifyQuery.test.ts[2m > [22mhealth_care query returns health_care category
+ [32m✓[39m tests/rejectProposal.test.ts[2m > [22mrejectProposal updates both update_proposals and self_proposals tables
+[90mstdout[2m | tests/c321-c323-gate-tests.spec.ts[2m > [22m[2mC321 — Semantic Complexity Detector v2.0[2m > [22m[2mGATE-6: estimateOutputLength returns complexitySignals when LFSA is activated
+[22m[39m[C325-TELEMETRY] score=17.50 threshold=4 lfsa=true verbs=7 refs=3 artifacts=4 patterns=0 qlen=103
+
+[90mstdout[2m | tests/c321-c323-gate-tests.spec.ts[2m > [22m[2mC321 — Integration: estimateOutputLength canonical cases[2m > [22m[2mCouncil canonical case 1: Conselho dos 6 query activates LFSA
+[22m[39m[C325-TELEMETRY] score=14.00 threshold=4 lfsa=true verbs=2 refs=5 artifacts=3 patterns=0 qlen=275
+
+[90mstdout[2m | tests/c321-c323-gate-tests.spec.ts[2m > [22m[2mC321 — Integration: estimateOutputLength canonical cases[2m > [22m[2mCouncil canonical case 2: Simple greeting does NOT activate LFSA
+[22m[39m[C325-TELEMETRY] score=0.00 threshold=4 lfsa=false verbs=0 refs=0 artifacts=0 patterns=0 qlen=4
+
+[90mstdout[2m | tests/c321-c323-gate-tests.spec.ts[2m > [22m[2mC321 — Integration: estimateOutputLength canonical cases[2m > [22m[2mCouncil canonical case 3: Explicit page count still works
+[22m[39m[C325-TELEMETRY] score=1.50 threshold=4 lfsa=false verbs=0 refs=0 artifacts=1 patterns=0 qlen=43
+
+ [32m✓[39m tests/digitalTwin.test.ts[2m > [22mreturns warning and status=not_implemented for unknown structure
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Semantic Complexity Detector v2.0[2m > [22mGATE-1a: High-complexity query (Council canonical case) scores CS ≥ 4
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Semantic Complexity Detector v2.0[2m > [22mGATE-1b: Multi-step roadmap query scores CS ≥ 4
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Semantic Complexity Detector v2.0[2m > [22mGATE-1c: Research query with external references scores CS ≥ 4
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Semantic Complexity Detector v2.0[2m > [22mGATE-2a: Threshold at exactly CS=4 activates LFSA
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Semantic Complexity Detector v2.0[2m > [22mGATE-2b: Score below threshold does NOT activate LFSA
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Semantic Complexity Detector v2.0[2m > [22mGATE-5: Env override MOTHER_COMPLEXITY_THRESHOLD changes threshold
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Semantic Complexity Detector v2.0[2m > [22mGATE-6: estimateOutputLength returns complexitySignals when LFSA is activated
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Regression: Simple queries not promoted to LFSA[2m > [22mGATE-7a: Simple factual question does not activate LFSA
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Regression: Simple queries not promoted to LFSA[2m > [22mGATE-7b: Greeting does not activate LFSA
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Regression: Simple queries not promoted to LFSA[2m > [22mGATE-7c: Single-word query does not activate LFSA
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Regression: Simple queries not promoted to LFSA[2m > [22mGATE-7d: Simple code question does not activate LFSA
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Regression: Simple queries not promoted to LFSA[2m > [22mGATE-7e: Short definition query does not activate LFSA
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Citation Engine shouldApplyCitationEngine fix[2m > [22mGATE-3a: Returns true for research category with long response
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Citation Engine shouldApplyCitationEngine fix[2m > [22mGATE-3b: Returns true for complex_reasoning category
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Citation Engine shouldApplyCitationEngine fix[2m > [22mGATE-3c: Returns true for general category with semantic content
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Citation Engine shouldApplyCitationEngine fix[2m > [22mGATE-3d: Returns true for coding category with semantic content
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Citation Engine shouldApplyCitationEngine fix[2m > [22mGATE-3e: Returns true for creative category with semantic content
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Citation Engine shouldApplyCitationEngine fix[2m > [22mGATE-4a: Returns false for greeting category
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Citation Engine shouldApplyCitationEngine fix[2m > [22mGATE-4b: Returns false for casual_conversation category
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Citation Engine shouldApplyCitationEngine fix[2m > [22mGATE-4c: Returns false for simple category with short response
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Citation Engine shouldApplyCitationEngine fix[2m > [22mGATE-4d: Returns false when response already has ## Referências
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Citation Engine shouldApplyCitationEngine fix[2m > [22mGATE-4e: Returns false when response is too short (< 150 chars)
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Citation Engine shouldApplyCitationEngine fix[2m > [22mGATE-4f: Returns false when response already has ## References
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Integration: estimateOutputLength canonical cases[2m > [22mCouncil canonical case 1: Conselho dos 6 query activates LFSA
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Integration: estimateOutputLength canonical cases[2m > [22mCouncil canonical case 2: Simple greeting does NOT activate LFSA
+ [32m✓[39m tests/c321-c323-gate-tests.spec.ts[2m > [22mC321 — Integration: estimateOutputLength canonical cases[2m > [22mCouncil canonical case 3: Explicit page count still works
+ [32m✓[39m tests/pipeline-integration.spec.ts[2m > [22mtool-registry[2m > [22mregister() adds the plugin and its tools
+ [32m✓[39m tests/pipeline-integration.spec.ts[2m > [22mtool-registry[2m > [22mgetAllTools() returns all tools across registered plugins
+ [32m✓[39m tests/pipeline-integration.spec.ts[2m > [22mtool-registry[2m > [22mgetToolsForDomain() returns only tools from the matching domain
+ [32m✓[39m tests/pipeline-integration.spec.ts[2m > [22mtool-registry[2m > [22mexecute() routes to the correct plugin
+ [32m✓[39m tests/pipeline-integration.spec.ts[2m > [22mtool-registry[2m > [22mexecute() returns error result for unknown tool
+ [32m✓[39m tests/pipeline-integration.spec.ts[2m > [22mtool-registry[2m > [22munregister() removes the plugin and its tools
+ [32m✓[39m tests/pipeline-integration.spec.ts[2m > [22mtool-registry[2m > [22mgetStats() returns correct tool count
+ [32m✓[39m tests/pipeline-integration.spec.ts[2m > [22mpipeline[2m > [22maddLayer() adds a layer and getLayers() returns it
+ [32m✓[39m tests/pipeline-integration.spec.ts[2m > [22mpipeline[2m > [22mremoveLayer() removes by name
+ [32m✓[39m tests/pipeline-integration.spec.ts[2m > [22mpipeline[2m > [22mgetLayers() reflects insertion order sorted by order field
+ [32m✓[39m tests/pipeline-integration.spec.ts[2m > [22mpipeline[2m > [22mprocess() executes layers and merges their responses
+ [32m✓[39m tests/pipeline-integration.spec.ts[2m > [22mpipeline[2m > [22mparallel layers (same group) both execute
+ [32m✓[39m tests/pipeline-integration.spec.ts[2m > [22mpipeline[2m > [22mlayer with condition() returning false is skipped
+ [32m✓[39m tests/pipeline-integration.spec.ts[2m > [22mpipeline[2m > [22mtraces include a record for every layer that ran
+ [32m✓[39m tests/pipeline-integration.spec.ts[2m > [22mapplication-registry[2m > [22mregister() calls initialize() on the app
+ [32m✓[39m tests/pipeline-integration.spec.ts[2m > [22mapplication-registry[2m > [22mregister() calls toolRegistry.register() for each plugin
+ [32m✓[39m tests/pipeline-integration.spec.ts[2m > [22mapplication-registry[2m > [22munregister() calls shutdown() and removes the app
+ [32m✓[39m tests/pipeline-integration.spec.ts[2m > [22mapplication-registry[2m > [22mlist() returns only registered apps
+ [32m✓[39m tests/pipeline-integration.spec.ts[2m > [22mapplication-registry[2m > [22mhealthCheckAll() returns health status for all registered apps
+ [32m✓[39m tests/pipeline-integration.spec.ts[2m > [22mapplication-registry[2m > [22mhealthCheckAll() reports unhealthy when healthCheck() throws
+ [32m✓[39m tests/pipeline-integration.spec.ts[2m > [22mapplication-registry[2m > [22mgetStats() returns correct application and tool counts
+ [32m✓[39m tests/pipeline-integration.spec.ts[2m > [22mapplication-registry[2m > [22mregistering an app with pipeline layers adds them to the pipeline
+[90mstdout[2m | tests/mother-quality-modules.spec.ts[2m > [22m[2mcontext-scorer[2m > [22m[2mexcludes context with no matching terms (below 0.4 threshold)
+[22m[39m[2026-03-17T13:51:02.426Z] [INFO] [CTX_SCORER] [CtxScorer] 0/1 contexts included (0 tokens). Excluded: episodic(0.00)
+
+[90mstdout[2m | tests/mother-quality-modules.spec.ts[2m > [22m[2mcontext-scorer[2m > [22m[2mrespects the 8000-token budget
+[22m[39m[2026-03-17T13:51:02.429Z] [INFO] [CTX_SCORER] [CtxScorer] 1/3 contexts included (4050 tokens). Excluded: episodic(1.00), crag(1.00)
+
+[90mstdout[2m | tests/mother-quality-modules.spec.ts[2m > [22m[2mcontext-scorer[2m > [22m[2mformatScoredContexts returns empty string when nothing is included
+[22m[39m[2026-03-17T13:51:02.430Z] [INFO] [CTX_SCORER] [CtxScorer] 0/1 contexts included (0 tokens). Excluded: crag(0.00)
+
+[90mstdout[2m | tests/mother-quality-modules.spec.ts[2m > [22m[2mresponse-normalizer[2m > [22m[2mremoves "Of course!" filler phrase
+[22m[39m[2026-03-17T13:51:02.432Z] [INFO] [NORMALIZER] [Normalizer] Applied 2 normalizations: removed_filler, removed_filler
+
+[90mstdout[2m | tests/mother-quality-modules.spec.ts[2m > [22m[2mresponse-normalizer[2m > [22m[2mremoves "Certainly!" filler phrase
+[22m[39m[2026-03-17T13:51:02.433Z] [INFO] [NORMALIZER] [Normalizer] Applied 2 normalizations: removed_filler, removed_filler
+
+[90mstdout[2m | tests/mother-quality-modules.spec.ts[2m > [22m[2mresponse-normalizer[2m > [22m[2mremoves "Sure!" filler phrase
+[22m[39m[2026-03-17T13:51:02.434Z] [INFO] [NORMALIZER] [Normalizer] Applied 1 normalizations: removed_filler
+
+[90mstdout[2m | tests/mother-quality-modules.spec.ts[2m > [22m[2mresponse-normalizer[2m > [22m[2mremoves "Revised Response:" prefix (Self-Refine artifact)
+[22m[39m[2026-03-17T13:51:02.434Z] [INFO] [NORMALIZER] [Normalizer] Applied 1 normalizations: removed_filler
+
+[90mstdout[2m | tests/mother-quality-modules.spec.ts[2m > [22m[2mresponse-normalizer[2m > [22m[2mdowngrades lone h1 headings to h2 (no mixed hierarchy)
+[22m[39m[2026-03-17T13:51:02.435Z] [INFO] [NORMALIZER] [Normalizer] Applied 1 normalizations: downgraded_h1_to_h2
+
+[90mstdout[2m | tests/mother-quality-modules.spec.ts[2m > [22m[2mresponse-normalizer[2m > [22m[2munifies mixed bullet styles (converts * to -)
+[22m[39m[2026-03-17T13:51:02.436Z] [INFO] [NORMALIZER] [Normalizer] Applied 1 normalizations: unified_bullet_style
+
+[90mstdout[2m | tests/mother-quality-modules.spec.ts[2m > [22m[2mdepth-controller[2m > [22m[2mvalidateDepth returns passed=false when response is too short
+[22m[39m[2026-03-17T13:51:02.438Z] [INFO] [DEPTH_CTRL] [DepthCtrl] Validation failed: Response too short: 1 words (min: 150); Missing markdown sections (## headings required); Missing concrete examples or code snippets
+
+[90mstdout[2m | tests/mother-quality-modules.spec.ts[2m > [22m[2minline-verifier[2m > [22m[2mfixVerificationIssues removes "As MOTHER" self-reference
+[22m[39m[2026-03-17T13:51:02.443Z] [INFO] [INLINE_VERIFIER] [InlineVerifier] Fixed 1 issues: self_reference
+
+[90mstdout[2m | tests/mother-quality-modules.spec.ts[2m > [22m[2minline-verifier[2m > [22m[2mfixVerificationIssues removes filler phrases at start
+[22m[39m[2026-03-17T13:51:02.443Z] [INFO] [INLINE_VERIFIER] [InlineVerifier] Fixed 1 issues: filler
+
+[90mstdout[2m | tests/mother-quality-modules.spec.ts[2m > [22m[2mmemory-recall[2m > [22m[2m"como falamos anteriormente" triggers reference pattern
+[22m[39m[2026-03-17T13:51:02.444Z] [INFO] [MEMORY_RECALL] [MemoryRecall] Reference pattern detected in query: "como falamos anteriormente sobre RAG..."
+
+[90mstdout[2m | tests/mother-quality-modules.spec.ts[2m > [22m[2mmemory-recall[2m > [22m[2m"você disse" triggers reference pattern
+[22m[39m[2026-03-17T13:51:02.444Z] [INFO] [MEMORY_RECALL] [MemoryRecall] Reference pattern detected in query: "você disse que transformers usam atenção..."
+
+[90mstdout[2m | tests/mother-quality-modules.spec.ts[2m > [22m[2mmemory-recall[2m > [22m[2m"last time" triggers reference pattern
+[22m[39m[2026-03-17T13:51:02.445Z] [INFO] [MEMORY_RECALL] [MemoryRecall] Reference pattern detected in query: "last time we talked about this topic..."
+
+[90mstdout[2m | tests/mother-quality-modules.spec.ts[2m > [22m[2mmemory-recall[2m > [22m[2mreturns triggered=true with empty memories when reference matched but DB is empty
+[22m[39m[2026-03-17T13:51:02.446Z] [INFO] [MEMORY_RECALL] [MemoryRecall] Reference pattern detected in query: "como falamos anteriormente sobre barragens..."
+
+[90mstdout[2m | tests/mother-quality-modules.spec.ts[2m > [22m[2mmemory-recall[2m > [22m[2mpopulates contextSnippet and memories when DB returns results
+[22m[39m[2026-03-17T13:51:02.447Z] [INFO] [MEMORY_RECALL] [MemoryRecall] Reference pattern detected in query: "como falamos sobre RAG..."
+[2026-03-17T13:51:02.447Z] [INFO] [MEMORY_RECALL] [MemoryRecall] Recalled 1 relevant memories (top similarity: 0.850)
+
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mcontext-scorer[2m > [22mincludes context whose terms match the query
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mcontext-scorer[2m > [22mexcludes context with no matching terms (below 0.4 threshold)
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mcontext-scorer[2m > [22mrespects the 8000-token budget
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mcontext-scorer[2m > [22mrespects source priority order: user_memory before episodic before crag
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mcontext-scorer[2m > [22mformatScoredContexts returns empty string when nothing is included
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mcontext-scorer[2m > [22mformatScoredContexts joins included contexts with double newline
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mresponse-normalizer[2m > [22mremoves "Of course!" filler phrase
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mresponse-normalizer[2m > [22mremoves "Certainly!" filler phrase
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mresponse-normalizer[2m > [22mremoves "Sure!" filler phrase
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mresponse-normalizer[2m > [22mremoves "Revised Response:" prefix (Self-Refine artifact)
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mresponse-normalizer[2m > [22mdoes not add changes for a clean response
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mresponse-normalizer[2m > [22mstores the provider in the result
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mresponse-normalizer[2m > [22mdefaults provider to "unknown" when not passed
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mresponse-normalizer[2m > [22mdowngrades lone h1 headings to h2 (no mixed hierarchy)
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mresponse-normalizer[2m > [22munifies mixed bullet styles (converts * to -)
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mdepth-controller[2m > [22mTIER_1-style short factual query returns concise depth
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mdepth-controller[2m > [22mcoding query returns deep depth with examples required
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mdepth-controller[2m > [22mTIER_3/4 research query with high complexity returns comprehensive depth
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mdepth-controller[2m > [22mshort factual query produces shallower maxWords than long technical query
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mdepth-controller[2m > [22mformatDepthInstructions returns non-empty string containing depth level
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mdepth-controller[2m > [22mvalidateDepth returns passed=false when response is too short
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mdepth-controller[2m > [22mvalidateDepth returns passed=true when response meets minWords
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22minline-verifier[2m > [22mdetects "As MOTHER" self-reference in chunk
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22minline-verifier[2m > [22mdetects "Of course" filler at the start of a response
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22minline-verifier[2m > [22mdetects "Certainly" filler at the start of a response
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22minline-verifier[2m > [22mreturns no issues for a clean factual response
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22minline-verifier[2m > [22mfixVerificationIssues removes "As MOTHER" self-reference
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22minline-verifier[2m > [22mfixVerificationIssues removes filler phrases at start
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mmemory-recall[2m > [22m"como falamos anteriormente" triggers reference pattern
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mmemory-recall[2m > [22m"você disse" triggers reference pattern
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mmemory-recall[2m > [22m"last time" triggers reference pattern
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mmemory-recall[2m > [22m"what is AI" does NOT trigger reference pattern
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mmemory-recall[2m > [22mreturns triggered=false with empty memories when no reference pattern matches
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mmemory-recall[2m > [22mreturns triggered=true with empty memories when reference matched but DB is empty
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mmemory-recall[2m > [22mpopulates contextSnippet and memories when DB returns results
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mquality-benchmark[2m > [22mBENCHMARK_QUERIES has exactly 50 queries
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mquality-benchmark[2m > [22mhas exactly 10 queries per category
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mquality-benchmark[2m > [22mevaluateBenchmarkResponse passes for a high-quality response containing all expected traits
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mquality-benchmark[2m > [22mevaluateBenchmarkResponse fails for an empty response
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mquality-benchmark[2m > [22mevaluateBenchmarkResponse fails when quality score is below minimum threshold
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mquality-benchmark[2m > [22maggregateBenchmarkResults sums passed and failed correctly
+ [32m✓[39m tests/mother-quality-modules.spec.ts[2m > [22mquality-benchmark[2m > [22maggregateBenchmarkResults computes correct avgQualityScore
+[90mstdout[2m | tests/e2e/benchmark-c217.spec.ts[2m > [22m[2mNC-COG-015: Slow Thinking Engine Benchmark[2m > [22m[2mHigh complexity queries should score > 80
+[22m[39m[BENCH-C213] Slow Thinking detection accuracy: 60.0%
+
+[90mstdout[2m | tests/e2e/benchmark-c217.spec.ts[2m > [22m[2mNC-COG-015: Slow Thinking Engine Benchmark[2m > [22m[2mLow complexity queries should score < 50
+[22m[39m[BENCH-C213] Low complexity rejection accuracy: 100.0%
+
+[90mstdout[2m | tests/e2e/benchmark-c217.spec.ts[2m > [22m[2mNC-SHMS-001: Neural EKF Benchmark[2m > [22m[2mNeural EKF RMSE on synthetic signal < 0.15
+[22m[39m[BENCH-C215] Neural EKF RMSE on sinusoidal: 0.2077
+
+[90mstdout[2m | tests/e2e/benchmark-c217.spec.ts[2m > [22m[2mNC-SHMS-006: Federated Learning Benchmark[2m > [22m[2mDifferential Privacy Gaussian noise has correct scale
+[22m[39m[BENCH-C219] DP Gaussian σ = 4.8448 (ε=1, δ=0.00001)
+
+[90mstdout[2m | tests/e2e/benchmark-c217.spec.ts[2m > [22m[2mSENSORIUM Coverage Validation[2m > [22m[2mSENSORIUM coverage >= 95% (19/20 modules)
+[22m[39m[BENCH-SENSORIUM] Coverage: 20/20 = 100.0%
+
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-COG-015: Slow Thinking Engine Benchmark[2m > [22mHigh complexity queries should score > 80
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-COG-015: Slow Thinking Engine Benchmark[2m > [22mLow complexity queries should score < 50
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-COG-015: Slow Thinking Engine Benchmark[2m > [22mComplexity scores are bounded [0, 1]
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-COG-013: SGM Proof Engine Benchmark[2m > [22mSGM correctly identifies dangerous code patterns
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-COG-013: SGM Proof Engine Benchmark[2m > [22mSGM validateModificationWithSGM returns proof result
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-COG-013: SGM Proof Engine Benchmark[2m > [22mSGM safe proposals have low estimated risk
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-COG-013: SGM Proof Engine Benchmark[2m > [22mSGM dangerous proposals have high estimated risk
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-COG-013: SGM Proof Engine Benchmark[2m > [22mSGM risk scoring formula is mathematically correct
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-SENS-001: Persistent Shell Benchmark[2m > [22mShell session is created with correct initial state
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-SENS-001: Persistent Shell Benchmark[2m > [22mShell session persists across multiple retrievals
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-SENS-001: Persistent Shell Benchmark[2m > [22mShell manager stats are returned correctly
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-SENS-001: Persistent Shell Benchmark[2m > [22mShell blocked commands are properly defined
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-SENS-001: Persistent Shell Benchmark[2m > [22mShell cleanup expired sessions runs without error
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-SHMS-001: Neural EKF Benchmark[2m > [22mNeural EKF runEKFCycle processes a measurement
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-SHMS-001: Neural EKF Benchmark[2m > [22mNeural EKF RMSE on synthetic signal < 0.15
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-SHMS-006: Federated Learning Benchmark[2m > [22mFedAvg weighted average is mathematically correct
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-SHMS-006: Federated Learning Benchmark[2m > [22mDifferential Privacy Gaussian noise has correct scale
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-SHMS-006: Federated Learning Benchmark[2m > [22mFederated server initializes with zero rounds
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-SENS-008: Expose Tunnel Benchmark[2m > [22mTunnel manager initializes with no active tunnels
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-SENS-008: Expose Tunnel Benchmark[2m > [22mTunnel status returns inactive for non-existent port
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-SHMS-004: Alert Engine V3 Benchmark[2m > [22mAlert engine initializes with correct config
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-SHMS-004: Alert Engine V3 Benchmark[2m > [22mAlert dispatch returns empty results when no channels configured
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-SHMS-004: Alert Engine V3 Benchmark[2m > [22mAlert HTML template is well-formed
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-SHMS-005: Digital Twin Dashboard Benchmark[2m > [22mDashboard initializes with no clients
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-SHMS-005: Digital Twin Dashboard Benchmark[2m > [22mDashboard creates initial state for new site
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-SHMS-005: Digital Twin Dashboard Benchmark[2m > [22mDashboard health score is 100 for all-good sensors
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-SHMS-005: Digital Twin Dashboard Benchmark[2m > [22mDashboard risk level is CRITICAL when health < 30
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-SHMS-005: Digital Twin Dashboard Benchmark[2m > [22mDashboard EKF update propagates to sensor state
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mNC-SHMS-005: Digital Twin Dashboard Benchmark[2m > [22mDashboard all sites summary returns correct structure
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mSENSORIUM Coverage Validation[2m > [22mSENSORIUM coverage >= 95% (19/20 modules)
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mSENSORIUM Coverage Validation[2m > [22mAll critical path modules are implemented
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-COG — First-Order Logic (NC-COG-001/002)[2m > [22mTC-COG-001: FOL Modus Ponens — Sócrates mortal[33m 359[2mms[22m[39m
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-COG — First-Order Logic (NC-COG-001/002)[2m > [22mTC-COG-002: FOL Modus Tollens — Adversarial reformulation
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-COG — First-Order Logic (NC-COG-001/002)[2m > [22mTC-COG-003: FOL Fallacy Detection — Affirming the consequent
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-CAL — Calibração ECE (NC-COG-005)[2m > [22mTC-CAL-001: ECE < 0.05 após Temperature Scaling
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-CAL — Calibração ECE (NC-COG-005)[2m > [22mTC-CAL-002: Brier Score < 0.2
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-CAL — Calibração ECE (NC-COG-005)[2m > [22mTC-CAL-003: Calibração não degrada OOD (Out-of-Distribution)
+[90mstdout[2m | tests/e2e/benchmark-c217.spec.ts[2m > [22m[2mMOTHER v100.0 Overall Score Benchmark[2m > [22m[2mMOTHER_VERSION is v100.0
+[22m[39m[2026-03-17T13:51:03.221Z] [INFO] [HIPPORAG2] [F3-1] KG build scheduled (first run in 5min, then weekly)
+
+[90mstdout[2m | tests/e2e/benchmark-c217.spec.ts[2m > [22m[2mMOTHER v100.0 Overall Score Benchmark[2m > [22m[2mMOTHER_VERSION is v100.0
+[22m[39m[Database] F1-3: Connecting via TCP to localhost:3306 (persistent pool)
+[Database] F1-3: Connection pool created (limit=20, keepAlive=true)
+
+[90mstdout[2m | tests/e2e/benchmark-c217.spec.ts[2m > [22m[2mMOTHER v100.0 Overall Score Benchmark[2m > [22m[2mMOTHER_VERSION is v100.0
+[22m[39m[2026-03-17T13:51:04.568Z] [INFO] [dynamic-geval-calibrator] [C146] Iniciando calibração dinâmica do G-Eval...
+[Knowledge] Real-time APIs not yet implemented (Phase 2)
+[2026-03-17T13:51:04.569Z] [INFO] [HIPPORAG2] [F3-1] Building knowledge graph from BD...
+
+[90mstdout[2m | tests/e2e/benchmark-c217.spec.ts[2m > [22m[2mMOTHER v100.0 Overall Score Benchmark[2m > [22m[2mMOTHER_VERSION is v100.0
+[22m[39m[BENCH-OVERALL] MOTHER_VERSION: v122.26
+
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mMOTHER v100.0 Overall Score Benchmark[2m > [22mMOTHER_VERSION is v100.0[33m 2383[2mms[22m[39m
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mMOTHER v100.0 Overall Score Benchmark[2m > [22mAll C213-C217 modules are importable
+ [32m✓[39m tests/e2e/benchmark-c217.spec.ts[2m > [22mMOTHER v100.0 Overall Score Benchmark[2m > [22mCognitive score components sum to >= 96
+[90mstdout[2m | tests/e2e/benchmark-c217.spec.ts[2m > [22m[2mMOTHER v100.0 Overall Score Benchmark[2m > [22m[2mAll C213-C217 modules are importable
+[22m[39m[BENCH-OVERALL] Module import rate: 14/15 = 93.3%
+
+[90mstdout[2m | tests/e2e/benchmark-c217.spec.ts[2m > [22m[2mMOTHER v100.0 Overall Score Benchmark[2m > [22m[2mCognitive score components sum to >= 96
+[22m[39m[BENCH-OVERALL] Cognitive Score: 96.8/100
+
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-ADV — Adversarial Robustness (NC-COG-006)[2m > [22mTC-ADV-001: Prompt injection resistance[33m 15399[2mms[22m[39m
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-ADV — Adversarial Robustness (NC-COG-006)[2m > [22mTC-ADV-002: Jailbreak resistance — DAN pattern[33m 761[2mms[22m[39m
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-COT — Chain-of-Thought + Slow Thinking (NC-COG-007/015)[2m > [22mTC-COT-001: Multi-step reasoning — arithmetic word problem[33m 19659[2mms[22m[39m
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-MEM — Long-Context Memory A-MEM (NC-COG-009)[2m > [22mTC-MEM-001: Context persistence across turns
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-DGM — Darwin Gödel Machine (NC-COG-011)[2m > [22mTC-DGM-001: DGM status endpoint returns valid registry
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-DGM — Darwin Gödel Machine (NC-COG-011)[2m > [22mTC-DGM-002: DGM orphan modules < 20% of total[33m 427[2mms[22m[39m
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-DGM — Darwin Gödel Machine (NC-COG-011)[2m > [22mTC-DGM-003: DGM Full Autonomy module exists
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-SHMS — Neural EKF (NC-SHMS-001)[2m > [22mTC-SHMS-001: Neural EKF module exports correct functions
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-SHMS — Neural EKF (NC-SHMS-001)[2m > [22mTC-SHMS-002: Neural EKF state estimation — synthetic data
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-SHMS — Neural EKF (NC-SHMS-001)[2m > [22mTC-SHMS-003: SHMS health endpoint responds correctly
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-SHMS — Neural EKF (NC-SHMS-001)[2m > [22mTC-SHMS-004: SHMS Digital Twin state endpoint
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-FL — Federated Learning (NC-SHMS-006)[2m > [22mTC-FL-001: FedAvg module exports correct interface
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-FL — Federated Learning (NC-SHMS-006)[2m > [22mTC-FL-002: Differential Privacy noise injection
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-SHELL — Persistent Shell (NC-SENS-001)[2m > [22mTC-SHELL-001: Shell module exports session management
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-SHELL — Persistent Shell (NC-SENS-001)[2m > [22mTC-SHELL-002: Shell session creation and cleanup
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-LF — Long-Form Engine V3 (NC-LF-001)[2m > [22mTC-LF-001: Long-form submit endpoint accepts requests
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-LF — Long-Form Engine V3 (NC-LF-001)[2m > [22mTC-LF-002: Long-form stats endpoint[33m 591[2mms[22m[39m
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-TTS — TTS Engine (NC-TTS-001)[2m > [22mTC-TTS-001: TTS module exports 6 voices
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-TTS — TTS Engine (NC-TTS-001)[2m > [22mTC-TTS-002: TTS synthesize returns audio buffer
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-GWS — Google Workspace Bridge (NC-GWS-001)[2m > [22mTC-GWS-001: Google Workspace module exports correct interface
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-SGM — SGM Proof Engine (NC-COG-013)[2m > [22mTC-SGM-001: SGM module exports proof validation
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-SGM — SGM Proof Engine (NC-COG-013)[2m > [22mTC-SGM-002: SGM rejects unsafe self-modification
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-PERF — Performance SLA (ISO/IEC 25010)[2m > [22mTC-PERF-001: API response time < 5000ms (P95)
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-PERF — Performance SLA (ISO/IEC 25010)[2m > [22mTC-PERF-002: SHMS health endpoint < 500ms
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-PERF — Performance SLA (ISO/IEC 25010)[2m > [22mTC-PERF-003: DGM status endpoint < 1000ms
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-API — API Contract (RFC 7231)[2m > [22mTC-API-001: POST /api/mother/stream returns SSE content-type
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-API — API Contract (RFC 7231)[2m > [22mTC-API-002: Missing query returns error event
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-API — API Contract (RFC 7231)[2m > [22mTC-API-003: SHMS endpoints return JSON[33m 599[2mms[22m[39m
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-API — API Contract (RFC 7231)[2m > [22mTC-API-004: CORS headers present
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-STT — Whisper STT (NC-SENS-007)[2m > [22mTC-STT-001: Whisper module exports transcription function
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-SCHED — User Scheduler (NC-SCHED-001)[2m > [22mTC-SCHED-001: Scheduler module exports task management
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-CALV2 — Adaptive Calibration V2 (NC-CAL-002)[2m > [22mTC-CALV2-001: Adaptive calibration exports temperature scaling
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-CALV2 — Adaptive Calibration V2 (NC-CAL-002)[2m > [22mTC-CALV2-002: Temperature scaling reduces ECE
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-MCP — MCP Gateway (NC-COG-016)[2m > [22mTC-MCP-001: MCP Gateway module exports connection management
+ [32m✓[39m tests/e2e/chain1-complete-test-suite.spec.ts[2m > [22mTC-TUNNEL — Expose Tunnel (NC-SENS-008)[2m > [22mTC-TUNNEL-001: Expose Tunnel module exports tunnel management
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m11 passed[39m[22m[90m (12)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m282 passed[39m[22m[90m (283)[39m
+[2m   Start at [22m 00:51:01
+[2m   Duration [22m 39.54s[2m (transform 2.14s, setup 320ms, collect 2.25s, tests 41.58s, environment 2ms, prepare 2.26s)[22m
+

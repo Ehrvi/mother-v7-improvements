@@ -25,6 +25,7 @@ import { ENV } from '../_core/env';
 import { applyGuardianPatches } from './guardian-patches'; // v74.8: NC-GUARD-001, NC-GUARD-002
 import { applyConstitutionalAI } from './constitutional-ai'; // v74.15: NC-QUALITY-008
 import { reliabilityLogger } from './reliability-logger'; // v74.9: Four Golden Signals monitoring
+import { evaluateWithAgent } from './agent-as-judge'; // P3 Upgrade: Agent-as-Judge (90% human agreement)
 
 export interface GuardianResult {
   qualityScore: number; // 0-100
@@ -466,8 +467,21 @@ export async function validateQuality(
   knowledgeContext?: string
 ): Promise<GuardianResult> {
   
-  // ---- Primary: G-Eval LLM-as-judge ----
-  const gEvalScores = await runGEvalLLMJudge(query, response, knowledgeContext);
+  // ---- P3 UPGRADE: Agent-as-Judge for complex queries ----
+  // Scientific basis: Agent-as-Judge (Galileo, 2025) — 90% human agreement (vs G-Eval ~70%)
+  // Used for longer/complex responses where deeper evaluation justifies the cost (~$0.01/eval)
+  const isComplexQuery = query.length > 200 || response.length > 1000;
+  let agentResult: Awaited<ReturnType<typeof evaluateWithAgent>> = null;
+  if (isComplexQuery) {
+    agentResult = await evaluateWithAgent(query, response, knowledgeContext);
+    if (agentResult) {
+      console.log(`[Guardian] Agent-as-Judge score: ${agentResult.overallScore} (taskType=${agentResult.taskType}, ${agentResult.latencyMs}ms)`);
+      reliabilityLogger.info('guardian', `Agent-as-Judge score: ${agentResult.overallScore}`, { method: 'agent-judge', taskType: agentResult.taskType });
+    }
+  }
+
+  // ---- Primary: G-Eval LLM-as-judge (used when Agent-as-Judge unavailable) ----
+  const gEvalScores = agentResult ? null : await runGEvalLLMJudge(query, response, knowledgeContext);
   
   let qualityScore: number;
   let evaluationMethod: 'llm' | 'heuristic';
@@ -478,7 +492,21 @@ export async function validateQuality(
   let safetyScore: number;
   const allIssues: string[] = [];
   
-  if (gEvalScores) {
+  if (agentResult) {
+    // ---- Agent-as-Judge path (P3 Upgrade) ----
+    evaluationMethod = 'llm';
+    qualityScore = agentResult.overallScore;
+
+    // Map agent criteria to legacy interface fields
+    const findCriterion = (name: string) => agentResult!.criteria.find(c => c.name === name);
+    completenessScore = ((findCriterion('Completeness')?.score || 3) - 1) / 4 * 100;
+    accuracyScore = ((findCriterion('Accuracy')?.score || findCriterion('Correctness')?.score || 3) - 1) / 4 * 100;
+    relevanceScore = ((findCriterion('Relevance')?.score || 3) - 1) / 4 * 100;
+    coherenceScore = ((findCriterion('Clarity')?.score || findCriterion('Coherence')?.score || 3) - 1) / 4 * 100;
+    safetyScore = ((findCriterion('Safety')?.score || 5) - 1) / 4 * 100;
+
+    console.log(`[Guardian] Using Agent-as-Judge: Q=${qualityScore}`);
+  } else if (gEvalScores) {
     // ---- LLM-as-judge path ----
     evaluationMethod = 'llm';
     qualityScore = gEvalToQualityScore(gEvalScores, response); // v69.15: pass response for sci bonus

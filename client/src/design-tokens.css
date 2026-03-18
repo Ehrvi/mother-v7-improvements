@@ -1,0 +1,106 @@
+/**
+ * MOTHER — Design System Tokens
+ * Replaces all inline oklch() values with consistent, named CSS custom properties.
+ * 
+ * Color palette: Deep violet/purple primary theme with cyan accents.
+ * Based on: Material Design 3 dynamic color + OKLCH perceptual uniformity
+ */
+
+:root {
+  /* ═══ Background Layers ═══ */
+  --bg-void: #06060c;
+  --bg-deep: #0a0a14;
+  --bg-base: #0e0e1a;
+  --bg-surface: #141422;
+  --bg-elevated: #1a1a2e;
+  --bg-hover: #22223a;
+  
+  /* ═══ Text Hierarchy ═══ */
+  --text-primary: #f0f0ff;
+  --text-secondary: #a0a0c0;
+  --text-tertiary: #606080;
+  --text-muted: #404060;
+  
+  /* ═══ Accent Colors ═══ */
+  --accent-primary: #a78bfa;
+  --accent-primary-dim: rgba(167, 139, 250, 0.15);
+  --accent-primary-glow: rgba(167, 139, 250, 0.3);
+  --accent-secondary: #22d3ee;
+  --accent-secondary-dim: rgba(34, 211, 238, 0.15);
+  
+  /* ═══ Semantic Colors ═══ */
+  --success: #34d399;
+  --warning: #fbbf24;
+  --error: #f87171;
+  
+  /* ═══ Border / Divider ═══ */
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.1);
+  --border-accent: rgba(167, 139, 250, 0.3);
+  
+  /* ═══ Gradients ═══ */
+  --gradient-primary: linear-gradient(135deg, #7c3aed, #6d28d9);
+  --gradient-glow: radial-gradient(ellipse at center, rgba(124, 58, 237, 0.15) 0%, transparent 70%);
+  
+  /* ═══ Shadows ═══ */
+  --shadow-glow-sm: 0 0 20px rgba(124, 58, 237, 0.15);
+  --shadow-glow-md: 0 0 40px rgba(124, 58, 237, 0.2);
+  --shadow-glow-lg: 0 0 80px rgba(124, 58, 237, 0.25);
+  --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.5);
+  
+  /* ═══ Animation ═══ */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
+}
+
+/* ═══ Animations ═══ */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(124, 58, 237, 0.2); }
+  50% { box-shadow: 0 0 40px rgba(124, 58, 237, 0.4); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.6s var(--ease-out-expo) both;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s var(--ease-out-expo) both;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.5s var(--ease-out-expo) both;
+}
+
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
+.stagger-5 { animation-delay: 0.25s; }

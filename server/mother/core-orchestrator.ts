@@ -50,7 +50,7 @@ import {
 } from './circuit-breaker';
 import { validateQuality, type GuardianResult } from './guardian';
 import { MOTHER_TOOLS, executeTool, type ToolExecutionContext } from './tool-engine';
-import { startSpan, endSpan, recordRequest as obsRecordRequest, recordMetric } from './observability'; // F2-2 (Ciclo 170): OpenTelemetry per-layer tracing (CNCF 2023)
+import { startSpan, endSpan, recordRequest as obsRecordRequest, recordMetric, traceRequest, endTrace } from './observability'; // F2-2 + P1 Langfuse tracing
 // C172 (Ciclo 172): Backend Fixes — Conselho Fase 2 P0
 // Fix 1: active-study reconnect — shouldTriggerActiveStudy was only in core.ts, not core-orchestrator.ts
 // Scientific basis: Proactive Agents (arXiv:2410.12361) — agents anticipate knowledge needs
@@ -1420,6 +1420,8 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
   // Scientific basis: CNCF OpenTelemetry (2023) — distributed tracing standard
   // Enables per-layer latency analysis to identify bottlenecks (Amdahl 1967)
   const rootSpan = startSpan('orchestrate', undefined, { query: req.query.slice(0, 100), userId: req.userId ?? 'anon' });  // F2-2
+  // P1 Upgrade: Langfuse-compatible request trace (hierarchical, exportable)
+  const langfuseTrace = traceRequest(`orch_${startTotal}`, { query: req.query.slice(0, 200) }, { userId: req.userId ?? 'anon' });
   // Helper: emit phase event safely (never throws, never blocks)
   const emitPhase = (phase: 'searching' | 'reasoning' | 'writing' | 'quality_check' | 'complete', meta?: Record<string, unknown>) => {
     try { req.onPhase?.(phase, { timestamp: Date.now(), ...meta }); } catch { /* non-blocking */ }
@@ -1894,6 +1896,30 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
         queryLength: req.query.length,
         responseLength: l4.response.length,
         timestamp: new Date(),
+      });
+    } catch { /* non-blocking */ }
+  });
+
+  // P1 Upgrade: End Langfuse trace with output metadata
+  endTrace(langfuseTrace.traceId, {
+    tier: l2.routing.tier,
+    provider: l4.provider,
+    model: l4.model,
+    qualityScore: l5.qualityScore,
+    latencyMs: totalLatency,
+  });
+
+  // P2 Upgrade: Record routing outcome for ML classifier training
+  // Scientific basis: RouteLLM (Ong et al., 2024) — preference data improves routing accuracy
+  setImmediate(() => {
+    try {
+      const { recordRoutingOutcome } = require('./learned-router');
+      recordRoutingOutcome({
+        query: req.query,
+        tier: l2.routing.tier,
+        qualityScore: l5.qualityScore,
+        provider: l4.provider,
+        timestamp: Date.now(),
       });
     } catch { /* non-blocking */ }
   });

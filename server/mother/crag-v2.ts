@@ -20,6 +20,7 @@
 import { createHash } from 'crypto';
 import { reliabilityLogger } from './reliability-logger';
 import { invokeLLM } from '../_core/llm';
+import { isMultiHopQuery, sealRetrieve, type SEALResult } from './seal-rag'; // P4 Upgrade: SEAL-RAG for multi-hop
 
 export interface CRAGv2Document {
   content: string;
@@ -58,6 +59,47 @@ export async function cragV2Retrieve(
   userId?: number
 ): Promise<CRAGv2Result> {
   reliabilityLogger.info('crag', `Starting v2 retrieval for: "${query.slice(0, 80)}"`);
+
+  // ═══ P4 UPGRADE: SEAL-RAG for multi-hop queries ═══
+  // Scientific basis: SEAL-RAG (Lahmy & Yozevitch, arXiv:2512.10787, 2025)
+  // +13pp accuracy on HotpotQA, 96% evidence precision
+  if (isMultiHopQuery(query)) {
+    reliabilityLogger.info('crag', `Multi-hop query detected → delegating to SEAL-RAG`);
+    try {
+      // First do standard retrieval to get initial documents
+      const allQueries = [query];
+      const rawDocuments = await hybridMultiSourceRetrieval(allQueries);
+      const initialDocs = rawDocuments.slice(0, 8).map(d => ({
+        content: d.content,
+        source: d.source,
+        relevanceScore: d.hybridScore || d.relevanceScore,
+      }));
+
+      const sealResult = await sealRetrieve(query, initialDocs, 5, 2);
+      reliabilityLogger.info('crag', `SEAL-RAG: ${sealResult.replacementsMade} replacements, ${sealResult.iterations} iterations, precision=${(sealResult.evidencePrecision*100).toFixed(0)}%`);
+
+      return {
+        context: sealResult.context,
+        documents: sealResult.documents.map(d => ({
+          content: d.content,
+          source: d.source,
+          sourceType: 'knowledge_db' as const,
+          relevanceScore: d.relevanceScore,
+          isGrounded: true,
+          hybridScore: d.gapClosingScore || d.relevanceScore,
+        })),
+        queryRewritten: false,
+        correctiveSearchTriggered: sealResult.replacementsMade > 0,
+        totalDocuments: sealResult.fixedK,
+        relevantDocuments: sealResult.documents.filter(d => d.relevanceScore >= 0.5).length,
+        cacheHit: false,
+        retrievalStrategy: 'hybrid' as const,
+      };
+    } catch (e) {
+      reliabilityLogger.warn('crag', `SEAL-RAG failed, falling back to standard CRAG: ${(e as Error).message}`);
+      // Fall through to standard pipeline
+    }
+  }
   
   // Step 1: Check expansion cache
   const queryHash = createHash('sha256').update(query.toLowerCase().trim()).digest('hex').slice(0, 16);

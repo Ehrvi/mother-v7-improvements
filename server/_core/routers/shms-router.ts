@@ -120,7 +120,6 @@ shmsRouter.get('/dashboard/:structureId', async (req: Request, res: Response) =>
  */
 shmsRouter.get('/history/:structureId', async (req: Request, res: Response) => {
   try {
-    const { queryReadingsHistory } = await import('../../shms/timescale-pg-client.js');
     const { structureId } = req.params;
     const hours = parseInt((req.query.hours as string) ?? '24', 10);
     const sensorType = req.query.sensorType as string | undefined;
@@ -131,12 +130,66 @@ shmsRouter.get('/history/:structureId', async (req: Request, res: Response) => {
       return;
     }
 
-    const result = await queryReadingsHistory({ structureId, hours, sensorType, limit });
+    // Try real data first
+    let readings: any[] = [];
+    let total = 0;
+    let source = 'synthetic';
+    try {
+      const { queryReadingsHistory } = await import('../../shms/timescale-pg-client.js');
+      const result = await queryReadingsHistory({ structureId, hours, sensorType, limit });
+      readings = result.readings ?? [];
+      total = result.total ?? 0;
+      if (readings.length > 0) source = 'timescaledb';
+    } catch { /* TimescaleDB unavailable — fall through to synthetic */ }
+
+    // Synthetic fallback: generate from dashboard sensor catalog
+    if (readings.length === 0) {
+      const { getDashboardData, SENSOR_CATALOG } = await import('../../mother/dashboard-shms.js');
+      const dashboard = await getDashboardData(structureId);
+      const sensors = sensorType
+        ? dashboard.sensors.filter(s => s.sensorType === sensorType)
+        : dashboard.sensors;
+
+      const now = Date.now();
+      const intervalMs = 30 * 60 * 1000; // 30-min intervals
+      const points = Math.min(Math.floor(hours * 2), limit); // 2 readings per hour
+
+      // Seeded PRNG for consistency
+      let seed = structureId.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+      const rng = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+
+      for (const sensor of sensors) {
+        const spec = SENSOR_CATALOG.find((s: any) => s.type === sensor.sensorType);
+        const noisePercent = spec?.noise ?? 5;
+        const noiseAmt = Math.abs(sensor.lastReading) * (noisePercent / 100);
+
+        for (let i = 0; i < points; i++) {
+          const t = new Date(now - (points - i) * intervalMs);
+          const drift = Math.sin(i / 12 * Math.PI) * noiseAmt * 0.3;
+          const jitter = (rng() - 0.5) * noiseAmt * 2;
+          readings.push({
+            time: t.toISOString(),
+            sensorId: sensor.sensorId,
+            sensorType: sensor.sensorType,
+            value: parseFloat((sensor.lastReading + drift + jitter).toFixed(4)),
+            unit: sensor.unit,
+          });
+        }
+      }
+      // Sort by time
+      readings.sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime());
+      // Limit
+      if (readings.length > limit) readings = readings.slice(-limit);
+      total = readings.length;
+    }
+
     res.json({
       structureId,
       hours,
       sensorType: sensorType ?? 'all',
-      ...result,
+      readings,
+      total,
+      source,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
@@ -774,5 +827,170 @@ shmsRouter.get('/tarp/:structureId', async (req: Request, res: Response) => {
   } catch (err) {
     log.error('[SHMSRouter] tarp error:', err);
     res.status(500).json({ error: 'TARP service unavailable' });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════════════
+// MULTI-PROTOCOL DATA INGESTION ENDPOINTS
+// Scientific basis:
+//   - IEC 61158:2023 (Modbus), IEC 62541:2020 (OPC-UA)
+//   - LoRa Alliance TS001-1.0.4, TIA/EIA-232-F (RS-232)
+//   - GISTM 2020 §8.2 — Instrumentation data quality
+//   - ICOLD Bulletin 158 §4.3 — Sensor data requirements
+// ════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /shms/ingest/status — Status of all protocol adapters
+ * Returns ingestion stats and configuration for every supported protocol.
+ */
+shmsRouter.get('/ingest/status', async (_req: Request, res: Response) => {
+  try {
+    const { getAllConnectorStatuses } = await import('../../shms/shms-protocol-adapters.js');
+    const statuses = getAllConnectorStatuses();
+    res.json({
+      connectors: statuses,
+      totalProtocols: statuses.length,
+      activeProtocols: statuses.filter(s => s.status === 'active').length,
+      timestamp: new Date().toISOString(),
+      scientificBasis: 'ICOLD Bulletin 158 §4.3 — Multi-source data acquisition',
+    });
+  } catch (err) {
+    log.error('[SHMSRouter] ingest/status error:', err);
+    res.status(500).json({ error: 'Ingestion status unavailable' });
+  }
+});
+
+/**
+ * POST /shms/ingest/modbus — Modbus RTU/TCP data ingestion
+ * Scientific basis: IEC 61158:2023 — Modbus application protocol
+ * Supports Function Code 3 (Read Holding Registers) and 4 (Read Input Registers).
+ */
+shmsRouter.post('/ingest/modbus', authenticateA2A, async (req: Request, res: Response) => {
+  try {
+    const { ingestModbus } = await import('../../shms/shms-protocol-adapters.js');
+    const result = ingestModbus(req.body);
+    res.status(result.success ? 200 : 400).json(result);
+  } catch (err) {
+    log.error('[SHMSRouter] ingest/modbus error:', err);
+    res.status(500).json({ error: 'Modbus ingestion unavailable' });
+  }
+});
+
+/**
+ * POST /shms/ingest/opcua — OPC-UA data ingestion
+ * Scientific basis: IEC 62541:2020 — OPC Unified Architecture
+ * Accepts node values with OPC-UA StatusCode quality mapping.
+ */
+shmsRouter.post('/ingest/opcua', authenticateA2A, async (req: Request, res: Response) => {
+  try {
+    const { ingestOpcua } = await import('../../shms/shms-protocol-adapters.js');
+    const result = ingestOpcua(req.body);
+    res.status(result.success ? 200 : 400).json(result);
+  } catch (err) {
+    log.error('[SHMSRouter] ingest/opcua error:', err);
+    res.status(500).json({ error: 'OPC-UA ingestion unavailable' });
+  }
+});
+
+/**
+ * POST /shms/ingest/lorawan — LoRaWAN uplink data ingestion
+ * Scientific basis: LoRa Alliance TS001-1.0.4 (2020)
+ * Decodes base64 payload using configurable byte-level sensor mapping.
+ */
+shmsRouter.post('/ingest/lorawan', authenticateA2A, async (req: Request, res: Response) => {
+  try {
+    const { ingestLorawan } = await import('../../shms/shms-protocol-adapters.js');
+    const result = ingestLorawan(req.body);
+    res.status(result.success ? 200 : 400).json(result);
+  } catch (err) {
+    log.error('[SHMSRouter] ingest/lorawan error:', err);
+    res.status(500).json({ error: 'LoRaWAN ingestion unavailable' });
+  }
+});
+
+/**
+ * POST /shms/ingest/csv — CSV/Excel batch import
+ * Scientific basis: GISTM 2020 §8.2 — Historical data integration
+ * Imports instrumentation campaign data with column mapping configuration.
+ */
+shmsRouter.post('/ingest/csv', authenticateA2A, async (req: Request, res: Response) => {
+  try {
+    const { ingestCsv } = await import('../../shms/shms-protocol-adapters.js');
+    const result = ingestCsv(req.body);
+    res.status(result.success ? 200 : 400).json(result);
+  } catch (err) {
+    log.error('[SHMSRouter] ingest/csv error:', err);
+    res.status(500).json({ error: 'CSV ingestion unavailable' });
+  }
+});
+
+/**
+ * POST /shms/ingest/scada — SCADA system data ingestion
+ * Scientific basis: IEC 62351:2020 — SCADA security; OPC-DA quality codes
+ * Maps OPC quality codes (0-192) to GISTM data quality levels.
+ */
+shmsRouter.post('/ingest/scada', authenticateA2A, async (req: Request, res: Response) => {
+  try {
+    const { ingestScada } = await import('../../shms/shms-protocol-adapters.js');
+    const result = ingestScada(req.body);
+    res.status(result.success ? 200 : 400).json(result);
+  } catch (err) {
+    log.error('[SHMSRouter] ingest/scada error:', err);
+    res.status(500).json({ error: 'SCADA ingestion unavailable' });
+  }
+});
+
+/**
+ * POST /shms/ingest/serial — Serial port data logger ingestion
+ * Scientific basis: TIA/EIA-232-F (RS-232), TIA/EIA-485-A (RS-485)
+ * Supports ASCII regex parsing, binary (hex) decoding, and NMEA sentences.
+ */
+shmsRouter.post('/ingest/serial', authenticateA2A, async (req: Request, res: Response) => {
+  try {
+    const { ingestSerial } = await import('../../shms/shms-protocol-adapters.js');
+    const result = ingestSerial(req.body);
+    res.status(result.success ? 200 : 400).json(result);
+  } catch (err) {
+    log.error('[SHMSRouter] ingest/serial error:', err);
+    res.status(500).json({ error: 'Serial ingestion unavailable' });
+  }
+});
+
+/**
+ * POST /shms/ingest/http — Generic HTTP REST data push
+ * Scientific basis: Fielding (2000) — REST architectural style
+ * Accepts standardized JSON payloads from any third-party system.
+ */
+shmsRouter.post('/ingest/http', authenticateA2A, async (req: Request, res: Response) => {
+  try {
+    const { ingestHttpRest } = await import('../../shms/shms-protocol-adapters.js');
+    const result = ingestHttpRest(req.body);
+    res.status(result.success ? 200 : 400).json(result);
+  } catch (err) {
+    log.error('[SHMSRouter] ingest/http error:', err);
+    res.status(500).json({ error: 'HTTP REST ingestion unavailable' });
+  }
+});
+
+/**
+ * POST /shms/ingest — Universal ingestion dispatcher
+ * Routes to the appropriate protocol adapter based on the `protocol` field in the payload.
+ * Body: { protocol: IngestionProtocol, payload: <protocol-specific payload> }
+ */
+shmsRouter.post('/ingest', authenticateA2A, async (req: Request, res: Response) => {
+  try {
+    const { ingestByProtocol } = await import('../../shms/shms-protocol-adapters.js');
+    const { protocol, payload } = req.body as { protocol: string; payload: unknown };
+
+    if (!protocol) {
+      res.status(400).json({ error: 'Field "protocol" is required. Supported: mqtt, modbus, opcua, lorawan, csv, scada, serial, http-rest' });
+      return;
+    }
+
+    const result = ingestByProtocol(protocol as import('../../shms/shms-protocol-adapters.js').IngestionProtocol, payload);
+    res.status(result.success ? 200 : 400).json(result);
+  } catch (err) {
+    log.error('[SHMSRouter] ingest (universal) error:', err);
+    res.status(500).json({ error: 'Universal ingestion unavailable' });
   }
 });

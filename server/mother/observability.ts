@@ -335,3 +335,234 @@ export function recordDeployment(success: boolean): void {
   if (!success) counters.incidents++;
   recordMetric('deployment', 1, { success: String(success) }, 'count');
 }
+
+// ============================================================
+// LANGFUSE-COMPATIBLE DISTRIBUTED TRACING (P1 Upgrade)
+// Scientific basis:
+// - OpenTelemetry (CNCF, 2023) — distributed tracing standard
+// - Langfuse (2024) — LLM observability, OTLP-compatible
+// - Helicone (2024) — per-layer latency tracking
+// ============================================================
+
+export type PipelineLayer =
+  | 'intake'
+  | 'cache_lookup'
+  | 'routing'
+  | 'context_assembly'
+  | 'generation'
+  | 'tool_execution'
+  | 'guardian'
+  | 'memory_writeback'
+  | 'dgm_observation';
+
+const PIPELINE_LAYERS: PipelineLayer[] = [
+  'intake', 'cache_lookup', 'routing', 'context_assembly',
+  'generation', 'tool_execution', 'guardian', 'memory_writeback', 'dgm_observation',
+];
+
+// Per-layer latency histograms for P50/P95/P99 breakdown
+const layerLatencyHistogram: Record<string, number[]> = {};
+for (const layer of PIPELINE_LAYERS) {
+  layerLatencyHistogram[layer] = [];
+}
+
+export interface LangfuseTrace {
+  traceId: string;
+  name: string;
+  startTime: Date;
+  endTime?: Date;
+  input?: Record<string, unknown>;
+  output?: Record<string, unknown>;
+  metadata: Record<string, string | number | boolean>;
+  spans: LangfuseSpan[];
+  totalDurationMs?: number;
+}
+
+export interface LangfuseSpan {
+  spanId: string;
+  parentSpanId?: string;
+  name: string;
+  layer: PipelineLayer;
+  startTime: Date;
+  endTime?: Date;
+  durationMs?: number;
+  status: 'OK' | 'ERROR' | 'SKIPPED';
+  attributes: Record<string, string | number | boolean>;
+  events: Array<{ name: string; timestamp: Date; attributes?: Record<string, unknown> }>;
+}
+
+// Active traces registry
+const activeTraces = new Map<string, LangfuseTrace>();
+const completedTraces: LangfuseTrace[] = [];
+const MAX_COMPLETED_TRACES = 500;
+
+/**
+ * Start a new request trace (Langfuse-compatible).
+ * Creates a parent trace that child layer spans attach to.
+ */
+export function traceRequest(
+  requestId: string,
+  input?: Record<string, unknown>,
+  metadata: Record<string, string | number | boolean> = {},
+): LangfuseTrace {
+  const trace: LangfuseTrace = {
+    traceId: requestId || `trace_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    name: 'mother.request',
+    startTime: new Date(),
+    input,
+    metadata,
+    spans: [],
+  };
+  activeTraces.set(trace.traceId, trace);
+  return trace;
+}
+
+/**
+ * Start a layer span within a trace.
+ */
+export function startLayerSpan(
+  traceId: string,
+  layer: PipelineLayer,
+  attributes: Record<string, string | number | boolean> = {},
+): LangfuseSpan {
+  const span: LangfuseSpan = {
+    spanId: `${layer}_${Math.random().toString(36).slice(2, 8)}`,
+    name: `mother.${layer}`,
+    layer,
+    startTime: new Date(),
+    status: 'OK',
+    attributes,
+    events: [],
+  };
+
+  const trace = activeTraces.get(traceId);
+  if (trace) {
+    span.parentSpanId = trace.traceId;
+    trace.spans.push(span);
+  }
+
+  return span;
+}
+
+/**
+ * End a layer span and record latency.
+ */
+export function endLayerSpan(
+  span: LangfuseSpan,
+  status: LangfuseSpan['status'] = 'OK',
+  extraAttributes?: Record<string, string | number | boolean>,
+): void {
+  span.endTime = new Date();
+  span.durationMs = span.endTime.getTime() - span.startTime.getTime();
+  span.status = status;
+
+  if (extraAttributes) {
+    Object.assign(span.attributes, extraAttributes);
+  }
+
+  // Record per-layer latency
+  const histogram = layerLatencyHistogram[span.layer];
+  if (histogram) {
+    histogram.push(span.durationMs);
+    if (histogram.length > 1000) {
+      layerLatencyHistogram[span.layer] = histogram.slice(-1000);
+    }
+  }
+
+  recordMetric('layer_duration_ms', span.durationMs, { layer: span.layer, status }, 'ms');
+}
+
+/**
+ * End a request trace.
+ */
+export function endTrace(
+  traceId: string,
+  output?: Record<string, unknown>,
+): LangfuseTrace | undefined {
+  const trace = activeTraces.get(traceId);
+  if (!trace) return undefined;
+
+  trace.endTime = new Date();
+  trace.totalDurationMs = trace.endTime.getTime() - trace.startTime.getTime();
+  trace.output = output;
+
+  activeTraces.delete(traceId);
+  completedTraces.push(trace);
+  if (completedTraces.length > MAX_COMPLETED_TRACES) {
+    completedTraces.splice(0, completedTraces.length - MAX_COMPLETED_TRACES);
+  }
+
+  return trace;
+}
+
+/**
+ * Helper: Wrap a pipeline layer function with automatic span tracing.
+ * Usage: const result = await traceLayer(traceId, 'routing', { tier: 'TIER_3' }, async () => { ... });
+ */
+export async function traceLayer<T>(
+  traceId: string,
+  layer: PipelineLayer,
+  attributes: Record<string, string | number | boolean>,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const span = startLayerSpan(traceId, layer, attributes);
+  try {
+    const result = await fn();
+    endLayerSpan(span, 'OK');
+    return result;
+  } catch (err) {
+    endLayerSpan(span, 'ERROR', { error: (err as Error).message });
+    throw err;
+  }
+}
+
+/**
+ * Get per-layer latency percentiles.
+ * Returns P50/P95/P99 for each pipeline layer.
+ */
+export function getLayerLatencyBreakdown(): Record<PipelineLayer, { p50: number; p95: number; p99: number; count: number }> {
+  const result = {} as Record<PipelineLayer, { p50: number; p95: number; p99: number; count: number }>;
+  for (const layer of PIPELINE_LAYERS) {
+    const values = layerLatencyHistogram[layer] || [];
+    result[layer] = {
+      p50: computePercentile(values, 50),
+      p95: computePercentile(values, 95),
+      p99: computePercentile(values, 99),
+      count: values.length,
+    };
+  }
+  return result;
+}
+
+/**
+ * Get recent completed traces (for dashboard/debugging).
+ */
+export function getRecentTraces(limit = 20): LangfuseTrace[] {
+  return completedTraces.slice(-limit).reverse();
+}
+
+/**
+ * Export traces in Langfuse-compatible JSON format.
+ * Can be sent to Langfuse OTLP endpoint when self-hosted/cloud is configured.
+ */
+export function exportLangfuseTraces(limit = 50): object[] {
+  return completedTraces.slice(-limit).map(trace => ({
+    id: trace.traceId,
+    name: trace.name,
+    startTime: trace.startTime.toISOString(),
+    endTime: trace.endTime?.toISOString(),
+    input: trace.input,
+    output: trace.output,
+    metadata: trace.metadata,
+    observations: trace.spans.map(span => ({
+      id: span.spanId,
+      traceId: trace.traceId,
+      type: 'SPAN',
+      name: span.name,
+      startTime: span.startTime.toISOString(),
+      endTime: span.endTime?.toISOString(),
+      metadata: span.attributes,
+      level: span.status === 'ERROR' ? 'ERROR' : 'DEFAULT',
+    })),
+  }));
+}

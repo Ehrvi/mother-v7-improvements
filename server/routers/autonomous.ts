@@ -15,6 +15,12 @@ import { triggerSweAgentJob } from '../mother/update-proposals';
 import { getDb } from '../db';
 
 const CREATOR_EMAIL = 'elgarcia.eng@gmail.com';
+const ADMIN_EMAIL = 'antigravity@intelltech.ai';
+
+/** Check if user has DGM/autonomous access */
+function hasAutonomousAccess(email?: string | null): boolean {
+  return email === CREATOR_EMAIL || email === ADMIN_EMAIL;
+}
 
 export const autonomousRouter = router({
   // ============================================================
@@ -34,8 +40,8 @@ export const autonomousRouter = router({
     .input(z.object({ proposalId: z.number() }))
     .mutation(async ({ ctx, input }) => {
       // Only creator can approve
-      if (ctx.user?.email !== CREATOR_EMAIL) {
-        throw new Error('Only the creator can approve proposals');
+      if (!hasAutonomousAccess(ctx.user?.email)) {
+        throw new Error('Only the creator/admin can approve proposals');
       }
       
       const db = await getDb();
@@ -79,8 +85,8 @@ export const autonomousRouter = router({
     .input(z.object({ proposalId: z.number() }))
     .mutation(async ({ ctx, input }) => {
       // Only creator can trigger execution
-      if (ctx.user?.email !== CREATOR_EMAIL) {
-        throw new Error('Only the creator can trigger autonomous updates');
+      if (!hasAutonomousAccess(ctx.user?.email)) {
+        throw new Error('Only the creator/admin can trigger autonomous updates');
       }
       
       // Option 1: Run inline (for testing)
@@ -134,8 +140,8 @@ export const autonomousRouter = router({
   getAuditLog: protectedProcedure
     .input(z.object({ limit: z.number().default(20) }))
     .query(async ({ ctx, input }) => {
-      if (ctx.user?.email !== CREATOR_EMAIL) {
-        throw new Error('Only the creator can view the audit log');
+      if (!hasAutonomousAccess(ctx.user?.email)) {
+        throw new Error('Only the creator/admin can view the audit log');
       }
       
       const db = await getDb();

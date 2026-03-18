@@ -100,7 +100,7 @@ export function useSSEStream(): UseSSEStreamReturn {
                 tier: parsed.tier as string,
                 modelName: parsed.modelName as string,
                 provider: parsed.provider as string,
-                queryCategory: parsed.queryCategory as string,
+                queryCategory: (parsed.layout_hint as string) || (parsed.queryCategory as string),
                 qualityScore: (parsed.quality as Record<string, number>)?.qualityScore,
                 costReduction: (parsed.quality as Record<string, number>)?.costReductionPercent,
                 responseTime: parsed.totalMs as number,

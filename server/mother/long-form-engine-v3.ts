@@ -5,10 +5,11 @@
  * C305: Programming book support — detect code-heavy requests and inject code generation
  *       instructions into section prompts. Adds 'programming_book' format with chapter
  *       structure matching user-specified chapters.
- * C306: Parallel section generation — Promise.all instead of sequential for loop.
- *       Reduces 5-section book from ~300s to ~60s (5× speedup).
- *       Live streaming — each section emits onChunk as it completes, so frontend
- *       shows content progressively instead of waiting for all sections.
+ * C306: Parallel section generation — Promise.all for non-streaming mode.
+ *       C352: BUGFIX — when streaming (onChunk), sections MUST be generated SEQUENTIALLY
+ *       to prevent token interleaving. Promise.all causes concurrent onChunk calls from
+ *       multiple sections, garbling the output. Sequential streaming preserves word order.
+ *       Non-streaming mode retains Promise.all for speed (5× speedup).
  *
  * Scientific basis:
  * - Bai et al. (2022) "Constitutional AI" arXiv:2212.08073 — structured document generation
@@ -358,42 +359,39 @@ Para cada seção, liste 3-5 pontos principais a cobrir. Seja específico e téc
       request.onChunk(`# ${request.title}\n\n`);
     }
 
-    // Phase 2: C306 — Generate ALL sections in PARALLEL (Promise.all)
-    // Scientific basis: Dean & Barroso (2013) CACM "The Tail at Scale"
-    // Parallel fan-out: 5 sections × 60s sequential → max(60s) parallel = 5× speedup
+    // Phase 2: C352 BUGFIX — SEQUENTIAL generation when streaming (onChunk)
+    // Root cause of word-swallowing: Promise.all runs all sections concurrently,
+    // each calling onChunk simultaneously — tokens from different sections INTERLEAVE.
+    // Fix: when streaming, generate sections ONE AT A TIME (sequential for-loop).
+    // When NOT streaming (no onChunk), use Promise.all for speed.
+    // Scientific basis: Nielsen (1994) Heuristic #1 — coherent output > fast output
     request.streamProgress?.({
       phase: 'writing',
       sectionIndex: 0,
       totalSections: sections.length,
-      currentSection: 'Gerando todas as seções em paralelo...',
+      currentSection: request.onChunk ? 'Gerando seções sequencialmente...' : 'Gerando seções em paralelo...',
       percentComplete: 10,
       wordCount: 0,
     });
 
-    const sectionPromises = sections.map(async (sectionName, i) => {
-      // C327: Pass isProg, versionStr, systemRules to buildCodeAwareSectionPrompt
-      // BUG 1: versionStr (dynamic) | BUG 2+3: constitutional constraints | BUG 4: isProg from outer scope
+    // Helper: generate a single section (used by both sequential and parallel paths)
+    const generateSection = async (sectionName: string, i: number, streamChunks: boolean) => {
       const sectionPrompt = buildCodeAwareSectionPrompt(
         sectionName, i, sections.length,
         request.title, request.topic, outline,
         Math.max(wordsPerSection, minWPS), language,
         request.includeReferences !== false,
-        isProg,       // C327 BUG 4: from generateLongFormV3 scope
-        versionStr,   // C327 BUG 1: dynamic version
-        request.systemRules, // C327 BUG 6: constitutional rules from core.ts
+        isProg,
+        versionStr,
+        request.systemRules,
       );
 
-      // C327+C331: maxTokensPerSection dynamic — default 12000 for quality
       const sectionMaxTokens = request.maxTokensPerSection ?? Math.max(12000, Math.max(wordsPerSection, minWPS) * 3);
       let content = '';
       let sectionAttempts = 0;
 
-      // C324: Token-level streaming — emit section header immediately, then stream tokens
-      // Scientific basis: Nielsen (1994) Heuristic #1 — 0.1s limit for immediate perception
-      // Tolia et al. (2006) — streaming reduces perceived latency 60%
-      // Strategy: on first attempt (Gemini), pass onChunk to invokeLLM for real token streaming.
-      // Accumulated tokens serve as content; on retry (GPT-4o fallback), use non-streaming.
-      if (request.onChunk) {
+      // C352: Only emit section header and stream tokens when streamChunks=true (sequential path)
+      if (streamChunks && request.onChunk) {
         request.onChunk(`\n\n## ${sectionName}\n\n`);
       }
 
@@ -403,9 +401,9 @@ Para cada seção, liste 3-5 pontos principais a cobrir. Seja específico e téc
         const provider = useGemini ? 'google' : 'openai';
         const maxTokens = useGemini ? sectionMaxTokens : Math.min(sectionMaxTokens, 16000);
 
-        // C324: Accumulate streamed tokens for content validation and retry logic
         let streamedContent = '';
-        const tokenAccumulator = request.onChunk && useGemini
+        // C352: Only pass onChunk when streaming sequentially — NEVER in parallel
+        const tokenAccumulator = streamChunks && request.onChunk && useGemini
           ? (chunk: string) => {
               streamedContent += chunk;
               request.onChunk!(chunk);
@@ -418,11 +416,9 @@ Para cada seção, liste 3-5 pontos principais a cobrir. Seja específico e téc
             model,
             provider: provider as any,
             maxTokens,
-            // C324: Pass onChunk only on first attempt (Gemini) for real token streaming
             ...(tokenAccumulator ? { onChunk: tokenAccumulator } : {}),
           });
 
-          // C324: Use streamed content if available; otherwise use result content
           const rawCandidate = streamedContent.length > 50
             ? streamedContent
             : (sectionResult.choices?.[0]?.message?.content ?? '');
@@ -431,9 +427,7 @@ Para cada seção, liste 3-5 pontos principais a cobrir. Seja específico e téc
           if (text.trim().length > 50) {
             content = text;
             sectionModelUsed = model;
-            // C324: If we streamed successfully, content is already emitted token-by-token
-            // If fallback (no streaming), emit the full content block now
-            if (!tokenAccumulator && request.onChunk) {
+            if (!tokenAccumulator && streamChunks && request.onChunk) {
               request.onChunk(content);
             }
             break;
@@ -442,20 +436,12 @@ Para cada seção, liste 3-5 pontos principais a cobrir. Seja específico e téc
         } catch (sectionErr) {
           sectionAttempts++;
           if (sectionAttempts >= 2) throw sectionErr;
-          console.warn(`[LongFormV3-C324] ${model} failed for section "${sectionName}", retrying with ${SECTION_MODEL_FALLBACK}:`, sectionErr);
-          // C324: On retry, re-emit section header since streaming was interrupted
-          if (request.onChunk && streamedContent.length > 0) {
-            // Streaming was partially done; fallback will emit the complete version
-            // No need to re-emit header — it was already sent
-          }
+          console.warn(`[LongFormV3-C352] ${model} failed for "${sectionName}", retrying with ${SECTION_MODEL_FALLBACK}:`, sectionErr);
         }
       }
 
-      // C324: Section content already streamed token-by-token (or emitted in fallback block above)
-      // No additional emit needed here — C306 section-complete emit replaced by C324 token streaming
-      console.log(`[LongFormV3-C324] Section "${sectionName}" streamed: ${content.length} chars, model=${sectionModelUsed}`);
+      console.log(`[LongFormV3-C352] Section "${sectionName}": ${content.length} chars, model=${sectionModelUsed}`);
 
-      // C306: Emit progress for this section
       request.streamProgress?.({
         phase: 'writing',
         sectionIndex: i + 1,
@@ -473,16 +459,27 @@ Para cada seção, liste 3-5 pontos principais a cobrir. Seja específico e téc
         section: { title: sectionName, content, wordCount, references: refMatches } as LongFormV3Section,
         refs: refMatches,
       };
-    });
+    };
 
-    // Wait for all sections to complete in parallel
-    const results = await Promise.all(sectionPromises);
-
-    // Reassemble in order (parallel execution may complete out of order)
-    for (const { index, section, refs } of results) {
-      generatedSections[index] = section;
-      totalWordCount += section.wordCount;
-      allReferences.push(...refs);
+    // C352: Choose execution strategy based on streaming mode
+    if (request.onChunk) {
+      // SEQUENTIAL — prevents token interleaving (C352 bugfix)
+      for (let i = 0; i < sections.length; i++) {
+        const result = await generateSection(sections[i], i, true);
+        generatedSections[result.index] = result.section;
+        totalWordCount += result.section.wordCount;
+        allReferences.push(...result.refs);
+      }
+    } else {
+      // PARALLEL — no streaming, safe to run concurrently for speed
+      const results = await Promise.all(
+        sections.map((sectionName, i) => generateSection(sectionName, i, false))
+      );
+      for (const { index, section, refs } of results) {
+        generatedSections[index] = section;
+        totalWordCount += section.wordCount;
+        allReferences.push(...refs);
+      }
     }
 
     // Phase 3: Review and assemble

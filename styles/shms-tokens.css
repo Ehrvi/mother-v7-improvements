@@ -1,0 +1,24 @@
+/**
+ * SHMS Design Tokens — CSS Custom Properties
+ * Used by SHMSPage.tsx for HPHMI-compliant dashboard styling
+ * ISA-18.2 / IEC 62682 color system
+ */
+
+:root {
+  /* SHMS Primary Colors */
+  --shms-bg-primary: #0a0e1a;
+  --shms-bg-secondary: #111827;
+  --shms-bg-elevated: #1f2937;
+  --shms-border: rgba(255, 255, 255, 0.06);
+
+  /* Status Colors (ISA-18.2) */
+  --shms-status-ok: #22c55e;
+  --shms-status-warn: #eab308;
+  --shms-status-alarm: #ef4444;
+  --shms-status-info: #3b82f6;
+
+  /* Text */
+  --shms-text-primary: #f9fafb;
+  --shms-text-secondary: #9ca3af;
+  --shms-text-muted: #6b7280;
+}

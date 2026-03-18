@@ -57,7 +57,7 @@ export interface FitnessMetrics {
 
 export interface ImprovementProposal {
   id: string;
-  type: 'CONFIG' | 'PROMPT' | 'ROUTING' | 'CACHE' | 'MODULE';
+  type: 'CONFIG' | 'PROMPT' | 'ROUTING' | 'CACHE' | 'MODULE' | 'ARCHITECTURE' | 'SAFETY' | 'PERFORMANCE' | 'OTHER';
   description: string;
   rationale: string;
   expectedFitnessGain: number;  // percentage points
@@ -181,6 +181,20 @@ export async function evaluateFitness(): Promise<FitnessMetrics> {
   // Persist to bd_central
   await persistFitnessMetrics(metrics);
 
+  // Gap 2 (arXiv:2507.21046, ClinicalReTrial arXiv:2601.00290):
+  // Feed fitness results to learning system for knowledge acquisition
+  if (proposals.length > 0) {
+    try {
+      const { learnFromEvolutionRun } = await import('./learning');
+      await learnFromEvolutionRun(
+        `dgm-fitness-${Date.now()}`,
+        fitnessScore / 100,
+        proposals.filter(p => p.approved).map(p => p.description),
+        'DGM self-improvement fitness evaluation'
+      );
+    } catch { /* non-blocking */ }
+  }
+
   return metrics;
 }
 
@@ -191,11 +205,44 @@ export async function evaluateFitness(): Promise<FitnessMetrics> {
 /**
  * Generate improvement proposals based on current fitness.
  * Scientific basis: DGM open-ended search (arXiv:2505.22954)
+ *
+ * Architecture: AI Delphi+MAD Council (arXiv:2603.08181, arXiv:2305.19118)
+ *   Phase 1 (Delphi): 5 AIs propose independently
+ *   Phase 2 (MAD): AIs critique each other's proposals
+ *   Phase 3 (Vote): Weighted consensus
+ *   Fallback: hardcoded rules if council fails
  */
 export async function generateProposals(): Promise<ImprovementProposal[]> {
   if (!currentFitness) await evaluateFitness();
   if (!currentFitness) return [];
 
+  // Guardian block: if system is unstable, do NOT propose changes
+  try {
+    const { getDGMManager } = await import('./dgm-manager');
+    if (!getDGMManager().isEvolutionAllowed()) {
+      addAuditEntry('EVALUATE', 'Evolution BLOCKED by Guardian — system unstable, skipping proposals');
+      return [];
+    }
+  } catch { /* manager may not be initialized yet */ }
+
+  // Try AI Council first (Delphi+MAD)
+  try {
+    const { runCouncilSession } = await import('./dgm-council');
+    const councilResult = await runCouncilSession(currentFitness);
+
+    if (!councilResult.fallbackUsed && councilResult.proposals.length > 0) {
+      proposals.push(...councilResult.proposals);
+      for (const p of councilResult.proposals) {
+        addAuditEntry('PROPOSE', `[COUNCIL] ${p.type}: ${p.description} (expected gain: +${p.expectedFitnessGain}%)`);
+      }
+      addAuditEntry('EVALUATE', `Council session: ${councilResult.membersResponded} AIs, ${councilResult.debateRounds} debate rounds, ${councilResult.proposals.length} proposals`);
+      return councilResult.proposals;
+    }
+  } catch (err: any) {
+    addAuditEntry('EVALUATE', `Council failed (${err.message?.slice(0, 100)}), falling back to rules`);
+  }
+
+  // Fallback: hardcoded rules (original logic)
   const newProposals: ImprovementProposal[] = [];
 
   // High latency → suggest routing optimization
@@ -345,6 +392,25 @@ function addAuditEntry(
   if (auditLog.length > MAX_AUDIT_ENTRIES) {
     auditLog.splice(0, auditLog.length - MAX_AUDIT_ENTRIES);
   }
+
+  // Gap 4 (arXiv:2502.12110 A-MEM, Nested Learning arXiv:2512.24695):
+  // Store audit entries in A-MEM for Zettelkasten cross-linking
+  // Connects short-term audit to long-term persistent memory
+  try {
+    import('./amem-agent').then(({ storeAMemEntry }) => {
+      storeAMemEntry({
+        query: `DGM ${action}: ${detail.slice(0, 200)}`,
+        response: detail,
+        qualityScore: action === 'REJECT' ? 0.3 : 0.8,
+        provider: 'dgm-agent',
+        model: 'internal',
+        tier: 'TIER_3',
+        latencyMs: 0,
+        tags: ['dgm', action.toLowerCase()],
+        timestamp: new Date().toISOString(),
+      }).catch(() => {});
+    }).catch(() => {});
+  } catch { /* non-blocking */ }
 }
 
 /**

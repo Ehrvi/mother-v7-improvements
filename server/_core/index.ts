@@ -57,6 +57,11 @@ async function startServer() {
   app.use("/api/monitor", monitorRouter);
   app.use("/api/long-form", longFormRouter);
 
+  // SHMS v2 routes — must be BEFORE Vite catch-all (setupVite)
+  // Without this, /api/shms/v2/* falls through to Vite which returns HTML
+  const { shmsRouter } = await import("../_core/routers/shms-router.js");
+  app.use("/api/shms/v2", shmsRouter);
+
   // SSE streaming endpoint — must be registered BEFORE Vite middleware
   // (Vite catch-all returns HTML for unmatched routes, causing "Resposta não recebida")
   app.post("/api/mother/stream", async (req, res) => {
@@ -179,6 +184,13 @@ async function startServer() {
     // C201-4b: HippoRAG2 indexing — index C200-C201 papers (non-blocking, 30s delay)
     // Scientific basis: HippoRAG2 (arXiv:2502.14802) — non-parametric continual learning
     scheduleC201Indexing();
+    // SHMS Knowledge Seeder — inject ICOLD/ISO/PNSB norms into RAG (5s delay, non-blocking)
+    setTimeout(async () => {
+      try {
+        const { seedShmsKnowledge } = await import("../mother/shms-knowledge-seeder.js");
+        await seedShmsKnowledge();
+      } catch (e) { console.warn('[SHMS] Knowledge seeding failed (non-blocking):', e); }
+    }, 5000);
   });
 }
 

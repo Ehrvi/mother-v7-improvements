@@ -10,6 +10,8 @@ import Admin from './pages/Admin';
 import SHMSPage from './pages/SHMSPage';
 import SHMS2DEnvironment from './pages/SHMS2DEnvironment';
 import SHMS3DEnvironment from './pages/SHMS3DEnvironment';
+import './design-tokens.css'; // Design system tokens
+import './accessibility.css'; // P5 Upgrade: WCAG 2.1 AA Accessibility
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { data: user, isLoading } = trpc.auth.me.useQuery();
@@ -38,18 +40,24 @@ function App() {
     <ThemeProvider defaultTheme="dark" switchable={true}>
       <ErrorBoundary componentName="App">
         <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<GuestGuard><Login /></GuestGuard>} />
-            <Route path="/" element={<AuthGuard><HomeV2 /></AuthGuard>} />
-            <Route path="/shms" element={<AuthGuard><SHMSPage /></AuthGuard>} />
-            <Route path="/shms/2d" element={<AuthGuard><SHMS2DEnvironment /></AuthGuard>} />
-            <Route path="/shms/3d" element={<AuthGuard><SHMS3DEnvironment /></AuthGuard>} />
-            <Route path="/lineage" element={<AuthGuard><DgmLineage /></AuthGuard>} />
-            <Route path="/dgm" element={<AuthGuard><DgmLineage /></AuthGuard>} />
-            <Route path="/dgm-test" element={<AuthGuard><DgmTest /></AuthGuard>} />
-            <Route path="/admin" element={<AuthGuard><Admin /></AuthGuard>} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          {/* P5 WCAG: Skip navigation for keyboard users */}
+          <a href="#main-content" className="skip-nav">Skip to main content</a>
+          <div lang="pt-BR" role="application" aria-label="MOTHER AI System">
+            <main id="main-content" role="main">
+              <Routes>
+                <Route path="/login" element={<GuestGuard><Login /></GuestGuard>} />
+                <Route path="/" element={<AuthGuard><HomeV2 /></AuthGuard>} />
+                <Route path="/lineage" element={<AuthGuard><DgmLineage /></AuthGuard>} />
+                <Route path="/dgm" element={<AuthGuard><DgmLineage /></AuthGuard>} />
+                <Route path="/dgm-test" element={<AuthGuard><DgmTest /></AuthGuard>} />
+                <Route path="/admin" element={<AuthGuard><Admin /></AuthGuard>} />
+                <Route path="/shms" element={<AuthGuard><SHMSPage /></AuthGuard>} />
+                <Route path="/shms-2d" element={<AuthGuard><SHMS2DEnvironment /></AuthGuard>} />
+                <Route path="/shms-3d" element={<AuthGuard><SHMS3DEnvironment /></AuthGuard>} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </main>
+          </div>
         </BrowserRouter>
       </ErrorBoundary>
     </ThemeProvider>

@@ -80,14 +80,24 @@ export interface HippoRAGResult {
 // Singleton KG — built once on startup, updated incrementally
 let knowledgeGraph: KnowledgeGraph | null = null;
 let isBuilding = false;
+let entriesSinceLastBuild = 0; // v82.0: threshold-based rebuild counter
 
 /**
  * Get or build the knowledge graph.
  * F3-1: Non-parametric — no model weights changed, only index updated.
+ * v82.0: Attempts to load from DB persistence first.
  */
 export async function getKnowledgeGraph(): Promise<KnowledgeGraph | null> {
   if (knowledgeGraph) return knowledgeGraph;
-  if (isBuilding) return null;  // Return null during build (fallback to standard retrieval)
+  if (isBuilding) return null;
+
+  // v82.0: Try loading persisted KG from DB first
+  const loaded = await loadKGFromDB();
+  if (loaded) {
+    knowledgeGraph = loaded;
+    log.info(`[F3-1] KG loaded from persistence: ${loaded.nodes.size} nodes, ${loaded.edges.size} edges`);
+    return knowledgeGraph;
+  }
   
   // Build asynchronously on first call
   buildKnowledgeGraph().catch(err => {
@@ -274,13 +284,18 @@ function isStopWord(word: string): boolean {
 }
 
 // ============================================================
-// PERSONALIZED PAGERANK (Graph Traversal)
+// v82.0: REAL PERSONALIZED PAGERANK (replaces BFS)
 // ============================================================
 
 /**
- * Simplified Personalized PageRank for entity expansion.
- * F3-1: 2-hop traversal from query entities (Brin & Page, 1998).
- * Full PPR is O(n²) — we use BFS with weight-based pruning for O(k×d) complexity.
+ * Iterative Personalized PageRank for entity expansion.
+ * v82.0: Replaces BFS with real PPR — 10 iterations, alpha=0.15.
+ *
+ * Scientific basis:
+ * - Brin & Page (1998): Original PageRank with teleport probability
+ * - Zhang et al. (ACL 2024, HippoRAG): "PPR starts from query entities and
+ *   diffuses probability mass along edges to discover multi-hop neighbors"
+ * - Gutierrez et al. (ICML 2025, HippoRAG 2): Improved PPR with edge weights
  */
 function expandEntitiesViaGraph(
   queryEntities: string[],
@@ -288,44 +303,82 @@ function expandEntitiesViaGraph(
   maxHops: number = 2,
   topK: number = 10,
 ): { entities: string[]; hops: number } {
-  const visited = new Set<string>(queryEntities);
-  const frontier = new Set<string>(queryEntities);
-  let hops = 0;
+  const alpha = 0.15;       // Teleport probability
+  const iterations = 10;    // Convergence iterations
+  const allNodes = Array.from(kg.nodes.keys());
 
-  for (let hop = 0; hop < maxHops; hop++) {
-    const nextFrontier = new Set<string>();
+  if (allNodes.length === 0 || queryEntities.length === 0) {
+    return { entities: queryEntities, hops: 0 };
+  }
 
-    for (const entityId of frontier) {
-      // Find all edges connected to this entity
-      for (const [edgeKey, edge] of kg.edges) {
-        if (edge.weight < 2) continue;  // Prune low-weight edges
-        
-        let neighbor: string | null = null;
-        if (edge.source === entityId && !visited.has(edge.target)) {
-          neighbor = edge.target;
-        } else if (edge.target === entityId && !visited.has(edge.source)) {
-          neighbor = edge.source;
-        }
+  // Build adjacency list with weights for O(E) iteration
+  const neighbors = new Map<string, Array<{ node: string; weight: number }>>();
+  for (const [, edge] of kg.edges) {
+    if (!neighbors.has(edge.source)) neighbors.set(edge.source, []);
+    if (!neighbors.has(edge.target)) neighbors.set(edge.target, []);
+    neighbors.get(edge.source)!.push({ node: edge.target, weight: edge.weight });
+    neighbors.get(edge.target)!.push({ node: edge.source, weight: edge.weight });
+  }
 
-        if (neighbor && kg.nodes.has(neighbor)) {
-          nextFrontier.add(neighbor);
-          visited.add(neighbor);
-        }
+  // Initialize PPR scores: query entities get 1/|Q|, rest get 0
+  const scores = new Map<string, number>();
+  for (const node of allNodes) scores.set(node, 0);
+  for (const qe of queryEntities) {
+    if (scores.has(qe)) scores.set(qe, 1 / queryEntities.length);
+  }
+
+  // Iterative PPR
+  for (let iter = 0; iter < iterations; iter++) {
+    const newScores = new Map<string, number>();
+    for (const node of allNodes) newScores.set(node, 0);
+
+    // Teleport: alpha → jump to query entities
+    for (const qe of queryEntities) {
+      if (newScores.has(qe)) {
+        newScores.set(qe, (newScores.get(qe)! || 0) + alpha / queryEntities.length);
       }
     }
 
-    if (nextFrontier.size === 0) break;
-    for (const e of nextFrontier) frontier.add(e);
-    hops++;
+    // Propagation: (1-alpha) → follow edges with weight
+    for (const [nodeId, nodeScore] of scores) {
+      const nodeNeighbors = neighbors.get(nodeId);
+      if (!nodeNeighbors || nodeNeighbors.length === 0 || nodeScore === 0) continue;
+      const totalWeight = nodeNeighbors.reduce((sum, n) => sum + n.weight, 0);
+      if (totalWeight === 0) continue;
 
-    if (visited.size >= topK * 2) break;  // Early stop
+      for (const n of nodeNeighbors) {
+        const contribution = (1 - alpha) * nodeScore * (n.weight / totalWeight);
+        newScores.set(n.node, (newScores.get(n.node)! || 0) + contribution);
+      }
+    }
+
+    // Update scores
+    for (const [node, score] of newScores) scores.set(node, score);
   }
 
-  // Rank by node frequency (most frequent = most important)
-  const ranked = Array.from(visited)
-    .filter(id => kg.nodes.has(id))
-    .sort((a, b) => (kg.nodes.get(b)?.count ?? 0) - (kg.nodes.get(a)?.count ?? 0))
-    .slice(0, topK);
+  // Compute effective hops (how far from query entities the top results are)
+  let hops = 0;
+  const visited = new Set(queryEntities);
+  const frontier = new Set(queryEntities);
+  for (let hop = 0; hop < maxHops; hop++) {
+    const next = new Set<string>();
+    for (const eid of frontier) {
+      for (const n of (neighbors.get(eid) || [])) {
+        if (!visited.has(n.node)) { next.add(n.node); visited.add(n.node); }
+      }
+    }
+    if (next.size === 0) break;
+    frontier.clear();
+    for (const e of next) frontier.add(e);
+    hops++;
+  }
+
+  // Rank by PPR score (not just frequency)
+  const ranked = Array.from(scores.entries())
+    .filter(([id]) => kg.nodes.has(id))
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, topK)
+    .map(([id]) => id);
 
   return { entities: ranked, hops };
 }
@@ -468,36 +521,127 @@ export async function updateKnowledgeGraph(
 
   knowledgeGraph.lastUpdated = new Date();
   knowledgeGraph.totalEntries++;
+  entriesSinceLastBuild++;
+
+  // v82.0: Threshold-based auto-rebuild (every 200 new entries)
+  if (entriesSinceLastBuild >= 200) {
+    log.info(`[F3-1] Threshold reached (${entriesSinceLastBuild} entries) — triggering auto-rebuild`);
+    entriesSinceLastBuild = 0;
+    knowledgeGraph = null;
+    buildKnowledgeGraph().catch(err => log.warn('[F3-1] Auto-rebuild failed', { error: String(err) }));
+  }
 }
 
 /**
  * Get KG statistics for diagnostics endpoint.
  */
-export function getKGStats(): { nodes: number; edges: number; lastUpdated: Date | null; totalEntries: number; isBuilt: boolean } {
+export function getKGStats(): { nodes: number; edges: number; lastUpdated: Date | null; totalEntries: number; isBuilt: boolean; entriesSinceLastBuild: number } {
   return {
     nodes: knowledgeGraph?.nodes.size ?? 0,
     edges: knowledgeGraph?.edges.size ?? 0,
     lastUpdated: knowledgeGraph?.lastUpdated ?? null,
     totalEntries: knowledgeGraph?.totalEntries ?? 0,
     isBuilt: knowledgeGraph !== null,
+    entriesSinceLastBuild,
   };
+}
+
+// ============================================================
+// v82.0: KG PERSISTENCE (survives restarts)
+// ============================================================
+
+/**
+ * Persist the KG to database after build.
+ * Scientific basis: Production KG systems (Neo4j) always persist to disk.
+ * Without persistence, KG is lost on restart → cold start latency.
+ */
+export async function persistKGToDB(): Promise<void> {
+  if (!knowledgeGraph) return;
+  try {
+    const db = await getDb();
+    if (!db) return;
+
+    const snapshot = JSON.stringify({
+      nodes: Object.fromEntries(knowledgeGraph.nodes),
+      edges: Object.fromEntries(knowledgeGraph.edges),
+      lastUpdated: knowledgeGraph.lastUpdated.toISOString(),
+      totalEntries: knowledgeGraph.totalEntries,
+    });
+
+    // Use raw SQL to upsert into a config-like store
+    await db.execute(sql`
+      INSERT INTO knowledge (title, content, category, source)
+      VALUES ('__hipporag2_kg_snapshot', ${snapshot}, 'system', 'hipporag2_persistence')
+      ON DUPLICATE KEY UPDATE content = ${snapshot}, updatedAt = NOW()
+    `);
+
+    log.info(`[F3-1] KG persisted to DB (${knowledgeGraph.nodes.size} nodes, ${knowledgeGraph.edges.size} edges)`);
+  } catch (err) {
+    log.warn('[F3-1] KG persistence failed (non-blocking)', { error: String(err) });
+  }
+}
+
+/**
+ * Load persisted KG from database on startup.
+ * Avoids cold-start rebuild if a recent snapshot exists.
+ */
+async function loadKGFromDB(): Promise<KnowledgeGraph | null> {
+  try {
+    const db = await getDb();
+    if (!db) return null;
+
+    const rows = await db.execute(sql`
+      SELECT content FROM knowledge
+      WHERE title = '__hipporag2_kg_snapshot' AND category = 'system'
+      ORDER BY updatedAt DESC LIMIT 1
+    `) as any[];
+
+    if (!rows || rows.length === 0 || !rows[0]?.content) return null;
+
+    const data = JSON.parse(rows[0].content);
+    const loaded: KnowledgeGraph = {
+      nodes: new Map(Object.entries(data.nodes)),
+      edges: new Map(Object.entries(data.edges)),
+      lastUpdated: new Date(data.lastUpdated),
+      totalEntries: data.totalEntries || 0,
+    };
+
+    // Only use if snapshot is less than 7 days old
+    const daysSince = (Date.now() - loaded.lastUpdated.getTime()) / (1000 * 60 * 60 * 24);
+    if (daysSince > 7) {
+      log.info(`[F3-1] KG snapshot is ${Math.round(daysSince)} days old — will rebuild`);
+      return null;
+    }
+
+    return loaded;
+  } catch (err) {
+    log.warn('[F3-1] KG load from DB failed', { error: String(err) });
+    return null;
+  }
 }
 
 /**
  * Schedule KG build on startup (5 min delay to avoid cold start overhead).
- * F3-1: Non-parametric — builds from existing BD, no training required.
+ * v82.0: Tries persistence first, then builds. Persists after build.
+ * Threshold-based rebuild replaces fixed weekly schedule.
  */
 export function scheduleKGBuild(): void {
-  setTimeout(() => {
+  setTimeout(async () => {
     log.info('[F3-1] Scheduled KG build starting...');
-    buildKnowledgeGraph().catch(err => log.warn('[F3-1] Scheduled KG build failed', { error: String(err) }));
+    try {
+      await buildKnowledgeGraph();
+      await persistKGToDB();
+    } catch (err) {
+      log.warn('[F3-1] Scheduled KG build failed', { error: String(err) });
+    }
   }, 5 * 60 * 1000);  // 5 min delay
 
-  // Rebuild weekly to incorporate new entries
-  setInterval(() => {
-    knowledgeGraph = null;  // Reset to trigger rebuild
-    buildKnowledgeGraph().catch(err => log.warn('[F3-1] Weekly KG rebuild failed', { error: String(err) }));
-  }, 7 * 24 * 60 * 60 * 1000);
+  // v82.0: Weekly persistence save (threshold handles actual rebuilds)
+  setInterval(async () => {
+    if (knowledgeGraph) {
+      await persistKGToDB();
+    }
+  }, 24 * 60 * 60 * 1000); // Daily persistence save
 
-  log.info('[F3-1] KG build scheduled (first run in 5min, then weekly)');
+  log.info('[F3-1] KG build scheduled (first run in 5min, threshold-based rebuild at 200 entries)');
 }

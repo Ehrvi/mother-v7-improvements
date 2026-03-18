@@ -294,7 +294,7 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
         title: semanticTitle,   // C328 BUG 5: semantic title, not raw CAPS LOCK query
         topic: request.query,
         format: lfDetect.format ?? 'markdown',
-        targetWordCount: Math.max(lfEstimate.estimatedPages * 450, lfDetect.estimatedWords ?? 3000),
+        targetWordCount: Math.min(Math.max(lfEstimate.estimatedPages * 450, lfDetect.estimatedWords ?? 3000), 20000),  // C352: cap at 20k words (~40 pages) to prevent gigantic outputs
         language: request.query.match(/\b(in english|em inglês|en inglés)\b/i) ? 'en-US' : 'pt-BR',
         streamProgress: request.onPhase ? (progress) => {
           (request.onPhase as any)?.('writing', { step: progress.phase, section: progress.currentSection, pct: progress.percentComplete });
@@ -308,8 +308,21 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
         maxTokensPerSection: 12000,            // C331: quality token budget
         systemRules: lfSystemRules,            // BUG 6: constitutional rules
       });
+      // C352: Apply echo detection to LFSA responses (LFSA path bypassed v72.0 echo check at line 2455)
+      let lfResponse = lfResult.fullContent;
+      {
+        const queryNorm = request.query.trim().toLowerCase();
+        const responseNorm = lfResponse.slice(0, 300).toLowerCase();
+        const echoThreshold = Math.min(60, Math.floor(queryNorm.length * 0.6));
+        const queryPrefix = queryNorm.slice(0, echoThreshold);
+        if (queryPrefix.length > 20 && responseNorm.startsWith(queryPrefix)) {
+          console.warn('[MOTHER C352] Echo detected in LFSA response — removing echo.');
+          const echoEnd = lfResponse.toLowerCase().indexOf(queryNorm.slice(0, echoThreshold)) + echoThreshold;
+          lfResponse = lfResponse.slice(echoEnd).replace(/^[\s\n\r:.,;!?-]+/, '').trim();
+        }
+      }
       return {
-        response: lfResult.fullContent,
+        response: lfResponse,
         tier: 'TIER_4',
         complexityScore: 0.95,
         confidenceScore: 0.90,

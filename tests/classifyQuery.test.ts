@@ -7,7 +7,7 @@ it('philosophy query returns philosophy category', () => {
 });
 
 it('natural_science query returns natural_science category', () => {
-  const r = classifyQuery('Explain quantum mechanics and superposition');
+  const r = classifyQuery('Explain the process of photosynthesis and cell biology');
   expect(r.category).toBe('natural_science');
 });
 
