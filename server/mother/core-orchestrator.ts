@@ -663,6 +663,9 @@ async function callProvider(
   onChunk?: (chunk: string) => void,
   signal?: AbortSignal,
 ): Promise<string> {
+  const _callStart = Date.now();
+  const _diag = `[${new Date().toISOString()}] callProvider START provider=${provider} model=${model} maxTokens=${maxTokens} hasOnChunk=${!!onChunk} hasSignal=${!!signal}\n`;
+  try { require('fs').appendFileSync('/tmp/diag.log', _diag); } catch {}
   // Safety net: clamp max_tokens per model to prevent API rejections
   // Scientific basis: Each provider enforces model-specific limits. Sending max_tokens > limit
   // causes immediate 400 errors (OpenAI) or silent truncation (Anthropic).
@@ -1394,7 +1397,10 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
   //                   Constitutional AI (Bai et al., arXiv:2212.08073)
   const l25Start = Date.now();
   const { ENV: ENV_DPO } = await import('../_core/env');
-  if (ENV_DPO.dpoFineTunedModel && !l1.fromCache) {
+  // FIX: DPO model ft:gpt-4.1-mini:personal:mother-v82-dpo-v8e:DFay6MHy returns 403 (model_not_found)
+  // from svcacct project. Disabled until model access is restored.
+  // Original condition: if (ENV_DPO.dpoFineTunedModel && !l1.fromCache) {
+  if (false && ENV_DPO.dpoFineTunedModel && !l1.fromCache) {
     // ── Sprint 3 (C183): DPO Tier-Gate — bypass DPO for TIER_1/2 ─────────────
     // Scientific basis:
     //   - Rafailov et al. (arXiv:2305.18290, NeurIPS 2023): DPO adds ~60-70s latency
