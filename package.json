@@ -4,7 +4,7 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "dev": "node scripts/dgm-pre-start.mjs && cross-env NODE_ENV=development tsx watch server/_core/index.ts",
+    "dev": "cross-env NODE_ENV=development node scripts/dgm-pre-start.mjs && cross-env NODE_ENV=development tsx watch server/_core/index.ts",
     "build": "vite build && esbuild server/_core/production-entry.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/index.js",
     "start": "node scripts/dgm-pre-start.mjs && NODE_ENV=production node dist/index.js",
     "check": "tsc --noEmit",
