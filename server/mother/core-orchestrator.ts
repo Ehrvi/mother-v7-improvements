@@ -663,9 +663,6 @@ async function callProvider(
   onChunk?: (chunk: string) => void,
   signal?: AbortSignal,
 ): Promise<string> {
-  const _callStart = Date.now();
-  const _diag = `[${new Date().toISOString()}] callProvider START provider=${provider} model=${model} maxTokens=${maxTokens} hasOnChunk=${!!onChunk} hasSignal=${!!signal}\n`;
-  try { require('fs').appendFileSync('/tmp/diag.log', _diag); } catch {}
   // Safety net: clamp max_tokens per model to prevent API rejections
   // Scientific basis: Each provider enforces model-specific limits. Sending max_tokens > limit
   // causes immediate 400 errors (OpenAI) or silent truncation (Anthropic).
