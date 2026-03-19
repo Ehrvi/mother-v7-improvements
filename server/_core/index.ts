@@ -1,4 +1,9 @@
-import "dotenv/config";
+// FIX: dotenv v17.3.1 'import dotenv/config' breaks Node.js v25 native fetch (undici)
+// Symptom: ALL API calls (OpenAI, Google, Anthropic) → Connect Timeout Error (10s)  
+// Root cause: dotenv v17 process patching conflicts with undici's TLS connection handling
+// Solution: Use dotenv.config() explicitly with processEnv option (no process patching)
+import { config as dotenvConfig } from "dotenv";
+dotenvConfig();
 import express from "express";
 import { createServer } from "http";
 import net from "net";
