@@ -1,0 +1,776 @@
+/**
+ * shms-narrative-twin.css — SOTA HUD Ambient Effects
+ *
+ * Scientific basis:
+ *   - ISA-101: muted backgrounds, color reserved for anomalies
+ *   - Gestalt proximity: grouped elements feel related
+ *   - SCADA HPHMI: dark theme, minimal visual noise
+ *   - Glassmorphism 2025: depth + motion + frosted glass
+ */
+
+/* ─── Root container ──────────────────────────────────────────────────────── */
+.nt-root {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #060c14;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* ─── Ambient: Scanline overlay (CRT monitor effect, very subtle) ─────── */
+.nt-scanlines {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 255, 136, 0.008) 2px,
+    rgba(0, 255, 136, 0.008) 4px
+  );
+  mix-blend-mode: overlay;
+}
+
+/* ─── Ambient: Radial vignette (focus attention on center) ────────────── */
+.nt-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at 50% 45%,
+    transparent 55%,
+    rgba(4, 8, 16, 0.4) 80%,
+    rgba(4, 8, 16, 0.7) 100%
+  );
+}
+
+/* ─── Glassmorphism base ──────────────────────────────────────────────── */
+.nt-glass {
+  background: rgba(8, 12, 20, 0.72);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.nt-glass-strong {
+  background: rgba(8, 12, 20, 0.88);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ─── Health Strip (top bar) ──────────────────────────────────────────── */
+.nt-health-strip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: linear-gradient(
+    180deg,
+    rgba(6, 12, 20, 0.92) 0%,
+    rgba(6, 12, 20, 0.5) 70%,
+    transparent 100%
+  );
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.nt-health-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: all 0.3s ease;
+}
+
+.nt-health-pill:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.nt-health-pill-label {
+  font-size: 10px;
+  color: oklch(52% 0.02 220);
+}
+
+.nt-health-pill-value {
+  font-size: 12px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* ─── Live indicator ──────────────────────────────────────────────────── */
+.nt-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00ff88;
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+  animation: nt-pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes nt-pulse-dot {
+  0%, 100% { opacity: 1; box-shadow: 0 0 8px rgba(0, 255, 136, 0.5); }
+  50% { opacity: 0.5; box-shadow: 0 0 4px rgba(0, 255, 136, 0.2); }
+}
+
+.nt-live-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: #00ff88;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ─── Chat panel (right side, 1/3 width) ─────────────────────────────── */
+.nt-chat-container {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 33.333%;
+  min-width: 340px;
+  max-width: 480px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.nt-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 16px;
+  animation: nt-slide-up 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nt-chat-messages::-webkit-scrollbar {
+  width: 4px;
+}
+
+.nt-chat-messages::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.nt-chat-input-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.nt-chat-input {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: oklch(88% 0.01 220);
+  font-size: 13px;
+  font-family: 'Inter', system-ui, sans-serif;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.nt-chat-input:focus {
+  border-color: oklch(72% 0.14 195 / 0.4);
+  box-shadow: 0 0 0 3px oklch(72% 0.14 195 / 0.08);
+}
+
+.nt-chat-input::placeholder {
+  color: oklch(38% 0.02 220);
+}
+
+.nt-chat-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 8px;
+  cursor: pointer;
+  color: oklch(52% 0.02 220);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.nt-chat-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: oklch(88% 0.01 220);
+}
+
+.nt-chat-btn-send {
+  background: oklch(72% 0.14 195);
+  border: none;
+  color: white;
+}
+
+.nt-chat-btn-send:hover {
+  background: oklch(76% 0.16 195);
+  box-shadow: 0 0 16px oklch(72% 0.14 195 / 0.3);
+}
+
+/* ─── Chat: MOTHER avatar ─────────────────────────────────────────────── */
+.nt-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  cursor: pointer;
+  background: linear-gradient(135deg, #440154, #21918c);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: white;
+  font-weight: 700;
+  box-shadow: 0 0 16px rgba(33, 145, 140, 0.3);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.nt-avatar:hover {
+  transform: scale(1.08);
+  box-shadow: 0 0 24px rgba(33, 145, 140, 0.5);
+}
+
+/* ─── Chat: AI typing indicator ───────────────────────────────────────── */
+.nt-typing {
+  display: flex;
+  gap: 4px;
+  padding: 10px 14px;
+}
+
+.nt-typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: oklch(52% 0.02 220);
+  animation: nt-typing-bounce 1.4s ease-in-out infinite;
+}
+
+.nt-typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.nt-typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes nt-typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-6px); opacity: 1; }
+}
+
+/* ─── Chat: Suggested prompts ─────────────────────────────────────────── */
+.nt-suggestions {
+  display: flex;
+  gap: 6px;
+  padding: 6px 16px 2px;
+  flex-wrap: wrap;
+}
+
+.nt-suggestion-chip {
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: oklch(62% 0.02 220);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.nt-suggestion-chip:hover {
+  background: oklch(72% 0.14 195 / 0.1);
+  border-color: oklch(72% 0.14 195 / 0.3);
+  color: oklch(72% 0.14 195);
+}
+
+/* ─── Chat messages ───────────────────────────────────────────────────── */
+.nt-msg {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  animation: nt-msg-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nt-msg-user { justify-content: flex-end; }
+.nt-msg-ai { justify-content: flex-start; }
+
+.nt-msg-bubble {
+  max-width: 70%;
+  padding: 10px 16px;
+  border-radius: 14px;
+  font-size: 12.5px;
+  line-height: 1.65;
+  white-space: pre-line;
+}
+
+.nt-msg-bubble-user {
+  background: oklch(20% 0.06 220);
+  color: oklch(88% 0.01 220);
+  border-bottom-right-radius: 4px;
+}
+
+.nt-msg-bubble-ai {
+  background: oklch(13% 0.03 220);
+  color: oklch(80% 0.01 220);
+  border-bottom-left-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.nt-msg-time {
+  font-size: 9px;
+  color: oklch(38% 0.02 220);
+  margin-top: 4px;
+}
+
+@keyframes nt-msg-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Instrument open button ──────────────────────────────────────────── */
+.nt-open-panel-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 5px 14px;
+  border-radius: 8px;
+  background: oklch(14% 0.05 195);
+  border: 1px solid oklch(72% 0.14 195 / 0.3);
+  color: oklch(72% 0.14 195);
+  font-size: 11px;
+  cursor: pointer;
+  font-family: 'Inter', system-ui, sans-serif;
+  transition: all 0.2s;
+}
+
+.nt-open-panel-btn:hover {
+  background: oklch(18% 0.07 195);
+  box-shadow: 0 0 12px oklch(72% 0.14 195 / 0.15);
+}
+
+/* ─── Modal ───────────────────────────────────────────────────────────── */
+.nt-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+  z-index: 1000;
+  animation: nt-fade-in 0.2s ease;
+}
+
+.nt-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(1150px, 92vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  background: oklch(10% 0.02 220);
+  border: 1px solid oklch(18% 0.03 220);
+  border-radius: 18px;
+  z-index: 1001;
+  box-shadow:
+    0 40px 80px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.03),
+    0 0 60px rgba(33, 145, 140, 0.05);
+  animation: nt-modal-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nt-modal::-webkit-scrollbar {
+  width: 5px;
+}
+
+.nt-modal::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+}
+
+.nt-modal-accent {
+  height: 3px;
+  border-radius: 18px 18px 0 0;
+  background: linear-gradient(90deg, #440154, #31688e, #21918c, #35b779, #fde725);
+}
+
+/* ─── Modal tabs ──────────────────────────────────────────────────────── */
+.nt-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid oklch(18% 0.03 220);
+  padding: 0 24px;
+}
+
+.nt-tab {
+  padding: 10px 18px;
+  font-size: 12px;
+  font-weight: 600;
+  color: oklch(52% 0.02 220);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.nt-tab:hover {
+  color: oklch(75% 0.01 220);
+}
+
+.nt-tab-active {
+  color: oklch(72% 0.14 195);
+  border-bottom-color: oklch(72% 0.14 195);
+}
+
+.nt-tab-content {
+  padding: 24px;
+  animation: nt-tab-fade 0.25s ease;
+}
+
+@keyframes nt-tab-fade {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Modal header ────────────────────────────────────────────────────── */
+.nt-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  border-bottom: 1px solid oklch(18% 0.03 220);
+}
+
+.nt-modal-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: oklch(88% 0.01 220);
+}
+
+.nt-modal-subtitle {
+  font-size: 12px;
+  color: oklch(52% 0.02 220);
+  margin-top: 2px;
+}
+
+.nt-modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: oklch(52% 0.02 220);
+  padding: 4px;
+  border-radius: 8px;
+  display: flex;
+  transition: all 0.15s;
+}
+
+.nt-modal-close:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: oklch(88% 0.01 220);
+}
+
+/* ─── Status badge ────────────────────────────────────────────────────── */
+.nt-status {
+  padding: 3px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.nt-status-normal {
+  color: oklch(72% 0.18 145);
+  background: oklch(14% 0.06 145);
+  border: 1px solid oklch(72% 0.18 145 / 0.3);
+}
+
+.nt-status-attention {
+  color: oklch(78% 0.16 80);
+  background: oklch(14% 0.06 80);
+  border: 1px solid oklch(78% 0.16 80 / 0.3);
+}
+
+.nt-status-critical {
+  color: oklch(65% 0.22 25);
+  background: oklch(14% 0.06 25);
+  border: 1px solid oklch(65% 0.22 25 / 0.3);
+  animation: nt-pulse-alert 1.5s ease-in-out infinite;
+}
+
+@keyframes nt-pulse-alert {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(65% 0.22 25 / 0.3); }
+  50% { box-shadow: 0 0 12px 2px oklch(65% 0.22 25 / 0.15); }
+}
+
+/* ─── KPI strip inside modal ──────────────────────────────────────────── */
+.nt-kpi-strip {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  padding: 14px 18px;
+  background: oklch(8% 0.02 220);
+  border-radius: 12px;
+  border: 1px solid oklch(16% 0.03 220);
+}
+
+.nt-kpi {
+  flex: 1;
+  padding: 0 16px;
+  border-right: 1px solid oklch(16% 0.03 220);
+}
+
+.nt-kpi:last-child { border-right: none; }
+
+.nt-kpi-label {
+  font-size: 10px;
+  color: oklch(42% 0.02 220);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+.nt-kpi-value {
+  font-size: 26px;
+  font-weight: 800;
+  color: oklch(88% 0.01 220);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  line-height: 1.2;
+  margin-top: 2px;
+}
+
+.nt-kpi-unit {
+  font-size: 13px;
+  color: oklch(52% 0.02 220);
+  font-weight: 400;
+}
+
+/* ─── Threshold gauge ─────────────────────────────────────────────────── */
+.nt-gauge {
+  height: 6px;
+  border-radius: 3px;
+  background: oklch(14% 0.02 220);
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.nt-gauge-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ─── Chart container ─────────────────────────────────────────────────── */
+.nt-chart-box {
+  background: oklch(8% 0.02 220);
+  border-radius: 10px;
+  border: 1px solid oklch(16% 0.03 220);
+  padding: 10px 6px;
+  margin-bottom: 16px;
+}
+
+.nt-chart-label {
+  font-size: 11px;
+  color: oklch(52% 0.02 220);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.nt-chart-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  font-size: 10px;
+  color: oklch(38% 0.02 220);
+}
+
+.nt-chart-legend-swatch {
+  display: inline-block;
+  width: 16px;
+  height: 2px;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+/* ─── Technical specs table ───────────────────────────────────────────── */
+.nt-specs-table {
+  background: oklch(8% 0.02 220);
+  border-radius: 12px;
+  padding: 14px;
+  border: 1px solid oklch(16% 0.03 220);
+  font-size: 12px;
+}
+
+.nt-specs-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  border-bottom: 1px solid oklch(14% 0.02 220);
+}
+
+.nt-specs-row:last-child { border-bottom: none; }
+
+.nt-specs-label {
+  color: oklch(52% 0.02 220);
+}
+
+.nt-specs-value {
+  color: oklch(88% 0.01 220);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  text-align: right;
+  max-width: 60%;
+}
+
+/* ─── Scientific context box ──────────────────────────────────────────── */
+.nt-science-box {
+  background: oklch(11% 0.04 220);
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid oklch(18% 0.04 220);
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: oklch(75% 0.01 220);
+}
+
+/* ─── Action buttons ──────────────────────────────────────────────────── */
+.nt-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.nt-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: 1px solid oklch(18% 0.03 220);
+  background: none;
+  color: oklch(88% 0.01 220);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.nt-action-btn:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: oklch(72% 0.14 195 / 0.3);
+  color: oklch(72% 0.14 195);
+}
+
+/* ─── Quick info chips (floating) ─────────────────────────────────────── */
+.nt-info-chips {
+  position: absolute;
+  bottom: 60px;
+  left: 16px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: opacity 0.4s;
+}
+
+.nt-info-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 10px;
+  color: oklch(62% 0.02 220);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  animation: nt-float-in 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nt-info-chip-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+@keyframes nt-float-in {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* ─── Animations ──────────────────────────────────────────────────────── */
+@keyframes nt-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes nt-modal-in {
+  from { opacity: 0; transform: translate(-50%, -48%) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes nt-slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Health arc SVG animation ────────────────────────────────────────── */
+.nt-health-arc {
+  transition: stroke-dashoffset 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ─── Back button ─────────────────────────────────────────────────────── */
+.nt-back-btn {
+  background: none;
+  border: 1px solid oklch(18% 0.03 220);
+  border-radius: 8px;
+  padding: 5px 9px;
+  cursor: pointer;
+  color: oklch(88% 0.01 220);
+  display: flex;
+  align-items: center;
+  transition: all 0.15s;
+}
+
+.nt-back-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* ─── Responsive ──────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .nt-modal {
+    width: 96vw;
+    max-height: 92vh;
+    border-radius: 12px;
+  }
+
+  .nt-kpi-strip {
+    flex-wrap: wrap;
+  }
+
+  .nt-kpi {
+    flex: 0 0 50%;
+    border-right: none;
+    margin-bottom: 8px;
+  }
+}

@@ -10,6 +10,7 @@ import Admin from './pages/Admin';
 import SHMSPage from './pages/SHMSPage';
 import SHMS2DEnvironment from './pages/SHMS2DEnvironment';
 import SHMS3DEnvironment from './pages/SHMS3DEnvironment';
+import SHMSNarrativeTwin from './pages/SHMSNarrativeTwin';
 import './design-tokens.css'; // Design system tokens
 import './accessibility.css'; // P5 Upgrade: WCAG 2.1 AA Accessibility
 
@@ -54,6 +55,7 @@ function App() {
                 <Route path="/shms" element={<AuthGuard><SHMSPage /></AuthGuard>} />
                 <Route path="/shms-2d" element={<AuthGuard><SHMS2DEnvironment /></AuthGuard>} />
                 <Route path="/shms-3d" element={<AuthGuard><SHMS3DEnvironment /></AuthGuard>} />
+                <Route path="/shms-narrative" element={<AuthGuard><SHMSNarrativeTwin /></AuthGuard>} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </main>
