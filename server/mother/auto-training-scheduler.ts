@@ -1,18 +1,19 @@
 /**
  * MOTHER v122 — Auto-Training Scheduler
- * Automated DPO/SFT fine-tuning pipeline with continual learning
+ * Automated DUAL-PROVIDER fine-tuning: OpenAI SFT/DPO + Mistral LoRA
  *
  * Scientific basis:
  * - Rafailov et al. (arXiv:2305.18290, NeurIPS 2023) — DPO
+ * - Hu et al. (arXiv:2106.09685, ICLR 2022) — LoRA
  * - OFS-DPO (2024) — Online DPO with Fast-Slow Chasing (catastrophic forgetting prevention)
  * - ATLAS (2025) — Continual Learning, Not Training (gradient-free adaptation)
  * - Kaplan et al. (arXiv:2001.08361) — Scaling Laws for Neural Language Models
  *
  * Architecture:
  * 1. Scheduled data collection from bd_central (weekly, or threshold-based)
- * 2. Quality filtering: only quality ≥ 80 examples
- * 3. Format conversion: OpenAI SFT JSONL (messages array)
- * 4. Automatic upload + fine-tuning job submission via OpenAI API
+ * 2. Quality filtering: only quality ≥ 75 examples
+ * 3. Format conversion: JSONL (messages array) — compatible with both OpenAI and Mistral
+ * 4. DUAL submission: OpenAI SFT + Mistral LoRA fine-tuning in parallel
  * 5. Job status polling with automatic model hot-swap on completion
  * 6. Audit logging to bd_central for reproducibility
  */
@@ -81,6 +82,7 @@ const MOTHER_SYSTEM_PROMPT = `Você é MOTHER (Multi-Objective Transformer for H
 interface TrainingJobState {
   jobId: string;
   fileId: string;
+  provider: 'openai' | 'mistral';
   status: 'validating_files' | 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
   model: string;
   fineTunedModel: string | null;
@@ -91,9 +93,11 @@ interface TrainingJobState {
 }
 
 let currentJob: TrainingJobState | null = null;
+let currentMistralJob: TrainingJobState | null = null;
 let lastCollectionTime = 0;
 let lastTrainedExamplesHash = '';
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+let mistralPollTimer: ReturnType<typeof setInterval> | null = null;
 let collectionTimer: ReturnType<typeof setInterval> | null = null;
 
 // ============================================================
@@ -271,6 +275,7 @@ async function submitFineTuningJob(
     const jobState: TrainingJobState = {
       jobId: ftResult.id,
       fileId: uploadResult.id,
+      provider: 'openai',
       status: ftResult.status,
       model: ftResult.model,
       fineTunedModel: null,
@@ -280,11 +285,157 @@ async function submitFineTuningJob(
       error: null,
     };
 
-    log.info(`[AutoTrain] Job created: ${jobState.jobId} (status: ${jobState.status})`);
+    log.info(`[AutoTrain/OpenAI] Job created: ${jobState.jobId} (status: ${jobState.status})`);
     return jobState;
   } catch (err) {
-    log.error('[AutoTrain] Failed to submit fine-tuning job', { error: String(err) });
+    log.error('[AutoTrain/OpenAI] Failed to submit fine-tuning job', { error: String(err) });
     return null;
+  }
+}
+
+// ============================================================
+// MISTRAL LoRA FINE-TUNING API
+// Scientific basis: Hu et al. (arXiv:2106.09685, ICLR 2022) — LoRA
+// Mistral uses LoRA internally for their fine-tuning API
+// ============================================================
+
+/**
+ * Upload file to Mistral and submit LoRA fine-tuning job.
+ * Mistral API: https://api.mistral.ai/v1/files + /v1/fine_tuning/jobs
+ * Supports: open-mistral-7b, mistral-small-latest, mistral-medium-latest
+ */
+async function submitMistralLoRAJob(
+  dataPath: string,
+  apiKey: string,
+): Promise<TrainingJobState | null> {
+  try {
+    // Step 1: Upload file to Mistral
+    const fileContent = fs.readFileSync(dataPath);
+    const fd = new FormData();
+    fd.append('purpose', 'fine-tune');
+    fd.append('file', new Blob([fileContent], { type: 'application/jsonl' }), 'training.jsonl');
+
+    log.info('[AutoTrain/Mistral] Uploading training file...');
+    const uploadResp = await fetch('https://api.mistral.ai/v1/files', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+      body: fd,
+      signal: AbortSignal.timeout(60000),
+    });
+
+    const uploadResult = await uploadResp.json() as any;
+    if (!uploadResp.ok) {
+      log.error('[AutoTrain/Mistral] Upload failed', { error: uploadResult });
+      return null;
+    }
+
+    log.info(`[AutoTrain/Mistral] File uploaded: ${uploadResult.id} (${uploadResult.bytes} bytes)`);
+
+    // Step 2: Submit LoRA fine-tuning job
+    log.info('[AutoTrain/Mistral] Submitting LoRA fine-tuning job...');
+    const ftResp = await fetch('https://api.mistral.ai/v1/fine_tuning/jobs', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'open-mistral-7b',
+        training_files: [{ file_id: uploadResult.id, weight: 1 }],
+        suffix: 'mother-lora',
+        hyperparameters: {
+          training_steps: 100,
+          learning_rate: 1e-4,
+        },
+        auto_start: true,
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+
+    const ftResult = await ftResp.json() as any;
+    if (!ftResp.ok) {
+      log.error('[AutoTrain/Mistral] Fine-tuning job creation failed', { error: ftResult });
+      return null;
+    }
+
+    const jobState: TrainingJobState = {
+      jobId: ftResult.id,
+      fileId: uploadResult.id,
+      provider: 'mistral',
+      status: ftResult.status === 'QUEUED' ? 'queued' : ftResult.status?.toLowerCase() || 'queued',
+      model: 'open-mistral-7b',
+      fineTunedModel: null,
+      examplesCount: fileContent.toString().split('\n').filter((l: string) => l.trim()).length,
+      submittedAt: new Date(),
+      completedAt: null,
+      error: null,
+    };
+
+    log.info(`[AutoTrain/Mistral] LoRA job created: ${jobState.jobId} (status: ${jobState.status})`);
+    return jobState;
+  } catch (err) {
+    log.error('[AutoTrain/Mistral] Failed to submit LoRA job', { error: String(err) });
+    return null;
+  }
+}
+
+/**
+ * Poll Mistral fine-tuning job status.
+ */
+async function pollMistralJobStatus(apiKey: string): Promise<void> {
+  if (!currentMistralJob || ['succeeded', 'failed', 'cancelled'].includes(currentMistralJob.status)) return;
+
+  try {
+    const resp = await fetch(`https://api.mistral.ai/v1/fine_tuning/jobs/${currentMistralJob.jobId}`, {
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(15000),
+    });
+
+    const result = await resp.json() as any;
+    if (!resp.ok) {
+      log.warn('[AutoTrain/Mistral] Job poll failed', { error: result });
+      return;
+    }
+
+    const oldStatus = currentMistralJob.status;
+    // Mistral uses uppercase: QUEUED, RUNNING, SUCCESS, FAILED
+    const normalizedStatus = (result.status || '').toLowerCase();
+    currentMistralJob.status = normalizedStatus === 'success' ? 'succeeded' : normalizedStatus as any;
+    currentMistralJob.fineTunedModel = result.fine_tuned_model || null;
+
+    if (result.message) currentMistralJob.error = result.message;
+
+    if (oldStatus !== currentMistralJob.status) {
+      log.info(`[AutoTrain/Mistral] Job ${currentMistralJob.jobId}: ${oldStatus} → ${currentMistralJob.status}`);
+    }
+
+    // Handle completion
+    if (currentMistralJob.status === 'succeeded' && currentMistralJob.fineTunedModel) {
+      currentMistralJob.completedAt = new Date();
+      log.info(`[AutoTrain/Mistral] ✅ LoRA training COMPLETE! Model: ${currentMistralJob.fineTunedModel}`);
+
+      // Hot-swap: add to Mistral provider in cascade router
+      process.env.MISTRAL_FINE_TUNED_MODEL = currentMistralJob.fineTunedModel;
+
+      await logTrainingEvent('mistral_lora_complete', {
+        jobId: currentMistralJob.jobId,
+        model: currentMistralJob.fineTunedModel,
+        examples: currentMistralJob.examplesCount,
+        duration: currentMistralJob.completedAt.getTime() - currentMistralJob.submittedAt.getTime(),
+      });
+
+      if (mistralPollTimer) { clearInterval(mistralPollTimer); mistralPollTimer = null; }
+    } else if (currentMistralJob.status === 'failed') {
+      currentMistralJob.completedAt = new Date();
+      log.error(`[AutoTrain/Mistral] ❌ LoRA training FAILED: ${currentMistralJob.error}`);
+      await logTrainingEvent('mistral_lora_failed', {
+        jobId: currentMistralJob.jobId,
+        error: currentMistralJob.error,
+      });
+      if (mistralPollTimer) { clearInterval(mistralPollTimer); mistralPollTimer = null; }
+    }
+  } catch (err) {
+    log.warn('[AutoTrain/Mistral] Poll error (non-blocking)', { error: String(err) });
   }
 }
 
@@ -395,20 +546,17 @@ async function logTrainingEvent(event: string, data: Record<string, unknown>): P
  * 4. Start polling for completion
  */
 async function runTrainingCycle(config: AutoTrainingConfig = DEFAULT_CONFIG): Promise<void> {
-  // Don't start a new job if one is already running
-  if (currentJob && !['succeeded', 'failed', 'cancelled'].includes(currentJob.status)) {
-    log.info(`[AutoTrain] Job ${currentJob.jobId} still ${currentJob.status} — skipping cycle`);
-    return;
-  }
-
   const { ENV } = await import('../_core/env');
-  const apiKey = ENV.openaiApiKey;
-  if (!apiKey) {
-    log.warn('[AutoTrain] No OPENAI_API_KEY — skipping training cycle');
+
+  // Check if any jobs still running
+  const openaiRunning = currentJob && !['succeeded', 'failed', 'cancelled'].includes(currentJob.status);
+  const mistralRunning = currentMistralJob && !['succeeded', 'failed', 'cancelled'].includes(currentMistralJob.status);
+  if (openaiRunning || mistralRunning) {
+    log.info(`[AutoTrain] Jobs still running (OpenAI: ${currentJob?.status || 'none'}, Mistral: ${currentMistralJob?.status || 'none'}) — skipping cycle`);
     return;
   }
 
-  log.info('[AutoTrain] Starting training cycle...');
+  log.info('[AutoTrain] Starting DUAL-PROVIDER training cycle...');
 
   // Step 1: Collect data
   const examples = await collectTrainingData(config);
@@ -425,34 +573,48 @@ async function runTrainingCycle(config: AutoTrainingConfig = DEFAULT_CONFIG): Pr
     return;
   }
 
-  // Step 3: Format data
+  // Step 3: Format data (same JSONL works for both providers)
   const outputDir = path.join(os.tmpdir(), 'mother-auto-training');
   if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
   const dataPath = path.join(outputDir, `training_${Date.now()}.jsonl`);
   formatSFTData(examples, dataPath);
 
-  // Step 4: Submit fine-tuning job
-  const job = await submitFineTuningJob(dataPath, config, apiKey);
-  if (!job) {
-    log.error('[AutoTrain] Failed to submit job — will retry next cycle');
-    return;
-  }
-
-  currentJob = job;
   lastTrainedExamplesHash = examplesHash;
   lastCollectionTime = Date.now();
 
-  await logTrainingEvent('training_submitted', {
-    jobId: job.jobId,
-    fileId: job.fileId,
-    examples: job.examplesCount,
-    model: job.model,
-  });
+  // Step 4a: Submit OpenAI SFT job
+  const openaiKey = ENV.openaiApiKey;
+  if (openaiKey) {
+    const job = await submitFineTuningJob(dataPath, config, openaiKey);
+    if (job) {
+      currentJob = job;
+      await logTrainingEvent('openai_sft_submitted', {
+        jobId: job.jobId, fileId: job.fileId, examples: job.examplesCount, model: job.model,
+      });
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(() => pollJobStatus(openaiKey), config.pollIntervalMs);
+      log.info(`[AutoTrain/OpenAI] Polling started (every ${config.pollIntervalMs / 1000}s)`);
+    }
+  } else {
+    log.warn('[AutoTrain] No OPENAI_API_KEY — skipping OpenAI SFT');
+  }
 
-  // Step 5: Start polling for completion
-  if (pollTimer) clearInterval(pollTimer);
-  pollTimer = setInterval(() => pollJobStatus(apiKey), config.pollIntervalMs);
-  log.info(`[AutoTrain] Polling started (every ${config.pollIntervalMs / 1000}s)`);
+  // Step 4b: Submit Mistral LoRA job
+  const mistralKey = ENV.mistralApiKey;
+  if (mistralKey) {
+    const mistralJob = await submitMistralLoRAJob(dataPath, mistralKey);
+    if (mistralJob) {
+      currentMistralJob = mistralJob;
+      await logTrainingEvent('mistral_lora_submitted', {
+        jobId: mistralJob.jobId, fileId: mistralJob.fileId, examples: mistralJob.examplesCount, model: mistralJob.model,
+      });
+      if (mistralPollTimer) clearInterval(mistralPollTimer);
+      mistralPollTimer = setInterval(() => pollMistralJobStatus(mistralKey), config.pollIntervalMs);
+      log.info(`[AutoTrain/Mistral] Polling started (every ${config.pollIntervalMs / 1000}s)`);
+    }
+  } else {
+    log.warn('[AutoTrain] No MISTRAL_API_KEY — skipping Mistral LoRA');
+  }
 }
 
 // ============================================================
@@ -492,6 +654,7 @@ export async function resumeJobPolling(jobId: string): Promise<void> {
   currentJob = {
     jobId,
     fileId: 'unknown',
+    provider: 'openai',
     status: 'queued',
     model: DEFAULT_CONFIG.baseModel,
     fineTunedModel: null,
@@ -536,12 +699,14 @@ export async function triggerTrainingCycle(): Promise<{ success: boolean; messag
  * Get current auto-training status for diagnostics.
  */
 export function getAutoTrainingStatus(): {
-  currentJob: TrainingJobState | null;
+  openaiJob: TrainingJobState | null;
+  mistralJob: TrainingJobState | null;
   lastCollectionTime: number;
   schedulerActive: boolean;
 } {
   return {
-    currentJob,
+    openaiJob: currentJob,
+    mistralJob: currentMistralJob,
     lastCollectionTime,
     schedulerActive: collectionTimer !== null,
   };
@@ -552,6 +717,7 @@ export function getAutoTrainingStatus(): {
  */
 export function stopAutoTraining(): void {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  if (mistralPollTimer) { clearInterval(mistralPollTimer); mistralPollTimer = null; }
   if (collectionTimer) { clearInterval(collectionTimer); collectionTimer = null; }
-  log.info('[AutoTrain] Scheduler stopped');
+  log.info('[AutoTrain] Scheduler stopped (both providers)');
 }
