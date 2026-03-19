@@ -262,6 +262,133 @@ digitalTwinRoutesC206.get('/health', async (_req: Request, res: Response) => {
  * Level 3: Classification (healthIndex < 0.5)
  * Level 4: Prognosis (healthIndex < 0.3)
  */
+/**
+ * GET /api/shms/v2/predict/:id
+ * LSTM BiLSTM+Attention predictions for a structure's sensors.
+ * Returns multi-step forecasts (1h-48h) with HST decomposition.
+ * Scientific basis: Schuster & Paliwal (1997) BiLSTM + Bahdanau (2014) Attention + ICOLD B.158 HST
+ */
+digitalTwinRoutesC206.get('/predict/:id', async (req: Request, res: Response) => {
+  try {
+    const { lstmPredictor } = await import('./lstm-predictor.js');
+    const predictions = lstmPredictor.getAllPredictions()
+      .filter(p => p.sensorId.includes(req.params.id));
+
+    const stats = lstmPredictor.getStats();
+
+    log.info(`[LSTM] GET /predict/${req.params.id} — ${predictions.length} predictions | sensors=${stats.totalSensors}`);
+    return res.json({
+      success: true,
+      structureId: req.params.id,
+      predictions,
+      modelStats: stats,
+      timestamp: new Date().toISOString(),
+      scientificBasis: 'BiLSTM (Schuster & Paliwal 1997) + Attention (Bahdanau 2014) + HST (ICOLD B.158)',
+    });
+  } catch (err) {
+    log.error(`[LSTM] GET /predict/${req.params.id} error:`, err);
+    return res.status(500).json({ success: false, error: (err as Error).message });
+  }
+});
+
+/**
+ * POST /api/shms/v2/fem/stress
+ * Run 2D plane-strain FEM stress analysis on a dam cross-section.
+ * Body: { height?, baseWidth?, crestWidth?, divisionsX?, divisionsY? }
+ * Uses CST elements (Zienkiewicz & Taylor 2000).
+ */
+digitalTwinRoutesC206.post('/fem/stress', async (req: Request, res: Response) => {
+  try {
+    const { solveStress, generateDamMesh } = await import('./fem-engine.js');
+    const { height = 30, baseWidth = 25, crestWidth = 5, divisionsX = 8, divisionsY = 10 } = req.body || {};
+
+    const { mesh, boundaries } = generateDamMesh(height, baseWidth, crestWidth, divisionsX, divisionsY);
+    const result = solveStress(mesh, boundaries);
+
+    log.info(`[FEM] POST /fem/stress — ${result.mesh.nodeCount} nodes, ${result.mesh.elementCount} elements, maxVM=${(result.summary.maxVonMises! / 1e6).toFixed(2)} MPa`);
+    return res.json({
+      success: true,
+      result: {
+        type: result.type,
+        mesh: result.mesh,
+        summary: result.summary,
+        stresses: result.stresses?.slice(0, 50), // limit response size
+        displacements: result.displacements?.slice(0, 50),
+        warnings: result.warnings,
+      },
+      timestamp: new Date().toISOString(),
+      scientificBasis: 'Zienkiewicz & Taylor (2000) FEM + Bathe (2014) CST + ICOLD B.155',
+    });
+  } catch (err) {
+    log.error('[FEM] POST /fem/stress error:', err);
+    return res.status(500).json({ success: false, error: (err as Error).message });
+  }
+});
+
+/**
+ * POST /api/shms/v2/fem/seepage
+ * Run FDM seepage analysis (Darcy flow through dam body).
+ * Body: { nx?, ny?, dx?, dy?, permeability?, headLeft?, headRight? }
+ * Ref: Darcy (1856) + USACE EM 1110-2-1901
+ */
+digitalTwinRoutesC206.post('/fem/seepage', async (req: Request, res: Response) => {
+  try {
+    const { solveSeepage } = await import('./fem-engine.js');
+    const { nx = 20, ny = 15, dx = 1.25, dy = 2.0, permeability = 1e-7, headLeft = 25, headRight = 0 } = req.body || {};
+
+    const result = solveSeepage(nx, ny, dx, dy, permeability, { left: headLeft, right: headRight });
+
+    log.info(`[FEM] POST /fem/seepage — ${result.mesh.nodeCount} nodes, maxV=${result.summary.maxSeepageVelocity!.toExponential(2)} m/s`);
+    return res.json({
+      success: true,
+      result: {
+        type: result.type,
+        mesh: result.mesh,
+        summary: result.summary,
+        seepage: result.seepage?.slice(0, 100),
+        warnings: result.warnings,
+      },
+      timestamp: new Date().toISOString(),
+      scientificBasis: 'Darcy (1856) + USACE EM 1110-2-1901 + Gauss-Seidel SOR (Young 1971)',
+    });
+  } catch (err) {
+    log.error('[FEM] POST /fem/seepage error:', err);
+    return res.status(500).json({ success: false, error: (err as Error).message });
+  }
+});
+
+/**
+ * POST /api/shms/v2/fem/thermal
+ * Run FDM thermal analysis (steady-state heat conduction).
+ * Body: { nx?, ny?, dx?, dy?, thermalK?, tempLeft?, tempRight? }
+ * Ref: Fourier (1822) + Incropera & DeWitt (2007)
+ */
+digitalTwinRoutesC206.post('/fem/thermal', async (req: Request, res: Response) => {
+  try {
+    const { solveThermal } = await import('./fem-engine.js');
+    const { nx = 20, ny = 15, dx = 1.25, dy = 2.0, thermalK = 1.5, tempLeft = 15, tempRight = 25 } = req.body || {};
+
+    const result = solveThermal(nx, ny, dx, dy, thermalK, { left: tempLeft, right: tempRight });
+
+    log.info(`[FEM] POST /fem/thermal — ${result.mesh.nodeCount} nodes, maxT=${result.summary.maxTemperature!.toFixed(1)}°C`);
+    return res.json({
+      success: true,
+      result: {
+        type: result.type,
+        mesh: result.mesh,
+        summary: result.summary,
+        thermal: result.thermal?.slice(0, 100),
+        warnings: result.warnings,
+      },
+      timestamp: new Date().toISOString(),
+      scientificBasis: 'Fourier (1822) + Incropera & DeWitt (2007) + Gauss-Seidel',
+    });
+  } catch (err) {
+    log.error('[FEM] POST /fem/thermal error:', err);
+    return res.status(500).json({ success: false, error: (err as Error).message });
+  }
+});
+
 function computeSHMLevel(healthIndex: number): { level: number; description: string } {
   if (healthIndex >= 0.9) return { level: 0, description: 'Nominal — no anomaly detected' };
   if (healthIndex >= 0.7) return { level: 1, description: 'Detection — anomaly present' };

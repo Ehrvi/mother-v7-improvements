@@ -473,6 +473,19 @@ export async function registerAllStartupTasks(
     cycle: 'C316',
   });
 
+  // ── T28: FEM/FDM Physics Engine (26s) ────────────────────────────────────
+  // Scientific basis: Zienkiewicz & Taylor (2000), Darcy (1856), Fourier (1822)
+  startupScheduler.register({
+    name: 'fem-engine-init',
+    delayMs: 26000,
+    fn: async () => {
+      const { initFEMEngine } = await import('../shms/fem-engine.js');
+      await initFEMEngine();
+    },
+    nonCritical: true,
+    cycle: 'FEM',
+  });
+
   // Executar todas as tarefas registradas
   await startupScheduler.start();
 
