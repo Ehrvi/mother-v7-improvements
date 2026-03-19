@@ -586,159 +586,71 @@ async function layer4_neuralGeneration(
   req: OrchestratorRequest,
   routing: AdaptiveRoutingDecision,
   context: ContextBundle,
-  dynamicTimeoutMs?: number,  // C241: dynamic timeout based on estimated output length
+  dynamicTimeoutMs?: number,
 ): Promise<GenerationResult> {
   const start = Date.now();
   const systemPrompt = buildSystemPrompt(context, routing);
   const messages = buildMessages(req, systemPrompt);
-  // C241 (Conselho v100): Dynamic timeout replaces fixed 25s budget
-  // Scientific basis: empirical benchmark (2026-03) gpt-4o ~650 tok/s, gemini-2.5-pro ~800 tok/s
-  // Formula: base_ms + (estimated_tokens x ms_per_token x 2.0 safety_factor)
-  // Falls back to REACT_TIMEOUT_CONFIG.totalBudgetMs (25s) for short queries
-  const effectiveBudgetMs = dynamicTimeoutMs ?? REACT_TIMEOUT_CONFIG.totalBudgetMs;
-  const totalBudgetStart = Date.now();
-  const getRemainingBudget = () => effectiveBudgetMs - (Date.now() - totalBudgetStart);
-  // Try primary provider with circuit breaker
-  // Ciclo 105: Use DPO_CIRCUIT_CONFIG for fine-tuned models (higher timeout, more tolerant)
+  // SIMPLIFIED: No budget/reserve logic. 120s generous timeout per provider.
+  const TIMEOUT_MS = 120_000;
   const isDpoModel = routing.primaryModel.startsWith('ft:') || routing.primaryModel.includes(':personal:');
-  // C241: Use dynamic timeout for iteration budget (long-form needs longer per-iteration budget)
-  // FIX: The old Math.max(90000, effectiveBudgetMs/2) forced iterationBudget to ≥90s even when
-  // effectiveBudgetMs was 85s. Then C349 Budget Reserve compared iterationBudget (90s) against
-  // maxPrimaryBudget (85s × 0.65 = 55s), ALWAYS rejecting Google → permanent gpt-4o fallback.
-  // Fix: cap iterationBudget at effectiveBudgetMs so the C349 comparison is meaningful.
-  // The circuit breaker timeout (90s) is an upper bound on individual API calls, not a minimum.
-  const baseIterationMs = Math.ceil(effectiveBudgetMs / 2);
-  const iterationBudget = isDpoModel
-    ? Math.min(DPO_CIRCUIT_CONFIG.timeoutMs, effectiveBudgetMs)
-    : Math.min(ORCHESTRATOR_CIRCUIT_CONFIG.timeoutMs, baseIterationMs, effectiveBudgetMs); // dynamic per-iteration budget, capped at total
-  const circuitConfig = isDpoModel
-    ? { ...DPO_CIRCUIT_CONFIG, timeoutMs: iterationBudget }
-    : { ...ORCHESTRATOR_CIRCUIT_CONFIG, timeoutMs: iterationBudget };
+  const circuitConfig = {
+    ...(isDpoModel ? DPO_CIRCUIT_CONFIG : ORCHESTRATOR_CIRCUIT_CONFIG),
+    timeoutMs: TIMEOUT_MS,
+  };
   const circuitKey = isDpoModel ? `${routing.primaryProvider}-dpo` : routing.primaryProvider;
 
-  // C349 (Conselho V111 Q5): Budget Reserve Ratio check
-  // If Google provider would need more than (1 - BUDGET_RESERVE_RATIO) * effectiveBudgetMs,
-  // skip it and use gpt-4o directly to guarantee fallback has ≥35% budget.
-  // Scientific basis: Zeng et al. arXiv:2502.05605; Conselho V111 consensus (5/6 members)
-  const maxPrimaryBudget = Math.floor(effectiveBudgetMs * (1 - BUDGET_RESERVE_RATIO));
-  const googleBudgetExceeded = routing.primaryProvider === 'google' && iterationBudget > maxPrimaryBudget;
-  if (googleBudgetExceeded) {
-    const gpt4oBudget = Math.floor(effectiveBudgetMs * 0.80); // 80% for gpt-4o (fast, reliable)
-    log.info(`[Orchestrator] C349 Budget Reserve: Google would need ${iterationBudget}ms > max ${maxPrimaryBudget}ms (${Math.round(BUDGET_RESERVE_RATIO*100)}% reserve). Routing to gpt-4o with ${gpt4oBudget}ms budget.`);
-    const gpt4oController = new AbortController();
-    const gpt4oTimer = setTimeout(() => gpt4oController.abort(), gpt4oBudget);
-    try {
-      const gpt4oMaxTokens = Math.min(routing.maxTokens ?? 16384, 16384); // GPT-4o max is 16384
-      const gpt4oResponse = await callProvider(
-        'openai', 'gpt-4o', messages, routing.temperature, gpt4oMaxTokens, req.onChunk, gpt4oController.signal,
-      );
-      clearTimeout(gpt4oTimer);
-      log.info(`[Orchestrator] C349 gpt-4o succeeded in ${Date.now() - totalBudgetStart}ms (budget reserve applied)`);
-      return {
-        response: gpt4oResponse,
-        provider: 'openai',
-        model: 'gpt-4o',
-        durationMs: Date.now() - start,
-        usedFallback: false, // Not a fallback — this IS the primary for this budget range
-      };
-    } catch (gpt4oErr: any) {
-      clearTimeout(gpt4oTimer);
-      log.warn(`[Orchestrator] C349 gpt-4o also failed: ${gpt4oErr.message}. Continuing with original flow.`);
-      // Fall through to original primary attempt as last resort
-    }
-  }
-
+  // === Attempt 1: Primary provider ===
   try {
     const response = await withCircuitBreaker(
       circuitKey,
       (signal) => callProvider(
-        routing.primaryProvider,
-        routing.primaryModel,
-        messages,
-        routing.temperature,
-        routing.maxTokens,
-        req.onChunk,
-        signal,
+        routing.primaryProvider, routing.primaryModel,
+        messages, routing.temperature, routing.maxTokens,
+        req.onChunk, signal,
       ),
       circuitConfig,
     );
-    log.info(`[Orchestrator] F1-1 ReAct: primary succeeded in ${Date.now() - totalBudgetStart}ms (budget: ${effectiveBudgetMs}ms)`);
-
-    return {
-      response,
-      provider: routing.primaryProvider,
-      model: routing.primaryModel,
-      durationMs: Date.now() - start,
-      usedFallback: false,
-    };
+    log.info(`[Orchestrator] Primary ${routing.primaryProvider}/${routing.primaryModel} succeeded in ${Date.now() - start}ms`);
+    return { response, provider: routing.primaryProvider, model: routing.primaryModel, durationMs: Date.now() - start, usedFallback: false };
   } catch (primaryErr: any) {
-    const elapsed = Date.now() - totalBudgetStart;
-    log.warn(`[Orchestrator] F1-1 ReAct: primary ${routing.primaryProvider} failed after ${elapsed}ms: ${primaryErr.message}`);
+    log.warn(`[Orchestrator] Primary ${routing.primaryProvider} failed: ${primaryErr.message}`);
+  }
 
-    // F1-1: Try secondary provider with remaining budget (iteration 2)
-    if (routing.secondaryProvider && routing.secondaryModel && getRemainingBudget() > 2000) {
-      try {
-        const secondaryBudget = Math.min(REACT_TIMEOUT_CONFIG.iterationTimeoutMs, getRemainingBudget() - 1000);
-        const response = await withCircuitBreaker(
-          routing.secondaryProvider,
-          (signal) => callProvider(
-            routing.secondaryProvider!,
-            routing.secondaryModel!,
-            messages,
-            routing.temperature,
-            routing.maxTokens,
-            req.onChunk,
-            signal,
-          ),
-          { ...ORCHESTRATOR_CIRCUIT_CONFIG, timeoutMs: secondaryBudget },
-        );
-        log.info(`[Orchestrator] F1-1 ReAct: secondary succeeded in ${Date.now() - totalBudgetStart}ms`);
-
-        return {
-          response,
-          provider: routing.secondaryProvider,
-          model: routing.secondaryModel,
-          durationMs: Date.now() - start,
-          usedFallback: true,
-        };
-      } catch (secondaryErr: any) {
-        log.warn(`[Orchestrator] F1-1 ReAct: secondary ${routing.secondaryProvider} failed: ${secondaryErr.message}`);
-      }
-    }
-
-    // F1-1: Final fallback: gpt-4o-mini with remaining budget (iteration 3)
-    // gpt-4o-mini is fastest model — guaranteed to respond within remaining budget
-    const fallbackBudget = Math.max(getRemainingBudget() - 500, 3000); // at least 3s
-    log.info(`[Orchestrator] F1-1 ReAct: fallback gpt-4o-mini with ${fallbackBudget}ms budget`);
-    const fallbackController = new AbortController();
-    const fallbackTimer = setTimeout(() => fallbackController.abort(), fallbackBudget);
+  // === Attempt 2: Secondary provider ===
+  if (routing.secondaryProvider && routing.secondaryModel) {
     try {
-      // Use routing maxTokens (clamped by callProvider safety net to 16384 for gpt-4o-mini)
-      const fallbackMaxTokens = Math.min(routing.maxTokens ?? 4096, 16384);
-      const fallbackResponse = await callProvider(
-        'openai', 'gpt-4o-mini', messages, routing.temperature, fallbackMaxTokens, req.onChunk, fallbackController.signal,
+      const response = await withCircuitBreaker(
+        routing.secondaryProvider,
+        (signal) => callProvider(
+          routing.secondaryProvider!, routing.secondaryModel!,
+          messages, routing.temperature, routing.maxTokens,
+          req.onChunk, signal,
+        ),
+        { ...ORCHESTRATOR_CIRCUIT_CONFIG, timeoutMs: TIMEOUT_MS },
       );
-      clearTimeout(fallbackTimer);
-      log.info(`[Orchestrator] F1-1 ReAct: total ${Date.now() - totalBudgetStart}ms (3 iterations)`);
-      return {
-        response: fallbackResponse,
-        provider: 'openai',
-        model: 'gpt-4o-mini',
-        durationMs: Date.now() - start,
-        usedFallback: true,
-      };
-    } catch (fallbackErr: any) {
-      clearTimeout(fallbackTimer);
-      // F1-1: If all 3 iterations fail, return graceful degradation message
-      log.error(`[Orchestrator] F1-1 ReAct: all 3 iterations failed in ${Date.now() - totalBudgetStart}ms`);
-      return {
-        response: 'Desculpe, o sistema está temporariamente sobrecarregado. Por favor, tente novamente em alguns segundos.',
-        provider: 'openai',
-        model: 'gpt-4o-mini',
-        durationMs: Date.now() - start,
-        usedFallback: true,
-      };
+      log.info(`[Orchestrator] Secondary ${routing.secondaryProvider} succeeded in ${Date.now() - start}ms`);
+      return { response, provider: routing.secondaryProvider, model: routing.secondaryModel, durationMs: Date.now() - start, usedFallback: true };
+    } catch (secondaryErr: any) {
+      log.warn(`[Orchestrator] Secondary ${routing.secondaryProvider} failed: ${secondaryErr.message}`);
     }
+  }
+
+  // === Attempt 3: gpt-4o-mini fallback ===
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+    const resp = await callProvider('openai', 'gpt-4o-mini', messages, routing.temperature,
+      Math.min(routing.maxTokens ?? 4096, 16384), req.onChunk, ctrl.signal);
+    clearTimeout(timer);
+    log.info(`[Orchestrator] Fallback gpt-4o-mini succeeded in ${Date.now() - start}ms`);
+    return { response: resp, provider: 'openai', model: 'gpt-4o-mini', durationMs: Date.now() - start, usedFallback: true };
+  } catch (fallbackErr: any) {
+    log.error(`[Orchestrator] ALL providers failed in ${Date.now() - start}ms: ${fallbackErr.message}`);
+    return {
+      response: 'Desculpe, o sistema está temporariamente sobrecarregado. Por favor, tente novamente em alguns segundos.',
+      provider: 'openai', model: 'gpt-4o-mini', durationMs: Date.now() - start, usedFallback: true,
+    };
   }
 }
 
