@@ -26,7 +26,7 @@ import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { useShmsDashboardAll } from '@/hooks/useShmsApi';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip as ReTooltip, ResponsiveContainer,
-  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
+  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ReferenceLine,
 } from 'recharts';
 
 // ─── Instrument Definitions ──────────────────────────────────────────────────
@@ -1020,6 +1020,7 @@ export default function DigitalTwin3DViewer({ structureId, minimal = false }: { 
             </div>
           </div>
           <input type="range" min={0} max={23} value={insarEpoch} onChange={e => setInsarEpoch(Number(e.target.value))}
+            title={`Época InSAR: ${insarEpoch + 1}/24`}
             style={{ width: '100%', accentColor: '#0af', height: 4, cursor: 'pointer' }} />
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 6, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>
             <span>Jan/24</span><span>Jul/24</span><span>Jan/25</span><span>Jul/25</span><span>Dez/25</span>
@@ -1132,7 +1133,6 @@ export default function DigitalTwin3DViewer({ structureId, minimal = false }: { 
           const noise = Math.sin(i * 1.7) * inst.baseValue * 0.04 + Math.cos(i * 2.3) * inst.baseValue * 0.03;
           return { month: new Date(2024, i).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }), value: base + noise, idx: i };
         });
-        const lastVal = history[history.length - 1].value;
         const trendDir = pred.trend === 'increasing' ? '↗ Crescente' : pred.trend === 'decreasing' ? '↘ Decrescente' : '→ Estável';
         const riskText = ratio > 0.9 ? 'CRÍTICO — Excede 90% do limiar GISTM' : ratio > 0.75 ? 'ALERTA — Próximo ao limiar de atenção' : ratio > 0.5 ? 'ATENÇÃO — Monitoramento intensificado recomendado' : 'NORMAL — Dentro dos parâmetros operacionais';
 
@@ -1176,7 +1176,7 @@ export default function DigitalTwin3DViewer({ structureId, minimal = false }: { 
                 <ResponsiveContainer width="100%" height={160}>
                   <AreaChart data={[
                     ...history.map(h => ({ ...h, pred: undefined as number | undefined })),
-                    ...pred.predicted.map((p, i) => ({ month: `+${i + 1}m`, value: undefined as number | undefined, pred: p, idx: 24 + i }))
+                    ...pred.predicted.map((p, i) => ({ month: new Date(2024, 24 + i).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }), value: undefined as number | undefined, pred: p, idx: 24 + i }))
                   ]}>
                     <defs>
                       <linearGradient id={`ig-${inst.id}`} x1="0" y1="0" x2="0" y2="1">

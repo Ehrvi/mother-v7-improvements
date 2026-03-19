@@ -486,6 +486,30 @@ export async function registerAllStartupTasks(
     cycle: 'FEM',
   });
 
+  // ── T29: Auto-Training Scheduler (27s) ────────────────────────────────────
+  // Automated DPO/SFT fine-tuning: collects BD data weekly, submits OpenAI jobs,
+  // hot-swaps model on completion. Resumes polling for in-progress jobs on restart.
+  // Scientific basis: Rafailov et al. (arXiv:2305.18290) + OFS-DPO (2024)
+  startupScheduler.register({
+    name: 'auto-training-scheduler',
+    delayMs: 27000,
+    fn: async () => {
+      const { initAutoTraining, resumeJobPolling } = await import('../mother/auto-training-scheduler.js');
+      initAutoTraining();
+
+      // Resume polling for any known in-progress job
+      const pendingJobId = process.env.AUTO_TRAINING_PENDING_JOB;
+      if (pendingJobId) {
+        await resumeJobPolling(pendingJobId);
+        log.info(`[AutoTrain] Resumed polling for job: ${pendingJobId}`);
+      }
+
+      log.info('[AutoTrain] Auto-Training Scheduler ATIVO — weekly SFT/DPO cycle | arXiv:2305.18290');
+    },
+    nonCritical: true,
+    cycle: 'AutoTrain',
+  });
+
   // Executar todas as tarefas registradas
   await startupScheduler.start();
 
