@@ -58,12 +58,9 @@ const FORBIDDEN_PATHS = [
   'server/db.ts',
 ];
 
+// P1 fix: Twelve-Factor App Factor III — config via environment
 function getProjectRoot(): string {
-  if (existsSync('/app/server')) return '/app';
-  if (existsSync('/home/ubuntu/mother-code/mother-interface/server')) {
-    return '/home/ubuntu/mother-code/mother-interface';
-  }
-  return join(__dirname, '../../..');
+  return process.env.MOTHER_PROJECT_ROOT || process.cwd();
 }
 
 function isPathWritable(filePath: string): boolean {

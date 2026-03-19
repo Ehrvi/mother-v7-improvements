@@ -185,6 +185,38 @@ export function recordAuditEntry(params: {
   }
   AUDIT_CHAIN.push(entry);
 
+  // B-FIX: Persist to DB (fire-and-forget, non-blocking)
+  // Scientific basis: ISO/IEC 27001:2022 A.8.15 — persistent audit logs survive process restarts
+  // Uses existing auditLog table from Drizzle schema
+  (async () => {
+    try {
+      const { getDb } = await import('../db');
+      const { auditLog } = await import('../../drizzle/schema');
+      const db = await getDb();
+      if (db) {
+        await db.insert(auditLog).values({
+          action: entry.action,
+          actorEmail: entry.actor,
+          actorType: entry.actorType,
+          targetType: entry.target,
+          targetId: entry.id,
+          details: JSON.stringify({
+            ...entry.details,
+            entryHash: entry.entryHash,
+            chainHash: entry.chainHash,
+            prevChainHash: entry.prevChainHash,
+            sequence: entry.sequence,
+            outcome: entry.outcome,
+            durationMs: entry.durationMs,
+          }),
+        });
+      }
+    } catch {
+      // Non-critical: in-memory chain is the primary store.
+      // DB persistence is best-effort for cross-restart durability.
+    }
+  })();
+
   return entry;
 }
 

@@ -27,6 +27,9 @@ import { uploadToDrive } from './google-workspace-bridge';
 import { generateSpeech } from './tts-engine';
 import { MOTHER_VERSION } from './core'; // C327: Dynamic version — never hardcode
 import * as fs from 'fs';
+import { createLogger } from '../_core/logger';
+const log = createLogger('LONG_FORM_ENGINE_V3');
+
 
 /**
  * C327: LFSA Constitutional Constraints — Conselho V109 (2026-03-12)
@@ -356,7 +359,8 @@ Para cada seção, liste 3-5 pontos principais a cobrir. Seja específico e téc
 
     // C306: Emit outline as first chunk so frontend shows something immediately
     if (request.onChunk) {
-      request.onChunk(`# ${request.title}\n\n`);
+      // SOTA: No query echo — removed title from streaming
+      // request.onChunk(`# ${request.title}\n\n`);
     }
 
     // Phase 2: C352 BUGFIX — SEQUENTIAL generation when streaming (onChunk)
@@ -436,11 +440,11 @@ Para cada seção, liste 3-5 pontos principais a cobrir. Seja específico e téc
         } catch (sectionErr) {
           sectionAttempts++;
           if (sectionAttempts >= 2) throw sectionErr;
-          console.warn(`[LongFormV3-C352] ${model} failed for "${sectionName}", retrying with ${SECTION_MODEL_FALLBACK}:`, sectionErr);
+          log.warn(`[LongFormV3-C352] ${model} failed for "${sectionName}", retrying with ${SECTION_MODEL_FALLBACK}:`, sectionErr);
         }
       }
 
-      console.log(`[LongFormV3-C352] Section "${sectionName}": ${content.length} chars, model=${sectionModelUsed}`);
+      log.info(`[LongFormV3-C352] Section "${sectionName}": ${content.length} chars, model=${sectionModelUsed}`);
 
       request.streamProgress?.({
         phase: 'writing',
@@ -493,7 +497,7 @@ Para cada seção, liste 3-5 pontos principais a cobrir. Seja específico e téc
     });
 
     const fullContent = [
-      `# ${request.title}`,
+      '', // SOTA: removed title echo (was: `# ${request.title}`)
       '',
       ...generatedSections.map(s => `## ${s.title}\n\n${s.content}`),
       '',

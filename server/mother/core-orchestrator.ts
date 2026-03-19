@@ -88,6 +88,9 @@ import { proactiveRecall } from './memory-recall';
 import { determineDepth, formatDepthInstructions } from './depth-controller';
 // Fase 5.1 — Inline response verification (hallucination + filler detection)
 import { verifyChunk, fixVerificationIssues } from './inline-verifier';
+import { createLogger } from '../_core/logger';
+const log = createLogger('CORE_ORCHESTRATOR');
+
 
 // ============================================================
 // TYPES
@@ -236,13 +239,13 @@ async function layer1_intakeAndCache(
   // This ensures DPO Universal Default (Layer 2.5) always gets fresh routing
   const callerBypassCache = req.metadata?.useCache === false;
   if (callerBypassCache) {
-    console.log(`[Orchestrator] Layer1: useCache=false from caller — bypassing cache`);
+    log.info(`[Orchestrator] Layer1: useCache=false from caller — bypassing cache`);
     return { fromCache: false, durationMs: Date.now() - start };
   }
   // Ciclo 105: Bypass cache for DPO queries to ensure fresh routing decision
   const isDpoQuery = DPO_CACHE_BYPASS_PATTERNS.some(p => p.test(req.query));
   if (isDpoQuery) {
-    console.log(`[Orchestrator] Layer1: DPO query detected — bypassing cache`);
+    log.info(`[Orchestrator] Layer1: DPO query detected — bypassing cache`);
     return { fromCache: false, durationMs: Date.now() - start };
   }
   // Determine routing tier for cache eligibility
@@ -282,7 +285,7 @@ function layer2_adaptiveRouting(
     if (hasKey && isProviderAvailable(provider, ORCHESTRATOR_CIRCUIT_CONFIG)) {
       availableProviders.add(provider);
     } else if (!hasKey) {
-      console.log(`[Orchestrator] Provider ${provider} excluded: no API key configured`);
+      log.info(`[Orchestrator] Provider ${provider} excluded: no API key configured`);
     }
   }
 
@@ -325,10 +328,10 @@ function layer2_adaptiveRouting(
     (routing as any).primaryModel = googleAvailable ? olarModel.primary : (availableProviders.has('anthropic') ? 'claude-sonnet-4-6' : 'gpt-4o');
     (routing as any).primaryProvider = googleAvailable ? 'google' : (availableProviders.has('anthropic') ? 'anthropic' : 'openai');
     (routing as any).tier = 'TIER_3';
-    console.log(`[Orchestrator] C242 OLAR: upgraded to ${olarModel.primary} for ${outputEst.category} output (~${outputEst.estimatedTokens} tokens)`);
+    log.info(`[Orchestrator] C242 OLAR: upgraded to ${olarModel.primary} for ${outputEst.category} output (~${outputEst.estimatedTokens} tokens)`);
   }
 
-  console.log(`[Orchestrator] C241 DynTimeout: ${dynamicTimeoutMs}ms for ${outputEst.category} (~${outputEst.estimatedTokens} tok, ${outputEst.estimatedPages} pages). Signal: ${outputEst.detectedSignal}`);
+  log.info(`[Orchestrator] C241 DynTimeout: ${dynamicTimeoutMs}ms for ${outputEst.category} (~${outputEst.estimatedTokens} tok, ${outputEst.estimatedPages} pages). Signal: ${outputEst.detectedSignal}`);
 
   return { routing, durationMs: Date.now() - start, dynamicTimeoutMs };
 }
@@ -394,7 +397,7 @@ async function layer3_contextAssembly(
   // Fase 1.1: planner result (may be undefined if timed out or tier=TIER_1)
   const resolvedPlan = plannerResult.status === 'fulfilled' ? plannerResult.value ?? responsePlan : responsePlan;
   if (resolvedPlan) {
-    console.log(`[Orchestrator] Fase1.1 Planner: plan ready (parallel with context assembly)`);
+    log.info(`[Orchestrator] Fase1.1 Planner: plan ready (parallel with context assembly)`);
   }
 
   // Fase 3.3: Append proactive recall context if triggered
@@ -420,7 +423,7 @@ async function layer3_contextAssembly(
       if (knowledgeScored) finalKnowledge = knowledgeScored.included ? knowledgeScored.content : '';
       if (episodicScored) finalEpisodic = episodicScored.included ? episodicScored.content : '';
       if (scored.contextReductionPercent > 0) {
-        console.log(`[Orchestrator] Fase3.2 CtxScorer: ${scored.contextReductionPercent}% token reduction (${scored.totalTokensExcluded} tokens excluded)`);
+        log.info(`[Orchestrator] Fase3.2 CtxScorer: ${scored.contextReductionPercent}% token reduction (${scored.totalTokensExcluded} tokens excluded)`);
       }
     } catch {
       // Non-blocking — fall back to original contexts
@@ -496,13 +499,13 @@ async function fetchKnowledgeContext(query: string, tier: string): Promise<strin
               new Promise<never>((_, reject) => setTimeout(() => reject(new Error('rerank_timeout')), 2000)),
             ]);
             if (reranked.applied) {
-              console.log(`[Orchestrator] C355 VERTE-RAG reranker applied: NDCG+${(reranked.ndcgImprovement ?? 0).toFixed(2)}`);
+              log.info(`[Orchestrator] C355 VERTE-RAG reranker applied: NDCG+${(reranked.ndcgImprovement ?? 0).toFixed(2)}`);
               return reranked.topContext.slice(0, 8000);
             }
           }
         }
       } catch (rerankErr: any) {
-        console.warn(`[Orchestrator] C355 VERTE-RAG reranker failed (non-blocking): ${rerankErr.message}`);
+        log.warn(`[Orchestrator] C355 VERTE-RAG reranker failed (non-blocking): ${rerankErr.message}`);
       }
     }
 
@@ -621,7 +624,7 @@ async function layer4_neuralGeneration(
   const googleBudgetExceeded = routing.primaryProvider === 'google' && iterationBudget > maxPrimaryBudget;
   if (googleBudgetExceeded) {
     const gpt4oBudget = Math.floor(effectiveBudgetMs * 0.80); // 80% for gpt-4o (fast, reliable)
-    console.log(`[Orchestrator] C349 Budget Reserve: Google would need ${iterationBudget}ms > max ${maxPrimaryBudget}ms (${Math.round(BUDGET_RESERVE_RATIO*100)}% reserve). Routing to gpt-4o with ${gpt4oBudget}ms budget.`);
+    log.info(`[Orchestrator] C349 Budget Reserve: Google would need ${iterationBudget}ms > max ${maxPrimaryBudget}ms (${Math.round(BUDGET_RESERVE_RATIO*100)}% reserve). Routing to gpt-4o with ${gpt4oBudget}ms budget.`);
     const gpt4oController = new AbortController();
     const gpt4oTimer = setTimeout(() => gpt4oController.abort(), gpt4oBudget);
     try {
@@ -630,7 +633,7 @@ async function layer4_neuralGeneration(
         'openai', 'gpt-4o', messages, routing.temperature, gpt4oMaxTokens, req.onChunk, gpt4oController.signal,
       );
       clearTimeout(gpt4oTimer);
-      console.log(`[Orchestrator] C349 gpt-4o succeeded in ${Date.now() - totalBudgetStart}ms (budget reserve applied)`);
+      log.info(`[Orchestrator] C349 gpt-4o succeeded in ${Date.now() - totalBudgetStart}ms (budget reserve applied)`);
       return {
         response: gpt4oResponse,
         provider: 'openai',
@@ -640,7 +643,7 @@ async function layer4_neuralGeneration(
       };
     } catch (gpt4oErr: any) {
       clearTimeout(gpt4oTimer);
-      console.warn(`[Orchestrator] C349 gpt-4o also failed: ${gpt4oErr.message}. Continuing with original flow.`);
+      log.warn(`[Orchestrator] C349 gpt-4o also failed: ${gpt4oErr.message}. Continuing with original flow.`);
       // Fall through to original primary attempt as last resort
     }
   }
@@ -659,7 +662,7 @@ async function layer4_neuralGeneration(
       ),
       circuitConfig,
     );
-    console.log(`[Orchestrator] F1-1 ReAct: primary succeeded in ${Date.now() - totalBudgetStart}ms (budget: ${effectiveBudgetMs}ms)`);
+    log.info(`[Orchestrator] F1-1 ReAct: primary succeeded in ${Date.now() - totalBudgetStart}ms (budget: ${effectiveBudgetMs}ms)`);
 
     return {
       response,
@@ -670,7 +673,7 @@ async function layer4_neuralGeneration(
     };
   } catch (primaryErr: any) {
     const elapsed = Date.now() - totalBudgetStart;
-    console.warn(`[Orchestrator] F1-1 ReAct: primary ${routing.primaryProvider} failed after ${elapsed}ms: ${primaryErr.message}`);
+    log.warn(`[Orchestrator] F1-1 ReAct: primary ${routing.primaryProvider} failed after ${elapsed}ms: ${primaryErr.message}`);
 
     // F1-1: Try secondary provider with remaining budget (iteration 2)
     if (routing.secondaryProvider && routing.secondaryModel && getRemainingBudget() > 2000) {
@@ -689,7 +692,7 @@ async function layer4_neuralGeneration(
           ),
           { ...ORCHESTRATOR_CIRCUIT_CONFIG, timeoutMs: secondaryBudget },
         );
-        console.log(`[Orchestrator] F1-1 ReAct: secondary succeeded in ${Date.now() - totalBudgetStart}ms`);
+        log.info(`[Orchestrator] F1-1 ReAct: secondary succeeded in ${Date.now() - totalBudgetStart}ms`);
 
         return {
           response,
@@ -699,14 +702,14 @@ async function layer4_neuralGeneration(
           usedFallback: true,
         };
       } catch (secondaryErr: any) {
-        console.warn(`[Orchestrator] F1-1 ReAct: secondary ${routing.secondaryProvider} failed: ${secondaryErr.message}`);
+        log.warn(`[Orchestrator] F1-1 ReAct: secondary ${routing.secondaryProvider} failed: ${secondaryErr.message}`);
       }
     }
 
     // F1-1: Final fallback: gpt-4o-mini with remaining budget (iteration 3)
     // gpt-4o-mini is fastest model — guaranteed to respond within remaining budget
     const fallbackBudget = Math.max(getRemainingBudget() - 500, 3000); // at least 3s
-    console.log(`[Orchestrator] F1-1 ReAct: fallback gpt-4o-mini with ${fallbackBudget}ms budget`);
+    log.info(`[Orchestrator] F1-1 ReAct: fallback gpt-4o-mini with ${fallbackBudget}ms budget`);
     const fallbackController = new AbortController();
     const fallbackTimer = setTimeout(() => fallbackController.abort(), fallbackBudget);
     try {
@@ -716,7 +719,7 @@ async function layer4_neuralGeneration(
         'openai', 'gpt-4o-mini', messages, routing.temperature, fallbackMaxTokens, req.onChunk, fallbackController.signal,
       );
       clearTimeout(fallbackTimer);
-      console.log(`[Orchestrator] F1-1 ReAct: total ${Date.now() - totalBudgetStart}ms (3 iterations)`);
+      log.info(`[Orchestrator] F1-1 ReAct: total ${Date.now() - totalBudgetStart}ms (3 iterations)`);
       return {
         response: fallbackResponse,
         provider: 'openai',
@@ -727,7 +730,7 @@ async function layer4_neuralGeneration(
     } catch (fallbackErr: any) {
       clearTimeout(fallbackTimer);
       // F1-1: If all 3 iterations fail, return graceful degradation message
-      console.error(`[Orchestrator] F1-1 ReAct: all 3 iterations failed in ${Date.now() - totalBudgetStart}ms`);
+      log.error(`[Orchestrator] F1-1 ReAct: all 3 iterations failed in ${Date.now() - totalBudgetStart}ms`);
       return {
         response: 'Desculpe, o sistema está temporariamente sobrecarregado. Por favor, tente novamente em alguns segundos.',
         provider: 'openai',
@@ -1055,7 +1058,7 @@ async function layer45_toolDetection(
   ];
   for (const { pattern, tool, args } of TOOL_PATTERNS) {
     if (pattern.test(req.query)) {
-      console.log(`[Orchestrator] Layer 4.5 Tool Detection: ${tool} triggered (NC-TOOL-001)`);
+      log.info(`[Orchestrator] Layer 4.5 Tool Detection: ${tool} triggered (NC-TOOL-001)`);
       return { requiresTool: true, toolName: tool, toolArgs: args, durationMs: Date.now() - start };
     }
   }
@@ -1248,7 +1251,7 @@ async function layer5_symbolicGovernance(
   // Now uses fast heuristic evaluation (~3-5ms, $0 cost) that produces variable scores 0-100.
   if (tier === 'TIER_1') {
     const heuristicResult = evaluateTier1Quality(query, response);
-    console.log(`[Orchestrator] Layer 5 C231 TIER_1 heuristic: score=${heuristicResult.score}, issues=${heuristicResult.issues.length}`);
+    log.info(`[Orchestrator] Layer 5 C231 TIER_1 heuristic: score=${heuristicResult.score}, issues=${heuristicResult.issues.length}`);
     return {
       qualityScore: heuristicResult.score,
       passed: heuristicResult.score >= 92,
@@ -1260,7 +1263,7 @@ async function layer5_symbolicGovernance(
 
   try {
     // Use guardian.ts G-Eval LLM-as-judge (7 dimensions: coherence, consistency, fluency, relevance, safety, depth, obedience)
-    const hallucinationRisk = tier === 'TIER_5' ? 'high' : tier === 'TIER_3' ? 'medium' : 'low';
+    const hallucinationRisk = tier === 'TIER_4' ? 'high' : tier === 'TIER_3' ? 'medium' : 'low';
     const guardianResult: GuardianResult = await validateQuality(
       query,
       response,
@@ -1268,7 +1271,7 @@ async function layer5_symbolicGovernance(
       hallucinationRisk,
       knowledgeContext,
     );
-    console.log(`[Orchestrator] Layer 5 G-Eval: score=${guardianResult.qualityScore.toFixed(1)}, method=${guardianResult.evaluationMethod}, passed=${guardianResult.passed}`);
+    log.info(`[Orchestrator] Layer 5 G-Eval: score=${guardianResult.qualityScore.toFixed(1)}, method=${guardianResult.evaluationMethod}, passed=${guardianResult.passed}`);
     return {
       qualityScore: guardianResult.qualityScore,
       passed: guardianResult.passed,
@@ -1286,7 +1289,7 @@ async function layer5_symbolicGovernance(
     };
   } catch (err: any) {
     // Fallback to heuristic if G-Eval fails (non-blocking — never crash the pipeline)
-    console.warn(`[Orchestrator] Layer 5 G-Eval failed, heuristic fallback: ${err.message}`);
+    log.warn(`[Orchestrator] Layer 5 G-Eval failed, heuristic fallback: ${err.message}`);
     const issues: string[] = [`G-Eval failed: ${err.message}`];
     let score = 75;
     if (response.length < 50) { issues.push('Response too short'); score -= 20; }
@@ -1336,7 +1339,7 @@ function layer6_memoryWriteBack(
         response.toLowerCase().includes(p.toLowerCase())
       );
       if (isErrorResponse) {
-        console.warn('[Orchestrator] NC-CACHE-001: Skipping cache write-back for error/fallback response.');
+        log.warn('[Orchestrator] NC-CACHE-001: Skipping cache write-back for error/fallback response.');
         return; // Do not cache error messages — they are transient system states, not valid answers
       }
       // Store in semantic cache
@@ -1347,7 +1350,7 @@ function layer6_memoryWriteBack(
       // Every response is stored in episodic memory for future retrieval and learning
       try {
         const { storeAMemEntry, generateReflexion } = await import('./amem-agent');
-        const reflection = qualityScore < 0.6
+        const reflection = qualityScore < 60  // C123 fix: qualityScore is 0-100, not 0-1
           ? await generateReflexion(req.query, response, qualityScore)
           : '';
         await storeAMemEntry({
@@ -1365,10 +1368,10 @@ function layer6_memoryWriteBack(
           timestamp: new Date().toISOString(),
         });
       } catch (ememErr: any) {
-        console.warn('[Orchestrator] A-MEM write-back failed (non-blocking):', ememErr.message);
+        log.warn('[Orchestrator] A-MEM write-back failed (non-blocking):', ememErr.message);
       }
     } catch (err: any) {
-      console.warn('[Orchestrator] Layer 6 memory write-back failed (non-blocking):', err.message);
+      log.warn('[Orchestrator] Layer 6 memory write-back failed (non-blocking):', err.message);
     }
   });
 }
@@ -1510,7 +1513,7 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     //   - Quality-first policy: domain expert model > DPO identity model
     const hasDomainPreferredModel = l2.routing.primaryProvider !== 'openai';
     if (hasDomainPreferredModel) {
-      console.log(`[Orchestrator] DPO BYPASSED: domain preferredModel active (${l2.routing.primaryModel}, provider=${l2.routing.primaryProvider}) — C240`);
+      log.info(`[Orchestrator] DPO BYPASSED: domain preferredModel active (${l2.routing.primaryModel}, provider=${l2.routing.primaryProvider}) — C240`);
     }
 
     if (!requiresBaseModel && !hasDomainPreferredModel && isDPOBeneficial) {
@@ -1522,12 +1525,12 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
         useCache: false,
         rationale: `DPO Universal Default (NC-DPO-UNIVERSAL-001 C106) + Sprint3 Tier-gate (C183): DPO v8e → ${ENV_DPO.dpoFineTunedModel} [${currentTier}]`,
       };
-      console.log(`[Orchestrator] DPO ACTIVATED for ${currentTier}: ${ENV_DPO.dpoFineTunedModel}`);
+      log.info(`[Orchestrator] DPO ACTIVATED for ${currentTier}: ${ENV_DPO.dpoFineTunedModel}`);
     } else if (!isDPOBeneficial) {
       // Sprint 3 bypass: TIER_1/2 use fast base model (gpt-4o-mini) — P50 target: <8s
-      console.log(`[Orchestrator] DPO BYPASSED for ${currentTier} (Sprint 3 latency optimization) — using base model`);
+      log.info(`[Orchestrator] DPO BYPASSED for ${currentTier} (Sprint 3 latency optimization) — using base model`);
     } else {
-      console.log(`[Orchestrator] DPO skipped: query requires base model capabilities`);
+      log.info(`[Orchestrator] DPO skipped: query requires base model capabilities`);
     }
   }
   layers.push({
@@ -1607,7 +1610,7 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
     const normResult = normalizeResponse(l4.response, l4.provider);
     if (normResult.changes.length > 0) {
       normalizedResponse = normResult.normalized;
-      console.log(`[Orchestrator] Fase1.3 Normalizer: removed ${normResult.changes.length} artifacts (${l4.provider})`);
+      log.info(`[Orchestrator] Fase1.3 Normalizer: removed ${normResult.changes.length} artifacts (${l4.provider})`);
     }
   } catch { /* Non-blocking — normalization failure is never fatal */ }
 
@@ -1620,7 +1623,7 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
       const fixed = fixVerificationIssues(normalizedResponse, verifyResult.issues);
       if (fixed !== normalizedResponse) {
         normalizedResponse = fixed;
-        console.log(`[Orchestrator] Fase5.1 InlineVerifier: fixed ${verifyResult.issues.length} issues`);
+        log.info(`[Orchestrator] Fase5.1 InlineVerifier: fixed ${verifyResult.issues.length} issues`);
       }
     }
   } catch { /* Non-blocking */ }
@@ -1646,7 +1649,7 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
       l3.knowledgeContext || undefined,
     ),
   ]);
-  console.log(`[Orchestrator] QW-1 Parallel L4.5+L5: ${Date.now() - l45l5ParallelStart}ms (was sequential)`);
+  log.info(`[Orchestrator] QW-1 Parallel L4.5+L5: ${Date.now() - l45l5ParallelStart}ms (was sequential)`);
   // C175: Emit tool_call SSE event when Layer 4.5 detects a tool
   // Scientific basis: ReAct (Yao et al., arXiv:2210.03629) — tool calls must be visible to users
   if (l45.requiresTool && l45.toolName && req.onToolCall) {
@@ -1712,7 +1715,7 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
         0,
       );
       if (activeStudyCheck.should) {
-        console.log(`[C172] Active study triggered: ${activeStudyCheck.reason} (priority=${activeStudyCheck.priority})`);
+        log.info(`[C172] Active study triggered: ${activeStudyCheck.reason} (priority=${activeStudyCheck.priority})`);
         triggerActiveStudy(req.query, activeStudyCheck.priority).catch(() => {});
       }
     } catch { /* non-blocking */ }
@@ -1727,7 +1730,7 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
       if (shouldRecalibrate()) {
         resetCalibrationCounter();
         const calibResult = await calibrateGEval();
-        console.log(`[C172] G-Eval re-calibrated: threshold=${calibResult.dynamicThreshold.toFixed(3)}, samples=${calibResult.sampleCount}`);
+        log.info(`[C172] G-Eval re-calibrated: threshold=${calibResult.dynamicThreshold.toFixed(3)}, samples=${calibResult.sampleCount}`);
       }
     } catch { /* non-blocking */ }
   });
@@ -1768,7 +1771,7 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
       status: 'ok',
       detail: `reasoningScore=${prmBlockResult.value.reasoningScore}, action=${prmBlockResult.value.action} [parallel]`,
     });
-    console.log(`[Orchestrator] Fase2.2 PRM+Citation parallel: ${blockBDurationMs}ms`);
+    log.info(`[Orchestrator] Fase2.2 PRM+Citation parallel: ${blockBDurationMs}ms`);
   }
 
   // ── Layer 5.8: C349 Directed Self-Refine (conditional on G-Eval) ──────────
@@ -1793,7 +1796,7 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
       );
       if (refineResult.improved) {
         finalResponse = refineResult.refined;
-        console.log(`[Orchestrator] C349 Directed Self-Refine: improved (weak: ${refineResult.weakDimensions.join(', ')})`);
+        log.info(`[Orchestrator] C349 Directed Self-Refine: improved (weak: ${refineResult.weakDimensions.join(', ')})`);
         layers.push({
           layer: 5.8 as any,
           name: 'Directed Self-Refine (C349)',
@@ -1803,7 +1806,7 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
         });
       }
     } catch (refineErr: any) {
-      console.warn(`[Orchestrator] C349 Directed Self-Refine failed (non-blocking): ${refineErr.message}`);
+      log.warn(`[Orchestrator] C349 Directed Self-Refine failed (non-blocking): ${refineErr.message}`);
     }
   }
 
@@ -1818,7 +1821,7 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
       status: 'ok',
       detail: `citations=${citBlockResult.value.citationsFound} [parallel with PRM]`,
     });
-    console.log(`[Orchestrator] Fase2.2 Citation: ${citBlockResult.value.citationsFound} added (parallel, ${blockBDurationMs}ms total)`);
+    log.info(`[Orchestrator] Fase2.2 Citation: ${citBlockResult.value.citationsFound} added (parallel, ${blockBDurationMs}ms total)`);
   }
 
   // ── Layer 6: Memory Write-Back (async) ───────────────────
@@ -1876,7 +1879,7 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
   // SLO: TTFT ≤1000ms (NC-TTFT-001) — alert if exceeded
   if (totalLatency > 1000 && !req.conversationHistory?.length) {
     // Only alert for first-turn queries (no history = no context overhead)
-    console.warn(`[Orchestrator] C356 TTFT SLO BREACH: ${totalLatency}ms > 1000ms (tier=${l2.routing.tier}, model=${l4.model})`);
+    log.warn(`[Orchestrator] C356 TTFT SLO BREACH: ${totalLatency}ms > 1000ms (tier=${l2.routing.tier}, model=${l4.model})`);
   }
   recordMetric('ttft_proxy_ms', totalLatency, { tier: l2.routing.tier, model: l4.model }, 'ms');
 

@@ -28,6 +28,9 @@ import { eq, desc, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { episodicMemory } from "../../drizzle/schema";
 import { getEmbedding, cosineSimilarity } from "./embeddings";
+import { createLogger } from '../_core/logger';
+const log = createLogger('MEMORY_AGENT');
+
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const EVO_THRESHOLD = 10; // Trigger evolution every N new memories
@@ -197,7 +200,7 @@ Only evolve if semantic similarity > 0.7. Max 2 actions. ONLY valid JSON.`;
       }).where(eq(episodicMemory.id, action.target_id));
       await db.update(episodicMemory).set({ links: JSON.stringify([action.target_id]) })
         .where(eq(episodicMemory.id, newNote.id));
-      console.log(`[MemoryAgent] Strengthened link: ${newNote.id} ↔ ${action.target_id}`);
+      log.info(`[MemoryAgent] Strengthened link: ${newNote.id} ↔ ${action.target_id}`);
     } else if (action.type === "update_neighbor") {
       const row = await db.select({ evolutionHistory: episodicMemory.evolutionHistory })
         .from(episodicMemory).where(eq(episodicMemory.id, action.target_id)).limit(1);
@@ -207,7 +210,7 @@ Only evolve if semantic similarity > 0.7. Max 2 actions. ONLY valid JSON.`;
         tags: JSON.stringify(action.new_tags || []),
         evolutionHistory: JSON.stringify([...targetHistory, evolutionEntry]),
       }).where(eq(episodicMemory.id, action.target_id));
-      console.log(`[MemoryAgent] Updated neighbor ${action.target_id}: context="${action.new_context}"`);
+      log.info(`[MemoryAgent] Updated neighbor ${action.target_id}: context="${action.new_context}"`);
     }
   }
 }
@@ -215,7 +218,7 @@ Only evolve if semantic similarity > 0.7. Max 2 actions. ONLY valid JSON.`;
 // ─── Tools ────────────────────────────────────────────────────────────────────
 const storeMemoryTool = tool(
   async ({ content, source, runId }) => {
-    console.log("[MemoryAgent] Storing A-MEM note:", content.slice(0, 80));
+    log.info("[MemoryAgent] Storing A-MEM note:", content.slice(0, 80));
     try {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
@@ -240,7 +243,7 @@ const storeMemoryTool = tool(
       const totalCount = Number(countResult[0]?.count || 0);
       if (totalCount % EVO_THRESHOLD === 0) {
         evolveMemory({ id: newId, content, keywords: meta.keywords, context: meta.context, embedding }, llm)
-          .catch(e => console.error("[MemoryAgent] Evolution error:", e));
+          .catch(e => log.error("[MemoryAgent] Evolution error:", e));
       }
       return `Memory stored (ID=${newId}). Keywords: ${meta.keywords.join(", ")}. Context: "${meta.context}". Category: ${meta.category}.`;
     } catch (error) {
@@ -260,7 +263,7 @@ const storeMemoryTool = tool(
 
 const recallMemoryTool = tool(
   async ({ query, limit, contextFilter }) => {
-    console.log("[MemoryAgent] Recalling:", query.slice(0, 80));
+    log.info("[MemoryAgent] Recalling:", query.slice(0, 80));
     try {
       const db = await getDb();
       if (!db) throw new Error("Database not available");

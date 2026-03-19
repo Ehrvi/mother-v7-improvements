@@ -189,7 +189,7 @@ async function executeLocally(
       error: String(err),
     };
   } finally {
-    try { unlinkSync(tmpFile); } catch {}
+    try { unlinkSync(tmpFile); } catch { log.debug('[Sandbox] tmpFile cleanup failed (non-fatal)'); }
   }
 }
 

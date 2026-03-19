@@ -25,6 +25,8 @@ import { executeInSession } from './persistent-shell';
 import { invokeLLM } from '../_core/llm';
 import * as fs from 'fs';
 import * as path from 'path';
+import { createLogger } from '../_core/logger';
+const log = createLogger('DGM-AUTONOMY');
 // C317 (Conselho V108): Supervisor wiring — LangGraph supervisor validates CRITICAL gap modules
 // Scientific basis: Zhang et al. (arXiv:2505.22954) DGM + Yao et al. (arXiv:2210.03629) ReAct
 // Non-blocking: 8s timeout, failure does not block deployment
@@ -236,7 +238,7 @@ export async function runAutonomyCycle(
 
       const moduleName = gap.capability.toLowerCase().replace(/\s+/g, '-');
       const filePath = path.join(
-        '/home/ubuntu/mother-v7-improvements/server/mother',
+        process.env.MOTHER_PROJECT_ROOT || process.cwd(), 'server/mother', // P1 fix
         `auto-${moduleName}-${Date.now()}.ts`
       );
 
@@ -294,7 +296,7 @@ export async function runAutonomyCycle(
 
       generatedModules.push(module);
     } catch (err) {
-      console.error(`[NC-DGM-002] Module generation failed for gap ${gap.id}:`, err);
+      log.error(`[NC-DGM-002] Module generation failed for gap ${gap.id}:`, err);
     }
   }
 

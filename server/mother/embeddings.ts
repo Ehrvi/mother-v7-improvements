@@ -8,6 +8,9 @@ import { ENV } from '../_core/env';
 import { getDb } from '../db';
 import { queries } from '../../drizzle/schema';
 import { isNotNull, desc, eq } from 'drizzle-orm';
+import { createLogger } from '../_core/logger';
+const log = createLogger('EMBEDDINGS');
+
 
 /**
  * Get embedding vector for text
@@ -36,7 +39,7 @@ export async function getEmbedding(text: string): Promise<number[]> {
     const data = await response.json();
     return data.data[0].embedding;
   } catch (error) {
-    console.error('[Embeddings] Error:', error);
+    log.error('[Embeddings] Error:', error);
     // Fallback: return zero vector (TF-IDF will be used instead)
     return new Array(1536).fill(0);
   }
@@ -115,7 +118,7 @@ export async function searchEpisodicMemory(
     // Check if embedding is a zero vector (API failure fallback)
     const isZeroVector = queryEmbedding.every(v => v === 0);
     if (isZeroVector) {
-      console.log('[EpisodicMemory] Zero vector detected, skipping memory search');
+      log.info('[EpisodicMemory] Zero vector detected, skipping memory search');
       return [];
     }
     
@@ -135,7 +138,7 @@ export async function searchEpisodicMemory(
       .limit(500);
     
     if (recentQueries.length === 0) {
-      console.log('[EpisodicMemory] No queries with embeddings found');
+      log.info('[EpisodicMemory] No queries with embeddings found');
       return [];
     }
     
@@ -170,12 +173,12 @@ export async function searchEpisodicMemory(
     const results = scored.slice(0, topK);
     
     if (results.length > 0) {
-      console.log(`[EpisodicMemory] Found ${results.length} relevant past interactions (top similarity: ${results[0].similarity.toFixed(3)})`);
+      log.info(`[EpisodicMemory] Found ${results.length} relevant past interactions (top similarity: ${results[0].similarity.toFixed(3)})`);
     }
     
     return results;
   } catch (error) {
-    console.error('[EpisodicMemory] Search error:', error);
+    log.error('[EpisodicMemory] Search error:', error);
     return [];
   }
 }
@@ -198,8 +201,8 @@ export async function generateAndStoreEmbedding(queryId: number, queryText: stri
       .set({ embedding: JSON.stringify(embedding) })
       .where(eq(queries.id, queryId));
     
-    console.log(`[EpisodicMemory] Stored embedding for query ${queryId}`);
+    log.info(`[EpisodicMemory] Stored embedding for query ${queryId}`);
   } catch (error) {
-    console.error(`[EpisodicMemory] Failed to store embedding for query ${queryId}:`, error);
+    log.error(`[EpisodicMemory] Failed to store embedding for query ${queryId}:`, error);
   }
 }

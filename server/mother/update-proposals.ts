@@ -14,7 +14,7 @@
  *   explicit authorization to prevent unintended behavior
  */
 
-import { getDb } from '../db';
+import { getDb, rawQuery } from '../db';
 import { execSync } from 'child_process';
 import { createLogger } from '../_core/logger'; // v74.0: NC-003 structured logger
 import { ENV } from '../_core/env';
@@ -67,7 +67,7 @@ export async function createProposal(input: CreateProposalInput): Promise<number
       return null;
     }
 
-    const result = await (db as any).$client.query(
+    const result = await rawQuery(
       `INSERT INTO update_proposals 
        (proposed_by, title, description, rationale, affected_modules, estimated_impact, status, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, 'pending', NOW(), NOW())`,
@@ -138,14 +138,14 @@ export async function approveProposal(
     // v72.0: Fix — update BOTH tables (manual and DGM)
     // Root cause: approveProposal only updated update_proposals, but DGM proposals
     // live in self_proposals — 0 rows affected = silent fail, proposals stayed 'pending'/'failed'
-    const [manualResult] = await (db as any).$client.query(
+    const [manualResult] = await rawQuery(
       `UPDATE update_proposals 
        SET status = 'approved', approved_by_email = ?, approved_at = NOW(), 
            implementation_notes = ?, updated_at = NOW()
        WHERE id = ? AND status = 'pending'`,
       [approverEmail, implementationNotes || null, proposalId]
     );
-    const [dgmResult] = await (db as any).$client.query(
+    const [dgmResult] = await rawQuery(
       `UPDATE self_proposals 
        SET status = 'approved', approved_by = ?, approved_at = NOW(), 
            updated_at = NOW()
@@ -207,13 +207,13 @@ export async function rejectProposal(
     const db = await getDb();
     if (!db) return { success: false, reason: 'DB not available' };
 
-    const [manualResult] = await (db as any).$client.query(
+    const [manualResult] = await rawQuery(
       `UPDATE update_proposals
        SET status = 'rejected', rejected_reason = ?, updated_at = NOW()
        WHERE id = ? AND status = 'pending'`,
       [reason, proposalId]
     );
-    const [dgmResult] = await (db as any).$client.query(
+    const [dgmResult] = await rawQuery(
       `UPDATE self_proposals
        SET status = 'rejected', updated_at = NOW()
        WHERE id = ? AND status IN ('pending', 'failed')`,
@@ -251,7 +251,7 @@ export async function getPendingProposals(): Promise<UpdateProposal[]> {
     if (!db) return [];
 
     // Query update_proposals (manual proposals)
-    const [manualRows] = await (db as any).$client.query(
+    const [manualRows] = await rawQuery(
       `SELECT id, 'mother' as proposed_by, title, description, '' as rationale,
               '' as affected_modules, 'medium' as estimated_impact,
               status, NULL as approved_by_email, NULL as approved_at,
@@ -261,7 +261,7 @@ export async function getPendingProposals(): Promise<UpdateProposal[]> {
     ).catch(() => [[]]);
 
     // Query self_proposals (DGM autonomous proposals)
-    const [dgmRows] = await (db as any).$client.query(
+    const [dgmRows] = await rawQuery(
       `SELECT id, 'mother' as proposed_by, title, description, hypothesis as rationale,
               metric_trigger as affected_modules, 'high' as estimated_impact,
               status, approved_by as approved_by_email, approved_at,
@@ -293,7 +293,7 @@ export async function getProposals(status?: ProposalStatus, limit = 20): Promise
     const dgmParams: (string | number)[] = status ? [status, limit] : [limit];
 
     // Query update_proposals (manual proposals)
-    const [manualRows] = await (db as any).$client.query(
+    const [manualRows] = await rawQuery(
       `SELECT id, 'mother' as proposed_by, title, description, '' as rationale,
               '' as affected_modules, 'medium' as estimated_impact,
               status, NULL as approved_by_email, NULL as approved_at,
@@ -304,7 +304,7 @@ export async function getProposals(status?: ProposalStatus, limit = 20): Promise
     ).catch(() => [[]]);
 
     // Query self_proposals (DGM autonomous proposals)
-    const [dgmRows] = await (db as any).$client.query(
+    const [dgmRows] = await rawQuery(
       `SELECT id, 'mother' as proposed_by, title, description, hypothesis as rationale,
               metric_trigger as affected_modules, 'high' as estimated_impact,
               status, approved_by as approved_by_email, approved_at,
@@ -374,7 +374,7 @@ export async function logAuditEvent(input: AuditLogInput): Promise<void> {
     const db = await getDb();
     if (!db) return;
 
-    await (db as any).$client.query(
+    await rawQuery(
       `INSERT INTO audit_log (action, actor_email, actor_type, target_type, target_id, details, ip_address, success, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
@@ -402,7 +402,7 @@ export async function getAuditLog(limit = 50): Promise<any[]> {
     const db = await getDb();
     if (!db) return [];
 
-    const [rows] = await (db as any).$client.query(
+    const [rows] = await rawQuery(
       'SELECT * FROM audit_log ORDER BY created_at DESC LIMIT ?',
       [limit]
     );
@@ -454,17 +454,19 @@ export async function triggerSweAgentJob(proposalId: number): Promise<void> {
   log.info(`[SWE-Trigger] Mode: ${useCloudRunJob ? 'Cloud Run Job' : 'Inline (fallback)'}`);
 
   if (useCloudRunJob) {
-    // PRIMARY: Trigger the Cloud Run Job (isolated, scalable, production-grade)
-    const command = [
-      'gcloud run jobs execute', jobName,
+    // C115 fix: Use execFileSync with argument array instead of shell string
+    // Scientific basis: Node.js child_process docs — "never use exec with unsanitized input"
+    const { execFileSync } = await import('child_process');
+    const args = [
+      'run', 'jobs', 'execute', jobName,
       `--region=${region}`,
       `--project=${projectId}`,
       `--update-env-vars=PROPOSAL_ID=${proposalId},AUTONOMOUS_JOB_MODE=true`,
       '--async',
-    ].join(' ');
+    ];
 
-    log.info(`[SWE-Trigger] Executing: ${command}`);
-    execSync(command, { stdio: 'pipe' });
+    log.info(`[SWE-Trigger] Executing: gcloud ${args.join(' ')}`);
+    execFileSync('gcloud', args, { stdio: 'pipe' });
     log.info(`[SWE-Trigger] ✅ Cloud Run Job dispatched for proposal ${proposalId}`);
 
     await logAuditEvent({

@@ -12,6 +12,9 @@
  * Thresholds: 3 failures in 60s → OPEN; 30s cooldown → HALF_OPEN; 1 success → CLOSED
  */
 
+import { createLogger } from '../_core/logger';
+const log = createLogger('CIRCUIT_BREAKER');
+
 export type CircuitState = 'CLOSED' | 'OPEN' | 'HALF_OPEN';
 
 export interface CircuitBreakerConfig {
@@ -91,7 +94,7 @@ export function isProviderAvailable(provider: string, config: CircuitBreakerConf
       // Transition to HALF_OPEN to probe recovery
       circuit.state = 'HALF_OPEN';
       circuit.successes = 0;
-      console.log(`[CircuitBreaker] ${provider}: OPEN → HALF_OPEN (probing recovery)`);
+      log.info(`[CircuitBreaker] ${provider}: OPEN → HALF_OPEN (probing recovery)`);
       return true;
     }
     return false;
@@ -116,7 +119,7 @@ export function recordSuccess(provider: string, config: CircuitBreakerConfig = D
       circuit.failures = 0;
       circuit.windowFailures = [];
       circuit.openedAt = null;
-      console.log(`[CircuitBreaker] ${provider}: HALF_OPEN → CLOSED (recovered)`);
+      log.info(`[CircuitBreaker] ${provider}: HALF_OPEN → CLOSED (recovered)`);
     }
   } else if (circuit.state === 'CLOSED') {
     // Prune old window failures
@@ -142,7 +145,7 @@ export function recordFailure(provider: string, error: string, config: CircuitBr
     circuit.state = 'OPEN';
     circuit.openedAt = new Date();
     circuit.successes = 0;
-    console.warn(`[CircuitBreaker] ${provider}: HALF_OPEN → OPEN (probe failed: ${error})`);
+    log.warn(`[CircuitBreaker] ${provider}: HALF_OPEN → OPEN (probe failed: ${error})`);
     return;
   }
 
@@ -155,7 +158,7 @@ export function recordFailure(provider: string, error: string, config: CircuitBr
   if (circuit.failures >= config.failureThreshold) {
     circuit.state = 'OPEN';
     circuit.openedAt = new Date();
-    console.error(`[CircuitBreaker] ${provider}: CLOSED → OPEN (${circuit.failures} failures in ${config.windowMs / 1000}s window: ${error})`);
+    log.error(`[CircuitBreaker] ${provider}: CLOSED → OPEN (${circuit.failures} failures in ${config.windowMs / 1000}s window: ${error})`);
   }
 }
 
@@ -218,7 +221,7 @@ export function getAllCircuitStats(): CircuitBreakerStats[] {
  */
 export function resetCircuit(provider: string): void {
   circuits.delete(provider);
-  console.log(`[CircuitBreaker] ${provider}: manually reset to CLOSED`);
+  log.info(`[CircuitBreaker] ${provider}: manually reset to CLOSED`);
 }
 
 /**

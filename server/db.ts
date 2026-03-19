@@ -119,6 +119,28 @@ export async function getDb() {
 }
 
 /**
+ * Raw SQL query helper — eliminates the `(db as any).$client.query()` anti-pattern.
+ * Uses the same underlying mysql2 pool with parameterized queries (? placeholders).
+ *
+ * Security: All params are passed as prepared statement values (OWASP A03-safe).
+ * Scientific basis: OWASP SQL Injection Prevention Cheat Sheet (2024).
+ *
+ * Usage:
+ *   const [rows] = await rawQuery('SELECT * FROM table WHERE id = ?', [id]);
+ *   // rows is RowDataPacket[]
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function rawQuery(query: string, params?: any[]): Promise<any> {
+  if (!_pool) {
+    await getDb();
+  }
+  if (!_pool) {
+    throw new Error('[Database] rawQuery: pool not available — check DATABASE_URL');
+  }
+  return _pool.query(query, params) as any;
+}
+
+/**
  * F1-3 (Ciclo 169): Get pool statistics for observability
  * Scientific basis: OpenTelemetry (CNCF, 2023) — connection pool metrics are critical for diagnosis
  */

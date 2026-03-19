@@ -17,6 +17,9 @@
 import { getDb } from '../db';
 import { knowledge } from '../../drizzle/schema';
 import { desc } from 'drizzle-orm';
+import { createLogger } from '../_core/logger';
+const log = createLogger('KNOWLEDGE_GRAPH');
+
 
 export interface KGNode {
   id: string;           // concept identifier
@@ -114,7 +117,7 @@ export async function buildKnowledgeGraph(): Promise<{ nodes: number; edges: num
 
   const db = await getDb();
   if (!db) {
-    console.warn('[KnowledgeGraph] Database not available, skipping graph build');
+    log.warn('[KnowledgeGraph] Database not available, skipping graph build');
     return { nodes: 0, edges: 0, communities: 0 };
   }
 
@@ -192,7 +195,7 @@ export async function buildKnowledgeGraph(): Promise<{ nodes: number; edges: num
   };
 
   const elapsed = Date.now() - startTime;
-  console.log(`[KnowledgeGraph] Built graph: ${nodes.size} nodes, ${edges.length} edges, ${communities.size} communities in ${elapsed}ms`);
+  log.info(`[KnowledgeGraph] Built graph: ${nodes.size} nodes, ${edges.length} edges, ${communities.size} communities in ${elapsed}ms`);
 
   return {
     nodes: nodes.size,
@@ -354,11 +357,11 @@ export async function writeBackToKnowledgeGraph(
     });
     // Invalidate graph cache so next retrieval includes this new knowledge
     graphCache = null;
-    console.log(`[KG Write-Back] Stored Q=${qualityScore} response: "${title.slice(0, 60)}..." (${domain})`);
+    log.info(`[KG Write-Back] Stored Q=${qualityScore} response: "${title.slice(0, 60)}..." (${domain})`);
     return { stored: true, reason: `Stored Q=${qualityScore} response for category '${category}'` };
   } catch (err) {
     // Non-blocking — KG write-back failure must never break the main response
-    console.warn('[KG Write-Back] Failed (non-blocking):', (err as Error).message);
+    log.warn('[KG Write-Back] Failed (non-blocking):', (err as Error).message);
     return { stored: false, reason: `DB error: ${(err as Error).message}` };
   }
 }

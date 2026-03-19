@@ -62,6 +62,8 @@ const BIIntegration = safeLazy(() => import('@/components/shms/admin/BIIntegrati
 const BudgetOverview = safeLazy(() => import('@/components/shms/admin/BudgetOverview'));
 const SystemHealth = safeLazy(() => import('@/components/shms/admin/SystemHealth'));
 const AIAnalysisChat = safeLazy(() => import('@/components/shms/ai/AIAnalysisChat'));
+const CognitiveTimeSeries = safeLazy(() => import('@/components/shms/sensors/CognitiveTimeSeries'));
+const DigitalTwinPanel = safeLazy(() => import('@/components/shms/DigitalTwin3DViewer'));
 
 
 // ─── View titles (PT-BR) ─────────────────────────────────────────────────────
@@ -91,7 +93,7 @@ const VIEW_TITLES: Record<ShmsView, string> = {
   'bi-integration': 'BI Integration',
   'budget': 'Orçamento',
   'system-health': 'Saúde do Sistema',
-  'ai-chat': 'AI Cognitiva — Cognitive Bridge',
+  'ai-chat': 'AI Cognitiva — Cognitive Blender',
 };
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
@@ -164,18 +166,7 @@ export default function SHMSPage() {
       case 'boreholes':
         return <BoreholeViewer structureId={sid} />;
       case '3d-twin':
-        return (
-          <div className="shms-animate-slide-in">
-            <div className="shms-section-header"><span className="shms-section-header__title">🎮 Digital Twin 3D</span></div>
-            <div className="shms-card"><div className="shms-card__body" style={{ textAlign: 'center', padding: 'var(--shms-sp-8)' }}>
-              <div style={{ fontSize: 48 }}>🏗️</div>
-              <div style={{ fontWeight: 600, marginTop: 'var(--shms-sp-2)' }}>Digital Twin 3D</div>
-              <div style={{ fontSize: 'var(--shms-fs-xs)', color: 'var(--shms-text-dim)', marginTop: 'var(--shms-sp-2)' }}>
-                Componente Three.js disponível em páginas separadas: SHMS 3D Environment
-              </div>
-            </div></div>
-          </div>
-        );
+        return <DigitalTwinPanel structureId={sid} />;
       case 'alerts':
         return <AlertsPanel structureId={sid} />;
       case 'events':
@@ -201,7 +192,7 @@ export default function SHMSPage() {
       case 'system-health':
         return <SystemHealth />;
       case 'ai-chat':
-        return <AIAnalysisChat structureId={sid} />;
+        return <CognitiveTimeSeries structureId={sid} />;
       default:
         return <OverviewDashboard onSelectStructure={selectStructure} onNavigate={navigate} />;
     }

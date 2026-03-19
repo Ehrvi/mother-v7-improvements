@@ -24,6 +24,9 @@ import { getDb } from '../db';
 import { getEmbedding } from './embeddings';
 import { sql } from 'drizzle-orm';
 import { PDFParse } from 'pdf-parse';
+import { createLogger } from '../_core/logger';
+const log = createLogger('PAPER_INGEST');
+
 
 // pdf-parse v2 API: PDFParse class with options in constructor, getText() returns { pages: [{text}] }
 
@@ -108,7 +111,7 @@ export async function fetchArxivMetadata(arxivUrl: string): Promise<ArxivPaperMe
       categories,
     };
   } catch (error) {
-    console.error(`[PaperIngest] Failed to fetch arXiv metadata for ${arxivUrl}:`, error);
+    log.error(`[PaperIngest] Failed to fetch arXiv metadata for ${arxivUrl}:`, error);
     return null;
   }
 }
@@ -117,7 +120,7 @@ export async function fetchArxivMetadata(arxivUrl: string): Promise<ArxivPaperMe
 
 async function downloadAndExtractPdf(pdfUrl: string): Promise<string | null> {
   try {
-    console.log(`[PaperIngest] Downloading PDF: ${pdfUrl}`);
+    log.info(`[PaperIngest] Downloading PDF: ${pdfUrl}`);
     
     const response = await fetch(pdfUrl, {
       headers: {
@@ -128,14 +131,14 @@ async function downloadAndExtractPdf(pdfUrl: string): Promise<string | null> {
     });
     
     if (!response.ok) {
-      console.warn(`[PaperIngest] PDF download failed: ${response.status}`);
+      log.warn(`[PaperIngest] PDF download failed: ${response.status}`);
       return null;
     }
     
     const buffer = await response.arrayBuffer();
     const pdfBuffer = Buffer.from(buffer);
     
-    console.log(`[PaperIngest] PDF downloaded: ${(pdfBuffer.length / 1024).toFixed(1)}KB`);
+    log.info(`[PaperIngest] PDF downloaded: ${(pdfBuffer.length / 1024).toFixed(1)}KB`);
     
     const parser = new PDFParse({ data: pdfBuffer });
     await (parser as any).load();
@@ -146,16 +149,16 @@ async function downloadAndExtractPdf(pdfUrl: string): Promise<string | null> {
       ? result.pages.map((p: { text: string }) => p.text).join('\n\n').trim()
       : '';
     const numPages = result?.pages?.length ?? 0;
-    console.log(`[PaperIngest] Extracted ${text.length} chars from ${numPages} pages`);
+    log.info(`[PaperIngest] Extracted ${text.length} chars from ${numPages} pages`);
     
     if (text.length < 200) {
-      console.warn('[PaperIngest] Extracted text too short — likely image-based PDF');
+      log.warn('[PaperIngest] Extracted text too short — likely image-based PDF');
       return null;
     }
     
     return text;
   } catch (error) {
-    console.error('[PaperIngest] PDF extraction failed:', error);
+    log.error('[PaperIngest] PDF extraction failed:', error);
     return null;
   }
 }
@@ -215,7 +218,7 @@ function chunkText(text: string): string[] {
     if (chunk.trim().length > 50) chunks.push(chunk.trim());
   }
   
-  console.log(`[PaperIngest] Created ${chunks.length} chunks`);
+  log.info(`[PaperIngest] Created ${chunks.length} chunks`);
   return chunks;
 }
 
@@ -237,7 +240,7 @@ export async function ingestPaper(arxivUrl: string): Promise<PaperIngestResult> 
     return { arxivId: arxivUrl, title: '', paperId: -1, chunksCreated: 0, skipped: false, error: 'Failed to fetch arXiv metadata' };
   }
   
-  console.log(`[PaperIngest] Processing: "${metadata.title.slice(0, 60)}..." (${metadata.arxivId})`);
+  log.info(`[PaperIngest] Processing: "${metadata.title.slice(0, 60)}..." (${metadata.arxivId})`);
   
   // 2. Check for duplicates using raw SQL (production uses arxiv_id snake_case)
   const existing = await db.execute(
@@ -246,7 +249,7 @@ export async function ingestPaper(arxivUrl: string): Promise<PaperIngestResult> 
   
   const existingRows = (existing as any)[0] as any[];
   if (existingRows && existingRows.length > 0) {
-    console.log(`[PaperIngest] Paper already indexed: ${metadata.arxivId}`);
+    log.info(`[PaperIngest] Paper already indexed: ${metadata.arxivId}`);
     return { arxivId: metadata.arxivId, title: metadata.title, paperId: existingRows[0].id, chunksCreated: 0, skipped: true };
   }
   
@@ -255,7 +258,7 @@ export async function ingestPaper(arxivUrl: string): Promise<PaperIngestResult> 
   let textSource = 'pdf';
   
   if (!fullText) {
-    console.log(`[PaperIngest] Using abstract as fallback for: ${metadata.arxivId}`);
+    log.info(`[PaperIngest] Using abstract as fallback for: ${metadata.arxivId}`);
     fullText = `Title: ${metadata.title}\n\nAuthors: ${metadata.authors.join(', ')}\n\nAbstract: ${metadata.abstract}`;
     textSource = 'abstract';
   }
@@ -274,7 +277,7 @@ export async function ingestPaper(arxivUrl: string): Promise<PaperIngestResult> 
     return { arxivId: metadata.arxivId, title: metadata.title, paperId: -1, chunksCreated: 0, skipped: false, error: 'Failed to insert paper record' };
   }
   
-  console.log(`[PaperIngest] Paper record created: ID ${paperId}`);
+  log.info(`[PaperIngest] Paper record created: ID ${paperId}`);
   
   // 5. Chunk text
   const chunks = chunkText(fullText);
@@ -306,7 +309,7 @@ export async function ingestPaper(arxivUrl: string): Promise<PaperIngestResult> 
         
         chunksCreated++;
       } catch (err) {
-        console.error(`[PaperIngest] Failed to embed chunk ${chunkIndex}:`, err);
+        log.error(`[PaperIngest] Failed to embed chunk ${chunkIndex}:`, err);
       }
     }));
     
@@ -320,7 +323,7 @@ export async function ingestPaper(arxivUrl: string): Promise<PaperIngestResult> 
     sql`UPDATE papers SET status = 'completed' WHERE id = ${paperId}`
   );
   
-  console.log(`[PaperIngest] ✅ Indexed: "${metadata.title.slice(0, 50)}" — ${chunksCreated} chunks (source: ${textSource})`);
+  log.info(`[PaperIngest] ✅ Indexed: "${metadata.title.slice(0, 50)}" — ${chunksCreated} chunks (source: ${textSource})`);
   
   return {
     arxivId: metadata.arxivId,
@@ -338,7 +341,7 @@ export async function ingestPaper(arxivUrl: string): Promise<PaperIngestResult> 
  * Processes papers sequentially to respect arXiv rate limits (3s between requests)
  */
 export async function ingestPapersFromSearch(arxivUrls: string[]): Promise<PaperIngestResult[]> {
-  console.log(`[PaperIngest] Starting batch ingest of ${arxivUrls.length} papers`);
+  log.info(`[PaperIngest] Starting batch ingest of ${arxivUrls.length} papers`);
   
   const results: PaperIngestResult[] = [];
   
@@ -348,13 +351,13 @@ export async function ingestPapersFromSearch(arxivUrls: string[]): Promise<Paper
       results.push(result);
       
       if (!result.skipped && !result.error) {
-        console.log(`[PaperIngest] ✅ ${result.arxivId}: ${result.chunksCreated} chunks`);
+        log.info(`[PaperIngest] ✅ ${result.arxivId}: ${result.chunksCreated} chunks`);
       }
       
       // Rate limit: 3 seconds between papers (arXiv API guideline)
       await new Promise(resolve => setTimeout(resolve, 3000));
     } catch (err) {
-      console.error(`[PaperIngest] Failed to ingest ${url}:`, err);
+      log.error(`[PaperIngest] Failed to ingest ${url}:`, err);
       results.push({ arxivId: url, title: '', paperId: -1, chunksCreated: 0, skipped: false, error: String(err) });
     }
   }
@@ -363,7 +366,7 @@ export async function ingestPapersFromSearch(arxivUrls: string[]): Promise<Paper
   const skipped = results.filter(r => r.skipped).length;
   const failed = results.filter(r => r.error).length;
   
-  console.log(`[PaperIngest] Batch complete: ${successful} indexed, ${skipped} skipped, ${failed} failed`);
+  log.info(`[PaperIngest] Batch complete: ${successful} indexed, ${skipped} skipped, ${failed} failed`);
   
   return results;
 }
@@ -404,7 +407,7 @@ export async function searchPaperChunks(query: string, topK: number = 5): Promis
     const chunks = (chunksResult as any)[0] as any[];
     
     if (!chunks || chunks.length === 0) {
-      console.log('[PaperIngest] No paper chunks in database');
+      log.info('[PaperIngest] No paper chunks in database');
       return [];
     }
     
@@ -430,11 +433,11 @@ export async function searchPaperChunks(query: string, topK: number = 5): Promis
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, topK);
     
-    console.log(`[PaperIngest] Vector search: ${scored.length} relevant chunks found (from ${chunks.length} total)`);
+    log.info(`[PaperIngest] Vector search: ${scored.length} relevant chunks found (from ${chunks.length} total)`);
     
     return scored;
   } catch (error) {
-    console.error('[PaperIngest] Vector search failed:', error);
+    log.error('[PaperIngest] Vector search failed:', error);
     return [];
   }
 }

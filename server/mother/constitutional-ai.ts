@@ -59,6 +59,8 @@ interface ConstitutionalCritique {
   scientific_grounding: { score: number; violation: string | null };
   geotechnical_accuracy: { score: number; violation: string | null };
   shms_relevance: { score: number; violation: string | null };
+  // Fix #12: Conciseness principle
+  conciseness: { score: number; violation: string | null };
 }
 
 /**
@@ -107,6 +109,9 @@ For each principle, score 1-5 and identify any violation (null if none).
 11. **SHMS Relevance** (1-5): If response covers structural health monitoring, does it reference specific sensor types, thresholds, or monitoring protocols?
     Violation: "Response discusses SHMS/monitoring without specifying sensor types, alert thresholds, or protocols"
     Note: Score 3 (neutral) if query is not about monitoring.
+12. **Conciseness** (1-5): Is the response length appropriate for the query complexity? Does it avoid filler, repetition, and padding?
+    Violation: "Response is excessively verbose relative to query complexity, contains filler phrases, or repeats the same idea in different words"
+    Note: Evaluate relative to query — a complex research question warrants a longer response.
 
 Respond ONLY with JSON (no markdown):
 {
@@ -120,7 +125,8 @@ Respond ONLY with JSON (no markdown):
   "precision": {"score": X, "violation": "..." or null},
   "scientific_grounding": {"score": X, "violation": "..." or null},
   "geotechnical_accuracy": {"score": X, "violation": "..." or null},
-  "shms_relevance": {"score": X, "violation": "..." or null}
+  "shms_relevance": {"score": X, "violation": "..." or null},
+  "conciseness": {"score": X, "violation": "..." or null}
 }`;
 
   try {
@@ -226,13 +232,14 @@ function calculateConstitutionalScore(critique: ConstitutionalCritique): number 
   const weights: Record<string, number> = {
     faithfulness: 0.20,
     depth: 0.20,
-    obedience: 0.15,
-    completeness: 0.12,
+    obedience: 0.13,       // Fix #12: adjusted from 0.15 to accommodate conciseness
+    completeness: 0.10,    // Fix #12: adjusted from 0.12 to accommodate conciseness
     scientific_grounding: 0.10,  // F3-2: new
     honesty: 0.07,
     helpfulness: 0.06,
     geotechnical_accuracy: 0.05, // F3-2: new
     shms_relevance: 0.03,        // F3-2: new
+    conciseness: 0.04,            // Fix #12: verbosity check
     safety: 0.01,
     precision: 0.01,
   };
@@ -274,8 +281,12 @@ export async function applyConstitutionalAI(
     rounds: 0,
   };
 
-  // Only apply if quality is below threshold
-  if (qualityScore >= 80) {
+  // Fix #6 (Ciclo 166 Audit): Raised gate from 80→90 to match core.ts caller
+  // core.ts L1663 calls applyConstitutionalAI when quality < 90
+  // BEFORE: Q=80-89 entered this function but immediately exited here — dead zone
+  // AFTER: Q=80-89 now gets full critique-revise review (catches subtle violations)
+  // Scientific basis: Bai et al. (arXiv:2212.08073) — CAI most impactful at Q=80-89 range
+  if (qualityScore >= 90) {
     return defaultResult;
   }
 

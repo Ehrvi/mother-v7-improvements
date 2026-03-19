@@ -24,6 +24,9 @@
 
 import { insertKnowledge } from '../db';
 import { fetchWithRetry } from './fetch-with-retry'; // v74.8: NC-OMNI-001 exponential backoff
+import { createLogger } from '../_core/logger';
+const log = createLogger('ARXIV_PIPELINE');
+
 
 // ==================== ARXIV API ====================
 // arXiv API v2: https://info.arxiv.org/help/api/index.html
@@ -96,7 +99,7 @@ async function fetchArxivPapers(
     });
     
     if (!response.ok) {
-      console.warn(`[arXiv Pipeline] HTTP ${response.status} for category ${category}`);
+      log.warn(`[arXiv Pipeline] HTTP ${response.status} for category ${category}`);
       return [];
     }
     
@@ -122,11 +125,11 @@ async function fetchArxivPapers(
       }
     }
     
-    console.log(`[arXiv Pipeline] Fetched ${papers.length} papers from ${category}`);
+    log.info(`[arXiv Pipeline] Fetched ${papers.length} papers from ${category}`);
     return papers;
     
   } catch (err) {
-    console.warn(`[arXiv Pipeline] Failed to fetch ${category}:`, (err as Error).message);
+    log.warn(`[arXiv Pipeline] Failed to fetch ${category}:`, (err as Error).message);
     return [];
   }
 }
@@ -187,11 +190,11 @@ async function fetchPubMedPapers(
       }
     }
     
-    console.log(`[PubMed Pipeline] Fetched ${papers.length} papers for "${topic}"`);
+    log.info(`[PubMed Pipeline] Fetched ${papers.length} papers for "${topic}"`);
     return papers;
     
   } catch (err) {
-    console.warn(`[PubMed Pipeline] Failed for "${topic}":`, (err as Error).message);
+    log.warn(`[PubMed Pipeline] Failed for "${topic}":`, (err as Error).message);
     return [];
   }
 }
@@ -235,7 +238,7 @@ ${paper.authors[0] || 'Unknown'} et al., "${paper.title}," arXiv:${paper.id}, ${
       await new Promise(resolve => setTimeout(resolve, 200));
       
     } catch (err) {
-      console.warn(`[arXiv Pipeline] Failed to ingest paper ${paper.id}:`, (err as Error).message);
+      log.warn(`[arXiv Pipeline] Failed to ingest paper ${paper.id}:`, (err as Error).message);
     }
   }
   
@@ -276,7 +279,7 @@ ${paper.authors[0] || 'Unknown'} et al., "${paper.title}," *${paper.journal}*, $
       await new Promise(resolve => setTimeout(resolve, 200));
       
     } catch (err) {
-      console.warn(`[PubMed Pipeline] Failed to ingest paper ${paper.pmid}:`, (err as Error).message);
+      log.warn(`[PubMed Pipeline] Failed to ingest paper ${paper.pmid}:`, (err as Error).message);
     }
   }
   
@@ -324,7 +327,7 @@ export async function runArxivPipeline(
   let totalArxiv = 0;
   let totalPubMed = 0;
   
-  console.log(`[arXiv Pipeline] Starting ingestion: ${ARXIV_CATEGORIES.length} categories, max ${maxPerCategory}/category, last ${daysBack} days`);
+  log.info(`[arXiv Pipeline] Starting ingestion: ${ARXIV_CATEGORIES.length} categories, max ${maxPerCategory}/category, last ${daysBack} days`);
   
   // Fetch arXiv papers in parallel (3 at a time to respect rate limits)
   const batchSize = 3;
@@ -371,7 +374,7 @@ export async function runArxivPipeline(
     errors,
   };
   
-  console.log(`[arXiv Pipeline] Complete: ${result.totalIngested} papers ingested in ${result.durationMs}ms`);
+  log.info(`[arXiv Pipeline] Complete: ${result.totalIngested} papers ingested in ${result.durationMs}ms`);
   return result;
 }
 

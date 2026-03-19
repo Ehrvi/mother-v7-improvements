@@ -18,6 +18,7 @@ import { execSync, exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 
 const execAsync = promisify(exec);
 
@@ -62,7 +63,8 @@ export interface GWSUploadResult {
   durationMs: number;
 }
 
-const RCLONE_CONFIG = '/home/ubuntu/.gdrive-rclone.ini';
+// E-FIX: Twelve-Factor App — no hardcoded paths (Wiggins, 2017)
+const RCLONE_CONFIG = process.env.RCLONE_CONFIG || path.join(os.homedir(), '.gdrive-rclone.ini');
 const RCLONE_REMOTE = 'manus_google_drive';
 const MOTHER_DRIVE_FOLDER = 'MOTHER-v7.0';
 

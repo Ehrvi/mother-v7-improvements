@@ -67,18 +67,10 @@ function isPathAllowed(filePath: string): boolean {
 
 /**
  * Get the project root directory
- * In production (Docker): /app
- * In development: /home/ubuntu/mother-code/mother-interface
+ * P1 fix: Twelve-Factor App Factor III — config via environment
  */
 function getProjectRoot(): string {
-  // Check if we're in Docker container
-  if (existsSync('/app/server')) return '/app';
-  // Development environment
-  if (existsSync('/home/ubuntu/mother-code/mother-interface/server')) {
-    return '/home/ubuntu/mother-code/mother-interface';
-  }
-  // Fallback: use relative path
-  return join(__dirname, '../../..');
+  return process.env.MOTHER_PROJECT_ROOT || process.cwd();
 }
 
 export interface CodeFile {

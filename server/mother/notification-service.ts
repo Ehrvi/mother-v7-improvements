@@ -29,6 +29,9 @@
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+import { createLogger } from '../_core/logger';
+const log = createLogger('NOTIFICATION_SERVICE');
+
 export interface AlertNotification {
   sensorId: string;
   structureId: string;
@@ -177,8 +180,8 @@ async function sendEmail(alert: AlertNotification): Promise<{ success: boolean; 
     // Dynamic import to avoid hard dependency — nodemailer is optional
     const nodemailer = await import('nodemailer' as string).catch(() => null) as any;
     if (!nodemailer) {
-      console.warn('[NotificationService] nodemailer not installed — email logged only');
-      console.log(`[NotificationService] EMAIL (dry-run):\nTo: ${emailTo}\nSubject: ${subject}\n${body}`);
+      log.warn('[NotificationService] nodemailer not installed — email logged only');
+      log.info(`[NotificationService] EMAIL (dry-run):\nTo: ${emailTo}\nSubject: ${subject}\n${body}`);
       return { success: false, error: 'nodemailer not installed' };
     }
 
@@ -242,7 +245,7 @@ export async function sendAlertNotification(alert: AlertNotification): Promise<N
     result.dryRun = true;
     // Log-only mode (no channels configured)
     const levelEmoji = alert.icoldLevel === 3 ? '🔴' : '🟡';
-    console.warn(
+    log.warn(
       `[NotificationService] ${levelEmoji} ICOLD Level ${alert.icoldLevel} (${alert.alertLevel}) — ` +
       `sensor=${alert.sensorId} structure=${alert.structureId} value=${alert.value} threshold=${alert.threshold} — ` +
       `${alert.message} [DRY-RUN: configure NOTIFICATION_WEBHOOK_URL or SMTP_HOST to enable real notifications]`

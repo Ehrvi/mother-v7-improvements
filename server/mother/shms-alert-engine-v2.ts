@@ -19,6 +19,9 @@
 
 import { triggerAlert, type AlertTrigger, type AlertLevel } from './shms-alerts-service';
 import { type EKFPrediction } from './shms-neural-ekf';
+import { createLogger } from '../_core/logger';
+const log = createLogger('SHMS_ALERT_ENGINE_V2');
+
 
 export interface AlertThresholds {
   sensorType: string;
@@ -171,7 +174,7 @@ export async function processEKFAlerts(
       try {
         await triggerAlert(trigger);
       } catch (err) {
-        console.error(`[NC-SHMS-002] Alert dispatch failed for ${prediction.sensorId}:`, err);
+        log.error(`[NC-SHMS-002] Alert dispatch failed for ${prediction.sensorId}:`, err);
       }
     }
   }

@@ -12,6 +12,9 @@
  */
 
 import { ENV } from '../_core/env';
+import { createLogger } from '../_core/logger';
+const log = createLogger('PROVIDER_HEALTH');
+
 
 export interface ProviderStatus {
   provider: string;
@@ -276,7 +279,7 @@ export async function checkAllProviders(forceRefresh = false): Promise<ProviderH
     return healthCache;
   }
   
-  console.log('[ProviderHealth] Running health checks on all 5 providers...');
+  log.info('[ProviderHealth] Running health checks on all 5 providers...');
   
   // Run all checks in parallel — Circuit Breaker Pattern
   const [openai, anthropic, google, deepseek, mistral] = await Promise.allSettled([
@@ -301,9 +304,9 @@ export async function checkAllProviders(forceRefresh = false): Promise<ProviderH
   // Log summary
   const healthy = providers.filter(p => p.status === 'healthy').length;
   const issues = providers.filter(p => p.status !== 'healthy');
-  console.log(`[ProviderHealth] ${healthy}/5 providers healthy`);
+  log.info(`[ProviderHealth] ${healthy}/5 providers healthy`);
   if (issues.length > 0) {
-    issues.forEach(p => console.warn(`[ProviderHealth] ⚠️ ${p.displayName}: ${p.status} — ${p.errorMessage}`));
+    issues.forEach(p => log.warn(`[ProviderHealth] ⚠️ ${p.displayName}: ${p.status} — ${p.errorMessage}`));
   }
   
   const report: ProviderHealthReport = {

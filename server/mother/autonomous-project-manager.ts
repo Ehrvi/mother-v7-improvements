@@ -62,7 +62,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 // Use existsSync('/app/server') to detect Cloud Run production environment
 // Scientific basis: 12-Factor App (Heroku 2011), GitOps (Weaveworks 2017)
-export const MOTHER_DIR = existsSync('/app/server') ? '/app' : path.resolve(__dirname, '../..');
+export const MOTHER_DIR = process.env.MOTHER_PROJECT_ROOT || process.cwd(); // P1 fix: Twelve-Factor App
 
 // ============================================================
 // TYPES

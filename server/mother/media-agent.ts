@@ -17,6 +17,9 @@
 import { ENV } from 'server/_core/env';
 import { generateImage as forgeGenerateImage } from 'server/_core/imageGeneration';
 import { storagePut } from 'server/storage';
+import { createLogger } from '../_core/logger';
+const log = createLogger('MEDIA_AGENT');
+
 
 // ============================================================
 // TYPES
@@ -126,7 +129,7 @@ export async function generateImageWithDalle3(
         }
       }
     } catch (error) {
-      console.warn('[media-agent] DALL-E 3 failed, trying Forge:', error);
+      log.warn('[media-agent] DALL-E 3 failed, trying Forge:', error);
     }
   }
 
@@ -228,7 +231,7 @@ export async function generateRevealSlides(
   try {
     pdfUrl = await generatePdfFromHtml(html, title);
   } catch (error) {
-    console.warn('[media-agent] PDF generation failed (Puppeteer not available):', error);
+    log.warn('[media-agent] PDF generation failed (Puppeteer not available):', error);
   }
 
   return {

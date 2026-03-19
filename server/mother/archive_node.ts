@@ -18,6 +18,9 @@
 
 import { getDb } from "../db";
 import { dgmArchive } from "../../drizzle/schema";
+import { createLogger } from '../_core/logger';
+const log = createLogger('ARCHIVE_NODE');
+
 
 type SupervisorState = {
   messages: Array<{ role: string; content: string }>;
@@ -34,9 +37,9 @@ type SupervisorState = {
  * Uses the ACTUAL production schema (snake_case, generation_id, code_snapshot, etc.)
  */
 export async function archiveNode(state: SupervisorState): Promise<Partial<SupervisorState>> {
-  console.log("[ArchiveNode] Archiving evolution data...");
-  console.log("[ArchiveNode] Current node:", state.currentNode);
-  console.log("[ArchiveNode] Messages count:", state.messages?.length || 0);
+  log.info("[ArchiveNode] Archiving evolution data...");
+  log.info("[ArchiveNode] Current node:", state.currentNode);
+  log.info("[ArchiveNode] Messages count:", state.messages?.length || 0);
 
   try {
     // Extract data from state
@@ -93,10 +96,10 @@ export async function archiveNode(state: SupervisorState): Promise<Partial<Super
         : null,
     });
 
-    console.log("[ArchiveNode] Successfully archived evolution data");
-    console.log("[ArchiveNode] Generation ID:", generationId);
-    console.log("[ArchiveNode] Fitness Score:", fitnessScore);
-    console.log("[ArchiveNode] Insert result:", JSON.stringify(insertResult).substring(0, 100));
+    log.info("[ArchiveNode] Successfully archived evolution data");
+    log.info("[ArchiveNode] Generation ID:", generationId);
+    log.info("[ArchiveNode] Fitness Score:", fitnessScore);
+    log.info("[ArchiveNode] Insert result:", JSON.stringify(insertResult).substring(0, 100));
 
     return {
       messages: [
@@ -109,7 +112,7 @@ export async function archiveNode(state: SupervisorState): Promise<Partial<Super
       currentNode: "archive",
     };
   } catch (error) {
-    console.error("[ArchiveNode] Error archiving evolution data:", error);
+    log.error("[ArchiveNode] Error archiving evolution data:", error);
 
     return {
       messages: [

@@ -20,6 +20,8 @@
 
 import { getAllCircuitStats, resetCircuit } from './circuit-breaker';
 import { getCacheStats, pruneExpiredEntries } from './semantic-cache';
+import { createLogger } from '../_core/logger';
+const log = createLogger('GUARDIAN');
 
 // ============================================================
 // TYPES
@@ -201,7 +203,10 @@ async function executeHealingAction(violation: SLOViolation): Promise<string> {
       try {
         const { escalateToGuardian } = await import('./dgm-agent');
         await escalateToGuardian(violation);
-      } catch { /* DGM optional */ }
+      } catch (escalateErr: any) {
+        // P5 fix: Log DGM escalation failure instead of silently swallowing
+        log.warn(`DGM escalation failed (non-blocking): ${escalateErr?.message ?? escalateErr}`);
+      }
       return msg;
     }
 
@@ -235,7 +240,7 @@ export async function runGuardianCheck(): Promise<GuardianReport> {
         const result = await executeHealingAction(violation);
         healingActionsExecuted.push(result);
       } catch (err: any) {
-        console.error(`[Guardian] Healing action failed: ${err.message}`);
+        log.error(`Healing action failed: ${err.message}`);
       }
     }
   }
@@ -252,7 +257,7 @@ export async function runGuardianCheck(): Promise<GuardianReport> {
 
   // Log critical violations
   for (const v of violations.filter(v => v.severity === 'CRITICAL')) {
-    console.error(`[Guardian] CRITICAL: ${v.metric}=${v.current} (threshold: ${v.threshold})`);
+    log.error(`CRITICAL: ${v.metric}=${v.current} (threshold: ${v.threshold})`);
   }
 
   return report;
@@ -306,20 +311,20 @@ export function startGuardian(intervalMs = 60000): void {
     try {
       const report = await runGuardianCheck();
       if (!report.healthy) {
-        console.warn(`[Guardian] Health check: ${report.violations.length} violations, ${report.healingActionsExecuted.length} actions executed`);
+        log.warn(`Health check: ${report.violations.length} violations, ${report.healingActionsExecuted.length} actions executed`);
       }
     } catch (err: any) {
-      console.error('[Guardian] Periodic check failed:', err.message);
+      log.error('Periodic check failed:', err.message);
     }
   }, intervalMs);
 
-  console.log(`[Guardian] Started periodic health checks every ${intervalMs / 1000}s`);
+  log.info(`Started periodic health checks every ${intervalMs / 1000}s`);
 }
 
 export function stopGuardian(): void {
   if (guardianInterval) {
     clearInterval(guardianInterval);
     guardianInterval = null;
-    console.log('[Guardian] Stopped');
+    log.info('Stopped');
   }
 }

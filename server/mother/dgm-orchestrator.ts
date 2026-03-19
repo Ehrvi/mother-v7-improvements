@@ -362,7 +362,7 @@ export async function runDGMCycle(spec: DGMCycleSpec): Promise<DGMCycleResult> {
       const passRate = benchReport.passRate ?? 0;
       log.info(`[DGM] Benchmark: ${passedCount}/${totalTasks} tasks passed, score: ${benchReport.overallScore?.toFixed(1)}, HELM composite: ${benchReport.helmScore?.composite?.toFixed(1)}`);
       // Gate: require at least 60% pass rate (equivalent to 4/6 MCCs) to proceed to deploy
-      if (passRate < 0.6) {
+      if (passRate < 60) {  // C94 fix: passRate is 0-100, not 0-1
         return finalizeCycle({
           cycleId,
           objective: spec.objective,
@@ -887,7 +887,7 @@ Propose an improved version:`,
         .trim();
     }
   } catch (err) {
-    console.warn('[DGM-ORCHESTRATOR] LLM proposal failed, using original content:', err);
+    log.warn('[DGM-ORCHESTRATOR] LLM proposal failed, using original content:', err);
   }
 
   return runDGMCycle({

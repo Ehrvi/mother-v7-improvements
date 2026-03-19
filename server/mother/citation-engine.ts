@@ -274,18 +274,10 @@ export async function applyCitationEngine(
         const referencesSection = '\n\n---\n## Referências\n\n' + inlineCitations.join('\n\n');
         return { applied: true, citationsFound: inlineCitations.length, formattedReferences: referencesSection, responseWithCitations: response + referencesSection };
       }
-      // C283: Fallback 2 — generate domain-specific foundational citations based on query
-      const domainCitations = generateDomainCitations(query, category);
-      if (domainCitations.length > 0) {
-        log.info(`[CitationEngine] C283 domain fallback: ${domainCitations.length} domain citations generated`);
-        const referencesSection = '\n\n---\n## Referências\n\n' + domainCitations.join('\n\n');
-        return { applied: true, citationsFound: domainCitations.length, formattedReferences: referencesSection, responseWithCitations: response + referencesSection };
-      }
-      // C290: Final fallback — generic scientific methodology citation (guarantees ~100% citation rate)
-      // Scientific basis: APA 7th Edition — methodology citations are always applicable for scientific responses
-      const genericCitation = '\n\n---\n## Referências\n\n[1] Feynman, R. P., "The Pleasure of Finding Things Out," *Perseus Books*, 1999. ISBN: 978-0465023950\n\n[2] National Academies of Sciences, Engineering, and Medicine, "Reproducibility and Replicability in Science," *The National Academies Press*, 2019. https://doi.org/10.17226/25303';
-      log.info('[CitationEngine] C290 generic fallback applied (guarantees ~100% citation rate)');
-      return { applied: true, citationsFound: 2, formattedReferences: genericCitation, responseWithCitations: response + genericCitation };
+      // C77 fix: Do NOT generate fake domain citations when no real ones found
+      // Scientific integrity: absence of evidence is better than fabricated evidence
+      log.info('[CitationEngine] No citations found from any source — returning without fabricated references');
+      return { applied: false, citationsFound: 0, formattedReferences: '', responseWithCitations: response };
     }
 
     // Limit to top 5 citations
@@ -437,19 +429,19 @@ export function shouldApplyCitationEngine(response: string, category: string): b
   const isSimpleShortResponse = category === 'simple' && response.length < 300;
   if (trivialCategories.includes(category) || isSimpleShortResponse) {
     if (process.env.MOTHER_CITATION_DEBUG === 'true') {
-      console.log('[CITATION_ENGINE_DEBUG] SKIP: trivial category or simple+short', { category, responseLength: response.length });
+      log.info('[CITATION_ENGINE_DEBUG] SKIP: trivial category or simple+short', { category, responseLength: response.length });
     }
     return false;
   }
   if (response.length < 150) {
     if (process.env.MOTHER_CITATION_DEBUG === 'true') {
-      console.log('[CITATION_ENGINE_DEBUG] SKIP: response too short', { length: response.length });
+      log.info('[CITATION_ENGINE_DEBUG] SKIP: response too short', { length: response.length });
     }
     return false;
   }
   if (/##\s*Referências|##\s*References|##\s*Bibliography/i.test(response)) {
     if (process.env.MOTHER_CITATION_DEBUG === 'true') {
-      console.log('[CITATION_ENGINE_DEBUG] SKIP: already has references section');
+      log.info('[CITATION_ENGINE_DEBUG] SKIP: already has references section');
     }
     return false;
   }
@@ -472,7 +464,7 @@ export function shouldApplyCitationEngine(response: string, category: string): b
   const shouldApply = semanticScore >= 2 || highValueCategories.includes(category);
 
   if (process.env.MOTHER_CITATION_DEBUG === 'true') {
-    console.log('[CITATION_ENGINE_DEBUG] C348 semantic check', {
+    log.info('[CITATION_ENGINE_DEBUG] C348 semantic check', {
       category, responseLength: response.length,
       hasStatistics, hasSciTerms, hasCausalClaims, hasNamedEntities,
       semanticScore, shouldApply

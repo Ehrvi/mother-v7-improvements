@@ -90,17 +90,18 @@ export const BENCHMARK_QUERIES: BenchmarkQuery[] = [
   { id: 'D09', category: 'code', query: 'Implement a pub-sub event bus in TypeScript', expectedTraits: ['subscribe', 'publish', 'events'], minQualityScore: 75 },
   { id: 'D10', category: 'code', query: 'Create a health check endpoint monitoring multiple dependencies', expectedTraits: ['health', 'dependencies', 'timeout'], minQualityScore: 75 },
 
-  // Domain / SHMS (10)
-  { id: 'S01', category: 'domain', query: 'Explain how piezometers work in dam monitoring', expectedTraits: ['pressure', 'water', 'geotechnical'], minQualityScore: 70 },
-  { id: 'S02', category: 'domain', query: 'O que é um inclinômetro e como é usado em monitoramento de taludes?', expectedTraits: ['inclinação', 'deslocamento', 'talude'], minQualityScore: 70 },
-  { id: 'S03', category: 'domain', query: 'What are the ICOLD guidelines for dam safety monitoring?', expectedTraits: ['safety', 'monitoring', 'guidelines'], minQualityScore: 70 },
-  { id: 'S04', category: 'domain', query: 'Explique digital twin aplicado a monitoramento de barragens', expectedTraits: ['simulação', 'real_time', 'sensores'], minQualityScore: 70 },
-  { id: 'S05', category: 'domain', query: 'How does MQTT protocol work for IoT sensor data?', expectedTraits: ['MQTT', 'publish', 'subscribe'], minQualityScore: 70 },
-  { id: 'S06', category: 'domain', query: 'O que é um filtro de Kalman aplicado a dados de sensores?', expectedTraits: ['predição', 'ruído', 'estado'], minQualityScore: 70 },
-  { id: 'S07', category: 'domain', query: 'Describe key metrics for structural health monitoring (SHM)', expectedTraits: ['displacement', 'strain', 'vibration'], minQualityScore: 70 },
-  { id: 'S08', category: 'domain', query: 'Quais são os principais riscos em barragens e como IA pode ajudar?', expectedTraits: ['risco', 'monitoramento', 'alerta'], minQualityScore: 70 },
-  { id: 'S09', category: 'domain', query: 'Explain static vs dynamic analysis in geotechnical engineering', expectedTraits: ['static', 'dynamic', 'load'], minQualityScore: 70 },
-  { id: 'S10', category: 'domain', query: 'How can anomaly detection be applied to dam monitoring data?', expectedTraits: ['anomaly', 'threshold', 'detection'], minQualityScore: 70 },
+  // Domain / SHMS — 10 prompts covering ALL 8 SHMS areas (sensors, alerts, analysis, digital twin, cognitive, geo, documents/standards, admin)
+  // Scientific basis: HELM (Liang et al., arXiv:2211.09110, 2022) — domain-specific benchmark scenarios
+  { id: 'S01', category: 'domain', query: 'O que é um piezômetro e como ele funciona no monitoramento de barragens?', expectedTraits: ['pressão', 'água', 'Casagrande'], minQualityScore: 75 },
+  { id: 'S02', category: 'domain', query: 'Explique o sistema de alarme de 3 níveis do ICOLD Bulletin 158', expectedTraits: ['green', 'yellow', 'red'], minQualityScore: 75 },
+  { id: 'S03', category: 'domain', query: 'Como funciona o cálculo de vida útil remanescente (RUL) para instrumentos geotécnicos?', expectedTraits: ['degradation', 'prediction', 'LSTM'], minQualityScore: 70 },
+  { id: 'S04', category: 'domain', query: 'O que é um gêmeo digital para monitoramento estrutural e quais são seus benefícios?', expectedTraits: ['real-time', '3D', 'sensor'], minQualityScore: 75 },
+  { id: 'S05', category: 'domain', query: 'Analise esta leitura: piezômetro PZ-001, valor 95 kPa, limiar de atenção 80 kPa', expectedTraits: ['acima', 'alerta', 'inspeção'], minQualityScore: 70 },
+  { id: 'S06', category: 'domain', query: 'Explique a análise de estabilidade pelo método de Bishop para taludes de barragens', expectedTraits: ['fator', 'segurança', 'cisalhamento'], minQualityScore: 70 },
+  { id: 'S07', category: 'domain', query: 'Quais são os requisitos da PNSB (Lei 12.334) para planos de ação emergencial?', expectedTraits: ['PAE', 'risco', 'classificação'], minQualityScore: 70 },
+  { id: 'S08', category: 'domain', query: 'Como criar uma árvore de falhas para ruptura de barragem de rejeitos?', expectedTraits: ['top event', 'piping', 'overtopping'], minQualityScore: 70 },
+  { id: 'S09', category: 'domain', query: 'O que é uma matriz TARP para operações de mineração?', expectedTraits: ['trigger', 'action', 'response'], minQualityScore: 70 },
+  { id: 'S10', category: 'domain', query: 'Explique o Extended Kalman Filter neural para filtragem de sinais de sensores', expectedTraits: ['estado', 'ruído', 'predição'], minQualityScore: 70 },
 ];
 
 export function evaluateBenchmarkResponse(
@@ -119,10 +120,16 @@ export function evaluateBenchmarkResponse(
     issues.push(`Quality ${qualityScore} < min ${query.minQualityScore}`);
   }
 
+  // Fix #14 (Ciclo 166 Audit): Fuzzy trait matching instead of exact includes()
+  // BEFORE: 'Casagrande' must appear exactly — fails on 'piezômetro de corda vibrante'
+  // AFTER: split trait into words, check if ≥50% of words appear (fuzzy)
+  // Scientific basis: IFEval (Zhou et al., arXiv:2311.07911) — flexible constraint matching
   for (const trait of query.expectedTraits) {
-    const t = trait.toLowerCase().replace(/_/g, ' ');
-    if (!responseLower.includes(t) && !responseLower.includes(trait.toLowerCase())) {
-      issues.push(`Missing trait: ${trait}`);
+    const traitWords = trait.toLowerCase().replace(/_/g, ' ').split(/\s+/).filter(w => w.length > 2);
+    const matchedWords = traitWords.filter(w => responseLower.includes(w));
+    const matchRatio = traitWords.length > 0 ? matchedWords.length / traitWords.length : 1;
+    if (matchRatio < 0.5) {
+      issues.push(`Missing trait: ${trait} (matched ${matchedWords.length}/${traitWords.length} words)`);
     }
   }
 

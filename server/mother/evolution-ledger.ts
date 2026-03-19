@@ -48,7 +48,7 @@ export interface LedgerEntry {
   deletions: number;
   benchmark: {
     verdict: 'PASSED' | 'FAILED' | 'NOT_RUN';
-    fitness_score: number;
+    fitness_score: number; // 0-100 scale (C116 fix: all values normalized to 0-100)
     mccs_passed: number;
     mccs_total: number;
   };
@@ -88,7 +88,7 @@ export const EVOLUTION_LEDGER: LedgerEntry[] = [
     deletions: 12,
     benchmark: {
       verdict: 'PASSED',
-      fitness_score: 1.0,
+      fitness_score: 100,
       mccs_passed: 6,
       mccs_total: 6,
     },
@@ -126,7 +126,7 @@ export const EVOLUTION_LEDGER: LedgerEntry[] = [
     deletions: 8,
     benchmark: {
       verdict: 'PASSED',
-      fitness_score: 1.0,
+      fitness_score: 100,
       mccs_passed: 6,
       mccs_total: 6,
     },
@@ -165,7 +165,7 @@ export const EVOLUTION_LEDGER: LedgerEntry[] = [
     deletions: 5,
     benchmark: {
       verdict: 'PASSED',
-      fitness_score: 1.0,
+      fitness_score: 100,
       mccs_passed: 6,
       mccs_total: 6,
     },
@@ -204,7 +204,7 @@ export const EVOLUTION_LEDGER: LedgerEntry[] = [
     deletions: 3,
     benchmark: {
       verdict: 'PASSED',
-      fitness_score: 1.0,
+      fitness_score: 100,
       mccs_passed: 6,
       mccs_total: 6,
     },
@@ -242,7 +242,7 @@ export const EVOLUTION_LEDGER: LedgerEntry[] = [
     deletions: 12,
     benchmark: {
       verdict: 'PASSED',
-      fitness_score: 1.0,
+      fitness_score: 100,
       mccs_passed: 6,
       mccs_total: 6,
     },
@@ -281,7 +281,7 @@ export const EVOLUTION_LEDGER: LedgerEntry[] = [
     deletions: 8,
     benchmark: {
       verdict: 'PASSED',
-      fitness_score: 1.0,
+      fitness_score: 100,
       mccs_passed: 6,
       mccs_total: 6,
     },
@@ -326,7 +326,7 @@ export const EVOLUTION_LEDGER: LedgerEntry[] = [
     deletions: 62,
     benchmark: {
       verdict: 'PASSED',
-      fitness_score: 1.0,
+      fitness_score: 100,
       mccs_passed: 6,
       mccs_total: 6,
     },

@@ -52,6 +52,9 @@
 import { addKnowledge } from './knowledge';
 import { ingestPapersFromSearch } from './paper-ingest';
 import { generateFichamento } from './fichamento';
+import { createLogger } from '../_core/logger';
+const log = createLogger('ACTIVE_STUDY');
+
 
 // ==================== TYPES ====================
 
@@ -129,7 +132,7 @@ export async function searchSemanticScholar(
     });
 
     if (!response.ok) {
-      console.warn(`[ActiveStudy] Semantic Scholar API returned ${response.status}`);
+      log.warn(`[ActiveStudy] Semantic Scholar API returned ${response.status}`);
       return [];
     }
 
@@ -143,10 +146,10 @@ export async function searchSemanticScholar(
       p.abstract && p.abstract.length > 100
     );
 
-    console.log(`[ActiveStudy] Semantic Scholar: ${papers.length} results, ${filtered.length} after quality filter`);
+    log.info(`[ActiveStudy] Semantic Scholar: ${papers.length} results, ${filtered.length} after quality filter`);
     return filtered;
   } catch (error) {
-    console.error('[ActiveStudy] Semantic Scholar search failed:', error);
+    log.error('[ActiveStudy] Semantic Scholar search failed:', error);
     return [];
   }
 }
@@ -231,7 +234,7 @@ export async function triggerActiveStudy(
   priority: 'high' | 'medium' | 'low' = 'medium',
   config: ActiveStudyConfig = DEFAULT_STUDY_CONFIG
 ): Promise<ActiveStudyResult> {
-  console.log(`[ActiveStudy] Triggered for query: "${query.slice(0, 80)}..." (priority: ${priority})`);
+  log.info(`[ActiveStudy] Triggered for query: "${query.slice(0, 80)}..." (priority: ${priority})`);
 
   let papersIngested = 0;
   let knowledgeAdded = 0;
@@ -261,9 +264,9 @@ export async function triggerActiveStudy(
           const ingested = ingestResults.filter(r => !r.skipped && !r.error);
           papersIngested += ingested.length;
           sources.push(...arxivUrls.slice(0, ingested.length));
-          console.log(`[ActiveStudy] Ingested ${ingested.length} papers from Semantic Scholar → arXiv`);
+          log.info(`[ActiveStudy] Ingested ${ingested.length} papers from Semantic Scholar → arXiv`);
         } catch (ingestErr) {
-          console.error('[ActiveStudy] Paper ingestion failed:', ingestErr);
+          log.error('[ActiveStudy] Paper ingestion failed:', ingestErr);
         }
       }
 
@@ -284,7 +287,7 @@ export async function triggerActiveStudy(
             knowledgeAdded++;
             sources.push(`https://www.semanticscholar.org/paper/${paper.paperId}`);
           } catch (addErr) {
-            console.error('[ActiveStudy] Failed to add Semantic Scholar knowledge:', addErr);
+            log.error('[ActiveStudy] Failed to add Semantic Scholar knowledge:', addErr);
           }
         }
       }
@@ -330,10 +333,10 @@ export async function triggerActiveStudy(
           undefined // no userId — system-initiated study
         ).then(result => {
           if (result.learned) {
-            console.log(`[ActiveStudy→AgenticLearning] Camada 3.5→7 reflection: ${result.reason}`);
+            log.info(`[ActiveStudy→AgenticLearning] Camada 3.5→7 reflection: ${result.reason}`);
             reflectionTriggered = true;
           }
-        }).catch(err => console.error('[ActiveStudy→AgenticLearning] Reflection failed (non-blocking):', err));
+        }).catch(err => log.error('[ActiveStudy→AgenticLearning] Reflection failed (non-blocking):', err));
 
         // ==================== GAP 3 FIX: GENERATE FICHAMENTO OF STUDY SESSION ====================
         // Scientific basis: ABNT NBR 6023:2018 — knowledge documentation standards.
@@ -342,7 +345,7 @@ export async function triggerActiveStudy(
         const fichamento = generateFichamento(studySummary, query);
         if (fichamento.formattedFootnote) {
           fichamentoGenerated = true;
-          console.log(`[ActiveStudy→Fichamento] Generated fichamento: ${fichamento.entries.length} concepts, ${fichamento.references.length} refs`);
+          log.info(`[ActiveStudy→Fichamento] Generated fichamento: ${fichamento.entries.length} concepts, ${fichamento.references.length} refs`);
           // Store fichamento as a knowledge entry for future reference
           try {
             await addKnowledge(
@@ -352,11 +355,11 @@ export async function triggerActiveStudy(
               'active_study_fichamento'
             );
           } catch (fichErr) {
-            console.error('[ActiveStudy→Fichamento] Storage failed (non-blocking):', fichErr);
+            log.error('[ActiveStudy→Fichamento] Storage failed (non-blocking):', fichErr);
           }
         }
       } catch (reflectErr) {
-        console.error('[ActiveStudy] Reflection/fichamento failed (non-blocking):', reflectErr);
+        log.error('[ActiveStudy] Reflection/fichamento failed (non-blocking):', reflectErr);
       }
     }
 
@@ -371,7 +374,7 @@ export async function triggerActiveStudy(
       reflectionTriggered,
     };
   } catch (error) {
-    console.error('[ActiveStudy] Active study failed:', error);
+    log.error('[ActiveStudy] Active study failed:', error);
     return {
       triggered: true,
       papersFound: 0,
@@ -410,7 +413,7 @@ export async function enrichResearchWithSemanticScholar(
 
     return `\n\n## 📖 SEMANTIC SCHOLAR — HIGH-QUALITY ACADEMIC PAPERS\n${context}`;
   } catch (error) {
-    console.error('[ActiveStudy] Semantic Scholar enrichment failed:', error);
+    log.error('[ActiveStudy] Semantic Scholar enrichment failed:', error);
     return '';
   }
 }

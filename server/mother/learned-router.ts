@@ -207,6 +207,40 @@ function trainClassifier(): void {
   lastTrainTime = Date.now();
 
   log.info(`[LearnedRouter] Trained on ${pairs.length} samples. Accuracy: ${(accuracy * 100).toFixed(1)}%. Weights: [${weights.map(w => w.toFixed(3)).join(', ')}]`);
+
+  // B-FIX: Persist trained weights to DB for cross-restart durability
+  // Scientific basis: EvoRoute (arXiv:2601.02695, 2026) — persisted routing weights survive restarts
+  (async () => {
+    try {
+      const { getDb } = await import('../db');
+      const { learningPatterns } = await import('../../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+      const db = await getDb();
+      if (db) {
+        // Upsert: update existing or insert new
+        const existing = await db.select().from(learningPatterns)
+          .where(eq(learningPatterns.patternType, 'learned_router_weights'))
+          .limit(1);
+        const patternData = JSON.stringify(modelWeights);
+        if (existing.length > 0) {
+          await db.update(learningPatterns)
+            .set({ pattern: patternData, successRate: accuracy.toFixed(4), updatedAt: new Date() })
+            .where(eq(learningPatterns.patternType, 'learned_router_weights'));
+        } else {
+          await db.insert(learningPatterns).values({
+            patternType: 'learned_router_weights',
+            pattern: patternData,
+            successRate: accuracy.toFixed(4),
+            confidence: accuracy.toFixed(4),
+            isActive: 1,
+          });
+        }
+        log.info(`[LearnedRouter] Weights persisted to DB (accuracy=${(accuracy * 100).toFixed(1)}%)`);
+      }
+    } catch {
+      // Non-critical: in-memory weights still active
+    }
+  })();
 }
 
 // ============================================================
@@ -288,3 +322,29 @@ export function getLearnedRouterStats() {
     trainingSize: modelWeights?.trainingSize || 0,
   };
 }
+
+// B-FIX: Restore persisted weights on module load (non-blocking)
+// Scientific basis: EvoRoute (arXiv:2601.02695, 2026) — warm-start from persisted state
+(async () => {
+  try {
+    const { getDb } = await import('../db');
+    const { learningPatterns } = await import('../../drizzle/schema');
+    const { eq } = await import('drizzle-orm');
+    const db = await getDb();
+    if (db) {
+      const rows = await db.select().from(learningPatterns)
+        .where(eq(learningPatterns.patternType, 'learned_router_weights'))
+        .limit(1);
+      if (rows.length > 0 && rows[0].pattern) {
+        const restored = JSON.parse(rows[0].pattern) as ModelWeights;
+        if (restored.weights && restored.trainingSize >= MIN_TRAINING_DATA) {
+          modelWeights = restored;
+          lastTrainTime = restored.trainedAt;
+          log.info(`[LearnedRouter] Restored weights from DB (accuracy=${(restored.accuracy * 100).toFixed(1)}%, n=${restored.trainingSize})`);
+        }
+      }
+    }
+  } catch {
+    // Non-critical: will retrain from scratch if DB unavailable
+  }
+})();

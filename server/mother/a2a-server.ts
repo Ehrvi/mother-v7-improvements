@@ -42,7 +42,7 @@ import { registerSHMSRoutes } from '../shms/shms-api'; // NC-SHMS-001: SHMS real
 import { runDGMAutonomousCycleTest, getDGMAutonomousStatus } from './dgm-autonomous-cycle-test.js'; // C182: Sprint 8.3 — DGM autonomous cycle test
 import { executeDGMCycle2 } from './dgm-cycle2-sprint84.js'; // C183: Sprint 8.4 — DGM autonomous cycle 2 (real GitHub API)
 import { executeDGMCycle3 } from './dgm-cycle3-sprint85.js'; // C184: Sprint 8.5 — DGM autonomous cycle 3 (REAL PR creation)
-import { getDb } from '../db';
+import { getDb, rawQuery } from '../db';
 import { knowledge, queries } from '../../drizzle/schema';
 import { getRecentQueries, getQueryStats, getAllKnowledge } from '../db';
 import { checkAllProviders } from './provider-health';
@@ -2261,7 +2261,7 @@ a2aRouter.post('/autonomous-update/dry-run', async (req, res) => {
     const { getDb } = await import('../db');
     const db = await getDb();
     if (!db) return res.status(503).json({ ok: false, error: 'DB unavailable' });
-    const [rows] = await (db as any).$client.query(
+    const [rows] = await rawQuery(
       `SELECT id, title, status, proposed_changes FROM self_proposals WHERE id = ? LIMIT 1`,
       [Number(proposalId)]
     );

@@ -28,6 +28,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { createLogger } from '../_core/logger'; // v74.0: NC-003 structured logger
+import { rawQuery } from '../db';
 const log = createLogger('AUTO_UPDATE');
 
 // ============================================================
@@ -204,7 +205,7 @@ export async function executeAutonomousUpdate(proposalId: number): Promise<Updat
     const db = await getDb();
     if (!db) throw new Error('Database connection failed');
     
-    const [rows] = await (db as any).$client.query(
+    const [rows] = await rawQuery(
       `SELECT * FROM self_proposals WHERE id = ? LIMIT 1`,
       [proposalId]
     );
@@ -241,7 +242,7 @@ export async function executeAutonomousUpdate(proposalId: number): Promise<Updat
     // STEP 2: Update proposal status to 'implementing'
     // ============================================================
     reactThink('Updating proposal status to implementing', '');
-    await (db as any).$client.query(
+    await rawQuery(
       `UPDATE self_proposals SET status = 'in_progress', updated_at = NOW() WHERE id = ?`,
       [proposalId]
     );
@@ -275,9 +276,9 @@ export async function executeAutonomousUpdate(proposalId: number): Promise<Updat
       // Detect environment: Docker (/app) vs local dev (/home/ubuntu/...)
       const possibleSourcePaths = [
         '/app',                                              // Docker production container
-        '/home/ubuntu/mother-code/mother-interface',        // Local dev environment
+        process.env.MOTHER_PROJECT_ROOT,                    // E-FIX: Twelve-Factor App (was /home/ubuntu/...)
         process.cwd(),                                       // Current working directory
-      ];
+      ].filter(Boolean) as string[];
       
       let sourcePath: string | null = null;
       for (const p of possibleSourcePaths) {
@@ -490,7 +491,7 @@ DGM Loop (Zhang et al., 2025 arXiv:2505.22954)`;
     // ============================================================
     // STEP 8: Log to audit_log
     // ============================================================
-    await (db as any).$client.query(
+    await rawQuery(
       `INSERT INTO audit_log (action, actor_email, actor_type, target_type, target_id, details, success)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
@@ -511,7 +512,7 @@ DGM Loop (Zhang et al., 2025 arXiv:2505.22954)`;
     );
     
     // Update proposal status to 'testing'
-    await (db as any).$client.query(
+    await rawQuery(
       `UPDATE self_proposals SET status = 'in_progress', updated_at = NOW() WHERE id = ?`,
       [proposalId]
     );
@@ -564,11 +565,11 @@ DGM Loop (Zhang et al., 2025 arXiv:2505.22954)`;
       const { getDb } = await import('../db');
       const db = await getDb();
       if (db) {
-        await (db as any).$client.query(
+        await rawQuery(
           `UPDATE self_proposals SET status = 'failed', updated_at = NOW() WHERE id = ?`,
           [proposalId]
         );
-        await (db as any).$client.query(
+        await rawQuery(
           `INSERT INTO audit_log (action, actor_email, actor_type, target_type, target_id, details, success)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
           [

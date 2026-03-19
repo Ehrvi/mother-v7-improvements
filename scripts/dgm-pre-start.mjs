@@ -24,7 +24,15 @@ const ROOT = resolve(fileURLToPath(import.meta.url), '../..');
 // Phase 1: Restore ALL dirty server/ files via git checkout
 // DGM modifications now go through GitHub PRs, so any uncommitted
 // server/ changes are DGM corruption from failed/crashed runs.
-try {
+// SOTA: Skip in development mode — manual edits must NOT be reverted
+// Enable explicitly with DGM_RESTORE=true for DGM testing in dev
+// Scientific basis: 12-Factor App (Heroku, 2011) — env-specific config
+const isDev = process.env.NODE_ENV === 'development';
+const forceRestore = process.env.DGM_RESTORE === 'true';
+if (isDev && !forceRestore) {
+  console.log('[dgm-pre-start] DEV mode — skipping server/ restore (set DGM_RESTORE=true to force)');
+} else {
+  try {
   const dirty = execSync('git diff --name-only', { cwd: ROOT, encoding: 'utf-8' })
     .trim().split('\n').filter(Boolean);
   const serverFiles = dirty.filter(f => f.startsWith('server/'));
@@ -39,7 +47,8 @@ try {
       }
     }
   }
-} catch { /* git not available — skip */ }
+  } catch { /* git not available — skip */ }
+}
 
 // Phase 2: Clean up orphaned DGM worktrees
 try {

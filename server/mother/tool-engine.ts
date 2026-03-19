@@ -38,6 +38,9 @@ import { getAdminDocs } from './admin-docs';
 import { browseUrl, searchAnnasArchive, searchDuckDuckGo, searchForums, searchSoftwareManual } from './browser-agent';
 import { generateImageWithDalle3, generateRevealSlides, generatePdfFromMarkdown } from './media-agent';
 import { executeCode } from './code-sandbox';
+import { createLogger } from '../_core/logger';
+const log = createLogger('TOOL_ENGINE');
+
 
 // ============================================================
 // TOOL DEFINITIONS (OpenAI Function Calling format)
@@ -639,7 +642,7 @@ export async function executeTool(
   toolArgs: Record<string, any>,
   ctx: ToolExecutionContext
 ): Promise<ToolResult> {
-  console.log(`[ToolEngine] Executing tool: ${toolName} | Creator: ${ctx.isCreator}`);
+  log.info(`[ToolEngine] Executing tool: ${toolName} | Creator: ${ctx.isCreator}`);
 
   // ============================================================
   // READ TOOLS (available to all authenticated users)
@@ -811,7 +814,7 @@ export async function executeTool(
       // - PASSIVE mode: System auto-triggers force_study when search returns empty.
       //   Users NEVER call force_study directly; this is system-initiated only.
       if (results.length === 0) {
-        console.log(`[ToolEngine] search_knowledge returned 0 results for "${toolArgs.query}" — triggering PASSIVE auto-study`);
+        log.info(`[ToolEngine] search_knowledge returned 0 results for "${toolArgs.query}" — triggering PASSIVE auto-study`);
         try {
           const { forceStudy } = await import('./agentic-learning');
           const studyResult = await forceStudy(toolArgs.query, 3); // depth=3 for passive mode (lighter than active)
@@ -842,7 +845,7 @@ export async function executeTool(
             },
           };
         } catch (studyError) {
-          console.error('[ToolEngine] Passive auto-study failed:', studyError);
+          log.error('[ToolEngine] Passive auto-study failed:', studyError);
           // Return empty results gracefully — do not crash the query
           return {
             success: true,
@@ -1582,9 +1585,12 @@ export async function executeTool(
         evalExpr = evalExpr.replace(new RegExp(`\\b${name}\\b`, 'g'), String(val));
       }
 
-      // Evaluate in restricted context (still uses Function but with blocked keywords)
-      const fn = new Function(...Object.keys(mathFns), `"use strict"; return (${evalExpr});`);
-      const rawResult = fn(...Object.values(mathFns));
+      // C31 fix: Use vm.runInNewContext instead of new Function() for sandbox safety
+      // Scientific basis: STELP (arXiv 2025) — execute in restricted V8 context
+      const vm = await import('node:vm');
+      const sandbox = { ...mathFns, ...mathConsts, result: undefined as unknown };
+      vm.runInNewContext(`result = (${evalExpr});`, sandbox, { timeout: 5000 });
+      const rawResult = sandbox.result;
 
       const result = typeof rawResult === 'number'
         ? parseFloat(rawResult.toFixed(precision))

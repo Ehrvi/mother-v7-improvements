@@ -10,6 +10,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { createLogger } from '../_core/logger';
+const log = createLogger('PHASE_ROUTER');
+
 
 export interface ModuleRoute {
   moduleName: string;
@@ -54,7 +57,7 @@ export class PhaseRouter {
       try {
         a2aContent = fs.readFileSync(altPath, 'utf-8');
       } catch {
-        console.warn('[PhaseRouter] a2a-server.ts not found — using module scan only');
+        log.warn('[PhaseRouter] a2a-server.ts not found — using module scan only');
       }
     }
 
@@ -111,10 +114,10 @@ export class PhaseRouter {
    * Retorna relatório com provas criptográficas
    */
   async executePhaseRouting(): Promise<PhaseRouterReport> {
-    console.log('[PhaseRouter C151] Iniciando análise de módulos mortos...');
+    log.info('[PhaseRouter C151] Iniciando análise de módulos mortos...');
     
     const deadModules = await this.analyzeDeadModules();
-    console.log(`[PhaseRouter C151] Módulos mortos identificados: ${deadModules.length}`);
+    log.info(`[PhaseRouter C151] Módulos mortos identificados: ${deadModules.length}`);
 
     const routes: ModuleRoute[] = [];
     
@@ -122,7 +125,7 @@ export class PhaseRouter {
       const route = await this.registerModule(mod);
       if (route) {
         routes.push(route);
-        console.log(`[PhaseRouter C151] ✅ Registrado: ${mod} (${route.exportedFunctions.length} exports)`);
+        log.info(`[PhaseRouter C151] ✅ Registrado: ${mod} (${route.exportedFunctions.length} exports)`);
       }
     }
 
@@ -140,8 +143,8 @@ export class PhaseRouter {
       timestamp: new Date().toISOString()
     };
 
-    console.log(`[PhaseRouter C151] Relatório: ${routes.length}/${deadModules.length} módulos reconectados`);
-    console.log(`[PhaseRouter C151] Master Hash: ${masterHash}`);
+    log.info(`[PhaseRouter C151] Relatório: ${routes.length}/${deadModules.length} módulos reconectados`);
+    log.info(`[PhaseRouter C151] Master Hash: ${masterHash}`);
 
     return report;
   }
@@ -164,7 +167,7 @@ export class PhaseRouter {
       });
       return response.ok;
     } catch (err) {
-      console.warn('[PhaseRouter C151] BD persist failed:', err);
+      log.warn('[PhaseRouter C151] BD persist failed:', err);
       return false;
     }
   }
@@ -172,7 +175,7 @@ export class PhaseRouter {
 
 // Singleton export para uso no pipeline
 export const phaseRouter = new PhaseRouter(
-  process.env.MOTHER_DIR || '/home/ubuntu/mother-latest/server/mother'
+  process.env.MOTHER_DIR || process.cwd() + '/server/mother' // P1 fix: Twelve-Factor App
 );
 
 export default PhaseRouter;

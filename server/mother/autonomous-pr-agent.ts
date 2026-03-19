@@ -14,6 +14,9 @@
 
 import * as crypto from 'crypto';
 import { execSync } from 'child_process';
+import { createLogger } from '../_core/logger';
+const log = createLogger('AUTONOMOUS_PR_AGENT');
+
 
 export interface PullRequestSpec {
   title: string;
@@ -161,13 +164,13 @@ Este PR foi gerado autonomamente por MOTHER. Nenhuma intervenção humana foi ne
    * Cria Pull Request via GitHub API
    */
   async createPR(cycleId: string): Promise<PRCreationResult> {
-    console.log(`[AutonomousPR C153] Iniciando criação de PR para ${cycleId}...`);
+    log.info(`[AutonomousPR C153] Iniciando criação de PR para ${cycleId}...`);
 
     const files = this.getChangedFiles();
     const qualityScore = await this.checkQualityCriteria();
 
     if (qualityScore < 70) {
-      console.log(`[AutonomousPR C153] ❌ Quality score insuficiente: ${qualityScore}/100 (mínimo: 70)`);
+      log.info(`[AutonomousPR C153] ❌ Quality score insuficiente: ${qualityScore}/100 (mínimo: 70)`);
       const spec: PullRequestSpec = {
         title: '', body: '', branch: '', baseBranch: 'main',
         files, cycleId, sha256Map: {}, masterHash: '', qualityScore
@@ -213,7 +216,7 @@ Este PR foi gerado autonomamente por MOTHER. Nenhuma intervenção humana foi ne
           body: JSON.stringify({
             title: spec.title,
             body: spec.body,
-            head: 'main', // For now, PR from main to main is not valid — use feature branch in production
+            head: spec.branch, // C65 fix: use feature branch, not main→main
             base: spec.baseBranch
           })
         }
@@ -221,7 +224,7 @@ Este PR foi gerado autonomamente por MOTHER. Nenhuma intervenção humana foi ne
 
       if (response.ok) {
         const data = await response.json() as { html_url: string; number: number };
-        console.log(`[AutonomousPR C153] ✅ PR criado: ${data.html_url}`);
+        log.info(`[AutonomousPR C153] ✅ PR criado: ${data.html_url}`);
         return {
           success: true,
           prUrl: data.html_url,
@@ -230,18 +233,18 @@ Este PR foi gerado autonomamente por MOTHER. Nenhuma intervenção humana foi ne
           timestamp: new Date().toISOString()
         };
       } else {
-        console.log(`[AutonomousPR C153] PR creation skipped (direct push to main is the current strategy)`);
+        log.info(`[AutonomousPR C153] PR creation skipped (direct push to main is the current strategy)`);
         return { success: true, spec, timestamp: new Date().toISOString() };
       }
     } catch (err) {
-      console.warn(`[AutonomousPR C153] API error (non-critical):`, err);
+      log.warn(`[AutonomousPR C153] API error (non-critical):`, err);
       return { success: true, spec, timestamp: new Date().toISOString() };
     }
   }
 }
 
 export const autonomousPRAgent = new AutonomousPRAgent(
-  process.env.REPO_PATH || '/home/ubuntu/mother-latest',
+  process.env.REPO_PATH || process.cwd(), // C65/P1 fix: no hardcoded paths
   process.env.GITHUB_TOKEN || '',
   process.env.GITHUB_OWNER || 'Ehrvi',
   process.env.GITHUB_REPO || 'mother-v7-improvements'

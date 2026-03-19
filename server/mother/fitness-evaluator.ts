@@ -384,5 +384,5 @@ export class FitnessEvaluator {
 // ─── Singleton ────────────────────────────────────────────────────────────────
 
 export const fitnessEvaluator = new FitnessEvaluator(
-  process.env['PROJECT_ROOT'] ?? '/home/ubuntu/mother-latest'
+  process.env['PROJECT_ROOT'] ?? process.cwd() // P1 fix: Twelve-Factor App
 );

@@ -96,6 +96,14 @@ export function useSSEStream(): UseSSEStreamReturn {
                 output: parsed.output,
               });
             } else if (lastEvent === 'response') {
+              // SOTA FIX: Use server's final response as definitive content when available
+              // The streaming onChunk tokens may be incomplete/garbled (long-form engine issue),
+              // but result.response always has the complete, correct response.
+              const serverResponse = parsed.response as string | undefined;
+              if (serverResponse && serverResponse.length > accumulatedText.length) {
+                accumulatedText = serverResponse;
+                store.updateMessage(streamingMsgId, { content: accumulatedText });
+              }
               store.updateMessage(streamingMsgId, {
                 tier: parsed.tier as string,
                 modelName: parsed.modelName as string,

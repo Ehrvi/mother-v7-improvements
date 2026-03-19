@@ -25,6 +25,9 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import { calculateRealFitnessScore, formatFitnessReport } from "./fitness_scorer";
+import { createLogger } from '../_core/logger';
+const log = createLogger('VALIDATION_AGENT');
+
 
 // ============================================================
 // TOOL 1: Execute Code in Sandbox
@@ -33,7 +36,7 @@ import { calculateRealFitnessScore, formatFitnessReport } from "./fitness_scorer
 // ============================================================
 const executeCodeInSandboxTool = tool(
   async ({ code, language, testCode }) => {
-    console.log("[ValidationAgent] Executing code in sandbox...");
+    log.info("[ValidationAgent] Executing code in sandbox...");
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mother-sandbox-"));
 
     try {
@@ -48,8 +51,8 @@ const executeCodeInSandboxTool = tool(
       const testHarness = testCode || `
 // Default test: check if the code runs without throwing
 const solution = require('./solution');
-console.log('PASS: Code loaded successfully');
-console.log('OUTPUT:', JSON.stringify(solution));
+log.info('PASS: Code loaded successfully');
+log.info('OUTPUT:', JSON.stringify(solution));
 `;
       fs.writeFileSync(testFile, testHarness);
 
@@ -101,7 +104,7 @@ console.log('OUTPUT:', JSON.stringify(solution));
         }
       }
 
-      console.log(`[ValidationAgent] Execution complete. Exit: ${exitCode}, Fitness: ${fitnessScore}`);
+      log.info(`[ValidationAgent] Execution complete. Exit: ${exitCode}, Fitness: ${fitnessScore}`);
 
       return JSON.stringify({
         stdout: stdout.substring(0, 2000),
@@ -139,7 +142,7 @@ console.log('OUTPUT:', JSON.stringify(solution));
 // ============================================================
 const runTypeScriptCheckTool = tool(
   async ({ code }) => {
-    console.log("[ValidationAgent] Running TypeScript check...");
+    log.info("[ValidationAgent] Running TypeScript check...");
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mother-tscheck-"));
 
     try {
@@ -187,7 +190,7 @@ const runTypeScriptCheckTool = tool(
 // ============================================================
 const calculateFitnessScoreTool = tool(
   async ({ code, executionSuccess, executionOutput, executionTimeMs, parentId }) => {
-    console.log("[ValidationAgent] Calculating 5-dimensional fitness score (v44.0)...");
+    log.info("[ValidationAgent] Calculating 5-dimensional fitness score (v44.0)...");
 
     const breakdown = await calculateRealFitnessScore(
       code,
@@ -196,7 +199,7 @@ const calculateFitnessScoreTool = tool(
     );
 
     const report = formatFitnessReport(breakdown);
-    console.log(`[ValidationAgent] ${report}`);
+    log.info(`[ValidationAgent] ${report}`);
 
     return JSON.stringify({
       finalFitnessScore: breakdown.finalScore,

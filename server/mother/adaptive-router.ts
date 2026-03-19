@@ -28,6 +28,8 @@
 import { detectDomain, getDomainMinimumTier } from './domain-rules';
 import { getOptimalModelForDomain } from './domain-model-matrix';
 import { predictRouting, recordRoutingOutcome } from './learned-router';
+import { createLogger } from '../_core/logger';
+const log = createLogger('ROUTER');
 
 export type RoutingTier = 'TIER_1' | 'TIER_2' | 'TIER_3' | 'TIER_4';
 
@@ -194,7 +196,7 @@ export function buildRoutingDecision(query: string, availableProviders?: Set<str
     const tierOrder: Record<string, number> = { TIER_1: 1, TIER_2: 2, TIER_3: 3, TIER_4: 4 };
     // Learned router can only UPGRADE tier (quality-first policy), never downgrade
     if ((tierOrder[learnedPrediction.suggestedTier] || 0) > (tierOrder[complexityTier] || 0)) {
-      console.log(`[Router] P2 Learned override: ${complexityTier} → ${learnedPrediction.suggestedTier} (confidence=${learnedPrediction.confidence.toFixed(2)}, source=learned)`);
+      log.info(`P2 Learned override: ${complexityTier} → ${learnedPrediction.suggestedTier} (confidence=${learnedPrediction.confidence.toFixed(2)}, source=learned)`);
       learnedRouterUsed = true;
     }
   }
@@ -212,7 +214,7 @@ export function buildRoutingDecision(query: string, availableProviders?: Set<str
     : complexityTier;
 
   if (domainMinTier !== 'TIER_1' && TIER_ORDER[domainMinTier] > TIER_ORDER[complexityTier]) {
-    console.log(`[Router] C232 Domain override: ${complexityTier} → ${tier} (domain=${domainResult.domain}, confidence=${domainResult.confidence.toFixed(2)})`);
+    log.info(`C232 Domain override: ${complexityTier} → ${tier} (domain=${domainResult.domain}, confidence=${domainResult.confidence.toFixed(2)})`);
   }
 
   // C354 FIX: empty Set is truthy so ?? won't trigger — use size check
@@ -321,7 +323,7 @@ export function buildRoutingDecision(query: string, availableProviders?: Set<str
     (config as RoutingDecision).primaryModel = dmmAssignment.model;
     (config as RoutingDecision).primaryProvider = dmmAssignment.provider;
     domainPreferredOverride = ` [C246 DMM: ${dmmAssignment.model} score=${dmmAssignment.score.toFixed(1)} conf=${dmmAssignment.confidence.toFixed(2)}]`;
-    console.log(`[Router] C246 DMM override: ${dmmAssignment.model} (domain=${domainResult.domain}, score=${dmmAssignment.score.toFixed(1)}, confidence=${dmmAssignment.confidence.toFixed(2)})`);
+    log.info(`C246 DMM override: ${dmmAssignment.model} (domain=${domainResult.domain}, score=${dmmAssignment.score.toFixed(1)}, confidence=${dmmAssignment.confidence.toFixed(2)})`);
   } else if (domainResult.preferredModel && domainResult.confidence > 0.6) {
     // Fallback to C240 legacy preferredModel if DMM has no entry for this domain
     const preferredModel = domainResult.preferredModel;

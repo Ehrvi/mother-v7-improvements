@@ -19,6 +19,9 @@
 
 import { storeProofOfAutonomy, calculateAutonomyLevel } from './proof-of-autonomy';
 import { storeEpisodicMemory } from './episodic-memory';
+import { createLogger } from '../_core/logger';
+const log = createLogger('BENCHMARK_RUNNER');
+
 
 const MOTHER_BASE_URL = process.env.MOTHER_BASE_URL ||
   'https://mother-interface-qtvghovzxa-ts.a.run.app';
@@ -278,8 +281,8 @@ export async function runBenchmarkC111(): Promise<BenchmarkRunResult> {
   const startTime = Date.now();
   const timestamp = new Date().toISOString();
 
-  console.log('[BenchmarkRunner] Starting Benchmark C111 — Proof of Autonomy');
-  console.log('[BenchmarkRunner] 6 MCCs: GITHUB_READER, PROOF_OF_AUTONOMY, ROADMAP_EXECUTOR, DEPLOY_MONITOR, AUTONOMOUS_COMMIT, SELF_VERIFICATION');
+  log.info('[BenchmarkRunner] Starting Benchmark C111 — Proof of Autonomy');
+  log.info('[BenchmarkRunner] 6 MCCs: GITHUB_READER, PROOF_OF_AUTONOMY, ROADMAP_EXECUTOR, DEPLOY_MONITOR, AUTONOMOUS_COMMIT, SELF_VERIFICATION');
 
   // Run all 6 MCCs in parallel for speed
   const [mcc1, mcc2, mcc3, mcc4, mcc5, mcc6] = await Promise.all([
@@ -317,8 +320,8 @@ export async function runBenchmarkC111(): Promise<BenchmarkRunResult> {
     verdict
   };
 
-  console.log(`[BenchmarkRunner] C111 Result: ${passedMCCs}/6 MCCs ${verdict}`);
-  console.log(`[BenchmarkRunner] Fitness: ${fitnessScore.toFixed(3)} | Autonomy: Level ${autonomyData.level}`);
+  log.info(`[BenchmarkRunner] C111 Result: ${passedMCCs}/6 MCCs ${verdict}`);
+  log.info(`[BenchmarkRunner] Fitness: ${fitnessScore.toFixed(3)} | Autonomy: Level ${autonomyData.level}`);
 
   // Store result in episodic memory
   await storeEpisodicMemory({
@@ -331,7 +334,7 @@ export async function runBenchmarkC111(): Promise<BenchmarkRunResult> {
     durationMs: Date.now() - startTime,
     timestamp,
     tags: ['benchmark', 'c111', `${passedMCCs}/6`, verdict.toLowerCase()]
-  }).catch(e => console.warn('[BenchmarkRunner] episodic-memory store failed:', e));
+  }).catch(e => log.warn('[BenchmarkRunner] episodic-memory store failed:', e));
 
   // Store proof of benchmark execution
   if (passedMCCs >= 4) {
@@ -343,13 +346,13 @@ export async function runBenchmarkC111(): Promise<BenchmarkRunResult> {
       taskDescription: `Benchmark C111: ${passedMCCs}/6 MCCs ${verdict}`,
       fitnessScore
     }).catch(e => {
-      console.warn('[BenchmarkRunner] proof storage failed:', e);
+      log.warn('[BenchmarkRunner] proof storage failed:', e);
       return null;
     });
 
     if (proof) {
       result.proof_hash = proof.code_hash;
-      console.log(`[BenchmarkRunner] Proof stored: ${proof.code_hash.slice(0, 30)}...`);
+      log.info(`[BenchmarkRunner] Proof stored: ${proof.code_hash.slice(0, 30)}...`);
     }
   }
 
@@ -369,7 +372,7 @@ export async function runBenchmarkC111(): Promise<BenchmarkRunResult> {
       })
     });
   } catch (e) {
-    console.warn('[BenchmarkRunner] bd_central ingest failed:', e);
+    log.warn('[BenchmarkRunner] bd_central ingest failed:', e);
   }
 
   return result;

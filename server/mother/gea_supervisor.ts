@@ -27,7 +27,9 @@
  * Result: 71.0% vs 56.7% on SWE-bench Verified (GEA vs tree-structured DGM)
  */
 
-import { getDb } from '../db';
+import { getDb, rawQuery } from '../db';
+import { createLogger } from '../_core/logger';
+const log = createLogger('GEA');
 import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage } from '@langchain/core/messages';
 import { invokeSupervisor } from './supervisor';
@@ -110,7 +112,7 @@ async function calculateNoveltyScore(
     if (validComparisons === 0) return 0.5;
     return totalNovelty / validComparisons;
   } catch (error) {
-    console.warn('[GEA] Embedding-based novelty failed, falling back to Jaccard:', error);
+    log.warn('Embedding-based novelty failed, falling back to Jaccard: ' + (error as Error).message);
     // Fallback to Jaccard similarity
     const agentStrategySet = new Set(agentStrategies);
     let totalNovelty = 0;
@@ -134,7 +136,7 @@ export async function getAgentPool(): Promise<GEAAgent[]> {
   if (!db) return [];
 
   try {
-    const rows = await (db as any).$client.query(
+    const rows = await rawQuery(
       `SELECT * FROM gea_agent_pool ORDER BY performance_novelty_score DESC LIMIT ${POOL_SIZE}`
     );
     const rowData = Array.isArray(rows[0]) ? rows[0] : [];
@@ -150,7 +152,7 @@ export async function getAgentPool(): Promise<GEAAgent[]> {
       createdAt: row.created_at,
     }));
   } catch (error) {
-    console.error('[GEA] Error getting agent pool:', error);
+    log.error('Error getting agent pool:', error);
     return [];
   }
 }
@@ -167,7 +169,7 @@ async function getSharedExperiencePool(parentIds: string[]): Promise<SharedExper
 
   try {
     const placeholders = parentIds.map(() => '?').join(',');
-    const rows = await (db as any).$client.query(
+    const rows = await rawQuery(
       `SELECT * FROM gea_shared_experience 
        WHERE source_agent_id IN (${placeholders}) 
        ORDER BY fitness_impact DESC, usage_count DESC 
@@ -189,15 +191,15 @@ async function getSharedExperiencePool(parentIds: string[]): Promise<SharedExper
     // v47.0: Increment usage_count for retrieved experiences (feedback loop)
     if (experiences.length > 0) {
       const ids = experiences.map(e => e.id).join(',');
-      await (db as any).$client.query(
+      await rawQuery(
         `UPDATE gea_shared_experience SET usage_count = usage_count + 1 WHERE id IN (${ids})`
       );
-      console.log(`[GEA] Incremented usage_count for ${experiences.length} shared experiences`);
+      log.info(`Incremented usage_count for ${experiences.length} shared experiences`);
     }
 
     return experiences;
   } catch (error) {
-    console.error('[GEA] Error getting shared experience pool:', error);
+    log.error('Error getting shared experience pool:', error);
     return [];
   }
 }
@@ -211,17 +213,17 @@ async function pruneStaleExperiences(): Promise<void> {
   if (!db) return;
 
   try {
-    const result = await (db as any).$client.query(
+    const result = await rawQuery(
       `DELETE FROM gea_shared_experience 
        WHERE usage_count <= ? AND created_at < DATE_SUB(NOW(), INTERVAL ? DAY)`,
       [EXPERIENCE_PRUNE_MIN_USAGE, EXPERIENCE_PRUNE_DAYS]
     );
     const deleted = result[0]?.affectedRows || 0;
     if (deleted > 0) {
-      console.log(`[GEA] Pruned ${deleted} stale experiences (unused for ${EXPERIENCE_PRUNE_DAYS} days)`);
+      log.info(`Pruned ${deleted} stale experiences (unused for ${EXPERIENCE_PRUNE_DAYS} days)`);
     }
   } catch (error) {
-    console.warn('[GEA] Could not prune stale experiences:', (error as any).message);
+    log.warn('Could not prune stale experiences: ' + (error as any).message);
   }
 }
 
@@ -247,8 +249,7 @@ export async function selectParents(pool: GEAAgent[]): Promise<GEAAgent[]> {
   agentsWithNovelty.sort((a, b) => b.performanceNoveltyScore - a.performanceNoveltyScore);
   const parents = agentsWithNovelty.slice(0, Math.min(PARENT_K, agentsWithNovelty.length));
 
-  console.log(`[GEA] Selected ${parents.length} parents:`,
-    parents.map(p => `${p.id.slice(0, 8)} (fitness=${p.fitnessScore.toFixed(2)}, novelty=${p.noveltyScore.toFixed(2)}, pn=${p.performanceNoveltyScore.toFixed(2)})`));
+  log.info(`Selected ${parents.length} parents: ${parents.map(p => `${p.id.slice(0, 8)} (fitness=${p.fitnessScore.toFixed(2)}, novelty=${p.noveltyScore.toFixed(2)}, pn=${p.performanceNoveltyScore.toFixed(2)})`).join(', ')}`);
 
   return parents;
 }
@@ -284,7 +285,7 @@ Return ONLY the JSON array, no other text.
     const strategies = JSON.parse(content);
     return Array.isArray(strategies) ? strategies : [];
   } catch (error) {
-    console.error('[GEA] Error extracting strategies:', error);
+    log.error('Error extracting strategies:', error);
     return [`Completed goal: ${goal.slice(0, 100)}`];
   }
 }
@@ -309,7 +310,7 @@ async function storeAgentInPool(
     (1 - NOVELTY_WEIGHT) * fitnessScore + NOVELTY_WEIGHT * noveltyScore;
 
   try {
-    await (db as any).$client.query(
+    await rawQuery(
       `INSERT INTO gea_agent_pool 
        (agent_id, generation_id, parent_ids, fitness_score, novelty_score, performance_novelty_score, strategies, full_fitness_breakdown, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
@@ -324,10 +325,10 @@ async function storeAgentInPool(
         fullFitnessBreakdown ? JSON.stringify(fullFitnessBreakdown) : null]
     );
 
-    console.log(`[GEA] Agent ${agentId.slice(0, 8)} stored in pool (fitness=${fitnessScore.toFixed(2)}, novelty=${noveltyScore.toFixed(2)}, pn=${performanceNoveltyScore.toFixed(2)})`);
+    log.info(`Agent ${agentId.slice(0, 8)} stored in pool (fitness=${fitnessScore.toFixed(2)}, novelty=${noveltyScore.toFixed(2)}, pn=${performanceNoveltyScore.toFixed(2)})`);
 
     // Prune pool to maintain POOL_SIZE
-    await (db as any).$client.query(
+    await rawQuery(
       `DELETE FROM gea_agent_pool WHERE agent_id NOT IN (
         SELECT agent_id FROM (
           SELECT agent_id FROM gea_agent_pool ORDER BY performance_novelty_score DESC LIMIT ${POOL_SIZE}
@@ -335,7 +336,7 @@ async function storeAgentInPool(
       )`
     );
   } catch (error) {
-    console.error('[GEA] Error storing agent in pool:', error);
+    log.error('Error storing agent in pool:', error);
   }
 }
 
@@ -362,16 +363,16 @@ async function storeSharedExperience(
         // Embedding failure is non-critical
       }
 
-      await (db as any).$client.query(
+      await rawQuery(
         `INSERT INTO gea_shared_experience 
          (source_agent_id, experience_type, content, fitness_impact, usage_count, content_embedding, created_at)
          VALUES (?, 'strategy', ?, ?, 0, ?, NOW())`,
         [agentId, strategy, fitnessScore, embeddingJson]
       );
     }
-    console.log(`[GEA] Stored ${strategies.length} shared experiences from agent ${agentId.slice(0, 8)}`);
+    log.info(`Stored ${strategies.length} shared experiences from agent ${agentId.slice(0, 8)}`);
   } catch (error) {
-    console.error('[GEA] Error storing shared experience:', error);
+    log.error('Error storing shared experience:', error);
   }
 }
 
@@ -394,7 +395,7 @@ async function logFitnessHistory(
 
   try {
     // Calculate generation number
-    const genResult = await (db as any).$client.query(
+    const genResult = await rawQuery(
       `SELECT MAX(generation) as max_gen FROM fitness_history`
     );
     const maxGen = genResult[0]?.[0]?.max_gen || 0;
@@ -404,7 +405,7 @@ async function logFitnessHistory(
       : fitnessScore >= 0.70 ? 'GOOD'
       : fitnessScore >= 0.50 ? 'ACCEPTABLE' : 'POOR';
 
-    await (db as any).$client.query(
+    await rawQuery(
       `INSERT INTO fitness_history 
        (run_id, generation, fitness_score, correctness, efficiency, robustness, maintainability, novelty, label, parent_run_id, goal_summary, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
@@ -422,9 +423,9 @@ async function logFitnessHistory(
         goalSummary.slice(0, 500),
       ]
     );
-    console.log(`[GEA] Fitness history logged: gen=${generation}, fitness=${fitnessScore.toFixed(3)}, label=${label}`);
+    log.info(`Fitness history logged: gen=${generation}, fitness=${fitnessScore.toFixed(3)}, label=${label}`);
   } catch (error) {
-    console.warn('[GEA] Could not log fitness history:', (error as any).message);
+    log.warn('Could not log fitness history: ' + (error as any).message);
   }
 }
 
@@ -446,9 +447,9 @@ async function learnFromEvolution(
   try {
     await learnFromEvolutionRun(runId, fitnessScore, strategies, goal);
 
-    console.log(`[GEA] Evolution insights added to knowledge base (fitness=${fitnessScore.toFixed(3)})`);
+    log.info(`Evolution insights added to knowledge base (fitness=${fitnessScore.toFixed(3)})`);
   } catch (error) {
-    console.warn('[GEA] Could not learn from evolution:', (error as any).message);
+    log.warn('Could not learn from evolution: ' + (error as any).message);
   }
 }
 
@@ -486,10 +487,10 @@ Return ONLY the enhanced goal text, no other text.
     ]);
 
     const enhanced = response.content.toString().trim();
-    console.log(`[GEA] Enhanced goal with ${sharedExperiences.length} shared experiences`);
+    log.info(`Enhanced goal with ${sharedExperiences.length} shared experiences`);
     return enhanced;
   } catch (error) {
-    console.error('[GEA] Error generating enhanced goal:', error);
+    log.error('Error generating enhanced goal:', error);
     return baseGoal;
   }
 }
@@ -509,7 +510,7 @@ export async function getFitnessHistory(limit = 20): Promise<Array<{
   if (!db) return [];
 
   try {
-    const rows = await (db as any).$client.query(
+    const rows = await rawQuery(
       `SELECT run_id, generation, fitness_score, label, goal_summary, created_at 
        FROM fitness_history 
        ORDER BY generation DESC 
@@ -526,7 +527,7 @@ export async function getFitnessHistory(limit = 20): Promise<Array<{
       createdAt: row.created_at,
     }));
   } catch (error) {
-    console.error('[GEA] Error getting fitness history:', error);
+    log.error('Error getting fitness history:', error);
     return [];
   }
 }
@@ -551,13 +552,13 @@ export async function invokeGEASupervisor(
   baseGoal: string,
   runId: string
 ): Promise<void> {
-  console.log(`[GEA] Starting GEA evolution loop for run ${runId}`);
-  console.log(`[GEA] Base goal: ${baseGoal.slice(0, 100)}...`);
+  log.info(`Starting GEA evolution loop for run ${runId}`);
+  log.info(`Base goal: ${baseGoal.slice(0, 100)}...`);
 
   try {
     // Step 1: Get current agent pool
     const pool = await getAgentPool();
-    console.log(`[GEA] Current pool size: ${pool.length}/${POOL_SIZE}`);
+    log.info(`Current pool size: ${pool.length}/${POOL_SIZE}`);
 
     // Step 2: Select parents by Performance-Novelty criterion (embedding-based in v47.0)
     const parents = await selectParents(pool);
@@ -565,13 +566,13 @@ export async function invokeGEASupervisor(
 
     // Step 3: Get shared experience from parents (increments usage_count in v47.0)
     const sharedExperiences = await getSharedExperiencePool(parentIds);
-    console.log(`[GEA] Retrieved ${sharedExperiences.length} shared experiences from ${parents.length} parents`);
+    log.info(`Retrieved ${sharedExperiences.length} shared experiences from ${parents.length} parents`);
 
     // Step 4: Generate enhanced goal using shared experience pool
     const enhancedGoal = await generateEnhancedGoal(baseGoal, sharedExperiences);
 
     // Step 5: Execute evolution run with enhanced goal (using existing DGM supervisor)
-    console.log(`[GEA] Invoking DGM supervisor with enhanced goal...`);
+    log.info('Invoking DGM supervisor with enhanced goal...');
     const result = await invokeSupervisor(enhancedGoal, runId);
 
     // Step 6: Extract fitness score and breakdown from result
@@ -604,7 +605,7 @@ export async function invokeGEASupervisor(
     // Step 9: If fitness is good, share experience back to pool (with embeddings)
     if (fitnessScore > 0.6) {
       await storeSharedExperience(runId, strategies, fitnessScore);
-      console.log(`[GEA] High-fitness agent (${fitnessScore.toFixed(2)}) shared ${strategies.length} experiences`);
+      log.info(`High-fitness agent (${fitnessScore.toFixed(2)}) shared ${strategies.length} experiences`);
     }
 
     // Step 10: Log fitness history for cross-generation tracking (v47.0 new)
@@ -617,10 +618,10 @@ export async function invokeGEASupervisor(
     // Step 12: Prune stale experiences (v47.0 new — prevents pool bloat)
     await pruneStaleExperiences();
 
-    console.log(`[GEA] Evolution complete: fitness=${fitnessScore.toFixed(2)}, novelty=${noveltyScore.toFixed(2)}, strategies=${strategies.length}`);
+    log.info(`Evolution complete: fitness=${fitnessScore.toFixed(2)}, novelty=${noveltyScore.toFixed(2)}, strategies=${strategies.length}`);
 
   } catch (error) {
-    console.error(`[GEA] Evolution error for run ${runId}:`, error);
+    log.error(`Evolution error for run ${runId}:`, error);
     throw error;
   }
 }

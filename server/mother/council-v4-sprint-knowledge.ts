@@ -9,6 +9,9 @@
 import { getDb } from "../db.js";
 import { knowledge } from "../../drizzle/schema.js";
 import crypto from "crypto";
+import { createLogger } from '../_core/logger';
+const log = createLogger('COUNCIL_V4_SPRINT_KNOWLEDGE');
+
 
 const SPRINT_KNOWLEDGE = [
   {
@@ -64,7 +67,7 @@ const SPRINT_KNOWLEDGE = [
 export async function injectSprintKnowledge(): Promise<void> {
   const db = await getDb();
   if (!db) {
-    console.warn("[SprintKnowledge] DB not available — skipping knowledge injection");
+    log.warn("[SprintKnowledge] DB not available — skipping knowledge injection");
     return;
   }
   let injected = 0;
@@ -82,7 +85,7 @@ export async function injectSprintKnowledge(): Promise<void> {
       injected++;
     } catch (err: any) {
       if (!err.message?.includes('duplicate') && !err.message?.includes('Duplicate')) {
-        console.error("[SprintKnowledge] Failed: " + err.message);
+        log.error("[SprintKnowledge] Failed: " + err.message);
       }
     }
   }
@@ -100,7 +103,7 @@ export async function injectSprintKnowledge(): Promise<void> {
       injected++;
     } catch (err: any) {
       if (!err.message?.includes('duplicate') && !err.message?.includes('Duplicate')) {
-        console.error("[SprintKnowledge C258] Failed: " + err.message);
+        log.error("[SprintKnowledge C258] Failed: " + err.message);
       }
     }
   }
@@ -118,12 +121,12 @@ export async function injectSprintKnowledge(): Promise<void> {
       injected++;
     } catch (err: any) {
       if (!err.message?.includes('duplicate') && !err.message?.includes('Duplicate')) {
-        console.error("[SprintKnowledge C259] Failed: " + err.message);
+        log.error("[SprintKnowledge C259] Failed: " + err.message);
       }
     }
   }
   const total = SPRINT_KNOWLEDGE.length + SOTA_EVALUATION_KNOWLEDGE.length + COUNCIL_V102_KNOWLEDGE.length;
-  console.log(`[SprintKnowledge] Injected ${injected}/${total} entries into bd_central (${SPRINT_KNOWLEDGE.length} sprint + ${SOTA_EVALUATION_KNOWLEDGE.length} SOTA C258 + ${COUNCIL_V102_KNOWLEDGE.length} Council V102 C259)`);
+  log.info(`[SprintKnowledge] Injected ${injected}/${total} entries into bd_central (${SPRINT_KNOWLEDGE.length} sprint + ${SOTA_EVALUATION_KNOWLEDGE.length} SOTA C258 + ${COUNCIL_V102_KNOWLEDGE.length} Council V102 C259)`);
 }
 
 // ============================================================
@@ -240,7 +243,7 @@ async function injectIfNotExists(db: any, entry: SprintKnowledgeEntry): Promise<
     });
   } catch (err: any) {
     if (!err.message?.includes('duplicate') && !err.message?.includes('Duplicate')) {
-      console.error('[SprintKnowledge] injectIfNotExists failed:', err.message);
+      log.error('[SprintKnowledge] injectIfNotExists failed:', err.message);
     }
   }
 }

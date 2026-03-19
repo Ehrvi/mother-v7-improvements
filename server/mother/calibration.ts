@@ -25,6 +25,9 @@
  */
 
 import { getDb } from '../db';
+import { createLogger } from '../_core/logger';
+const log = createLogger('CALIBRATION');
+
 
 // ==================== CALIBRATION TYPES ====================
 
@@ -220,8 +223,8 @@ export async function runCalibration(): Promise<CalibrationResult> {
       ? `Calibrated weights improve Spearman correlation by ${improvement.toFixed(1)}% (${currentAccuracy.toFixed(3)} → ${calibratedAccuracy.toFixed(3)}). Dominant dimensions: depth (${(correlations.depth * 100).toFixed(0)}%), consistency (${(correlations.consistency * 100).toFixed(0)}%), obedience (${(correlations.obedience * 100).toFixed(0)}%).`
       : `Improvement of ${improvement.toFixed(1)}% below 5% threshold. Current v74.15 weights remain optimal for this dataset (n=${typedRows.length}).`;
     
-    console.log(`[Calibration] n=${typedRows.length} | improvement=${improvement.toFixed(1)}% | recommendation=${recommendation}`);
-    console.log(`[Calibration] Correlations: depth=${correlations.depth.toFixed(3)} consistency=${correlations.consistency.toFixed(3)} obedience=${correlations.obedience.toFixed(3)}`);
+    log.info(`[Calibration] n=${typedRows.length} | improvement=${improvement.toFixed(1)}% | recommendation=${recommendation}`);
+    log.info(`[Calibration] Correlations: depth=${correlations.depth.toFixed(3)} consistency=${correlations.consistency.toFixed(3)} obedience=${correlations.obedience.toFixed(3)}`);
     
     return {
       version: 'v74.16',
@@ -236,7 +239,7 @@ export async function runCalibration(): Promise<CalibrationResult> {
     };
     
   } catch (err) {
-    console.error('[Calibration] Error:', (err as Error).message);
+    log.error('[Calibration] Error:', (err as Error).message);
     return {
       version: 'v74.16',
       timestamp,

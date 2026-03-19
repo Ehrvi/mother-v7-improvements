@@ -34,6 +34,9 @@
  */
 
 import { ENV } from '../_core/env';
+import { createLogger } from '../_core/logger';
+const log = createLogger('SEMANTIC_CACHE');
+
 
 export interface CacheEntry {
   id: string;
@@ -215,7 +218,7 @@ export async function lookupCache(
   if (exactEntry && exactEntry.expiresAt > new Date()) {
     exactEntry.hitCount++;
     cacheStats.hits++;
-    console.log(`[Cache] L1 exact-match hit (hitCount=${exactEntry.hitCount})`);
+    log.info(`[Cache] L1 exact-match hit (hitCount=${exactEntry.hitCount})`);
     return {
       hit: true,
       entry: {
@@ -415,7 +418,7 @@ export async function warmCache(): Promise<void> {
     const { getDb } = await import('../db');
     const db = await getDb();
     if (!db) {
-      console.log('[CacheWarming] DB not available — skipping cache warm');
+      log.info('[CacheWarming] DB not available — skipping cache warm');
       return;
     }
 
@@ -481,7 +484,7 @@ export async function warmCache(): Promise<void> {
           // Non-blocking
         }
       }
-      console.log(`[CacheWarming] QW-2: ${warmedFromQueries}/${recentUserQueries.length} real user queries pre-warmed`);
+      log.info(`[CacheWarming] QW-2: ${warmedFromQueries}/${recentUserQueries.length} real user queries pre-warmed`);
     }
 
     // QW-2 FALLBACK: Also warm from BD knowledge titles (original R547 strategy)
@@ -535,10 +538,10 @@ export async function warmCache(): Promise<void> {
     }
 
     const elapsed = Date.now() - startTime;
-    console.log(`[CacheWarming] QW-2 Total: ${warmed} entries pre-warmed in ${elapsed}ms (${warmedFromQueries} real queries + ${warmed - warmedFromQueries} BD titles)`);
+    log.info(`[CacheWarming] QW-2 Total: ${warmed} entries pre-warmed in ${elapsed}ms (${warmedFromQueries} real queries + ${warmed - warmedFromQueries} BD titles)`);
   } catch (err) {
     // Cache warming is optional — never blocks server startup
-    console.warn('[CacheWarming] Failed (non-blocking):', (err as Error).message);
+    log.warn('[CacheWarming] Failed (non-blocking):', (err as Error).message);
   }
 }
 
@@ -564,7 +567,7 @@ export async function prefetchFrequentQueries(): Promise<void> {
     const { getDb } = await import('../db');
     const db = await getDb();
     if (!db) {
-      console.log('[C276-Prefetch] DB not available — skipping prefetch');
+      log.info('[C276-Prefetch] DB not available — skipping prefetch');
       return;
     }
     const { desc, gte, and, sql } = await import('drizzle-orm');
@@ -596,7 +599,7 @@ export async function prefetchFrequentQueries(): Promise<void> {
       .catch(() => []);
 
     if (!frequentQueries || frequentQueries.length === 0) {
-      console.log('[C276-Prefetch] No frequent queries found — skipping');
+      log.info('[C276-Prefetch] No frequent queries found — skipping');
       return;
     }
 
@@ -649,9 +652,9 @@ export async function prefetchFrequentQueries(): Promise<void> {
     }
 
     const elapsed = Date.now() - startTime;
-    console.log(`[C276-Prefetch] ${prefetched}/${frequentQueries.length} frequent queries prefetched in ${elapsed}ms | Cache size: ${memoryCache.size}/${MAX_MEMORY_ENTRIES}`);
+    log.info(`[C276-Prefetch] ${prefetched}/${frequentQueries.length} frequent queries prefetched in ${elapsed}ms | Cache size: ${memoryCache.size}/${MAX_MEMORY_ENTRIES}`);
   } catch (err) {
-    console.warn('[C276-Prefetch] Failed (non-blocking):', (err as Error).message);
+    log.warn('[C276-Prefetch] Failed (non-blocking):', (err as Error).message);
   }
 }
 
@@ -670,5 +673,5 @@ export function schedulePrefetchRefresh(): void {
       prefetchFrequentQueries().catch(() => {});
     }, SIX_HOURS_MS);
   }, 5 * 60 * 1000);
-  console.log('[C276-Prefetch] Scheduled: initial prefetch in 5min, then every 6h');
+  log.info('[C276-Prefetch] Scheduled: initial prefetch in 5min, then every 6h');
 }

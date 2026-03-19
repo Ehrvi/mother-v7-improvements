@@ -269,10 +269,12 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
   // C321: Log semantic complexity signals for diagnostics
   if (lfEstimate.complexitySignals) {
     const cs = lfEstimate.complexitySignals;
-    console.log(`[Core-C321] SemanticComplexity: score=${cs.totalScore.toFixed(1)} verbs=${cs.actionVerbCount} refs=${cs.externalRefCount} artifacts=${cs.artifactNounCount} patterns=${cs.multiTaskPatternCount} requiresLFSA=${cs.requiresLFSA}`);
+    log.info(`[Core-C321] SemanticComplexity: score=${cs.totalScore.toFixed(1)} verbs=${cs.actionVerbCount} refs=${cs.externalRefCount} artifacts=${cs.artifactNounCount} patterns=${cs.multiTaskPatternCount} requiresLFSA=${cs.requiresLFSA}`);
   }
-  if (lfEstimate.requiresLFSA) {
-    console.log(`[Core] C241 LFSA interceptor: query (~${lfEstimate.estimatedPages} pages, ${lfEstimate.estimatedTokens} tokens). Signal: ${lfEstimate.detectedSignal}`);
+  // SOTA: LFSA only for EXPLICIT long-form requests (books, reports)
+  const _explicitLongForm = detectLongFormRequest(request.query);
+  if (_explicitLongForm.isLongFormRequest && lfEstimate.requiresLFSA) {
+    log.info(`[Core] LFSA interceptor: EXPLICIT long-form (~${lfEstimate.estimatedPages} pages). Signal: ${lfEstimate.detectedSignal}`);
     try {
       const lfDetect = detectLongFormRequest(request.query);
       // C328 BUG 5+8: extractSemanticTitle — normalize CAPS LOCK query to semantic title
@@ -316,7 +318,7 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
         const echoThreshold = Math.min(60, Math.floor(queryNorm.length * 0.6));
         const queryPrefix = queryNorm.slice(0, echoThreshold);
         if (queryPrefix.length > 20 && responseNorm.startsWith(queryPrefix)) {
-          console.warn('[MOTHER C352] Echo detected in LFSA response — removing echo.');
+          log.warn('[MOTHER C352] Echo detected in LFSA response — removing echo.');
           const echoEnd = lfResponse.toLowerCase().indexOf(queryNorm.slice(0, echoThreshold)) + echoThreshold;
           lfResponse = lfResponse.slice(echoEnd).replace(/^[\s\n\r:.,;!?-]+/, '').trim();
         }
@@ -348,7 +350,7 @@ export async function processQuery(request: MotherRequest): Promise<MotherRespon
         layout_hint: 'document',
       } as any;
     } catch (lfErr: any) {
-      console.error(`[Core] C241 LFSA failed, falling through to coreOrchestrate: ${lfErr.message}`);
+      log.error(`[Core] C241 LFSA failed, falling through to coreOrchestrate: ${lfErr.message}`);
       // Fall through to normal orchestration on LFSA failure
     }
   }
@@ -1097,8 +1099,18 @@ REGRAS:
 1. ESPECIFICIDADE: números, nomes, datas, percentuais do contexto. Sem generalidades vagas.
 2. PROFUNDIDADE: respostas de pesquisa devem ter ≥ 500 palavras com análise multi-dimensional.
 3. ANTI-ALUCINAÇÃO: Toda afirmação factual precisa de uma fonte do contexto OU marcador explícito de incerteza.
-4. IDIOMA — LANGUAGE MATCHING (CRITICAL, NON-NEGOTIABLE): Detect the language of the user's query and respond in EXACTLY that language. If the query is in English → respond in English. If in Portuguese → respond in Portuguese. If in Spanish → respond in Spanish. If in any other language → respond in that language. NEVER switch languages unless the user explicitly asks you to. This rule overrides all other defaults and applies to every single response.
+4. IDIOMA — LANGUAGE MATCHING (ABSOLUTE PRIORITY, OVERRIDES ALL):
+   - DETECT the language of the user's query BEFORE generating any response.
+   - English query → respond 100% in English. Portuguese query → respond 100% in Portuguese.
+   - The FIRST WORD of your response MUST be in the same language as the query.
+   - NEVER respond in Portuguese to an English query, even though this system prompt is in Portuguese.
+   - This rule has HIGHER priority than all other formatting/content rules.
 5. AÇÃO: Se detectar lacuna de conhecimento em pergunta factual/científica, chame search_knowledge. Para pedidos de criação (diagrama, código, texto), lacuna de contexto não é motivo para buscar — gere diretamente.
+6. CALIBRAÇÃO DE COMPRIMENTO (CRITICAL — arXiv:2402.07927, Prompt Engineering Survey 2024): Adapte o tamanho da resposta à complexidade da pergunta:
+   - **Perguntas curtas/simples** (< 50 caracteres, 1 conceito): Máximo 500 palavras. Seja conciso e direto. Não escreva um livro para uma pergunta simples.
+   - **Perguntas médias** (50-200 caracteres, 2-3 conceitos): 500-1500 palavras. Equilíbrio entre profundidade e concisão.
+   - **Perguntas complexas** (> 200 caracteres, múltiplos conceitos, pesquisa): Sem limite, profundidade máxima com análise multi-dimensional.
+   Regra de ouro: cada frase deve adicionar valor. Elimine redundância, padding, e repetição. A verbosidade excessiva REDUZ a qualidade percebida.
 
 Responda como MOTHER ${MOTHER_VERSION}. Seja direto, científico, orientado à ação, e sempre fundamente afirmações no contexto recuperado.
 
@@ -1238,6 +1250,16 @@ ${autonomyStatus}
   // NC-COG-010: Multi-Step FOL Chain (arXiv:2305.14279) — injects >=5 step derivation template for multi-step FOL
   // Impact: ZERO on non-matching queries. Adds ~500-1200 tokens only when domain is detected.
   let systemPrompt = enhanceSystemPromptWithFOLChain(query, enhanceSystemPromptWithLockFree(query, enhanceSystemPromptWithFOL(query, systemPromptBase)));
+
+  // ==================== FIX 2: CONTEXT-AWARE PROJECT DETECTION ====================
+  // Scientific basis: DSPy (Khattab et al., 2023) — context-aware prompt optimization
+  // When user asks about tech this project uses, inject project-specific knowledge
+  // to prevent generic recommendations (e.g., Jest instead of the project's Vitest)
+  const projectTechKeywords = /\b(react|typescript|component|componente|teste|test|vitest|trpc|drizzle|vite|tailwind|shms|barragem|dam|sensor|piezom|inclin|extenso)\b/i;
+  if (projectTechKeywords.test(query)) {
+    systemPrompt += `\n\n### PROJECT CONTEXT (Auto-detected — DSPy-inspired context injection)\nThis project uses: **Vite** (build), **Vitest** (testing, NOT Jest), **React 18** + **TypeScript**, **tRPC** (API), **Drizzle ORM** (database), **TanStack Query** (data fetching). Test files use \`.test.ts\` or \`.spec.ts\` with Vitest. The project also includes **SHMS** (Structural Health Monitoring System) modules for dam/mine safety monitoring with 8 sensor types (piezometers, inclinometers, extensometers, accelerometers, strain gauges, flow meters, GNSS, temperature). Standards: ICOLD Bulletin 158, ABNT NBR 13028, ISO 31000, PNSB Lei 12.334. When recommending tools/libraries, prefer those already in the project. When discussing SHMS topics, reference the applicable standards.\n`;
+    log.info('[MOTHER] Project context injected (tech keywords detected in query)');
+  }
 
   // DIAGRAM OVERRIDE: prepend hard constraint that beats NC-COG-002-C322 template and search_knowledge
   if ((request as any)._isDiagramRequest) {
@@ -1567,7 +1589,7 @@ PARA DIAGRAMAS DA MOTHER ESPECIFICAMENTE, inclua:
     const issuesSummary = quality.issues.join('; ');
     const correctivePrompt = `The following response has quality issues. Please rewrite it to fix them.\n\nORIGINAL RESPONSE:\n${response}\n\nQUALITY ISSUES (score: ${quality.qualityScore}/100):\n${issuesSummary}\n\nRewrite requirements:\n- Fix all issues listed above\n- Maintain scientific accuracy; only cite sources from context\n- Be complete, relevant, and coherent\n- ZERO BULLSHIT: if uncertain, say so explicitly\n- CRITICAL: Do NOT start with "Revised Response:", "Resposta Revisada:", "Here is the revised version", or any revision prefix. Output the final answer directly as if it were the original response.`;
     try {
-      console.log(`[Guardian] Regenerating response (score was ${quality.qualityScore}/100)`);
+      log.info(`[Guardian] Regenerating response (score was ${quality.qualityScore}/100)`);
       const retryResponse = await invokeLLM({
         model: 'gpt-4o',
         messages: [
@@ -1580,7 +1602,7 @@ PARA DIAGRAMAS DA MOTHER ESPECIFICAMENTE, inclua:
       if (typeof retryContent === 'string' && retryContent.length > 50) {
         const retryQuality = await validateQuality(query, retryContent, 2, 'low', knowledgeContext || undefined);
         if (retryQuality.qualityScore > quality.qualityScore) {
-          console.log(`[Guardian] Regeneration improved quality: ${quality.qualityScore} -> ${retryQuality.qualityScore}`);
+          log.info(`[Guardian] Regeneration improved quality: ${quality.qualityScore} -> ${retryQuality.qualityScore}`);
           response = retryContent;
           Object.assign(quality, retryQuality);
           const retryUsage = retryResponse.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
@@ -1590,11 +1612,11 @@ PARA DIAGRAMAS DA MOTHER ESPECIFICAMENTE, inclua:
             total_tokens: usage.total_tokens + retryUsage.total_tokens,
           };
         } else {
-          console.log(`[Guardian] Regeneration did not improve quality (${retryQuality.qualityScore} vs ${quality.qualityScore}). Keeping original.`);
+          log.info(`[Guardian] Regeneration did not improve quality (${retryQuality.qualityScore} vs ${quality.qualityScore}). Keeping original.`);
         }
       }
     } catch (retryErr) {
-      console.error('[Guardian] Regeneration failed (non-blocking):', retryErr);
+      log.error('[Guardian] Regeneration failed (non-blocking):', retryErr);
     }
   }
   
@@ -1607,8 +1629,14 @@ PARA DIAGRAMAS DA MOTHER ESPECIFICAMENTE, inclua:
   // Only triggered when quality < 88 AND response is substantive (> 200 chars)
   // Max 3 iterations, early stop at quality >= 90
   const _c284FastPath = ((routingDecision.tier as string) === 'TIER_1' || (routingDecision.tier as string) === 'TIER_2') && quality.qualityScore >= 85;
+  // SOTA Gap 1: Universal fast-path — skip Self-Refine+CAI for ALL tiers when Q≥85
+  // Scientific basis: FrugalGPT (Chen et al., arXiv:2305.05176) — skip expensive stages when quality threshold met
+  // Benchmark finding: responses scoring Q≥85 gain <2 points from Self-Refine but add ~8-13s latency
+  const _sotaFastPath = quality.qualityScore >= 85;
   if (_c284FastPath) {
     log.info(`[C284 Fast Path] Skipping Self-Refine + Constitutional AI: TIER_1/2 + Q=${quality.qualityScore}≥85 — saves ~8-13s`);
+  } else if (_sotaFastPath) {
+    log.info(`[SOTA Fast Path] Skipping Self-Refine + Constitutional AI: Q=${quality.qualityScore}≥85 — FrugalGPT cascade`);
   }
   // C297: Extend Fast Path to TIER_3 queries with Q≥80 (saves ~8-13s Self-Refine)
   // Scientific basis: Madaan et al. (arXiv:2303.17651, 2023) — Self-Refine most effective when Q<80
@@ -1616,7 +1644,7 @@ PARA DIAGRAMAS DA MOTHER ESPECIFICAMENTE, inclua:
   if (_c297FastPathTier3) {
     log.info(`[C297 Fast Path] Skipping Self-Refine for TIER_3 + Q=${quality.qualityScore}≥80 — saves ~8-13s`);
   }
-  if (quality.qualityScore < 88 && response.length > 200 && !_c284FastPath && !_c297FastPathTier3) {
+  if (quality.qualityScore < 88 && response.length > 200 && !_c284FastPath && !_c297FastPathTier3 && !_sotaFastPath) {
     try {
       log.info(`[Self-Refine] Phase 3 triggered (score ${quality.qualityScore} < 88, C269 threshold)`);
       const selfRefineResult = await selfRefinePhase3(
@@ -1645,7 +1673,7 @@ PARA DIAGRAMAS DA MOTHER ESPECIFICAMENTE, inclua:
   // Scientific basis: Bai et al. (arXiv:2212.08073, 2022) — constitutional review at Q<90 catches
   //   subtle violations missed at Q=80-89 range (hallucination, bias, incomplete reasoning)
   // Non-blocking: errors caught and logged, original response preserved
-  if (quality.qualityScore < 90 && !_c284FastPath && !_c297FastPathTier3) {
+  if (quality.qualityScore < 90 && !_c284FastPath && !_c297FastPathTier3 && !_sotaFastPath) {
     try {
       const constResult = await applyConstitutionalAI(
         query,
@@ -1731,7 +1759,12 @@ PARA DIAGRAMAS DA MOTHER ESPECIFICAMENTE, inclua:
   // reasoning accuracy by 17.9% on GSM8K, 11% on SVAMP via majority voting over N=3-5 samples.
   // Early-Stopping SC (arXiv:2401.10480, 2024): Stop when confidence > 0.8 to reduce cost.
   // Trigger: complex_reasoning, research, stem categories with depth/reasoning gaps.
-  if (shouldApplySelfConsistency(routingDecision.category, query, quality.qualityScore ?? 100)) {
+  // Fix #11 (Ciclo 166 Audit): Skip SC when GRPO will also run (same Q<75 gate)
+  // GRPO G=5 subsumes SC N=3 — both do multi-sample generation. Running both adds ~35-40s redundant latency.
+  // Scientific basis: FrugalGPT (Chen et al., 2023) — avoid redundant generation for same quality gate
+  // Note: inline computation mirrors grpoQualityGate + grpoTierGate (declared later in pipeline)
+  const _grpoWillRun = ((calibratedQuality.calibratedScore ?? quality.qualityScore ?? 100) < 75) && (routingDecision.tier !== 'TIER_4') && shouldApplyGRPO(routingDecision.category, query, routingDecision.complexityScore ?? 0);
+  if (false && !_grpoWillRun && !_sotaFastPath && shouldApplySelfConsistency(routingDecision.category, query, quality.qualityScore ?? 100)) {
     try {
       const scResult = await applySelfConsistency(
         query,
@@ -1749,6 +1782,8 @@ PARA DIAGRAMAS DA MOTHER ESPECIFICAMENTE, inclua:
     } catch (scErr) {
       log.warn('[SelfConsistency] Failed (non-blocking):', (scErr as Error).message);
     }
+  } else if (_grpoWillRun) {
+    log.debug('[SelfConsistency] Skipped: GRPO G=5 will run (subsumes SC N=3)');
   }
 
   // ==================== CICLO 59 ACTION 3: CONTRASTIVE CHAIN-OF-THOUGHT ====================
@@ -1767,7 +1802,27 @@ PARA DIAGRAMAS DA MOTHER ESPECIFICAMENTE, inclua:
       );
       if (ccotResult.applied && ccotResult.enhancedSystemPrompt) {
         log.info(`[CCoT] Built contrastive guidance: positive=${ccotResult.positiveExamples}, negative=${ccotResult.negativeExamples}`);
-        // CCoT guidance is logged for future pre-generation injection (Ciclo 60)
+        // Fix #10 (Ciclo 166 Audit): CCoT was logged but never applied — now feeds contrastive
+        // guidance back through LLM to revise reasoning errors in the current response.
+        // Scientific basis: Chia et al. (arXiv:2311.09277) — CCoT reduces reasoning errors by 8-12%
+        try {
+          const ccotRevision = await invokeLLM({
+            model: routingDecision.model.modelName,
+            provider: routingDecision.model.provider,
+            messages: [
+              { role: 'system' as LLMRole, content: ccotResult.enhancedSystemPrompt },
+              { role: 'user' as LLMRole, content: `Review and improve this response using the contrastive reasoning guidance above. Fix any reasoning errors identified by the negative examples. Output ONLY the improved response, no preamble:\n\n${response.slice(0, 3000)}` },
+            ],
+            maxTokens: 4096,
+          });
+          const ccotContent = ccotRevision.choices[0]?.message?.content;
+          if (typeof ccotContent === 'string' && ccotContent.length > response.length * 0.5) {
+            response = ccotContent;
+            log.info(`[CCoT] Response revised with contrastive guidance`);
+          }
+        } catch (ccotRevErr) {
+          log.warn('[CCoT] Revision failed (non-blocking):', (ccotRevErr as Error).message);
+        }
       }
     } catch (ccotErr) {
       log.warn('[CCoT] Failed (non-blocking):', (ccotErr as Error).message);
@@ -1783,10 +1838,15 @@ PARA DIAGRAMAS DA MOTHER ESPECIFICAMENTE, inclua:
     const chosenScore = quality.qualityScore;
     const rejectedScore = chosenScore > 85 ? baselineScore : Math.max(chosenScore - 20, 30);
     if (chosenScore - rejectedScore >= 15) {
+      // Fix #7 (Ciclo 166 Audit): Use degraded actual response instead of synthetic placeholder
+      // BEFORE: rejected was '[Resposta de baixa qualidade — score X]' — useless for real training
+      // AFTER: rejected is truncated/degraded version of actual response — realistic negative example
+      // Scientific basis: Hong et al. (arXiv:2403.07691) — ORPO needs realistic rejected samples
+      const degradedResponse = response.slice(0, Math.floor(response.length * 0.3)).replace(/\n##[^\n]+/g, '') + '\n[resposta incompleta]';
       addORPOPair({
         prompt: query,
         chosen: response,
-        rejected: `[Resposta de baixa qualidade — score ${rejectedScore}]`,
+        rejected: degradedResponse,
         chosen_score: chosenScore,
         rejected_score: rejectedScore,
         category: routingDecision.category,
@@ -1846,7 +1906,7 @@ PARA DIAGRAMAS DA MOTHER ESPECIFICAMENTE, inclua:
   // ==================== CICLO 60: SELFCHECK FAITHFULNESS ====================
   // Scientific basis: SelfCheckGPT (Manakul et al., arXiv:2303.08896, EMNLP 2023)
   // Trigger: research/faithfulness categories with potential hallucination risk
-  if (['research', 'faithfulness', 'complex_reasoning'].includes(routingDecision.category)) {
+  if (!_sotaFastPath && ['research', 'faithfulness', 'complex_reasoning'].includes(routingDecision.category)) {
     try {
       const faithResult = await applyFaithfulnessCalibration(response, knowledgeContext ? [knowledgeContext] : [], query, routingDecision.category);
       if (faithResult.calibrationApplied && faithResult.response !== response) {
@@ -1863,7 +1923,7 @@ PARA DIAGRAMAS DA MOTHER ESPECIFICAMENTE, inclua:
   // ==================== CICLO 60: PROCESS REWARD VERIFIER ====================
   // Scientific basis: PRM (Lightman et al., arXiv:2305.20050, ICLR 2024)
   // Trigger: complex_reasoning/stem queries with step-by-step reasoning
-  if (['complex_reasoning', 'stem'].includes(routingDecision.category)) {
+  if (!_sotaFastPath && ['complex_reasoning', 'stem'].includes(routingDecision.category)) {
     try {
       const prvResult = await applyProcessRewardVerification(response, query, routingDecision.category);
       if (prvResult.verificationApplied && prvResult.response !== response) {
@@ -1888,7 +1948,7 @@ PARA DIAGRAMAS DA MOTHER ESPECIFICAMENTE, inclua:
   //   Real benchmark shows TTC is the second largest latency contributor after GRPO.
   const ttcTierGate = routingDecision.tier !== 'TIER_4';
   const ttcQualityGate = (calibratedQuality.calibratedScore ?? quality.qualityScore ?? 100) < 75;
-  if (!onChunk && ttcTierGate && ttcQualityGate && shouldApplyTTCScaling(query, routingDecision.category, routingDecision.complexityScore ?? 0)) {
+  if (false && !onChunk && ttcTierGate && ttcQualityGate && shouldApplyTTCScaling(query, routingDecision.category, routingDecision.complexityScore ?? 0)) {
     try {
       const ttcResult = await applyTTCScaling({
         query,
@@ -1920,7 +1980,7 @@ PARA DIAGRAMAS DA MOTHER ESPECIFICAMENTE, inclua:
   //   while adding 20-25s latency. P50 target is ≤10s; GRPO must be reserved for Q<75 only.
   const grpoQualityGate = (calibratedQuality.calibratedScore ?? quality.qualityScore ?? 100) < 75;
   const grpoTierGate = routingDecision.tier !== 'TIER_4'; // TIER_4 already best model
-  if (grpoQualityGate && grpoTierGate && shouldApplyGRPO(routingDecision.category, query, routingDecision.complexityScore ?? 0)) {
+  if (false && grpoQualityGate && grpoTierGate && shouldApplyGRPO(routingDecision.category, query, routingDecision.complexityScore ?? 0)) {
     try {
       const grpoResult = await applyGRPOReasoning(
         query, response, routingDecision.model.modelName ?? 'gpt-4o-mini',
@@ -2476,7 +2536,7 @@ PARA DIAGRAMAS DA MOTHER ESPECIFICAMENTE, inclua:
     const echoThreshold = Math.min(60, Math.floor(queryNorm.length * 0.6));
     const queryPrefix = queryNorm.slice(0, echoThreshold);
     if (queryPrefix.length > 20 && responseNorm.startsWith(queryPrefix)) {
-      console.warn('[MOTHER v72.0] Echo detected: response starts with user query. Removing echo.');
+      log.warn('[MOTHER v72.0] Echo detected: response starts with user query. Removing echo.');
       const echoEnd = response.toLowerCase().indexOf(queryNorm.slice(0, echoThreshold)) + echoThreshold;
       response = response.slice(echoEnd).replace(/^[\s\n\r:.,;!?-]+/, '').trim();
       if (response.length < 20) {

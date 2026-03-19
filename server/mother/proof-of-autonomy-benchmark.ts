@@ -17,6 +17,9 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import { execSync } from 'child_process';
+import { createLogger } from '../_core/logger';
+const log = createLogger('PROOF_OF_AUTONOMY_BENCHMARK');
+
 
 export interface AutonomyDimension {
   id: string;
@@ -374,7 +377,7 @@ export class ProofOfAutonomyBenchmark {
    * Executa benchmark completo de autonomia
    */
   async runBenchmark(): Promise<AutonomyBenchmarkReport> {
-    console.log('[ProofOfAutonomy C155] Iniciando benchmark formal de autonomia...');
+    log.info('[ProofOfAutonomy C155] Iniciando benchmark formal de autonomia...');
 
     const dimensions = await Promise.all([
       this.checkTypeScriptHealth(),
@@ -419,15 +422,15 @@ export class ProofOfAutonomyBenchmark {
       interventionLevel
     };
 
-    console.log(`[ProofOfAutonomy C155] Score: ${overallScore}/100 | Passed: ${passed} | Phase 6C Ready: ${phase6CReady}`);
-    console.log(`[ProofOfAutonomy C155] Intervention Level: ${interventionLevel}% | Master Hash: ${masterHash}`);
+    log.info(`[ProofOfAutonomy C155] Score: ${overallScore}/100 | Passed: ${passed} | Phase 6C Ready: ${phase6CReady}`);
+    log.info(`[ProofOfAutonomy C155] Intervention Level: ${interventionLevel}% | Master Hash: ${masterHash}`);
 
     return report;
   }
 }
 
 export const proofOfAutonomyBenchmark = new ProofOfAutonomyBenchmark(
-  process.env.REPO_PATH || '/home/ubuntu/mother-latest',
+  process.env.REPO_PATH || process.cwd(), // P1 fix: Twelve-Factor App
   process.env.MOTHER_URL || 'https://mother-interface-qtvghovzxa-ts.a.run.app'
 );
 

@@ -16,6 +16,8 @@
  */
 
 import { searchKnowledge, getAllKnowledge } from '../db';
+import { createLogger } from '../_core/logger'; // P6 fix: structured logger
+const log = createLogger('KNOWLEDGE');
 import type { Knowledge } from '../../drizzle/schema';
 import { getEmbedding, cosineSimilarity } from './embeddings';
 import { AutonomousKnowledgeCurator } from './autonomous-knowledge-curator'; // C150: Autonomous Knowledge Curator (Dong 2014 — auto-dedup + quality scoring)
@@ -64,7 +66,7 @@ export async function queryDatabase(query: string): Promise<KnowledgeResult[]> {
       relevance: calculateRelevance(query, item.content),
     }));
   } catch (error) {
-    console.error('[Knowledge] Database query failed:', error);
+    log.error('[Knowledge] Database query failed:', error);
     return [];
   }
 }
@@ -76,11 +78,12 @@ export async function queryDatabase(query: string): Promise<KnowledgeResult[]> {
  */
 export async function queryVectorSearch(query: string): Promise<KnowledgeResult[]> {
   try {
-    // Get all knowledge entries from database
-    const allKnowledge = await getAllKnowledge();
+    // C133 fix: Use searchKnowledge() instead of getAllKnowledge() to avoid loading entire DB
+    // Scientific basis: DB-level filtering before client-side cosine similarity
+    const allKnowledge = await searchKnowledge(query);
     
     if (allKnowledge.length === 0) {
-      console.log('[Knowledge] No knowledge entries in database');
+      log.info('[Knowledge] No matching knowledge entries found for query');
       return [];
     }
     
@@ -90,7 +93,7 @@ export async function queryVectorSearch(query: string): Promise<KnowledgeResult[
     // Check if we got a valid embedding (not zero vector)
     const isZeroVector = queryEmbedding.every(v => v === 0);
     if (isZeroVector) {
-      console.warn('[Knowledge] Failed to get query embedding, falling back to keyword search');
+      log.warn('[Knowledge] Failed to get query embedding, falling back to keyword search');
       return await queryVectorSearchFallback(query, allKnowledge);
     }
     
@@ -105,7 +108,7 @@ export async function queryVectorSearch(query: string): Promise<KnowledgeResult[
             const itemEmbedding = JSON.parse(item.embedding);
             relevance = cosineSimilarity(queryEmbedding, itemEmbedding);
           } catch (e) {
-            console.error(`[Knowledge] Failed to parse embedding for "${item.title}"`);
+            log.error(`[Knowledge] Failed to parse embedding for "${item.title}"`);
             // Fall back to keyword matching for this entry
             const queryTerms = extractTerms(query);
             const titleRelevance = calculateTermRelevance(queryTerms, item.title);
@@ -125,7 +128,7 @@ export async function queryVectorSearch(query: string): Promise<KnowledgeResult[
             // Store embedding for future use (fire-and-forget)
             const { updateKnowledgeEmbedding } = await import('../db');
             updateKnowledgeEmbedding(item.id, JSON.stringify(itemEmbedding), 'text-embedding-3-small')
-              .catch((err: Error) => console.error(`[Knowledge] Failed to store embedding for ID ${item.id}:`, err));
+              .catch((err: Error) => log.error(`[Knowledge] Failed to store embedding for ID ${item.id}:`, err));
           } else {
             // Fallback to keyword matching
             const queryTerms = extractTerms(query);
@@ -155,14 +158,14 @@ export async function queryVectorSearch(query: string): Promise<KnowledgeResult[
       .sort((a, b) => b.relevance - a.relevance)
       .slice(0, 5); // v69.15: Top 5 most relevant (Ciclo 34 Fine-Tuning: Lewis et al. 2020 NeurIPS RAG paper recommends k=5)
     
-    console.log(`[Knowledge] Vector search found ${relevantResults.length} relevant entries`);
+    log.info(`[Knowledge] Vector search found ${relevantResults.length} relevant entries`);
     if (relevantResults.length > 0) {
-      console.log(`[Knowledge] Top match: "${relevantResults[0].item.title}" (similarity: ${(relevantResults[0].relevance * 100).toFixed(1)}%)`);
+      log.info(`[Knowledge] Top match: "${relevantResults[0].item.title}" (similarity: ${(relevantResults[0].relevance * 100).toFixed(1)}%)`);
     }
     
     return relevantResults;
   } catch (error) {
-    console.error('[Knowledge] Vector search failed:', error);
+    log.error('[Knowledge] Vector search failed:', error);
     // Fallback to keyword search
     const allKnowledge = await getAllKnowledge();
     return await queryVectorSearchFallback(query, allKnowledge);
@@ -203,7 +206,7 @@ async function queryVectorSearchFallback(query: string, allKnowledge: Knowledge[
     .sort((a, b) => b.relevance - a.relevance)
     .slice(0, 5); // v69.15: Top 5 (Ciclo 34 Fine-Tuning)
   
-  console.log(`[Knowledge] Keyword fallback found ${relevantResults.length} relevant entries`);
+  log.info(`[Knowledge] Keyword fallback found ${relevantResults.length} relevant entries`);
   return relevantResults;
 }
 
@@ -277,7 +280,7 @@ export async function queryRealTimeAPIs(query: string): Promise<KnowledgeResult[
   // - Stock API for financial data
   // - etc.
   
-  console.log('[Knowledge] Real-time APIs not yet implemented (Phase 2)');
+  log.info('[Knowledge] Real-time APIs not yet implemented (Phase 2)');
   return [];
 }
 
@@ -302,7 +305,7 @@ export async function queryExternalKnowledge(query: string): Promise<KnowledgeRe
       return [];
     }
     
-    console.log(`[Knowledge] Source 4 (Papers): ${chunks.length} relevant chunks found`);
+    log.info(`[Knowledge] Source 4 (Papers): ${chunks.length} relevant chunks found`);
     
     return chunks.map(chunk => ({
       content: `[Paper: ${chunk.title} | arXiv:${chunk.arxivId}]\n${chunk.text}`,
@@ -315,7 +318,7 @@ export async function queryExternalKnowledge(query: string): Promise<KnowledgeRe
       relevance: chunk.similarity,
     }));
   } catch (error) {
-    console.error('[Knowledge] Source 4 (Papers) query failed:', error);
+    log.error('[Knowledge] Source 4 (Papers) query failed:', error);
     return [];
   }
 }

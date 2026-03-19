@@ -36,6 +36,9 @@ import { computeRLVRReward, extractScientificClaims, runHLEBenchmark } from './r
 import { getDb, insertKnowledge } from '../db';
 import { queries } from '../../drizzle/schema';
 import { desc, gte, and, isNotNull } from 'drizzle-orm';
+import { createLogger } from '../_core/logger';
+const log = createLogger('SELF_IMPROVE');
+
 
 export interface SystemMetrics {
   timestamp: Date;
@@ -316,9 +319,14 @@ export async function executeProposals(
 ): Promise<string[]> {
   const applied: string[] = [];
 
+  // C34 fix: Actually execute proposals with human-in-the-loop gate
+  // Scientific basis: DGM (arXiv:2505.22954) — self-modify then validate
+  // User requirement: "Human gives last approval before production"
+  const { queueForApproval } = await import('./autonomy');
+  
   for (const proposal of proposals.filter(p => p.autoApprove)) {
     try {
-      // Log the proposal execution to knowledge base
+      // 1. Log the proposal to knowledge base for traceability
       await insertKnowledge({
         title: `[SELF-IMPROVE] ${proposal.id}`,
         content: `[SELF-IMPROVE] Applied proposal: ${proposal.description}. Rationale: ${proposal.rationale}. Expected impact: ${proposal.expectedImpact}. Scientific basis: ${proposal.scientificBasis}`,
@@ -328,10 +336,19 @@ export async function executeProposals(
         sourceType: 'learning',
       }).catch(() => {}); // Non-blocking
 
+      // 2. Queue for human approval before production deployment
+      // Implements human-in-the-loop: MOTHER proposes, human approves
+      queueForApproval(
+        'MOTHER-SelfImprove',
+        `[${proposal.id}] ${proposal.description} — Impact: ${proposal.expectedImpact}`,
+        proposal.type === 'routing' ? 'server/mother/intelligence.ts' : undefined,
+        `Rationale: ${proposal.rationale}\nScientific basis: ${proposal.scientificBasis}`
+      );
+
       applied.push(proposal.id);
-      console.log(`[SelfImprove] Applied proposal: ${proposal.id} — ${proposal.description}`);
+      log.info(`[SelfImprove] Proposal queued for approval: ${proposal.id} — ${proposal.description}`);
     } catch (err) {
-      console.error(`[SelfImprove] Failed to apply proposal ${proposal.id}:`, err);
+      log.error(`[SelfImprove] Failed to process proposal ${proposal.id}:`, err);
     }
   }
 
@@ -361,7 +378,7 @@ Scientific basis: MAPE-K (Kephart & Chess, 2003), Gödel Machine (Schmidhuber, 2
     tags: JSON.stringify(['mape-k', 'self-improvement', 'cycle-history', `cycle-${cycle.cycleId}`]),
     source: 'MOTHER Self-Improve v70.0',
     sourceType: 'learning',
-  }).catch((err: any) => console.error('[SelfImprove] Failed to store knowledge:', err));
+  }).catch((err: any) => log.error('[SelfImprove] Failed to store knowledge:', err));
 }
 
 /**
@@ -377,19 +394,19 @@ export async function runSelfImprovementCycle(): Promise<SelfImprovementCycle> {
   const cycleId = `cycle_${Date.now()}`;
   const startTime = new Date();
 
-  console.log(`[SelfImprove] Starting MAPE-K cycle ${cycleId}`);
+  log.info(`[SelfImprove] Starting MAPE-K cycle ${cycleId}`);
 
   // 1. MONITOR
   const metrics = await monitorSystem();
-  console.log(`[SelfImprove] Metrics: quality=${metrics.avgQualityScore}, latency=${metrics.avgLatencyMs}ms, cache=${metrics.cacheHitRate}%`);
+  log.info(`[SelfImprove] Metrics: quality=${metrics.avgQualityScore}, latency=${metrics.avgLatencyMs}ms, cache=${metrics.cacheHitRate}%`);
 
   // 2. ANALYZE
   const analysis = analyzeMetrics(metrics);
-  console.log(`[SelfImprove] Gaps: ${analysis.gaps.length}, Root causes: ${analysis.rootCauses.length}, Opportunities: ${analysis.opportunities.length}`);
+  log.info(`[SelfImprove] Gaps: ${analysis.gaps.length}, Root causes: ${analysis.rootCauses.length}, Opportunities: ${analysis.opportunities.length}`);
 
   // 3. PLAN
   const proposals = generateProposals(metrics, analysis);
-  console.log(`[SelfImprove] Generated ${proposals.length} proposals`);
+  log.info(`[SelfImprove] Generated ${proposals.length} proposals`);
 
   // 4. EXECUTE (auto-approved only)
   const appliedProposals = await executeProposals(proposals);
@@ -415,7 +432,7 @@ export async function runSelfImprovementCycle(): Promise<SelfImprovementCycle> {
   // 5. KNOWLEDGE
   await storeImprovementKnowledge(cycle);
 
-  console.log(`[SelfImprove] Cycle ${cycleId} completed in ${Date.now() - startTime.getTime()}ms`);
+  log.info(`[SelfImprove] Cycle ${cycleId} completed in ${Date.now() - startTime.getTime()}ms`);
 
   return cycle;
 }

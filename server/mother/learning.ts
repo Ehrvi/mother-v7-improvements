@@ -23,6 +23,9 @@ import { insertKnowledge, getAllKnowledge } from '../db';
 // improves knowledge retention by filtering low-value memories before storage
 // Previous state (C188): memory_agent.ts had 400L written but never imported in learning.ts
 import { computeImportanceScore } from './memory_agent';
+import { createLogger } from '../_core/logger';
+const log = createLogger('LEARNING');
+
 
 // v56.0: Lowered from 95 to 75 — Req #3: Gradual knowledge acquisition
 // Scientific basis: Parisi et al. (2019) — lower threshold enables incremental learning
@@ -119,7 +122,7 @@ export async function isDuplicate(
 
     return { isDuplicate: false, maxSimilarity };
   } catch (error) {
-    console.error('[Learning] Embedding check failed:', error);
+    log.error('[Learning] Embedding check failed:', error);
     // Fallback: assume not duplicate if embeddings fail
     return { isDuplicate: false, maxSimilarity: 0 };
   }
@@ -144,7 +147,7 @@ function generateTitle(insight: string): string {
  * v56.0: Threshold lowered from 95 to 75 (Req #3: Gradual learning)
  */
 export async function learnFromResponse(candidate: LearningCandidate): Promise<LearningResult> {
-  console.log(`[Learning] Evaluating response (quality: ${candidate.qualityScore}, threshold: ${LEARNING_QUALITY_THRESHOLD})`);
+  log.info(`[Learning] Evaluating response (quality: ${candidate.qualityScore}, threshold: ${LEARNING_QUALITY_THRESHOLD})`);
 
   // Step 1: Check quality threshold (≥75% — v56.0 Req #3: gradual learning)
   // Lowered from 95 to 75 based on Continual Learning research (Parisi et al., 2019)
@@ -184,7 +187,7 @@ export async function learnFromResponse(candidate: LearningCandidate): Promise<L
     };
   }
 
-  console.log(`[Learning] Extracted ${insights.length} insights, ${importantInsights.length} passed importance filter`);
+  log.info(`[Learning] Extracted ${insights.length} insights, ${importantInsights.length} passed importance filter`);
 
   // Step 3: Check for duplicates and add new knowledge
   const existingKnowledge = await getAllKnowledge();
@@ -193,7 +196,7 @@ export async function learnFromResponse(candidate: LearningCandidate): Promise<L
     const { isDuplicate: isDup, maxSimilarity } = await isDuplicate(insight, existingKnowledge);
 
     if (isDup) {
-      console.log(`[Learning] Skipping duplicate (similarity: ${maxSimilarity.toFixed(2)})`);
+      log.info(`[Learning] Skipping duplicate (similarity: ${maxSimilarity.toFixed(2)})`);
       continue;
     }
 
@@ -213,7 +216,7 @@ export async function learnFromResponse(candidate: LearningCandidate): Promise<L
         embeddingModel: 'text-embedding-3-small',
       });
 
-      console.log(`[Learning] ✅ Added knowledge ID ${knowledgeId}: "${title}" (quality: ${candidate.qualityScore})`);
+      log.info(`[Learning] ✅ Added knowledge ID ${knowledgeId}: "${title}" (quality: ${candidate.qualityScore})`);
 
       return {
         learned: true,
@@ -222,7 +225,7 @@ export async function learnFromResponse(candidate: LearningCandidate): Promise<L
         similarity: maxSimilarity
       };
     } catch (error) {
-      console.error('[Learning] Failed to add knowledge:', error);
+      log.error('[Learning] Failed to add knowledge:', error);
       return {
         learned: false,
         reason: `Insert failed: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -296,7 +299,7 @@ export async function learnFromEvolutionRun(
     const { isDuplicate: isDup, maxSimilarity } = await isDuplicate(insight, existingKnowledge);
 
     if (isDup) {
-      console.log(`[Learning] Skipping duplicate evolution insight (similarity: ${maxSimilarity.toFixed(2)})`);
+      log.info(`[Learning] Skipping duplicate evolution insight (similarity: ${maxSimilarity.toFixed(2)})`);
       continue;
     }
 
@@ -315,7 +318,7 @@ export async function learnFromEvolutionRun(
         embeddingModel: 'text-embedding-3-small',
       });
 
-      console.log(`[Learning] ✅ Evolution insight added (ID=${knowledgeId}, fitness=${fitnessScore.toFixed(2)}): "${title.slice(0, 60)}"`);
+      log.info(`[Learning] ✅ Evolution insight added (ID=${knowledgeId}, fitness=${fitnessScore.toFixed(2)}): "${title.slice(0, 60)}"`);
 
       return {
         learned: true,
@@ -324,7 +327,7 @@ export async function learnFromEvolutionRun(
         similarity: maxSimilarity,
       };
     } catch (error) {
-      console.error('[Learning] Failed to add evolution insight:', error);
+      log.error('[Learning] Failed to add evolution insight:', error);
       return {
         learned: false,
         reason: `Insert failed: ${error instanceof Error ? error.message : 'Unknown error'}`,

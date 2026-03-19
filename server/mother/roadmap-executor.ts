@@ -17,6 +17,9 @@
 import { executeAgentTask } from './supervisor-activator';
 import { storeEpisodicMemory } from './episodic-memory';
 import { storeProofOfAutonomy } from './proof-of-autonomy';
+import { createLogger } from '../_core/logger';
+const log = createLogger('ROADMAP_EXECUTOR');
+
 
 interface RoadmapTask {
   id: string;
@@ -136,7 +139,7 @@ async function executeTask(task: RoadmapTask, phaseId: string): Promise<{
   error?: string;
 }> {
   const taskStartTime = Date.now();
-  console.log(`[RoadmapExecutor] Executing task ${task.id}: ${task.description.slice(0, 80)}`);
+  log.info(`[RoadmapExecutor] Executing task ${task.id}: ${task.description.slice(0, 80)}`);
   
   try {
     const result = await executeAgentTask({
@@ -168,7 +171,7 @@ async function executeTask(task: RoadmapTask, phaseId: string): Promise<{
     }
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
-    console.error(`[RoadmapExecutor] Task ${task.id} failed:`, error);
+    log.error(`[RoadmapExecutor] Task ${task.id} failed:`, error);
     
     await storeEpisodicMemory({
       taskId: `roadmap-${phaseId}-${task.id}-fail`,
@@ -205,9 +208,9 @@ export async function executeRoadmapPhase(phaseId: string): Promise<ExecutionRes
     };
   }
   
-  console.log(`[RoadmapExecutor] Starting Phase ${phaseId}: ${phase.title}`);
-  console.log(`[RoadmapExecutor] Milestone: ${phase.milestone}`);
-  console.log(`[RoadmapExecutor] Tasks: ${phase.tasks.length}`);
+  log.info(`[RoadmapExecutor] Starting Phase ${phaseId}: ${phase.title}`);
+  log.info(`[RoadmapExecutor] Milestone: ${phase.milestone}`);
+  log.info(`[RoadmapExecutor] Tasks: ${phase.tasks.length}`);
   
   let tasksCompleted = 0;
   let tasksFailed = 0;
@@ -221,10 +224,10 @@ export async function executeRoadmapPhase(phaseId: string): Promise<ExecutionRes
       if (result.proof_hash) proofHashes.push(result.proof_hash);
     } else {
       tasksFailed++;
-      console.warn(`[RoadmapExecutor] Task ${task.id} failed: ${result.error}`);
+      log.warn(`[RoadmapExecutor] Task ${task.id} failed: ${result.error}`);
       
       // Reflexion: try once more with modified approach
-      console.log(`[RoadmapExecutor] Reflexion retry for task ${task.id}...`);
+      log.info(`[RoadmapExecutor] Reflexion retry for task ${task.id}...`);
       const retry = await executeTask({
         ...task,
         description: `[RETRY - previous attempt failed: ${result.error}] ${task.description}`
@@ -243,7 +246,7 @@ export async function executeRoadmapPhase(phaseId: string): Promise<ExecutionRes
   
   const summary = `Phase ${phaseId} (${phase.title}): ${tasksCompleted}/${phase.tasks.length} tasks completed in ${duration}s. Proof hashes: ${proofHashes.length}`;
   
-  console.log(`[RoadmapExecutor] ${summary}`);
+  log.info(`[RoadmapExecutor] ${summary}`);
   
   return {
     phase_id: phaseId,

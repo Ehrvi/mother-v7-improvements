@@ -13,6 +13,9 @@ import { RunnableConfig } from "@langchain/core/runnables";
 import { getDb } from "../db";
 import { langgraphCheckpoints } from "../../drizzle/schema";
 import { eq, and, desc, lt } from "drizzle-orm";
+import { createLogger } from '../_core/logger';
+const log = createLogger('CHECKPOINT');
+
 
 /**
  * Custom MySQL/TiDB checkpointer for LangGraph state persistence
@@ -79,7 +82,7 @@ export class MySqlCheckpointer extends BaseCheckpointSaver {
           : undefined,
       };
     } catch (error) {
-      console.error("[MySqlCheckpointer] Error in getTuple:", error);
+      log.error("[MySqlCheckpointer] Error in getTuple:", error);
       return undefined;
     }
   }
@@ -146,7 +149,7 @@ export class MySqlCheckpointer extends BaseCheckpointSaver {
         };
       }
     } catch (error) {
-      console.error("[MySqlCheckpointer] Error in list:", error);
+      log.error("[MySqlCheckpointer] Error in list:", error);
     }
   }
 
@@ -190,7 +193,7 @@ export class MySqlCheckpointer extends BaseCheckpointSaver {
         },
       };
     } catch (error) {
-      console.error("[MySqlCheckpointer] Error in put:", error);
+      log.error("[MySqlCheckpointer] Error in put:", error);
       throw error;
     }
   }
@@ -208,7 +211,7 @@ export class MySqlCheckpointer extends BaseCheckpointSaver {
   ): Promise<void> {
     // For now, we'll store pending writes as part of the checkpoint metadata
     // In a production system, you would create a separate table for pending writes
-    console.log("[MySqlCheckpointer] putWrites called with", writes.length, "writes for task", taskId);
+    log.info(`[MySqlCheckpointer] putWrites called with ${writes.length} writes for task ${taskId}`);
     
     // This is a no-op for now, as pending writes are typically handled
     // by the graph execution logic, not the checkpointer
@@ -226,9 +229,9 @@ export class MySqlCheckpointer extends BaseCheckpointSaver {
         .delete(langgraphCheckpoints)
         .where(eq(langgraphCheckpoints.threadId, threadId));
 
-      console.log(`[MySqlCheckpointer] Deleted all checkpoints for thread ${threadId}`);
+      log.info(`[MySqlCheckpointer] Deleted all checkpoints for thread ${threadId}`);
     } catch (error) {
-      console.error("[MySqlCheckpointer] Error in deleteThread:", error);
+      log.error("[MySqlCheckpointer] Error in deleteThread:", error);
       throw error;
     }
   }

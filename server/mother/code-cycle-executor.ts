@@ -28,7 +28,9 @@ import { writeFileSync, existsSync, mkdirSync } from 'fs';
 import { dirname, join, relative } from 'path';
 import { execSync } from 'child_process';
 
-const log = (msg: string) => console.log(`[CodeCycleExecutor] ${msg}`);
+import { createLogger } from '../_core/logger';
+const _log = createLogger('CODE-CYCLE');
+const log = (msg: string) => _log.info(msg); // P6 fix: structured logger with backward-compat wrapper
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,12 +53,9 @@ export interface CycleResult {
  * - Local (mother-code): /home/ubuntu/mother-code/mother-interface
  * - Local (mother-latest): relative to __dirname
  */
+// P1 fix: Twelve-Factor App Factor III — config via environment
 export function getProjectRoot(): string {
-  if (existsSync('/app/server')) return '/app';
-  if (existsSync('/home/ubuntu/mother-code/mother-interface/server')) {
-    return '/home/ubuntu/mother-code/mother-interface';
-  }
-  return join(__dirname, '../../..');
+  return process.env.MOTHER_PROJECT_ROOT || process.cwd();
 }
 
 // ─── Step 1: Write File ───────────────────────────────────────────────────────

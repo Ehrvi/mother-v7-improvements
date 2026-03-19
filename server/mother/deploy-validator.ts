@@ -97,9 +97,10 @@ export async function validateDeploy(
     true,
     async () => {
       const { getDb } = await import('../db.js');
+      const { sql } = await import('drizzle-orm');
       const db = await getDb();
       if (!db) throw new Error('DB connection failed');
-      await (db as any).$client.query('SELECT 1');
+      await db.execute(sql`SELECT 1`);
       return 'Database connection OK';
     }
   );
@@ -215,12 +216,13 @@ async function triggerRollback(deployId: string, reason: string): Promise<void> 
   // For now: log the rollback event for audit trail
   try {
     const { getDb } = await import('../db.js');
+    const { auditLog } = await import('../../drizzle/schema.js');
     const db = await getDb();
     if (db) {
-      await (db as any).$client.query(
-        `INSERT IGNORE INTO audit_log (action, details, created_at) VALUES (?, ?, NOW())`,
-        ['DEPLOY_ROLLBACK', JSON.stringify({ deployId, reason, timestamp: new Date().toISOString() })]
-      );
+      await db.insert(auditLog).values({
+        action: 'DEPLOY_ROLLBACK',
+        details: JSON.stringify({ deployId, reason, timestamp: new Date().toISOString() }),
+      });
     }
   } catch (err) {
     log.warn('[DEPLOY_VALIDATOR] Não foi possível registrar rollback no audit_log:', (err as Error).message);

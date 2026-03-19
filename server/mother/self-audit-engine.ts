@@ -24,6 +24,9 @@ import { getDb } from '../db';
 import { auditLog } from '../../drizzle/schema';
 import { validateQuality } from './guardian';
 import { searchSimilarChunksWithMetadata } from '../omniscient/search';
+import { createLogger } from '../_core/logger';
+const log = createLogger('SELF_AUDIT_ENGINE');
+
 
 export interface AuditResult {
   timestamp: string;
@@ -292,7 +295,7 @@ export async function runSelfAudit(): Promise<AuditResult> {
     }
   } catch (e) {
     // Non-fatal: audit result logging failure doesn't affect the audit itself
-    console.warn('[SelfAudit] Failed to persist audit result:', e);
+    log.warn('[SelfAudit] Failed to persist audit result:', e);
   }
 
   return {

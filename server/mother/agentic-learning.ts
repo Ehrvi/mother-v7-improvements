@@ -17,6 +17,9 @@ import { invokeLLM } from '../_core/llm';
 import { addKnowledge } from './knowledge';
 import { ingestPapersFromSearch } from './paper-ingest';
 import type { ResearchResult } from './research';
+import { createLogger } from '../_core/logger';
+const log = createLogger('AGENTIC_LEARNING');
+
 
 export interface LearningDecision {
   shouldLearn: boolean;
@@ -95,15 +98,15 @@ export async function agenticLearningLoop(
             'agentic_learning'
           );
           knowledgeIdsAdded.push(id);
-          console.log(`[AgenticLearning] Stored fact: "${decision.title}" (ID: ${id})`);
+          log.info(`[AgenticLearning] Stored fact: "${decision.title}" (ID: ${id})`);
         } catch (e) {
-          console.error('[AgenticLearning] Failed to store fact:', e);
+          log.error('[AgenticLearning] Failed to store fact:', e);
         }
       }
 
       if (decision.learningType === 'study_topic' && decision.topic) {
         try {
-          console.log(`[AgenticLearning] Studying topic: "${decision.topic}"`);
+          log.info(`[AgenticLearning] Studying topic: "${decision.topic}"`);
           // Ingest papers from arXiv about this topic
           const { conductResearch: doResearch } = await import('./research');
           const researchResult: ResearchResult = await doResearch(decision.topic);
@@ -114,9 +117,9 @@ export async function agenticLearningLoop(
           const ingestResult = arxivUrls.length > 0 ? await ingestPapersFromSearch(arxivUrls) : [];
           const ingestCount = ingestResult.filter(r => !r.skipped && !r.error).length;
           papersIngested += ingestCount;
-          console.log(`[AgenticLearning] Ingested ${papersIngested} papers on "${decision.topic}"`);
+          log.info(`[AgenticLearning] Ingested ${papersIngested} papers on "${decision.topic}"`);
         } catch (e) {
-          console.error('[AgenticLearning] Failed to study topic:', e);
+          log.error('[AgenticLearning] Failed to study topic:', e);
         }
       }
     }
@@ -129,7 +132,7 @@ export async function agenticLearningLoop(
       reason: `Stored ${knowledgeIdsAdded.length} facts, ingested ${papersIngested} papers`,
     };
   } catch (error) {
-    console.error('[AgenticLearning] Error in learning loop:', error);
+    log.error('[AgenticLearning] Error in learning loop:', error);
     return {
       learned: false,
       decisions: [],
@@ -205,7 +208,7 @@ Be conservative. Only suggest learning when there is a CLEAR opportunity. Return
       }
     }
   } catch (e) {
-    console.error('[AgenticLearning] Analysis failed:', e);
+    log.error('[AgenticLearning] Analysis failed:', e);
   }
 
   return [];
@@ -222,7 +225,7 @@ export async function forceStudy(
   topic: string,
   depth: number = 5
 ): Promise<{ papersIngested: number; knowledgeAdded: number }> {
-  console.log(`[AgenticLearning] Force studying: "${topic}" (depth: ${depth})`);
+  log.info(`[AgenticLearning] Force studying: "${topic}" (depth: ${depth})`);
 
   let papersIngested = 0;
   let knowledgeAdded = 0;
@@ -238,9 +241,9 @@ export async function forceStudy(
     const ingestResult = arxivUrls.length > 0 ? await ingestPapersFromSearch(arxivUrls) : [];
     const ingestCount = ingestResult.filter(r => !r.skipped && !r.error).length;
     papersIngested = ingestCount;
-    console.log(`[AgenticLearning] Ingested ${papersIngested} papers`);
+    log.info(`[AgenticLearning] Ingested ${papersIngested} papers`);
   } catch (e) {
-    console.error('[AgenticLearning] Paper ingestion failed:', e);
+    log.error('[AgenticLearning] Paper ingestion failed:', e);
   }
 
   // Step 2: Conduct web research and store summary
@@ -260,10 +263,10 @@ export async function forceStudy(
         'force_study'
       );
       knowledgeAdded++;
-      console.log(`[AgenticLearning] Stored research summary (ID: ${id})`);
+      log.info(`[AgenticLearning] Stored research summary (ID: ${id})`);
     }
   } catch (e) {
-    console.error('[AgenticLearning] Web research failed:', e);
+    log.error('[AgenticLearning] Web research failed:', e);
   }
 
   return { papersIngested, knowledgeAdded };
@@ -344,7 +347,7 @@ Answer with JSON only: {"contradicts": false} or {"contradicts": true, "contradi
 
     return { isValid: true, isDuplicate: false, reason: 'Validated — no contradictions found' };
   } catch (error) {
-    console.error('[AgenticLearning] Fact validation failed (proceeding with storage):', error);
+    log.error('[AgenticLearning] Fact validation failed (proceeding with storage):', error);
     return { isValid: true, isDuplicate: false, reason: 'Validation failed — proceeding cautiously' };
   }
 }
@@ -378,11 +381,11 @@ export async function pruneStaleKnowledge(): Promise<{ archived: number }> {
 
     const archived = (result as any)?.affectedRows || 0;
     if (archived > 0) {
-      console.log(`[AgenticLearning] Pruned ${archived} stale knowledge entries`);
+      log.info(`[AgenticLearning] Pruned ${archived} stale knowledge entries`);
     }
     return { archived };
   } catch (error) {
-    console.error('[AgenticLearning] Pruning failed:', error);
+    log.error('[AgenticLearning] Pruning failed:', error);
     return { archived: 0 };
   }
 }

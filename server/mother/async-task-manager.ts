@@ -14,6 +14,9 @@
  */
 
 import { createHash, randomUUID } from 'crypto';
+import { createLogger } from '../_core/logger';
+const log = createLogger('ASYNC_TASK_MANAGER');
+
 
 // ============================================================
 // TYPES
@@ -78,7 +81,7 @@ export function createAsyncTask(params: {
   }
 
   taskStore.set(taskId, asyncTask);
-  console.log('[AsyncTask]','AsyncTask created', { taskId, mode: params.mode, userId: params.userId });
+  log.info('[AsyncTask] AsyncTask created', { taskId, mode: params.mode, userId: params.userId });
 
   // Fire-and-forget execution
   executeTaskAsync(taskId, params).catch((err) => {
@@ -89,7 +92,7 @@ export function createAsyncTask(params: {
       t.completedAt = new Date().toISOString();
       taskStore.set(taskId, t);
     }
-    console.error('[AsyncTask]','AsyncTask execution failed', { taskId, error: String(err) });
+    log.error('[AsyncTask] AsyncTask execution failed', { taskId, error: String(err) });
   });
 
   return taskId;
@@ -145,7 +148,7 @@ async function executeTaskAsync(
       taskStore.set(taskId, updatedTask);
     }
 
-    console.log('[AsyncTask]','AsyncTask completed', {
+    log.info('[AsyncTask] AsyncTask completed', {
       taskId,
       mode: params.mode as 'read-only' | 'write-sandbox' | 'write-production',
       durationMs,

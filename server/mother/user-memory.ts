@@ -17,9 +17,12 @@
  * - Retrieval count tracks frequently accessed memories
  */
 
-import { getDb } from '../db';
+import { getDb, rawQuery } from '../db';
 import { getEmbedding, cosineSimilarity } from './embeddings';
 import { invokeLLM } from '../_core/llm';
+import { createLogger } from '../_core/logger';
+const log = createLogger('USER_MEMORY');
+
 
 export interface UserMemory {
   id: number;
@@ -59,7 +62,7 @@ export async function storeUserMemory(input: UserMemoryInput): Promise<number | 
   try {
     const db = await getDb();
     if (!db) {
-      console.warn('[UserMemory] DB not available');
+      log.warn('[UserMemory] DB not available');
       return null;
     }
 
@@ -69,13 +72,13 @@ export async function storeUserMemory(input: UserMemoryInput): Promise<number | 
       const embeddingVector = await getEmbedding(input.content);
       embedding = JSON.stringify(embeddingVector);
     } catch (e) {
-      console.warn('[UserMemory] Embedding generation failed (non-blocking):', e);
+      log.warn('[UserMemory] Embedding generation failed (non-blocking):', e);
     }
 
     // Extract keywords (simple approach)
     const keywords = extractKeywords(input.content);
 
-    const result = await (db as any).$client.query(
+    const result = await rawQuery(
       `INSERT INTO user_memory (user_id, content, embedding, keywords, context, category, tags, importance_score, retrieval_count, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NOW(), NOW())`,
       [
@@ -91,10 +94,10 @@ export async function storeUserMemory(input: UserMemoryInput): Promise<number | 
     );
 
     const insertId = result[0]?.insertId;
-    console.log(`[UserMemory] ✅ Stored memory ID ${insertId} for user ${input.userId}`);
+    log.info(`[UserMemory] ✅ Stored memory ID ${insertId} for user ${input.userId}`);
     return insertId || null;
   } catch (error) {
-    console.error('[UserMemory] Failed to store memory:', error);
+    log.error('[UserMemory] Failed to store memory:', error);
     return null;
   }
 }
@@ -114,7 +117,7 @@ export async function retrieveUserMemories(
     if (!db) return [];
 
     // Get all memories for this user
-    const [rows] = await (db as any).$client.query(
+    const [rows] = await rawQuery(
       `SELECT id, user_id, content, embedding, keywords, context, category, tags,
               importance_score, retrieval_count, last_accessed, created_at, updated_at
        FROM user_memory
@@ -173,7 +176,7 @@ export async function retrieveUserMemories(
     // Update retrieval count and last_accessed for retrieved memories
     if (topResults.length > 0) {
       const ids = topResults.map(r => r.memory.id);
-      await (db as any).$client.query(
+      await rawQuery(
         `UPDATE user_memory SET retrieval_count = retrieval_count + 1, last_accessed = NOW()
          WHERE id IN (${ids.map(() => '?').join(',')})`,
         ids
@@ -182,7 +185,7 @@ export async function retrieveUserMemories(
 
     return topResults;
   } catch (error) {
-    console.error('[UserMemory] Failed to retrieve memories:', error);
+    log.error('[UserMemory] Failed to retrieve memories:', error);
     return [];
   }
 }
@@ -238,7 +241,7 @@ export async function extractAndStoreMemories(
       });
     }
   } catch (error) {
-    console.error('[UserMemory] Auto-extraction failed (non-blocking):', error);
+    log.error('[UserMemory] Auto-extraction failed (non-blocking):', error);
   }
 }
 
@@ -328,13 +331,13 @@ export async function getUserMemoryStats(userId: number): Promise<{
     const db = await getDb();
     if (!db) return { totalMemories: 0, categories: {}, mostAccessed: [] };
 
-    const [countResult] = await (db as any).$client.query(
+    const [countResult] = await rawQuery(
       'SELECT COUNT(*) as total FROM user_memory WHERE user_id = ?',
       [userId]
     );
     const total = countResult[0]?.total || 0;
 
-    const [categoryResult] = await (db as any).$client.query(
+    const [categoryResult] = await rawQuery(
       'SELECT category, COUNT(*) as cnt FROM user_memory WHERE user_id = ? GROUP BY category',
       [userId]
     );
@@ -343,7 +346,7 @@ export async function getUserMemoryStats(userId: number): Promise<{
       categories[row.category] = row.cnt;
     }
 
-    const [topResult] = await (db as any).$client.query(
+    const [topResult] = await rawQuery(
       'SELECT content FROM user_memory WHERE user_id = ? ORDER BY retrieval_count DESC LIMIT 5',
       [userId]
     );
@@ -351,7 +354,7 @@ export async function getUserMemoryStats(userId: number): Promise<{
 
     return { totalMemories: total, categories, mostAccessed };
   } catch (error) {
-    console.error('[UserMemory] Stats failed:', error);
+    log.error('[UserMemory] Stats failed:', error);
     return { totalMemories: 0, categories: {}, mostAccessed: [] };
   }
 }
@@ -421,7 +424,7 @@ Response: ${response.slice(0, 400)}`;
       });
     }
   } catch (error) {
-    console.error('[UserMemory] LLM extraction failed (non-blocking):', error);
+    log.error('[UserMemory] LLM extraction failed (non-blocking):', error);
     // Fall back to regex extraction
     await extractAndStoreMemories(userId, query, response, qualityScore);
   }
@@ -441,7 +444,7 @@ export async function consolidateUserProfile(userId: number): Promise<string> {
     if (!db) return '';
 
     // Get top 20 most accessed/important memories
-    const [rows] = await (db as any).$client.query(
+    const [rows] = await rawQuery(
       `SELECT content, category FROM user_memory
        WHERE user_id = ?
        ORDER BY retrieval_count DESC, importance_score DESC
@@ -470,7 +473,7 @@ Return a concise paragraph describing the user's interests, preferences, skills,
         ? result.choices[0].message.content : '');
     return profile.trim();
   } catch (error) {
-    console.error('[UserMemory] Profile consolidation failed:', error);
+    log.error('[UserMemory] Profile consolidation failed:', error);
     return '';
   }
 }
@@ -492,7 +495,7 @@ export async function applyTemporalDecay(userId: number): Promise<number> {
     if (!db) return 0;
 
     // Decay importance by 10% for memories not accessed in 30+ days
-    const [result] = await (db as any).$client.query(
+    const [result] = await rawQuery(
       `UPDATE user_memory
        SET importance_score = importance_score * 0.9
        WHERE user_id = ?
@@ -503,11 +506,11 @@ export async function applyTemporalDecay(userId: number): Promise<number> {
 
     const affected = result?.affectedRows || 0;
     if (affected > 0) {
-      console.log(`[UserMemory] Temporal decay applied: ${affected} memories for user ${userId}`);
+      log.info(`[UserMemory] Temporal decay applied: ${affected} memories for user ${userId}`);
     }
     return affected;
   } catch (error) {
-    console.error('[UserMemory] Temporal decay failed:', error);
+    log.error('[UserMemory] Temporal decay failed:', error);
     return 0;
   }
 }

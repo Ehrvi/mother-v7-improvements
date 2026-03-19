@@ -18,7 +18,10 @@
  *   (prevents infinite loops, aligns with scientific peer review norms)
  */
 
-import { getDb } from '../db';
+import { getDb, rawQuery } from '../db';
+import { createLogger } from '../_core/logger';
+const log = createLogger('REPROPOSAL_ENGINE');
+
 
 export interface ReproposalSchedule {
   nextAt: Date;
@@ -166,7 +169,7 @@ export async function processDueReproposals(): Promise<number> {
     const now = new Date();
     
     // Find rejected proposals that are due for re-proposal
-    const [rows] = await (db as any).$client.query(
+    const [rows] = await rawQuery(
       `SELECT id, title, description, hypothesis, metric_trigger, metric_value, metric_target,
               proposed_changes, fitness_function, scientific_basis,
               rejection_count, rejection_reason, ef_factor, parent_proposal_id, improvement_notes
@@ -183,7 +186,7 @@ export async function processDueReproposals(): Promise<number> {
     let reproposedCount = 0;
     for (const row of rows as any[]) {
       // Create a new proposal as a re-proposal of the rejected one
-      await (db as any).$client.query(
+      await rawQuery(
         `INSERT INTO self_proposals 
          (title, description, hypothesis, metric_trigger, metric_value, metric_target,
           proposed_changes, fitness_function, scientific_basis, status,
@@ -209,12 +212,12 @@ export async function processDueReproposals(): Promise<number> {
     }
     
     if (reproposedCount > 0) {
-      console.log(`[MOTHER] Re-proposal Engine: ${reproposedCount} proposals re-submitted`);
+      log.info(`[MOTHER] Re-proposal Engine: ${reproposedCount} proposals re-submitted`);
     }
     
     return reproposedCount;
   } catch (error) {
-    console.error('[MOTHER] Re-proposal processing failed:', error);
+    log.error('[MOTHER] Re-proposal processing failed:', error);
     return 0;
   }
 }
@@ -243,7 +246,7 @@ export async function getKnowledgeWisdomStats(): Promise<{
     // v68.4: Fixed to use paper_chunks (actual indexed knowledge) instead of knowledge table
     // Scientific basis: Chase & Simon (1973) — expertise measured by meaningful chunks absorbed
     // Formula: W(d) = paper_chunks_in_domain / SoA_estimate × 100%
-    const [rows] = await (db as any).$client.query(
+    const [rows] = await rawQuery(
       `SELECT 
          kw.domain,
          kw.subdomain,
@@ -273,7 +276,7 @@ export async function getKnowledgeWisdomStats(): Promise<{
       description: row.description,
     }));
   } catch (error) {
-    console.error('[MOTHER] Knowledge wisdom stats failed:', error);
+    log.error('[MOTHER] Knowledge wisdom stats failed:', error);
     return [];
   }
 }
@@ -286,7 +289,7 @@ export async function getProposalsWithReproposal(): Promise<any[]> {
   if (!db) return [];
   
   try {
-    const [rows] = await (db as any).$client.query(
+    const [rows] = await rawQuery(
       `SELECT 
          id, title, description, hypothesis, metric_trigger, metric_value, metric_target,
          status, approved_by, approved_at, deployed_at, fitness_before, fitness_after,
@@ -336,7 +339,7 @@ export async function getProposalsWithReproposal(): Promise<any[]> {
         : null,
     }));
   } catch (error) {
-    console.error('[MOTHER] getProposalsWithReproposal failed:', error);
+    log.error('[MOTHER] getProposalsWithReproposal failed:', error);
     return [];
   }
 }
@@ -368,7 +371,7 @@ export async function getKnowledgeHierarchy(): Promise<{
 
   try {
     // Get all rows from knowledge_wisdom
-    const [allRows] = await (db as any).$client.query(
+    const [allRows] = await rawQuery(
       `SELECT 
          kw.domain,
          kw.subdomain,
@@ -483,7 +486,7 @@ export async function getKnowledgeHierarchy(): Promise<{
 
     return Array.from(domainMap.values());
   } catch (error) {
-    console.error('[MOTHER] Knowledge hierarchy failed:', error);
+    log.error('[MOTHER] Knowledge hierarchy failed:', error);
     return [];
   }
 }

@@ -20,7 +20,7 @@
  * 5. EVALUATE: After deployment, measure fitness delta
  */
 
-import { getDb } from '../db';
+import { getDb, rawQuery } from '../db';
 import { logAuditEvent } from './update-proposals';
 import { createLogger } from '../_core/logger'; // v74.0: NC-003 structured logger
 const log = createLogger('SELF_PROPOSAL');
@@ -79,7 +79,7 @@ export async function readSystemMetrics(): Promise<SystemMetricsSummary | null> 
 
     // Read from queries table (last 24h)
     // v63.0 FIX: Use camelCase column names matching the actual DB schema
-    const [queryStats] = await (db as any).$client.query(`
+    const [queryStats] = await rawQuery(`
       SELECT 
         AVG(CAST(qualityScore AS FLOAT)) as avg_quality,
         AVG(responseTime) as avg_response_time,
@@ -92,13 +92,13 @@ export async function readSystemMetrics(): Promise<SystemMetricsSummary | null> 
     `);
 
     // Read knowledge count
-    const [knowledgeStats] = await (db as any).$client.query(`
+    const [knowledgeStats] = await rawQuery(`
       SELECT COUNT(*) as count FROM knowledge
     `).catch(() => [[{ count: 0 }]]);
 
     // Read learning rate (queries that triggered learning)
     // v63.0 FIX: Use camelCase column names matching the actual DB schema
-    const [learningStats] = await (db as any).$client.query(`
+    const [learningStats] = await rawQuery(`
       SELECT COUNT(*) as learned_count FROM knowledge
       WHERE createdAt > DATE_SUB(NOW(), INTERVAL 24 HOUR)
     `).catch(() => [[{ learned_count: 0 }]]);
@@ -320,7 +320,7 @@ async function checkProposalExists(metricTrigger: string): Promise<boolean> {
   try {
     const db = await getDb();
     if (!db) return false;
-    const [rows] = await (db as any).$client.query(
+    const [rows] = await rawQuery(
       `SELECT id FROM self_proposals WHERE metric_trigger = ? AND status IN ('pending', 'approved', 'implementing') LIMIT 1`,
       [metricTrigger]
     );
@@ -334,7 +334,7 @@ async function insertSelfProposal(proposal: SelfProposal): Promise<number | null
   try {
     const db = await getDb();
     if (!db) return null;
-    const [result] = await (db as any).$client.query(
+    const [result] = await rawQuery(
       `INSERT INTO self_proposals 
         (title, description, hypothesis, metric_trigger, metric_value, metric_target, 
          proposed_changes, fitness_function, status, version_tag, scientific_basis)
@@ -370,7 +370,7 @@ export async function getSelfProposals(status?: string): Promise<SelfProposal[]>
     if (!db) return [];
     const whereClause = status ? 'WHERE status = ?' : '';
     const params = status ? [status] : [];
-    const [rows] = await (db as any).$client.query(
+    const [rows] = await rawQuery(
       `SELECT * FROM self_proposals ${whereClause} ORDER BY created_at DESC LIMIT 20`,
       params
     );
@@ -505,7 +505,7 @@ async function autoApproveIfLowRisk(proposal: SelfProposal): Promise<void> {
     try {
       const db = await getDb();
       if (!db) return;
-      await (db as any).$client.query(
+      await rawQuery(
         `UPDATE self_proposals SET status = 'approved', approved_by = 'MOTHER_MAPE_K', approved_at = NOW() WHERE id = ?`,
         [proposal.id]
       );

@@ -5,6 +5,9 @@
  * Implements exponential backoff retry strategy for transient DB failures
  */
 
+import { createLogger } from '../_core/logger';
+const log = createLogger('DB-RETRY');
+
 export interface RetryOptions {
   maxAttempts?: number;
   initialDelay?: number;
@@ -46,8 +49,8 @@ export async function retryDbOperation<T>(
         throw error;
       }
 
-      console.log(`[DB Retry] Attempt ${attempt}/${opts.maxAttempts} failed: ${lastError.message}`);
-      console.log(`[DB Retry] Retrying in ${delay}ms...`);
+      log.warn(`Attempt ${attempt}/${opts.maxAttempts} failed: ${lastError.message}`);
+      log.info(`Retrying in ${delay}ms...`);
 
       // Wait before retrying
       await sleep(delay);
@@ -99,7 +102,7 @@ function sleep(ms: number): Promise<void> {
 export async function warmUpDbConnection(
   getDb: () => Promise<any>
 ): Promise<void> {
-  console.log('[DB Warm-up] Starting connection pool warm-up...');
+  log.info('Starting connection pool warm-up...');
   
   try {
     const db = await retryDbOperation(getDb, { maxAttempts: 5 });
@@ -107,9 +110,9 @@ export async function warmUpDbConnection(
     // Execute simple query to warm up connection
     await db.execute('SELECT 1');
     
-    console.log('[DB Warm-up] Connection pool ready');
+    log.info('Connection pool ready');
   } catch (error) {
-    console.error('[DB Warm-up] Failed:', error);
+    log.error('DB warm-up failed:', error);
     throw error;
   }
 }

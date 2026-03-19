@@ -15,6 +15,9 @@
  */
 
 import * as crypto from 'crypto';
+import { createLogger } from '../_core/logger';
+const log = createLogger('SEMANTIC_CHUNKER');
+
 
 export interface SemanticChunk {
   id: string;
@@ -234,10 +237,10 @@ export class SemanticChunker {
     
     if (this.loopState.outputHashes.has(outputHash)) {
       this.loopState.repetitionCount++;
-      console.warn(`[SemanticChunker C154] ⚠️ LOOP DETECTADO (repetição ${this.loopState.repetitionCount}/${this.loopState.maxRepetitions})`);
+      log.warn(`[SemanticChunker C154] ⚠️ LOOP DETECTADO (repetição ${this.loopState.repetitionCount}/${this.loopState.maxRepetitions})`);
       
       if (this.loopState.repetitionCount >= this.loopState.maxRepetitions) {
-        console.error('[SemanticChunker C154] 🛑 Loop máximo atingido — interrompendo geração');
+        log.error('[SemanticChunker C154] 🛑 Loop máximo atingido — interrompendo geração');
         return true;
       }
       return true;

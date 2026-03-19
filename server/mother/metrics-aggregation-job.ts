@@ -17,6 +17,9 @@
 
 import { getDb } from '../db';
 import { sql } from 'drizzle-orm';
+import { createLogger } from '../_core/logger';
+const log = createLogger('METRICS_AGGREGATION_JOB');
+
 
 // ── FITNESS HISTORY ──────────────────────────────────────────────────────────
 
@@ -82,9 +85,9 @@ export async function recordFitnessSnapshot(): Promise<void> {
         (${runId}, ${generation}, ${fitnessScore}, ${correctness}, ${efficiency}, ${robustness}, ${maintainability}, ${novelty}, ${label}, ${goalSummary})
     `);
 
-    console.log(`[MOTHER] Fitness gen ${generation}: ${fitnessScore.toFixed(3)} (${label})`);
+    log.info(`[MOTHER] Fitness gen ${generation}: ${fitnessScore.toFixed(3)} (${label})`);
   } catch (err) {
-    console.warn('[MOTHER] Fitness snapshot error:', (err as Error).message?.slice(0, 100));
+    log.warn('[MOTHER] Fitness snapshot error:', (err as Error).message?.slice(0, 100));
   }
 }
 
@@ -137,9 +140,9 @@ export async function aggregateSystemMetrics(): Promise<void> {
         cache_hit_rate = ${cacheHitRate}
     `);
 
-    console.log(`[MOTHER] System metrics: ${total} queries, quality=${avgQuality}, cache=${cacheHitRate}%`);
+    log.info(`[MOTHER] System metrics: ${total} queries, quality=${avgQuality}, cache=${cacheHitRate}%`);
   } catch (err) {
-    console.warn('[MOTHER] System metrics error:', (err as Error).message?.slice(0, 100));
+    log.warn('[MOTHER] System metrics error:', (err as Error).message?.slice(0, 100));
   }
 }
 
@@ -192,10 +195,10 @@ export async function extractAndPersistPatterns(): Promise<void> {
     }
 
     if (rows.length > 0) {
-      console.log(`[MOTHER] Persisted ${rows.length} learning patterns`);
+      log.info(`[MOTHER] Persisted ${rows.length} learning patterns`);
     }
   } catch (err) {
-    console.warn('[MOTHER] Learning patterns error:', (err as Error).message?.slice(0, 100));
+    log.warn('[MOTHER] Learning patterns error:', (err as Error).message?.slice(0, 100));
   }
 }
 

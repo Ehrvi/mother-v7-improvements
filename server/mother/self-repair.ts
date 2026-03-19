@@ -26,6 +26,9 @@ import { agenticLearningLoop } from './agentic-learning';
 import { addKnowledge } from './knowledge';
 import { conductResearch } from './research';
 import { ingestPapersFromSearch } from './paper-ingest';
+import { createLogger } from '../_core/logger';
+const log = createLogger('SELF_REPAIR');
+
 
 export interface RepairAuditResult {
   timestamp: string;
@@ -90,7 +93,7 @@ const KNOWLEDGE_DOMAINS = [
 ];
 
 export async function runSelfRepair(): Promise<RepairAuditResult> {
-  console.log('[SelfRepair] Starting MOTHER v67.0 Self-Repair...');
+  log.info('[SelfRepair] Starting MOTHER v67.0 Self-Repair...');
   const startTime = Date.now();
   const checks: RepairCheck[] = [];
   const repairs: RepairAction[] = [];
@@ -174,7 +177,7 @@ export async function runSelfRepair(): Promise<RepairAuditResult> {
   }
 
   // BOOTSTRAP: Seed knowledge in all 8 domains
-  console.log('[SelfRepair] Starting knowledge domain bootstrap...');
+  log.info('[SelfRepair] Starting knowledge domain bootstrap...');
   for (const domain of KNOWLEDGE_DOMAINS) {
     try {
       let domainPapersIngested = 0;
@@ -195,11 +198,11 @@ export async function runSelfRepair(): Promise<RepairAuditResult> {
             );
           }
         } catch (topicError) {
-          console.error(`[SelfRepair] Topic "${topic}" failed:`, topicError);
+          log.error(`[SelfRepair] Topic "${topic}" failed:`, topicError);
         }
       }
       knowledgeBootstrapped.push(`${domain.domain} (${domainPapersIngested} papers)`);
-      console.log(`[SelfRepair] ${domain.domain}: ${domainPapersIngested} papers ingested`);
+      log.info(`[SelfRepair] ${domain.domain}: ${domainPapersIngested} papers ingested`);
     } catch (domainError) {
       knowledgeBootstrapped.push(`${domain.domain} (FAILED)`);
     }
@@ -248,11 +251,11 @@ const isMain = process.argv[1]?.includes('self-repair');
 if (isMain) {
   runSelfRepair()
     .then(result => {
-      console.log('[SelfRepair] COMPLETE:', JSON.stringify(result, null, 2));
+      log.info('[SelfRepair] COMPLETE:', JSON.stringify(result, null, 2));
       process.exit(result.overallHealth === 'critical' ? 1 : 0);
     })
     .catch(err => {
-      console.error('[SelfRepair] FATAL:', err);
+      log.error('[SelfRepair] FATAL:', err);
       process.exit(1);
     });
 }

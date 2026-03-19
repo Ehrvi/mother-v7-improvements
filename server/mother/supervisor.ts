@@ -35,6 +35,9 @@ import { archiveNode as archiveNodeImpl } from "./archive_node";
 import { createValidationAgent } from "./validation_agent";
 import { createMemoryAgent } from "./memory_agent";
 import { invokeCodeAgent } from "./code_agent";
+import { createLogger } from '../_core/logger';
+const log = createLogger('SUPERVISOR');
+
 
 /**
  * SupervisorState - Shared state across all nodes
@@ -93,7 +96,7 @@ Analyze the goal and choose the most appropriate worker.`,
     },
   ]);
 
-  console.log(
+  log.info(
     `[Supervisor] Router decided: ${routingDecision.next} (Reasoning: ${routingDecision.reasoning})`
   );
 
@@ -117,7 +120,7 @@ Analyze the goal and choose the most appropriate worker.`,
  * - Episodic Memory: Searches past solutions before planning
  */
 async function codeAgentNode(state: typeof SupervisorState.State) {
-  console.log("[Supervisor] CodeAgent executing (v31.1 - Real ReAct)...");
+  log.info("[Supervisor] CodeAgent executing (v31.1 - Real ReAct)...");
 
   try {
     const lastHumanMessage = state.messages
@@ -129,7 +132,7 @@ async function codeAgentNode(state: typeof SupervisorState.State) {
 
     const result = await invokeCodeAgent(task);
 
-    console.log(`[Supervisor] CodeAgent completed: success=${result.success}, status=${result.state.status}`);
+    log.info(`[Supervisor] CodeAgent completed: success=${result.success}, status=${result.state.status}`);
 
     return {
       next: "validation_agent",
@@ -140,7 +143,7 @@ async function codeAgentNode(state: typeof SupervisorState.State) {
       ],
     };
   } catch (error) {
-    console.error("[Supervisor] CodeAgent error:", error);
+    log.error("[Supervisor] CodeAgent error:", error);
     return {
       next: "validation_agent",
       messages: [
@@ -160,7 +163,7 @@ async function codeAgentNode(state: typeof SupervisorState.State) {
  * - recall_memory: Semantic search using cosine similarity on embeddings
  */
 async function memoryAgentNode(state: typeof SupervisorState.State) {
-  console.log("[Supervisor] MemoryAgent executing (v35.0 - Real Vector Search)...");
+  log.info("[Supervisor] MemoryAgent executing (v35.0 - Real Vector Search)...");
 
   try {
     const agent = await createMemoryAgent();
@@ -183,14 +186,14 @@ async function memoryAgentNode(state: typeof SupervisorState.State) {
 
     const agentResponse = lastAgentMessage?.content?.toString() || "Memory operation completed";
 
-    console.log("[Supervisor] MemoryAgent completed:", agentResponse.substring(0, 200));
+    log.info("[Supervisor] MemoryAgent completed:", agentResponse.substring(0, 200));
 
     return {
       next: END,
       messages: [new AIMessage(`MemoryAgent (v35.0): ${agentResponse}`)],
     };
   } catch (error) {
-    console.error("[Supervisor] MemoryAgent error:", error);
+    log.error("[Supervisor] MemoryAgent error:", error);
     return {
       next: END,
       messages: [
@@ -211,7 +214,7 @@ async function memoryAgentNode(state: typeof SupervisorState.State) {
  * - calculate_fitness_score: Normalized score aggregation
  */
 async function validationAgentNode(state: typeof SupervisorState.State) {
-  console.log("[Supervisor] ValidationAgent executing (ReAct v40.0)...");
+  log.info("[Supervisor] ValidationAgent executing (ReAct v40.0)...");
 
   try {
     const agent = await createValidationAgent();
@@ -238,14 +241,14 @@ async function validationAgentNode(state: typeof SupervisorState.State) {
 
     const agentResponse = lastAgentMessage?.content?.toString() || "Validation completed";
 
-    console.log("[Supervisor] ValidationAgent completed:", agentResponse.substring(0, 200));
+    log.info("[Supervisor] ValidationAgent completed:", agentResponse.substring(0, 200));
 
     return {
       next: "archive",
       messages: [new AIMessage(`ValidationAgent (ReAct): ${agentResponse}`)],
     };
   } catch (error) {
-    console.error("[Supervisor] ValidationAgent error:", error);
+    log.error("[Supervisor] ValidationAgent error:", error);
     return {
       next: "archive",
       messages: [
@@ -261,7 +264,7 @@ async function validationAgentNode(state: typeof SupervisorState.State) {
  * Archive Node Wrapper - Adapts archiveNode to StateGraph signature
  */
 async function archiveNode(state: typeof SupervisorState.State) {
-  console.log("[Supervisor] ArchiveNode executing...");
+  log.info("[Supervisor] ArchiveNode executing...");
 
   const adaptedState = {
     messages: state.messages.map((msg) => ({

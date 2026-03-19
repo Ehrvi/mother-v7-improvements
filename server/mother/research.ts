@@ -23,6 +23,9 @@
 
 import { invokeLLM } from '../_core/llm';
 import { ENV } from '../_core/env';
+import { createLogger } from '../_core/logger';
+const log = createLogger('RESEARCH');
+
 
 export interface ResearchResult {
   query: string;
@@ -196,10 +199,10 @@ async function searchSemanticScholar(query: string, maxResults = 3): Promise<Res
     // Sort by citation count (highest first) for quality ranking
     sources.sort((a, b) => (b.citationCount || 0) - (a.citationCount || 0));
 
-    console.log(`[Research] Semantic Scholar: ${sources.length} papers found for "${searchQuery.slice(0, 50)}"`);
+    log.info(`[Research] Semantic Scholar: ${sources.length} papers found for "${searchQuery.slice(0, 50)}"`);
     return sources;
   } catch (error) {
-    console.error('[Research] Semantic Scholar search failed:', error);
+    log.error('[Research] Semantic Scholar search failed:', error);
     return [];
   }
 }
@@ -212,7 +215,7 @@ async function searchArxiv(query: string, maxResults = 3): Promise<ResearchSourc
   try {
     // arXiv indexes primarily in English - extract English keywords
     const searchQuery = extractEnglishKeywords(query);
-    console.log(`[Research] arXiv search query: "${searchQuery}" (from: "${query.slice(0, 50)}...")`);
+    log.info(`[Research] arXiv search query: "${searchQuery}" (from: "${query.slice(0, 50)}...")`);
     const encodedQuery = encodeURIComponent(searchQuery);
     const url = `https://export.arxiv.org/api/query?search_query=all:${encodedQuery}&start=0&max_results=${maxResults}&sortBy=relevance&sortOrder=descending`;
     
@@ -246,7 +249,7 @@ async function searchArxiv(query: string, maxResults = 3): Promise<ResearchSourc
     
     return sources;
   } catch (error) {
-    console.error('[Research] arXiv search failed:', error);
+    log.error('[Research] arXiv search failed:', error);
     return [];
   }
 }
@@ -289,7 +292,7 @@ async function searchWikipedia(query: string): Promise<ResearchSource[]> {
     
     return sources;
   } catch (error) {
-    console.error('[Research] Wikipedia search failed:', error);
+    log.error('[Research] Wikipedia search failed:', error);
     return [];
   }
 }
@@ -338,7 +341,7 @@ async function searchDuckDuckGo(query: string): Promise<ResearchSource[]> {
     
     return sources;
   } catch (error) {
-    console.error('[Research] DuckDuckGo search failed:', error);
+    log.error('[Research] DuckDuckGo search failed:', error);
     return [];
   }
 }
@@ -369,7 +372,7 @@ async function searchWithOpenAI(query: string): Promise<string> {
     });
     
     if (!response.ok) {
-      console.error('[Research] OpenAI search failed:', response.status, await response.text());
+      log.error(`[Research] OpenAI search failed: ${response.status} ${await response.text()}`);
       return '';
     }
     
@@ -390,7 +393,7 @@ async function searchWithOpenAI(query: string): Promise<string> {
     
     return '';
   } catch (error) {
-    console.error('[Research] OpenAI web search failed:', error);
+    log.error('[Research] OpenAI web search failed:', error);
     return '';
   }
 }
@@ -403,7 +406,7 @@ async function searchWithOpenAI(query: string): Promise<string> {
  * PDF download → text extraction → chunking → embedding → DB indexing
  */
 export async function conductResearch(query: string): Promise<ResearchResult> {
-  console.log(`[Research] Conducting research for: ${query.slice(0, 100)}`);
+  log.info(`[Research] Conducting research for: ${query.slice(0, 100)}`);
   
   const sources: ResearchSource[] = [];
   let openAISearchResult = '';
@@ -438,17 +441,18 @@ export async function conductResearch(query: string): Promise<ResearchResult> {
   );
   if (arxivSources.length > 0) {
     const arxivUrls = arxivSources.map(s => s.url);
-    console.log(`[Research] Triggering async paper ingestion for ${arxivUrls.length} arXiv papers`);
+    log.info(`[Research] Triggering async paper ingestion for ${arxivUrls.length} arXiv papers`);
     import('./paper-ingest').then(({ ingestPapersFromSearch }) => {
+
       ingestPapersFromSearch(arxivUrls).catch(err => {
-        console.error('[Research] Background paper ingestion failed:', err);
+        log.error('[Research] Background paper ingestion failed:', err);
       });
     }).catch(err => {
-      console.error('[Research] Failed to import paper-ingest module:', err);
+      log.error('[Research] Failed to import paper-ingest module:', err);
     });
   }
   
-  console.log(`[Research] Found ${sources.length} sources, OpenAI search: ${openAISearchResult ? 'yes' : 'no'}`);
+  log.info(`[Research] Found ${sources.length} sources, OpenAI search: ${openAISearchResult ? 'yes' : 'no'}`);
   
   // If OpenAI web search returned results, use them as primary synthesis
   if (openAISearchResult) {

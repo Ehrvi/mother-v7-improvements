@@ -62,6 +62,36 @@ async function startServer() {
   const { shmsRouter } = await import("../_core/routers/shms-router.js");
   app.use("/api/shms/v2", shmsRouter);
 
+  // ==================== SOTA Gap 3: CONCURRENCY LIMITER ====================
+  // Scientific basis: Backpressure pattern (Reactive Streams, 2014); Circuit Breaker (Nygard, 2007)
+  // Benchmark finding: 60% of sequential queries returned "sistema sobrecarregado" under load
+  // Solution: semaphore-based concurrency limiter — max 3 concurrent processQuery + queue of 10
+  const MAX_CONCURRENT = 3;
+  const MAX_QUEUE = 10;
+  let _activeConcurrent = 0;
+  const _waitQueue: Array<() => void> = [];
+
+  const acquireSemaphore = (): Promise<void> => {
+    if (_activeConcurrent < MAX_CONCURRENT) {
+      _activeConcurrent++;
+      return Promise.resolve();
+    }
+    if (_waitQueue.length >= MAX_QUEUE) {
+      return Promise.reject(new Error('Server at capacity — please retry'));
+    }
+    return new Promise<void>((resolve) => {
+      _waitQueue.push(() => { _activeConcurrent++; resolve(); });
+    });
+  };
+
+  const releaseSemaphore = () => {
+    _activeConcurrent--;
+    if (_waitQueue.length > 0) {
+      const next = _waitQueue.shift()!;
+      next();
+    }
+  };
+
   // SSE streaming endpoint — must be registered BEFORE Vite middleware
   // (Vite catch-all returns HTML for unmatched routes, causing "Resposta não recebida")
   app.post("/api/mother/stream", async (req, res) => {
@@ -78,6 +108,14 @@ async function startServer() {
       const { query, useCache, conversationHistory } = req.body;
       if (!query) {
         sendEvent('error', { message: 'Missing query parameter' });
+        return res.end();
+      }
+
+      // SOTA Gap 3: Acquire concurrency semaphore (backpressure)
+      try {
+        await acquireSemaphore();
+      } catch {
+        sendEvent('error', { message: 'Sistema temporariamente ocupado. Por favor, aguarde alguns segundos e tente novamente.', retryable: true, activeRequests: _activeConcurrent, queueLength: _waitQueue.length });
         return res.end();
       }
 
@@ -147,6 +185,7 @@ async function startServer() {
       sendEvent('response', { response: degradationText, tier: 'TIER_1', provider: 'error', modelName: 'fallback', quality: { qualityScore: 0, passed: false }, responseTime: 0, cost: 0, cacheHit: false });
       sendEvent('done', { message: 'Error fallback', total_ms: 0, quality_score: 0 });
     } finally {
+      releaseSemaphore(); // SOTA Gap 3: always release concurrency slot
       res.end();
     }
   });

@@ -112,7 +112,7 @@ IMPORTANT:
 - The write_file tool requires the COMPLETE file content, not just the changes
 - After reading a file, include a step to "Modify the content by adding/changing X while preserving all other content"
 - Use run_shell_command for operations like "pnpm db:push"
-- Be specific with file paths (e.g., /home/ubuntu/mother-interface/drizzle/schema.ts)
+- Be specific with file paths (relative to project root)
 - Keep the plan concise (3-5 steps maximum)
 
 Example plan for adding a field to a table:
@@ -252,16 +252,17 @@ export async function runCodeAgent(task: string): Promise<AgentState> {
       
       // Check if we're in a git repository
       try {
-        await execAsync("git rev-parse --git-dir", { cwd: "/home/ubuntu/mother-interface" });
+        const projectRoot = process.env.MOTHER_PROJECT_ROOT || process.cwd(); // P1 fix
+        await execAsync("git rev-parse --git-dir", { cwd: projectRoot });
         
         // Create a commit with current state
         await execAsync(
           'git add -A && git commit -m "CodeAgent: Pre-execution state (v31.1)" --allow-empty',
-          { cwd: "/home/ubuntu/mother-interface" }
+          { cwd: projectRoot }
         );
         
         // Get the commit hash
-        const { stdout } = await execAsync("git rev-parse HEAD", { cwd: "/home/ubuntu/mother-interface" });
+        const { stdout } = await execAsync("git rev-parse HEAD", { cwd: projectRoot });
         state.gitCommitHash = stdout.trim();
         
         logger.info(`[CodeAgent] Git commit created: ${state.gitCommitHash}`);
@@ -334,7 +335,7 @@ export async function runCodeAgent(task: string): Promise<AgentState> {
               const { promisify } = await import("util");
               const execAsync = promisify(exec);
               
-              await execAsync(`git reset --hard ${state.gitCommitHash}`, { cwd: "/home/ubuntu/mother-interface" });
+              await execAsync(`git reset --hard ${state.gitCommitHash}`, { cwd: process.env.MOTHER_PROJECT_ROOT || process.cwd() }); // P1 fix
               logger.info("[CodeAgent] Rollback successful");
               state.message += " (rolled back to pre-execution state)";
             } catch (rollbackError) {

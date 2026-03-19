@@ -19,6 +19,9 @@
  */
 
 import { storeEpisodicMemory } from './episodic-memory';
+import { createLogger } from '../_core/logger';
+const log = createLogger('TASK_DECOMPOSER');
+
 
 const MOTHER_BASE_URL = process.env.MOTHER_BASE_URL ||
   'https://mother-interface-qtvghovzxa-ts.a.run.app';
@@ -273,7 +276,7 @@ export async function storeDecompositionPlan(plan: DecomposedPlan): Promise<bool
     });
     return resp.ok;
   } catch (e) {
-    console.warn('[TaskDecomposer] Failed to store plan:', e);
+    log.warn('[TaskDecomposer] Failed to store plan:', e);
     return false;
   }
 }

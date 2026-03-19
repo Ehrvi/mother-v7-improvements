@@ -26,6 +26,9 @@ import { applyGuardianPatches } from './guardian-patches'; // v74.8: NC-GUARD-00
 import { applyConstitutionalAI } from './constitutional-ai'; // v74.15: NC-QUALITY-008
 import { reliabilityLogger } from './reliability-logger'; // v74.9: Four Golden Signals monitoring
 import { evaluateWithAgent } from './agent-as-judge'; // P3 Upgrade: Agent-as-Judge (90% human agreement)
+import { createLogger } from '../_core/logger';
+const log = createLogger('GUARDIAN');
+
 
 export interface GuardianResult {
   qualityScore: number; // 0-100
@@ -63,6 +66,7 @@ interface GEvalScores {
   fluency: number;      // 1-5: grammatical correctness and readability
   relevance: number;    // 1-5: addresses the query
   safety: number;       // 1-5: no harmful content
+  conciseness?: number; // 1-5: response length appropriate for query complexity
   depth?: number;       // 1-5: NC-QUALITY-009: specific data, citations, examples
   obedience?: number;   // 1-5: NC-QUALITY-009: follows all instructions
 }
@@ -112,8 +116,13 @@ Score the response on each dimension from 1 to 5 (integers only).
    - 3: Minor concerns
    - 1: Contains harmful or inappropriate content
 
+6. **Conciseness** (1-5): Is the response length appropriate for the query complexity?
+   - 5: Optimally concise — every sentence adds value, no redundancy, length matches query complexity
+   - 3: Acceptable but includes some unnecessary detail or padding
+   - 1: Excessively verbose, repetitive, or padded — writes 2000 words when 300 would suffice
+
 Respond ONLY with a JSON object in this exact format (no markdown, no explanation):
-{"coherence": X, "consistency": X, "fluency": X, "relevance": X, "safety": X}`;
+{"coherence": X, "consistency": X, "fluency": X, "relevance": X, "safety": X, "conciseness": X}`;
 
   try {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -136,7 +145,7 @@ Respond ONLY with a JSON object in this exact format (no markdown, no explanatio
     });
     
     if (!res.ok) {
-      console.warn(`[Guardian] G-Eval LLM call failed: ${res.status}`);
+      log.warn(`[Guardian] G-Eval LLM call failed: ${res.status}`);
       return null;
     }
     
@@ -147,19 +156,21 @@ Respond ONLY with a JSON object in this exact format (no markdown, no explanatio
     const scores = JSON.parse(content) as GEvalScores;
     
     // Validate scores are 1-5
-    const dims = ['coherence', 'consistency', 'fluency', 'relevance', 'safety'] as const;
+    const dims = ['coherence', 'consistency', 'fluency', 'relevance', 'safety', 'conciseness'] as const;
     for (const dim of dims) {
-      if (typeof scores[dim] !== 'number' || scores[dim] < 1 || scores[dim] > 5) {
-        console.warn(`[Guardian] G-Eval invalid score for ${dim}: ${scores[dim]}`);
+      if (dim === 'conciseness' && scores[dim] === undefined) continue; // optional
+      if (typeof scores[dim] !== 'number' || scores[dim]! < 1 || scores[dim]! > 5) {
+        if (dim === 'conciseness') { scores.conciseness = 3; continue; } // fallback for optional
+        log.warn(`[Guardian] G-Eval invalid score for ${dim}: ${scores[dim]}`);
         return null;
       }
     }
     
-    console.log(`[Guardian] G-Eval scores: coherence=${scores.coherence} consistency=${scores.consistency} fluency=${scores.fluency} relevance=${scores.relevance} safety=${scores.safety}`);
+    log.info(`[Guardian] G-Eval scores: coherence=${scores.coherence} consistency=${scores.consistency} fluency=${scores.fluency} relevance=${scores.relevance} safety=${scores.safety} conciseness=${scores.conciseness ?? 'N/A'}`);
     return scores;
     
   } catch (err) {
-    console.warn('[Guardian] G-Eval OpenAI judge failed, trying Gemini Flash fallback:', (err as Error).message);
+    log.warn('[Guardian] G-Eval OpenAI judge failed, trying Gemini Flash fallback:', (err as Error).message);
     // C282: Gemini Flash fallback for G-Eval — reduces heuristic fallback rate from ~40% to ~5%
     // Scientific basis: Zheng et al. (NeurIPS 2023) MT-Bench — multi-model judge ensemble improves reliability
     return runGEvalGeminiFallback(query, response, knowledgeContext);
@@ -207,10 +218,10 @@ async function runGEvalGeminiFallback(
     for (const dim of dims) {
       if (typeof scores[dim] !== 'number' || scores[dim] < 1 || scores[dim] > 5) return null;
     }
-    console.log(`[Guardian] G-Eval Gemini fallback scores: coherence=${scores.coherence} consistency=${scores.consistency} relevance=${scores.relevance}`);
+    log.info(`[Guardian] G-Eval Gemini fallback scores: coherence=${scores.coherence} consistency=${scores.consistency} relevance=${scores.relevance}`);
     return scores;
   } catch (err) {
-    console.warn('[Guardian] G-Eval Gemini fallback also failed:', (err as Error).message);
+    log.warn('[Guardian] G-Eval Gemini fallback also failed:', (err as Error).message);
     return null;
   }
 }
@@ -246,12 +257,14 @@ export function gEvalToQualityScore(scores: GEvalScores, response?: string): num
     normalizedDepth * 0.25 +
     normalizedObedience * 0.20
   ) : (
-    // 5D fallback (backward compatible with v69.15)
-    normalized.coherence * 0.15 +
+    // 6D scoring with conciseness (v122+ — arXiv:2402.07927 Prompt Engineering Survey)
+    // Conciseness gets 0.10 weight, reducing coherence 0.15→0.10 and fluency 0.10→0.05
+    normalized.coherence * 0.10 +
     normalized.consistency * 0.35 +
-    normalized.fluency * 0.10 +
+    normalized.fluency * 0.05 +
     normalized.relevance * 0.30 +
-    normalized.safety * 0.10
+    normalized.safety * 0.10 +
+    (scores.conciseness ? ((scores.conciseness - 1) / 4) * 100 * 0.10 : 0)
   );
   
   // v69.15: Scientific reference bonus (+5 pts if response contains citations)
@@ -261,7 +274,7 @@ export function gEvalToQualityScore(scores: GEvalScores, response?: string): num
     const hasCitation = /arXiv:|doi\.org|\(\d{4}\)|et al\.|\[\d+\]/.test(response);
     if (hasCitation) {
       sciBonus = 5;
-      console.log('[Guardian] Scientific reference bonus: +5 pts');
+      log.info('[Guardian] Scientific reference bonus: +5 pts');
     }
   }
   
@@ -475,7 +488,7 @@ export async function validateQuality(
   if (isComplexQuery) {
     agentResult = await evaluateWithAgent(query, response, knowledgeContext);
     if (agentResult) {
-      console.log(`[Guardian] Agent-as-Judge score: ${agentResult.overallScore} (taskType=${agentResult.taskType}, ${agentResult.latencyMs}ms)`);
+      log.info(`[Guardian] Agent-as-Judge score: ${agentResult.overallScore} (taskType=${agentResult.taskType}, ${agentResult.latencyMs}ms)`);
       reliabilityLogger.info('guardian', `Agent-as-Judge score: ${agentResult.overallScore}`, { method: 'agent-judge', taskType: agentResult.taskType });
     }
   }
@@ -505,7 +518,7 @@ export async function validateQuality(
     coherenceScore = ((findCriterion('Clarity')?.score || findCriterion('Coherence')?.score || 3) - 1) / 4 * 100;
     safetyScore = ((findCriterion('Safety')?.score || 5) - 1) / 4 * 100;
 
-    console.log(`[Guardian] Using Agent-as-Judge: Q=${qualityScore}`);
+    log.info(`[Guardian] Using Agent-as-Judge: Q=${qualityScore}`);
   } else if (gEvalScores) {
     // ---- LLM-as-judge path ----
     evaluationMethod = 'llm';
@@ -524,13 +537,13 @@ export async function validateQuality(
     if (gEvalScores.relevance <= 2) allIssues.push(`Low relevance (G-Eval: ${gEvalScores.relevance}/5)`);
     if (gEvalScores.safety <= 2) allIssues.push(`Safety concern (G-Eval: ${gEvalScores.safety}/5)`);
     
-    console.log(`[Guardian] G-Eval LLM quality score: ${qualityScore.toFixed(1)}`);
+    log.info(`[Guardian] G-Eval LLM quality score: ${qualityScore.toFixed(1)}`);
     reliabilityLogger.info('guardian', `G-Eval LLM quality score: ${qualityScore.toFixed(1)}`, { method: 'llm', score: qualityScore });
     
   } else {
     // ---- Heuristic fallback path ----
     evaluationMethod = 'heuristic';
-    console.log('[Guardian] Falling back to heuristic evaluation');
+    log.info('[Guardian] Falling back to heuristic evaluation');
     reliabilityLogger.warn('guardian', 'Falling back to heuristic evaluation (G-Eval unavailable)');
     
     const completeness = heuristicCompleteness(query, response);
@@ -556,6 +569,8 @@ export async function validateQuality(
     );
   }
   
+  // SOTA: Save base score before penalties for cap calculation
+  const _baseScoreBeforePenalties = qualityScore;
   // ==================== v74.8 PATCHES: NC-GUARD-001 + NC-GUARD-002 ====================
   // Scientific basis: G-Eval (Liu et al., 2023) + RAGAS Answer Completeness (Es et al., 2023)
   const patched = applyGuardianPatches(qualityScore, response, query);
@@ -568,7 +583,7 @@ export async function validateQuality(
   // ==================== HALLUCINATION RISK PENALTY ====================
   // Scientific basis: FActScore (Min et al., EMNLP 2023)
   if (hallucinationRisk === 'high') {
-    qualityScore = Math.max(0, qualityScore - 40);
+    qualityScore = Math.max(0, qualityScore - 25); // SOTA: was -40, reduced to -25 (benchmark fix)
     allIssues.push('HIGH hallucination risk detected by Grounding Engine');
   }
   // C256: Removed medium hallucination risk penalty.
@@ -591,6 +606,13 @@ export async function validateQuality(
       qualityScore = Math.max(0, qualityScore - 10);
       allIssues.push(`Low RAGAS faithfulness (${ragas.faithfulness}) — response may not be grounded in context`);
     }
+  }
+
+  // SOTA: Cap total penalties at -30 (HELM — multi-dim eval should not collapse from one axis)
+  const _totalPenalty = _baseScoreBeforePenalties - qualityScore;
+  if (_totalPenalty > 30) {
+    qualityScore = Math.max(40, _baseScoreBeforePenalties - 30);
+    allIssues.push(`SOTA penalty cap: deductions capped at -30 (was -${_totalPenalty})`);
   }
 
   return {

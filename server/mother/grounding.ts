@@ -16,6 +16,8 @@
  */
 
 import { invokeLLM } from '../_core/llm';
+import { createLogger } from '../_core/logger';
+const log = createLogger('GROUNDING');
 
 export interface GroundedClaim {
   claim: string;
@@ -137,7 +139,11 @@ Return ONLY the JSON object. If no verifiable claims, return {"claims": []}.`;
         claims: [],
         totalClaims: 0,
         groundedClaims: 0,
-        hallucinationRisk: 'low',
+        // Fix #9 (Ciclo 166 Audit): 0 claims extracted ≠ safe
+        // BEFORE: 'low' — assumed no verifiable claims means no risk
+        // AFTER: 'medium' — unverified response, risk unknown
+        // Scientific basis: FActScoring (Min et al., 2023) — absence of evidence ≠ evidence of absence
+        hallucinationRisk: 'medium',
         citationsInjected: 0,
       };
     }
@@ -149,9 +155,9 @@ Return ONLY the JSON object. If no verifiable claims, return {"claims": []}.`;
     const groundedCount = groundedClaims.filter(c => c.isGrounded).length;
     const groundingRatio = groundedClaims.length > 0 ? groundedCount / groundedClaims.length : 1;
     const hallucinationRisk: 'low' | 'medium' | 'high' =
-      groundingRatio >= 0.8 ? 'low' : groundingRatio >= 0.5 ? 'medium' : 'high';
+      groundingRatio >= 0.8 ? 'low' : groundingRatio >= 0.3 ? 'medium' : 'high'; // SOTA: was 0.5, lowered to 0.3
 
-    console.log(`[Grounding] ${groundedCount}/${groundedClaims.length} claims grounded. Risk: ${hallucinationRisk}`);
+    log.info(`${groundedCount}/${groundedClaims.length} claims grounded. Risk: ${hallucinationRisk}`);
 
     return {
       groundedResponse,
@@ -162,7 +168,7 @@ Return ONLY the JSON object. If no verifiable claims, return {"claims": []}.`;
       citationsInjected,
     };
   } catch (error) {
-    console.error('[Grounding] Error during grounding:', error);
+    log.error('Error during grounding:', error);
     // On error, return the original response unmodified
     return {
       groundedResponse: response,

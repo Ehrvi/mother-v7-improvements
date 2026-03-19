@@ -22,6 +22,9 @@
  */
 
 import type { Response } from 'express';
+import { createLogger } from '../_core/logger';
+const log = createLogger('RELIABILITY_LOGGER');
+
 
 // ============================================================
 // Types
@@ -119,9 +122,9 @@ class ReliabilityLogger {
 
     // Console output
     const prefix = `[${entry.timestamp}] [${level.toUpperCase()}] [${component}]`;
-    if (level === 'error') console.error(prefix, message, data ?? '');
-    else if (level === 'warn') console.warn(prefix, message, data ?? '');
-    else console.log(prefix, message, data ?? '');
+    if (level === 'error') log.error(`${prefix} ${message}`, data ?? undefined);
+    else if (level === 'warn') log.warn(`${prefix} ${message}`, data ?? undefined);
+    else log.info(`${prefix} ${message}`, data ?? undefined);
   }
 
   info(component: LogComponent, message: string, data?: Record<string, unknown>): void {

@@ -340,12 +340,38 @@ export default function DgmLineage() {
                                 {ev.data.candidate2 && <> | Candidato 2: <code style={{ color: 'oklch(70% 0.12 250)' }}>{String(ev.data.candidate2)}</code></>}
                               </div>
                             )}
-                            {/* Target file + rationale */}
-                            {ev.data.targetFile && ev.data.rationale && (
-                              <div className="px-2 py-1 rounded" style={{ background: 'oklch(100% 0 0 / 0.02)' }}>
-                                <div>📁 Arquivo: <code style={{ color: 'oklch(70% 0.12 250)' }}>{String(ev.data.targetFile)}</code></div>
-                                <div className="mt-0.5" style={{ color: 'oklch(55% 0.02 280)' }}>💡 {String(ev.data.rationale).slice(0, 200)}</div>
+                            {/* QC Issues + Line count */}
+                            {ev.data.qcIssues && Array.isArray(ev.data.qcIssues) && (ev.data.qcIssues as string[]).length > 0 && (
+                              <div className="px-2 py-1.5 rounded space-y-0.5" style={{ background: 'oklch(50% 0.15 40 / 0.06)', border: '1px solid oklch(60% 0.15 40 / 0.15)' }}>
+                                <div className="text-[9px] font-bold" style={{ color: 'oklch(70% 0.15 40)' }}>🔍 CONTROLE DE QUALIDADE</div>
+                                {(ev.data.qcIssues as string[]).map((issue: string, j: number) => (
+                                  <div key={j} className="text-[9px]" style={{ color: 'oklch(60% 0.08 40)' }}>{issue}</div>
+                                ))}
                               </div>
+                            )}
+                            {/* Line count delta */}
+                            {ev.data.lineCount && ev.data.originalLineCount && (
+                              <div className="px-2 py-0.5 text-[9px]" style={{ color: 'oklch(50% 0.02 280)' }}>
+                                📏 {String(ev.data.originalLineCount)} → {String(ev.data.lineCount)} linhas ({Number(ev.data.lineCount) > Number(ev.data.originalLineCount) ? '+' : ''}{Number(ev.data.lineCount) - Number(ev.data.originalLineCount)})
+                              </div>
+                            )}
+                            {/* Code preview — original vs proposed */}
+                            {ev.data.codePreview && (
+                              <details className="rounded overflow-hidden" style={{ background: 'oklch(5% 0.02 280)', border: '1px solid oklch(100% 0 0 / 0.06)' }}>
+                                <summary className="text-[9px] font-semibold px-2 py-1 cursor-pointer select-none" style={{ color: 'oklch(70% 0.12 250)', background: 'oklch(8% 0.02 280)' }}>
+                                  📄 Ver Código (original vs proposto)
+                                </summary>
+                                <div className="grid grid-cols-2 gap-0 text-[8px] font-mono leading-relaxed">
+                                  <div className="p-2 overflow-x-auto" style={{ borderRight: '1px solid oklch(100% 0 0 / 0.05)' }}>
+                                    <div className="text-[8px] font-bold mb-1" style={{ color: 'oklch(65% 0.15 25)' }}>ORIGINAL</div>
+                                    <pre className="whitespace-pre-wrap" style={{ color: 'oklch(50% 0.02 280)' }}>{String(ev.data.originalPreview || '').slice(0, 3000)}</pre>
+                                  </div>
+                                  <div className="p-2 overflow-x-auto">
+                                    <div className="text-[8px] font-bold mb-1" style={{ color: 'oklch(75% 0.18 150)' }}>PROPOSTO</div>
+                                    <pre className="whitespace-pre-wrap" style={{ color: 'oklch(55% 0.02 280)' }}>{String(ev.data.codePreview).slice(0, 3000)}</pre>
+                                  </div>
+                                </div>
+                              </details>
                             )}
                             {/* Fitness dimensions */}
                             {ev.data.dimensions && typeof ev.data.dimensions === 'object' && (
@@ -469,7 +495,7 @@ function LiveActivityBanner({ currentStep, isRunning }: { currentStep: string | 
   const messages = ACTIVITY_MESSAGES[currentStep];
   if (!messages || messages.length === 0) return null;
 
-  const stepLabel = currentStep === 'init' ? 'INICIALIZANDO' : currentStep === 'diagnose' ? 'DIAGNOSTICANDO' : currentStep === 'modify' ? 'GERANDO CÓDIGO' : currentStep === 'safety' ? 'SAFETY GATE' : currentStep === 'fitness' ? 'FITNESS CHECK' : currentStep === 'sandbox' ? 'SANDBOX' : currentStep === 'proposal' ? 'APROVAÇÃO' : currentStep === 'evaluate' ? 'BENCHMARK' : 'PROCESSANDO';
+  const stepLabel = currentStep === 'benchmark' ? 'BENCHMARK INICIAL' : currentStep === 'init' ? 'INICIALIZANDO' : currentStep === 'diagnose' ? 'DIAGNOSTICANDO' : currentStep === 'modify' ? 'GERANDO CÓDIGO' : currentStep === 'safety' ? 'SAFETY GATE' : currentStep === 'fitness' ? 'FITNESS CHECK' : currentStep === 'sandbox' ? 'SANDBOX' : currentStep === 'proposal' ? 'APROVAÇÃO HUMANA' : currentStep === 'evaluate' ? 'BENCHMARK FINAL' : 'PROCESSANDO';
 
   return (
     <div className="mx-4 mt-2 px-4 py-2.5 rounded-xl flex items-center gap-3" style={{ background: 'linear-gradient(135deg, oklch(60% 0.2 300 / 0.06), oklch(70% 0.15 250 / 0.06))', border: '1px solid oklch(60% 0.2 300 / 0.15)' }}>

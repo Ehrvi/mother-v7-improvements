@@ -10,6 +10,9 @@
  * adapted for MOTHER's GitHub repository.
  */
 
+import { createLogger } from '../_core/logger';
+const log = createLogger('CODE_READER');
+
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
 const REPO_OWNER = 'Ehrvi';
 const REPO_NAME = 'mother-v7-improvements';
@@ -44,7 +47,7 @@ export async function readOwnFile(filePath: string, branch = DEFAULT_BRANCH): Pr
     });
     
     if (!response.ok) {
-      console.warn(`[CodeReader] File not found: ${filePath} (${response.status})`);
+      log.warn(`[CodeReader] File not found: ${filePath} (${response.status})`);
       return null;
     }
     
@@ -59,7 +62,7 @@ export async function readOwnFile(filePath: string, branch = DEFAULT_BRANCH): Pr
       encoding: 'utf-8'
     };
   } catch (err) {
-    console.error(`[CodeReader] Error reading ${filePath}:`, err);
+    log.error(`[CodeReader] Error reading ${filePath}:`, err);
     return null;
   }
 }
@@ -89,7 +92,7 @@ export async function searchOwnCode(query: string, path = 'server'): Promise<Sea
       matches: []
     }));
   } catch (err) {
-    console.error(`[CodeReader] Search error:`, err);
+    log.error(`[CodeReader] Search error:`, err);
     return [];
   }
 }

@@ -22,6 +22,9 @@ import * as crypto from "crypto";
 import { fitnessEvaluator, type FitnessScore } from "./fitness-evaluator";
 import { checkSafetyGate } from "./safety-gate";
 import { recordAuditEntry } from "./audit-trail";
+import { createLogger } from '../_core/logger';
+const log = createLogger('AUTONOMOUS_CODER');
+
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -131,7 +134,7 @@ export async function generateModule(
   let lastError = "";
 
   // Safety check before any generation
-  const absolutePath = path.join("/home/ubuntu/mother-latest", request.targetDir, `${request.moduleName}.ts`);
+  const absolutePath = path.join(process.env.MOTHER_PROJECT_ROOT || process.cwd(), request.targetDir, `${request.moduleName}.ts`); // P1 fix
   const safetyCheck = checkSafetyGate(
     absolutePath,
     `// Autonomous generation request for ${request.moduleName}`,
@@ -369,7 +372,7 @@ export async function generateModuleBatch(
     results.push(result);
 
     if (!result.success) {
-      console.warn(`[autonomous-coder] Module ${request.moduleName} rejected (fitness=${result.fitnessScore?.overall ?? 0}). Continuing.`);
+      log.warn(`[autonomous-coder] Module ${request.moduleName} rejected (fitness=${result.fitnessScore?.overall ?? 0}). Continuing.`);
     }
   }
 

@@ -297,7 +297,8 @@ export class DGMGuardian {
       const db = await getDb();
       if (!db) return { name: 'Database', status: 'FAIL', latencyMs: Date.now() - start, detail: 'No DB connection' };
 
-      await (db as any).$client.query('SELECT 1');
+      const { sql } = await import('drizzle-orm');
+      await db.execute(sql`SELECT 1`);
       return { name: 'Database', status: 'OK', latencyMs: Date.now() - start };
     } catch (err: any) {
       return { name: 'Database', status: 'FAIL', latencyMs: Date.now() - start, detail: err.message?.slice(0, 100) };
@@ -436,8 +437,9 @@ export class DGMGuardian {
     try {
       const { getDb } = await import('../db');
       const db = await getDb();
+      const { sql } = await import('drizzle-orm');
       if (db) {
-        await (db as any).$client.query('SELECT 1');
+        await db.execute(sql`SELECT 1`);
         return { type: 'RECONNECT', target: 'database', executedAt: new Date(), success: true, detail: 'DB reconnected' };
       }
       return { type: 'RECONNECT', target: 'database', executedAt: new Date(), success: false, detail: 'DB still unavailable' };

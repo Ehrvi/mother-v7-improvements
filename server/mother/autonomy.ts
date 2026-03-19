@@ -32,7 +32,7 @@
  * - All actions logged in audit_log with actor, timestamp, diff.
  */
 
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';  // C73 fix: execFileSync prevents shell injection
 import { existsSync, writeFileSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -143,11 +143,9 @@ export interface SandboxResult {
 }
 
 function getProjectRoot(): string {
-  if (existsSync('/app/server')) return '/app';
-  if (existsSync('/home/ubuntu/mother-code/mother-interface/server')) {
-    return '/home/ubuntu/mother-code/mother-interface';
-  }
-  return join(__dirname, '../../..');
+  // C73/P1 fix: Use process.cwd() instead of hardcoded paths
+  // Scientific basis: Twelve-Factor App Factor III — config via environment
+  return process.env.MOTHER_PROJECT_ROOT || process.cwd();
 }
 
 /**
@@ -186,10 +184,11 @@ export async function sandboxCodeChange(
     writeFileSync(tempPath, newContent, 'utf-8');
 
     try {
-      // 3. TypeScript syntax check (non-blocking — warns but doesn't block)
-      execSync(`cd ${root} && npx tsc --noEmit --allowJs 2>&1 | head -20`, {
+      // C73 fix: Use execFileSync with args array instead of shell string
+      execFileSync('npx', ['tsc', '--noEmit', '--allowJs'], {
         timeout: 30000,
         stdio: 'pipe',
+        cwd: root,
       });
       result.typeCheckPassed = true;
     } catch (tsErr) {
@@ -311,10 +310,13 @@ export async function getCICDStatus(): Promise<{
   logUrl?: string;
 }> {
   try {
-    const output = execSync(
-      'gcloud builds list --project=mothers-library-mcp --limit=1 --format="value(id,status,startTime,finishTime,logUrl)" 2>/dev/null',
-      { timeout: 15000, stdio: 'pipe' }
-    ).toString().trim();
+    // C73 fix: Use execFileSync with args array
+    const output = execFileSync('gcloud', [
+      'builds', 'list',
+      '--project=mothers-library-mcp',
+      '--limit=1',
+      '--format=value(id,status,startTime,finishTime,logUrl)',
+    ], { timeout: 15000, stdio: 'pipe' }).toString().trim();
 
     const parts = output.split('\t');
     return {

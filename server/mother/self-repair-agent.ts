@@ -16,6 +16,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { execSync } from 'child_process';
+import { createLogger } from '../_core/logger';
+const log = createLogger('SELF_REPAIR_AGENT');
+
 
 export interface TypeScriptError {
   file: string;
@@ -123,14 +126,14 @@ export class SelfRepairAgent {
           // Only patch if it's a simple parameter without type
           if (targetLine.includes('(') && !targetLine.includes(': ')) {
             // Conservative: don't auto-patch, log for manual review
-            console.log(`[SelfRepair C152] TS7006 at ${error.file}:${error.line} — logged for review`);
+            log.info(`[SelfRepair C152] TS7006 at ${error.file}:${error.line} — logged for review`);
           }
         }
         break;
         
       default:
         // Unknown error code — do not patch, log only
-        console.log(`[SelfRepair C152] Unknown error ${error.code} — skipping`);
+        log.info(`[SelfRepair C152] Unknown error ${error.code} — skipping`);
         return false;
     }
 
@@ -146,10 +149,10 @@ export class SelfRepairAgent {
    * Executa ciclo completo de auto-reparo
    */
   async executeRepairCycle(): Promise<SelfRepairReport> {
-    console.log('[SelfRepair C152] Iniciando ciclo de auto-reparo...');
+    log.info('[SelfRepair C152] Iniciando ciclo de auto-reparo...');
     
     const initialErrors = this.runTypeScriptCheck();
-    console.log(`[SelfRepair C152] Erros encontrados: ${initialErrors.length}`);
+    log.info(`[SelfRepair C152] Erros encontrados: ${initialErrors.length}`);
 
     const actions: RepairAction[] = [];
     let fixed = 0;
@@ -186,7 +189,7 @@ export class SelfRepairAgent {
             timestamp: new Date().toISOString()
           });
           rolledBack++;
-          console.log(`[SelfRepair C152] ⚠️ Rollback: ${error.file} (patch piorou estado)`);
+          log.info(`[SelfRepair C152] ⚠️ Rollback: ${error.file} (patch piorou estado)`);
         } else {
           actions.push({
             errorCode: error.code,
@@ -198,7 +201,7 @@ export class SelfRepairAgent {
             timestamp: new Date().toISOString()
           });
           fixed++;
-          console.log(`[SelfRepair C152] ✅ Fixed: ${error.file}:${error.line} (${error.code})`);
+          log.info(`[SelfRepair C152] ✅ Fixed: ${error.file}:${error.line} (${error.code})`);
         }
       }
     }
@@ -218,15 +221,15 @@ export class SelfRepairAgent {
       timestamp: new Date().toISOString()
     };
 
-    console.log(`[SelfRepair C152] Resultado: ${fixed} corrigidos, ${rolledBack} revertidos, ${finalErrors.length} não resolvidos`);
-    console.log(`[SelfRepair C152] Master Hash: ${masterHash}`);
+    log.info(`[SelfRepair C152] Resultado: ${fixed} corrigidos, ${rolledBack} revertidos, ${finalErrors.length} não resolvidos`);
+    log.info(`[SelfRepair C152] Master Hash: ${masterHash}`);
 
     return report;
   }
 }
 
 export const selfRepairAgent = new SelfRepairAgent(
-  process.env.REPO_PATH || '/home/ubuntu/mother-latest'
+  process.env.REPO_PATH || process.cwd() // P1 fix: Twelve-Factor App
 );
 
 export default SelfRepairAgent;

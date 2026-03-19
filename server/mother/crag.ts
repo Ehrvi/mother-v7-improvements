@@ -23,6 +23,9 @@ import { getEmbedding } from './embeddings';
 import { conductResearch } from './research';
 import { evaluateCRAGMetrics } from './crag-metrics'; // v74.8: NC-RAGAS-001 Context Precision/Recall
 import { reliabilityLogger } from './reliability-logger'; // v74.9: Four Golden Signals monitoring
+import { createLogger } from '../_core/logger';
+const log = createLogger('CRAG');
+
 
 export interface CRAGDocument {
   content: string;
@@ -50,14 +53,14 @@ export async function cragRetrieve(
   query: string,
   userId?: number
 ): Promise<CRAGResult> {
-  console.log(`[CRAG] Starting retrieval for: "${query.slice(0, 80)}"`);  
+  log.info(`[CRAG] Starting retrieval for: "${query.slice(0, 80)}"`);  
   reliabilityLogger.info('crag', `Starting retrieval for: "${query.slice(0, 80)}"`);
 
   // Step 1: Analyze query and decide retrieval strategy
   const { needsRetrieval, rewrittenQuery, queryType } = await analyzeQuery(query);
 
   if (!needsRetrieval) {
-    console.log('[CRAG] Query does not require retrieval (conversational)');
+    log.info('[CRAG] Query does not require retrieval (conversational)');
     return {
       context: '',
       documents: [],
@@ -72,13 +75,13 @@ export async function cragRetrieve(
 
   // Step 2: Multi-source retrieval
   const rawDocuments = await multiSourceRetrieval(effectiveQuery);
-  console.log(`[CRAG] Retrieved ${rawDocuments.length} raw documents`);
+  log.info(`[CRAG] Retrieved ${rawDocuments.length} raw documents`);
   reliabilityLogger.info('crag', `Retrieved ${rawDocuments.length} raw documents`);
 
   // Step 3: Grade each document for relevance (Self-RAG critique)
   const gradedDocuments = await gradeDocuments(rawDocuments, effectiveQuery);
   const relevantDocs = gradedDocuments.filter(d => d.relevanceScore >= 0.5);
-  console.log(`[CRAG] ${relevantDocs.length}/${rawDocuments.length} documents deemed relevant`);
+  log.info(`[CRAG] ${relevantDocs.length}/${rawDocuments.length} documents deemed relevant`);
   reliabilityLogger.info('crag', `${relevantDocs.length}/${rawDocuments.length} documents deemed relevant`, { relevant: relevantDocs.length, total: rawDocuments.length });
 
   // Step 4: Corrective retrieval if no relevant documents found
@@ -86,7 +89,7 @@ export async function cragRetrieve(
   let allDocuments = relevantDocs;
 
   if (relevantDocs.length === 0 && queryType !== 'conversational') {
-    console.log('[CRAG] No relevant documents found. Triggering corrective web search...');
+    log.info('[CRAG] No relevant documents found. Triggering corrective web search...');
     correctiveSearchTriggered = true;
     try {
       const webResults = await conductResearch(effectiveQuery);
@@ -99,10 +102,10 @@ export async function cragRetrieve(
           isGrounded: true,
         }));
         allDocuments = [...relevantDocs, ...webDocs];
-        console.log(`[CRAG] Corrective search added ${webDocs.length} documents`);
+        log.info(`[CRAG] Corrective search added ${webDocs.length} documents`);
       }
     } catch (error) {
-      console.error('[CRAG] Corrective search failed:', error);
+      log.error('[CRAG] Corrective search failed:', error);
     }
   }
 
@@ -215,7 +218,7 @@ async function multiSourceRetrieval(query: string): Promise<CRAGDocument[]> {
       });
     }
   } catch (e) {
-    console.error('[CRAG] DB retrieval failed:', e);
+    log.error('[CRAG] DB retrieval failed:', e);
   }
 
   // Source 2: Vector search (semantic similarity)
@@ -232,7 +235,7 @@ async function multiSourceRetrieval(query: string): Promise<CRAGDocument[]> {
       });
     }
   } catch (e) {
-    console.error('[CRAG] Vector search failed:', e);
+    log.error('[CRAG] Vector search failed:', e);
   }
 
   // Source 3: Academic papers (RAG over paper_chunks)
@@ -249,7 +252,7 @@ async function multiSourceRetrieval(query: string): Promise<CRAGDocument[]> {
       });
     }
   } catch (e) {
-    console.error('[CRAG] Paper retrieval failed:', e);
+    log.error('[CRAG] Paper retrieval failed:', e);
   }
 
   return documents;

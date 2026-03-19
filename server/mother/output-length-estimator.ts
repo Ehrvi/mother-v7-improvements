@@ -22,6 +22,9 @@
  * and multi-task patterns (2.0) — threshold CS ≥ 4 activates LFSA.
  */
 
+import { createLogger } from '../_core/logger';
+const log = createLogger('OUTPUT_LENGTH_ESTIMATOR');
+
 export type OutputLengthCategory = 'MICRO' | 'SHORT' | 'MEDIUM' | 'LONG' | 'VERY_LONG';
 
 export interface OutputLengthEstimate {
@@ -162,7 +165,7 @@ export function computeSemanticComplexity(query: string): SemanticComplexitySign
     artifactNounCount,
     multiTaskPatternCount,
     totalScore,
-    requiresLFSA: totalScore >= COMPLEXITY_THRESHOLD,
+    requiresLFSA: false, // SOTA: let the AI model decide response format/length
   };
 }
 
@@ -259,7 +262,7 @@ export function estimateOutputLength(query: string): OutputLengthEstimate {
   // C325: Emit telemetry for every query — enables adaptive threshold calibration
   // Disable with MOTHER_COMPLEXITY_TELEMETRY=false in production if log volume is too high
   if (_C325_TELEMETRY_ENABLED) {
-    console.log(`[C325-TELEMETRY] score=${complexitySignals.totalScore.toFixed(2)} threshold=${COMPLEXITY_THRESHOLD} lfsa=${complexitySignals.requiresLFSA} verbs=${complexitySignals.actionVerbCount} refs=${complexitySignals.externalRefCount} artifacts=${complexitySignals.artifactNounCount} patterns=${complexitySignals.multiTaskPatternCount} qlen=${query.length}`);
+    log.info(`[C325-TELEMETRY] score=${complexitySignals.totalScore.toFixed(2)} threshold=${COMPLEXITY_THRESHOLD} lfsa=${complexitySignals.requiresLFSA} verbs=${complexitySignals.actionVerbCount} refs=${complexitySignals.externalRefCount} artifacts=${complexitySignals.artifactNounCount} patterns=${complexitySignals.multiTaskPatternCount} qlen=${query.length}`);
   }
 
   if (complexitySignals.requiresLFSA) {

@@ -14,6 +14,9 @@
  */
 
 import crypto from 'crypto';
+import { createLogger } from '../_core/logger';
+const log = createLogger('PROOF_OF_AUTONOMY');
+
 
 const AGENT_VERSION = process.env.MOTHER_VERSION || 'v79.3';
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
@@ -69,9 +72,13 @@ function createAttestation(
   commitSha: string,
   timestamp: string
 ): string {
+  // C110 fix: Remove hardcoded fallback key — proofs must be unforgeable
+  if (!GITHUB_TOKEN) {
+    throw new Error('[ProofOfAutonomy] GITHUB_TOKEN required for HMAC attestation — cannot use fallback key');
+  }
   const payload = JSON.stringify({ codeHash, agentId, commitSha, timestamp, issuer: 'MOTHER' });
   const signature = crypto
-    .createHmac('sha256', GITHUB_TOKEN || 'mother-proof-key')
+    .createHmac('sha256', GITHUB_TOKEN)
     .update(payload)
     .digest('hex');
   const encoded = Buffer.from(payload).toString('base64url');
@@ -145,9 +152,9 @@ export async function storeProofOfAutonomy(params: {
         })
       });
       
-      console.log(`[ProofOfAutonomy] ✅ Stored in dgm_archive: ${codeHash.slice(0, 24)}...`);
+      log.info(`[ProofOfAutonomy] ✅ Stored in dgm_archive: ${codeHash.slice(0, 24)}...`);
     } catch (err) {
-      console.warn('[ProofOfAutonomy] dgm_archive insert failed (non-fatal):', (err as Error).message);
+      log.warn('[ProofOfAutonomy] dgm_archive insert failed (non-fatal):', (err as Error).message);
     }
   })();
   
@@ -166,10 +173,10 @@ export async function storeProofOfAutonomy(params: {
       })
     });
     if (response.ok) {
-      console.log(`[ProofOfAutonomy] ✅ Stored in bd_central: proof_of_autonomy_${params.commitSha.slice(0, 8)}`);
+      log.info(`[ProofOfAutonomy] ✅ Stored in bd_central: proof_of_autonomy_${params.commitSha.slice(0, 8)}`);
     }
   } catch (e2) {
-    console.error('[ProofOfAutonomy] bd_central insert failed:', (e2 as Error).message);
+    log.error('[ProofOfAutonomy] bd_central insert failed:', (e2 as Error).message);
   }
   
   return record;
@@ -199,7 +206,7 @@ export async function getProofByCommit(commitSha: string): Promise<AutonomyAttes
       if (records.length > 0) {
         const r = records[0] as any;
         let meta: any = {};
-        try { meta = JSON.parse(r.benchmarkResults || '{}'); } catch {}
+        try { meta = JSON.parse(r.benchmarkResults || '{}'); } catch { log.warn('[ProofOfAutonomy] Failed to parse benchmarkResults JSON'); }
         
         return {
           verified: true,
@@ -216,7 +223,7 @@ export async function getProofByCommit(commitSha: string): Promise<AutonomyAttes
       }
     }
   } catch (err) {
-    console.warn('[ProofOfAutonomy] dgm_archive query failed:', (err as Error).message);
+    log.warn('[ProofOfAutonomy] dgm_archive query failed:', (err as Error).message);
   }
   
   // Fallback: search bd_central via HTTP API
@@ -229,7 +236,7 @@ export async function getProofByCommit(commitSha: string): Promise<AutonomyAttes
       const items = data.results || [];
       if (items.length > 0) {
         let record: any = {};
-        try { record = JSON.parse(items[0].content || '{}'); } catch {}
+        try { record = JSON.parse(items[0].content || '{}'); } catch { log.warn('[ProofOfAutonomy] Failed to parse content JSON'); }
         return {
           verified: true,
           agent: record.agent_id || AGENT_VERSION,
@@ -245,7 +252,7 @@ export async function getProofByCommit(commitSha: string): Promise<AutonomyAttes
       }
     }
   } catch (err) {
-    console.error('[ProofOfAutonomy] getProofByCommit error:', (err as Error).message);
+    log.error('[ProofOfAutonomy] getProofByCommit error:', (err as Error).message);
   }
   
   return null;
@@ -263,7 +270,7 @@ export async function getAllProofs(limit = 20, offset = 0): Promise<ProofRecord[
     const data = await response.json() as { results?: any[] };
     return (data.results || []).map((item: any) => {
       try { return JSON.parse(item.content || '{}') as ProofRecord; }
-      catch { return null; }
+      catch { log.warn('[ProofOfAutonomy] Failed to parse proof record'); return null; }
     }).filter(Boolean) as ProofRecord[];
   } catch (err) {
     return [];

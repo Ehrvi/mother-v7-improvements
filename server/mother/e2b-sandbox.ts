@@ -219,9 +219,7 @@ export async function isE2BAvailable(): Promise<boolean> {
   try {
     await import('@e2b/code-interpreter');
     return true;
-  } catch {
-    return false;
-  }
+  } catch { log.debug('E2B package not installed'); return false; }
 }
 
 /**

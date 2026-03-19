@@ -259,7 +259,7 @@ export async function runIntegrationTests(cycleId: string): Promise<IntegrationT
 
         const fs = await import("fs");
         const path = await import("path");
-        const basePath = "/home/ubuntu/mother-latest/server/mother";
+        const basePath = (process.env.MOTHER_PROJECT_ROOT || process.cwd()) + "/server/mother"; // P1 fix
 
         const present: string[] = [];
         const missing: string[] = [];
