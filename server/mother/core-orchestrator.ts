@@ -186,7 +186,7 @@ export const REACT_TIMEOUT_CONFIG = {
   iterationTimeoutMs: 90000, // C254: 60s → 90s — PH-01 Kant needed 67s, CW queries 65-70s (empirical 2026-03-11)
                              // C250 (45s) still caused abort at exactly 45001ms for complex queries
                              // 60s provides 10s safety margin above P99 latency
-  totalBudgetMs: 25000,      // F1-1: 25s total budget guarantee (overridden by computeDynamicTimeout)
+  totalBudgetMs: 45000,      // FIX: 25s→45s — API calls from Australia take ~8.5s roundtrip, 25s/3=8.3s per iteration was too tight
   minResponseLength: 50,     // F1-1: minimum chars to accept partial response
 } as const;
 
@@ -204,7 +204,7 @@ export const REACT_TIMEOUT_CONFIG = {
  *   60 pages (~27000 tok)-> 25s + 81s   = ~106s (capped at 600s if needed)
  */
 export function computeDynamicTimeout(estimatedOutputTokens: number): number {
-  const BASE_MS = 25_000;       // Minimum: existing 25s guarantee
+  const BASE_MS = 35_000;       // FIX: 25s→35s — minimum budget for high-latency connections (Australia→Cloudflare ~8.5s roundtrip)
   const MS_PER_TOKEN = 1.5;     // Empirical: ~650 tok/s -> 1.54ms/tok
   const SAFETY_FACTOR = 2.0;    // 2x safety margin for variance
   const MAX_MS = 600_000;       // Maximum: Cloud Run timeout
