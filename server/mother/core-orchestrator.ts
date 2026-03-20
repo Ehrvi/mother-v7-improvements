@@ -1397,7 +1397,7 @@ export async function orchestrate(req: OrchestratorRequest): Promise<Orchestrato
   // FIX: DPO model ft:gpt-4.1-mini:personal:mother-v82-dpo-v8e:DFay6MHy returns 403 (model_not_found)
   // from svcacct project. Disabled until model access is restored.
   // Original condition: if (ENV_DPO.dpoFineTunedModel && !l1.fromCache) {
-  if (false && ENV_DPO.dpoFineTunedModel && !l1.fromCache) {
+  if (ENV_DPO.dpoFineTunedModel && !l1.fromCache) {
     // ── Sprint 3 (C183): DPO Tier-Gate — bypass DPO for TIER_1/2 ─────────────
     // Scientific basis:
     //   - Rafailov et al. (arXiv:2305.18290, NeurIPS 2023): DPO adds ~60-70s latency
