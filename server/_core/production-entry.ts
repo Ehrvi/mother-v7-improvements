@@ -295,11 +295,13 @@ app.use('/api/health', healthRouter); // C249: /api/health + /api/health/version
 app.use('/api/version', (_req: express.Request, res: express.Response) => res.redirect('/api/health/version')); // C249: VersionBadge redirect
 app.use('/api/shms', shmsAlertsRouter); // C196-0 ORPHAN FIX: /api/shms/v2/alerts/:structureId — ICOLD L1/L2/L3 (Sprint 3 — ICOLD Bulletin 158 §4.3)
 app.use('/api/shms/v2', digitalTwinRoutesC206); // C206-1: SHMS Phase 2 Digital Twin REST API — REST Fielding (2000) + ISO 13374-1:2003 + Grieves (2014) Digital Twin
+app.use('/api/shms/v2', (await import('../shms/fta-integration-routes.js')).ftaIntegrationRoutes); // FTA Integration — Bobbio (2001) + ICOLD B.158 + GISTM 2020
 app.use(a2aRouterV2); // NC-A2A-001 FIX: A2A Protocol v2 — protocolVersion=2.0, tasks, SSE streaming (Sprint 9 C208)
 app.use(shmsMultitenantRouter); // NC-MULTI-001 FIX: Multi-tenant SHMS row-level security (Sprint 9 C208)
 log.info('[NC-ARCH-002 C190] 4 routers modulares montados: auth, shms-v2, dgm, metrics — God Object decomposição COMPLETA');
 log.info('[C196-0 ORPHAN FIX] shmsAlertsRouter montado: /api/shms/v2/alerts/:structureId — ICOLD Bulletin 158 §4.3 (Sprint 3)');
 log.info('[C206-1] Digital Twin REST API montada: /api/shms/v2/structures — REST Fielding (2000) + ISO 13374-1:2003');
+log.info('[FTA Integration] FTA routes montadas: /api/shms/v2/fta/* — Bobbio (2001) + ICOLD B.158');
 log.info('[C208-S9] A2A Protocol v2 montado: /.well-known/agent.json + /api/a2a/v2/* — Google A2A v2 (2025) — NC-A2A-001 FIX');
 log.info('[C208-S9] SHMS Multi-tenant montado: /api/shms/v2/tenants/:tenantId/* — ISO 13374-1:2003 + OWASP A01:2021 — NC-MULTI-001 FIX');
 log.info('[C208-S9] CSP Headers ativos: NC-SEC-002 FIX — OWASP A03:2021 + MDN CSP (2024)');

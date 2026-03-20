@@ -994,3 +994,90 @@ shmsRouter.post('/ingest', authenticateA2A, async (req: Request, res: Response) 
     res.status(500).json({ error: 'Universal ingestion unavailable' });
   }
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FTA Integration Bus routes — live sensor→FTA probability pipeline
+// Scientific basis: Bobbio et al. (2001), Grieves (2017), ICOLD B.158
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /shms/fta/live/:structureId — Live FTA state with MQTT sensor probabilities
+ */
+shmsRouter.get('/fta/live/:structureId', async (req: Request, res: Response) => {
+  try {
+    const { ftaIntegrationBus } = await import('../../shms/fta-integration-bus.js');
+    const state = ftaIntegrationBus.getLiveState(req.params.structureId);
+    res.json({ success: true, ...state });
+  } catch (err) {
+    log.error('[SHMSRouter] fta/live error:', err);
+    res.status(500).json({ success: false, error: 'FTA live state unavailable' });
+  }
+});
+
+/**
+ * GET /shms/fta/instruments — Sensor-to-FTA node mappings
+ */
+shmsRouter.get('/fta/instruments', async (_req: Request, res: Response) => {
+  try {
+    const { ftaIntegrationBus } = await import('../../shms/fta-integration-bus.js');
+    res.json({ success: true, mappings: ftaIntegrationBus.getSensorMappings() });
+  } catch (err) {
+    log.error('[SHMSRouter] fta/instruments error:', err);
+    res.status(500).json({ success: false, error: 'Instrument mappings unavailable' });
+  }
+});
+
+/**
+ * GET /shms/fta/stats — FTA Integration Bus statistics
+ */
+shmsRouter.get('/fta/stats', async (_req: Request, res: Response) => {
+  try {
+    const { ftaIntegrationBus } = await import('../../shms/fta-integration-bus.js');
+    res.json({ success: true, stats: ftaIntegrationBus.getStats() });
+  } catch (err) {
+    log.error('[SHMSRouter] fta/stats error:', err);
+    res.status(500).json({ success: false, error: 'FTA stats unavailable' });
+  }
+});
+
+/**
+ * POST /shms/fta/hooks/register — Register external probability source
+ */
+shmsRouter.post('/fta/hooks/register', async (req: Request, res: Response) => {
+  try {
+    const { ftaIntegrationBus } = await import('../../shms/fta-integration-bus.js');
+    const { sourceId, name, type } = req.body as { sourceId: string; name: string; type: string };
+    if (!sourceId || !name) {
+      res.status(400).json({ success: false, error: 'Required: sourceId, name' });
+      return;
+    }
+    ftaIntegrationBus.registerSource({
+      id: sourceId, name, type: (type || 'external') as any,
+      getUpdates: () => new Map(),
+    });
+    res.json({ success: true, registered: sourceId });
+  } catch (err) {
+    log.error('[SHMSRouter] fta/hooks/register error:', err);
+    res.status(500).json({ success: false, error: 'Hook registration unavailable' });
+  }
+});
+
+/**
+ * POST /shms/fta/mappings — Add custom sensor→FTA node mapping
+ */
+shmsRouter.post('/fta/mappings', async (req: Request, res: Response) => {
+  try {
+    const { ftaIntegrationBus } = await import('../../shms/fta-integration-bus.js');
+    const mapping = req.body;
+    if (!mapping?.sensorId || !mapping?.ftaNodeId) {
+      res.status(400).json({ success: false, error: 'Required: sensorId, ftaNodeId' });
+      return;
+    }
+    ftaIntegrationBus.addSensorMapping(mapping);
+    res.json({ success: true, added: mapping });
+  } catch (err) {
+    log.error('[SHMSRouter] fta/mappings error:', err);
+    res.status(500).json({ success: false, error: 'Mapping addition unavailable' });
+  }
+});
+

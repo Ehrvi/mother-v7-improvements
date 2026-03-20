@@ -84,7 +84,7 @@ export class MQTTDigitalTwinBridge extends EventEmitter {
     this.config = {
       lstm_min_samples: 60,  // Hochreiter (1997): LSTM needs 60+ samples for valid prediction
       buffer_size: 1000,
-      simulation_fallback_ms: 30000,  // 30s without real data → activate simulation
+      simulation_fallback_ms: 0,  // Always-on: no wait (was 30s) — 24/7 simulation
       enable_lstm: true,
       ...config,
     };
@@ -193,7 +193,7 @@ export class MQTTDigitalTwinBridge extends EventEmitter {
           time_since_last_real_ms: timeSinceLastReal,
         });
       }
-    }, 10000);  // Check every 10 seconds
+    }, 5000);  // Every 5 seconds — 24/7 always-on simulation
 
     console.log('[MQTTBridge] Simulation fallback started (30s timeout)');
   }
@@ -255,7 +255,7 @@ export class MQTTDigitalTwinBridge extends EventEmitter {
 export const mqttDigitalTwinBridge = new MQTTDigitalTwinBridge({
   lstm_min_samples: 60,
   enable_lstm: true,
-  simulation_fallback_ms: 30000,
+  simulation_fallback_ms: 0,  // Always-on: start immediately
 });
 
 // Auto-start simulation fallback on module load

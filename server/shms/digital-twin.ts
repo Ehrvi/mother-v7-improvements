@@ -317,6 +317,15 @@ export class DigitalTwin {
       { id: 'gnss-01', type: 'gnss', baseValue: 0.8, noise: 0.05, unit: 'mm' },
       { id: 'water_level-01', type: 'water_level', baseValue: 85.3, noise: 0.3, unit: 'm' },
       { id: 'accelerometer-01', type: 'accelerometer', baseValue: 0.12, noise: 0.02, unit: 'g' },
+      // FTA-compatible sensor IDs (ICOLD B.158 + GISTM 2020 — canonical mapping)
+      // These IDs are mapped in fta-integration-bus.ts → FTA node probabilities
+      { id: 'RAIN-01', type: 'rain_gauge' as SensorType, baseValue: 25, noise: 15, unit: 'mm/day' },
+      { id: 'NR-01', type: 'water_level', baseValue: 2.5, noise: 0.3, unit: 'm' },
+      { id: 'VN-01', type: 'water_level' as SensorType, baseValue: 0.8, noise: 0.4, unit: 'L/min' },
+      { id: 'PZ-01', type: 'piezometer', baseValue: 80, noise: 15, unit: 'kPa' },
+      { id: 'GNSS-01', type: 'gnss', baseValue: 3, noise: 2, unit: 'mm/month' },
+      { id: 'INC-01', type: 'inclinometer', baseValue: 0.5, noise: 0.3, unit: 'mm/day' },
+      { id: 'ACC-01', type: 'accelerometer', baseValue: 0.005, noise: 0.003, unit: 'g' },
     ];
 
     for (const config of sensorConfigs) {
