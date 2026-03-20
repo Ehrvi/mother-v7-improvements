@@ -162,10 +162,10 @@ function SensorPanel({ sensor, data, color, expanded, onToggleExpand }: {
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--shms-border)" strokeOpacity={0.4} />
-            {expanded && <XAxis dataKey="time" tick={{ fontSize: 8, fill: 'var(--shms-text-dim)' }} />}
-            <YAxis tick={{ fontSize: 8, fill: 'var(--shms-text-dim)' }} width={45}
+            {expanded && <XAxis dataKey="time" tick={{ fontSize: 9, fill: 'var(--shms-text-dim)' }} />}
+            <YAxis tick={{ fontSize: 9, fill: 'var(--shms-text-dim)' }} width={45}
               domain={['auto', 'auto']}
-              label={{ value: sensor.unit, angle: -90, position: 'insideLeft', fontSize: 8, fill: 'var(--shms-text-dim)' }} />
+              label={{ value: sensor.unit, angle: -90, position: 'insideLeft', fontSize: 9, fill: 'var(--shms-text-dim)' }} />
             <Tooltip
               contentStyle={{ background: 'var(--shms-bg-2)', border: '1px solid var(--shms-border)', borderRadius: 6, fontSize: 10, color: 'var(--shms-text)' }}
               formatter={(v: number) => [v.toFixed(4), sensor.sensorId]}

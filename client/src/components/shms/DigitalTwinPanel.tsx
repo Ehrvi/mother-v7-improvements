@@ -266,7 +266,7 @@ export default function DigitalTwinPanel({ structureId }: { structureId: string 
                       {/* Value tooltip */}
                       {sensorData && (
                         <text x={spot.cx} y={spot.cy + 18} textAnchor="middle"
-                          fill="var(--shms-text-dim)" fontSize={8} fontFamily="var(--shms-font-mono)">
+                          fill="var(--shms-text-dim)" fontSize={9} fontFamily="var(--shms-font-mono)">
                           {Number(sensorData.value).toFixed(1)}{sensorData.unit || ''}
                         </text>
                       )}
@@ -289,7 +289,7 @@ export default function DigitalTwinPanel({ structureId }: { structureId: string 
                   <RadarChart data={radarData}>
                     <PolarGrid stroke="var(--shms-border)" />
                     <PolarAngleAxis dataKey="axis" tick={{ fontSize: 9, fill: 'var(--shms-text-dim)' }} />
-                    <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 8, fill: 'var(--shms-text-dim)' }} />
+                    <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 9, fill: 'var(--shms-text-dim)' }} />
                     <Radar name="Saúde" dataKey="value" stroke="var(--shms-accent)" fill="var(--shms-accent)" fillOpacity={0.2} strokeWidth={2} />
                   </RadarChart>
                 </ResponsiveContainer>

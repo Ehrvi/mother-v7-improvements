@@ -58,7 +58,7 @@ export default function FTAReportPanel({ structureId, ftNodes, topProb, cutSets,
 
   return (
     <div style={{ ...glass, flex: 1, overflow: 'auto', padding: '14px 16px' }}>
-      <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 12 }}>
+      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 12 }}>
         📋 Geração de Relatórios Normativos — ANM · GISTM · ICOLD · ABNT
       </div>
 
@@ -68,8 +68,8 @@ export default function FTAReportPanel({ structureId, ftNodes, topProb, cutSets,
           <button key={t.id} onClick={handleExportHTML}
             style={{ background: `${t.color}08`, border: `1px solid ${t.color}22`, borderRadius: 8, padding: '10px 12px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s' }}>
             <div style={{ fontSize: 18 }}>{t.icon}</div>
-            <div style={{ fontSize: 9, fontWeight: 700, color: t.color, marginTop: 4 }}>{t.name}</div>
-            <div style={{ fontSize: 7, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{t.desc}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: t.color, marginTop: 4 }}>{t.name}</div>
+            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{t.desc}</div>
           </button>
         ))}
       </div>
@@ -78,19 +78,19 @@ export default function FTAReportPanel({ structureId, ftNodes, topProb, cutSets,
       <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '16px 18px', border: '1px solid rgba(255,255,255,0.06)', marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 800, color: '#fff', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
           📋 Preview do Relatório
-          <span style={{ fontSize: 8, padding: '2px 6px', borderRadius: 4, background: `${probColor(topProb)}22`, color: probColor(topProb), fontWeight: 700 }}>{probTag(topProb)}</span>
+          <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, background: `${probColor(topProb)}22`, color: probColor(topProb), fontWeight: 700 }}>{probTag(topProb)}</span>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 9 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 11 }}>
           <div>
-            <div style={{ color: 'rgba(255,255,255,0.35)', fontWeight: 600, fontSize: 7, textTransform: 'uppercase', marginBottom: 4 }}>Dados Estruturais</div>
+            <div style={{ color: 'rgba(255,255,255,0.35)', fontWeight: 600, fontSize: 10, textTransform: 'uppercase', marginBottom: 4 }}>Dados Estruturais</div>
             <div style={{ color: 'rgba(255,255,255,0.6)' }}>Estrutura: <strong style={{ color: '#0af' }}>{structureId}</strong></div>
             <div style={{ color: 'rgba(255,255,255,0.6)' }}>P(Top): <strong style={{ color: probColor(topProb) }}>{topProb.toExponential(2)}/ano</strong></div>
             <div style={{ color: 'rgba(255,255,255,0.6)' }}>Cut Sets: <strong style={{ color: '#0af' }}>{cutSets.length}</strong></div>
             <div style={{ color: 'rgba(255,255,255,0.6)' }}>Nós da Árvore: <strong style={{ color: '#c8f' }}>{ftNodes.size}</strong></div>
           </div>
           <div>
-            <div style={{ color: 'rgba(255,255,255,0.35)', fontWeight: 600, fontSize: 7, textTransform: 'uppercase', marginBottom: 4 }}>Monte Carlo</div>
+            <div style={{ color: 'rgba(255,255,255,0.35)', fontWeight: 600, fontSize: 10, textTransform: 'uppercase', marginBottom: 4 }}>Monte Carlo</div>
             <div style={{ color: 'rgba(255,255,255,0.6)' }}>P5: <strong style={{ color: '#00ff88' }}>{mc.p5.toExponential(2)}</strong></div>
             <div style={{ color: 'rgba(255,255,255,0.6)' }}>P50: <strong style={{ color: '#ffcc00' }}>{mc.p50.toExponential(2)}</strong></div>
             <div style={{ color: 'rgba(255,255,255,0.6)' }}>P95: <strong style={{ color: '#ff3344' }}>{mc.p95.toExponential(2)}</strong></div>
@@ -99,9 +99,9 @@ export default function FTAReportPanel({ structureId, ftNodes, topProb, cutSets,
         </div>
 
         <div style={{ marginTop: 12, borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: 10 }}>
-          <div style={{ color: 'rgba(255,255,255,0.35)', fontWeight: 600, fontSize: 7, textTransform: 'uppercase', marginBottom: 6 }}>Top 5 Recomendações</div>
+          <div style={{ color: 'rgba(255,255,255,0.35)', fontWeight: 600, fontSize: 10, textTransform: 'uppercase', marginBottom: 6 }}>Top 5 Recomendações</div>
           {report.recommendations.map((r, i) => (
-            <div key={i} style={{ fontSize: 8, color: 'rgba(255,255,255,0.5)', padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+            <div key={i} style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
               {i + 1}. {r}
             </div>
           ))}
@@ -110,12 +110,12 @@ export default function FTAReportPanel({ structureId, ftNodes, topProb, cutSets,
 
       {/* Audit chain */}
       <div style={{ background: chainValid ? 'rgba(0,255,136,0.04)' : 'rgba(255,50,60,0.06)', borderRadius: 10, padding: '12px 14px', border: `1px solid ${chainValid ? 'rgba(0,255,136,0.15)' : 'rgba(255,50,60,0.2)'}` }}>
-        <div style={{ fontSize: 8, color: chainValid ? '#00ff88' : '#ff3344', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ fontSize: 10, color: chainValid ? '#00ff88' : '#ff3344', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
           {chainValid ? '🔒' : '⚠️'} Hash Chain Audit — {chainValid ? 'ÍNTEGRA' : 'ADULTERADA'}
           <span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: 400 }}>· SHA-256 · {auditChain.length} registros</span>
         </div>
         {auditChain.length > 0 && (
-          <div style={{ marginTop: 8, fontSize: 7, fontFamily: 'monospace', color: 'rgba(255,255,255,0.2)', maxHeight: 80, overflow: 'auto' }}>
+          <div style={{ marginTop: 8, fontSize: 9, fontFamily: 'monospace', color: 'rgba(255,255,255,0.2)', maxHeight: 80, overflow: 'auto' }}>
             {auditChain.slice(-3).map(r => (
               <div key={r.id} style={{ marginBottom: 2 }}>#{r.id} [{r.timestamp.split('T')[1]?.slice(0, 8)}] P={r.topEventProbability.toExponential(2)} hash={r.hash.slice(0, 16)}…</div>
             ))}
@@ -123,7 +123,7 @@ export default function FTAReportPanel({ structureId, ftNodes, topProb, cutSets,
         )}
       </div>
 
-      <div style={{ marginTop: 10, fontSize: 7, color: 'rgba(255,255,255,0.12)' }}>
+      <div style={{ marginTop: 10, fontSize: 9, color: 'rgba(255,255,255,0.12)' }}>
         ANM Res. 95/2022 · GISTM 2020 §8 · ICOLD B.130/194 · ABNT NBR 13028 · IEC 61025
       </div>
     </div>

@@ -307,8 +307,8 @@ Responda em português com base científica (ICOLD, ISO 13374, LSTM, HST).`;
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--shms-border)" strokeOpacity={0.4} />
-                      <XAxis dataKey="time" tick={{ fontSize: 8, fill: 'var(--shms-text-dim)' }} />
-                      <YAxis tick={{ fontSize: 8, fill: 'var(--shms-text-dim)' }} width={40} domain={['auto', 'auto']} />
+                      <XAxis dataKey="time" tick={{ fontSize: 9, fill: 'var(--shms-text-dim)' }} />
+                      <YAxis tick={{ fontSize: 9, fill: 'var(--shms-text-dim)' }} width={40} domain={['auto', 'auto']} />
                       <Tooltip
                         contentStyle={{ background: 'var(--shms-bg-2)', border: '1px solid var(--shms-border)', borderRadius: 6, fontSize: 10, color: 'var(--shms-text)' }}
                         formatter={(v: number) => [v.toFixed(4), s.sensorId]}

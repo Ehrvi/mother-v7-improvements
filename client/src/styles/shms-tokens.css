@@ -89,6 +89,62 @@
   /* ─── Transitions ─── */
   --shms-transition: 200ms ease;
   --shms-transition-slow: 400ms ease;
+
+  /* ─── Fibonacci Spacing (Visual Identity Manual §6) ─── */
+  --shms-fib-1: 2px;
+  --shms-fib-2: 4px;
+  --shms-fib-3: 8px;
+  --shms-fib-4: 12px;
+  --shms-fib-5: 16px;
+  --shms-fib-6: 24px;
+  --shms-fib-7: 32px;
+  --shms-fib-8: 48px;
+  --shms-fib-9: 64px;
+
+  /* ─── Golden Ratio Typography (Φ = 1.618) ─── */
+  --shms-fs-h1: 32px;
+  --shms-fs-h2: 24px;
+  --shms-fs-h3: 18px;
+  --shms-fs-h4: 16px;
+  --shms-fs-body: 14px;
+  --shms-fs-caption: 12px;
+  --shms-fs-micro: 10px;
+
+  /* ─── Motion Tokens (Visual Identity Manual §9) ─── */
+  --shms-ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --shms-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --shms-duration-instant: 100ms;
+  --shms-duration-fast: 200ms;
+  --shms-duration-normal: 300ms;
+  --shms-duration-slow: 500ms;
+
+  /* ─── Tufte Chart Tokens (§8) ─── */
+  --shms-grid-stroke: oklch(16% 0.01 230);
+  --shms-axis-color: oklch(42% 0.012 230);
+  --shms-data-stroke-width: 1.5px;
+
+  /* ─── Glassmorphism ─── */
+  --shms-glass: oklch(10% 0.015 230 / 0.72);
+  --shms-glass-strong: oklch(10% 0.015 230 / 0.88);
+  --shms-glass-blur: blur(20px) saturate(180%);
+}
+
+/* ─── Reduced Motion (WCAG §9.2) ─── */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --shms-transition: 0ms;
+    --shms-transition-slow: 0ms;
+    --shms-duration-instant: 0ms;
+    --shms-duration-fast: 0ms;
+    --shms-duration-normal: 0ms;
+    --shms-duration-slow: 0ms;
+  }
+}
+
+/* ─── Focus Visible (WCAG AAA §10.3) ─── */
+.shms-root *:focus-visible {
+  outline: 2px solid var(--shms-accent);
+  outline-offset: 2px;
 }
 
 /* ─── Global SHMS styles ─── */

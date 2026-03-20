@@ -233,8 +233,8 @@ export class FTAIntegrationBus extends EventEmitter {
     const allPredictions = lstmPredictor.getAllPredictions();
     for (const pred of allPredictions) {
       lstmPredictions[pred.sensorId] = {
-        predicted: pred.predictedValue ?? (pred as any).value ?? 0,
-        horizon: pred.horizon || '1h',
+        predicted: pred.predictedValues?.[0] ?? pred.currentValue ?? 0,
+        horizon: pred.predictionHorizon ? `${pred.predictionHorizon}h` : '1h',
         confidence: pred.confidence ?? 0.8,
       };
     }

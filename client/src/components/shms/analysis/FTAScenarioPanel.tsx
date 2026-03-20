@@ -37,7 +37,7 @@ export default function FTAScenarioPanel({ ftNodes, topProb }: Props) {
 
   return (
     <div style={{ ...glass, flex: 1, overflow: 'auto', padding: '14px 16px' }}>
-      <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 12 }}>
+      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 12 }}>
         🎯 Simulação de Cenários — ICOLD B.130 · IEC 62502 · Matriz ALARP
       </div>
 
@@ -51,8 +51,8 @@ export default function FTAScenarioPanel({ ftNodes, topProb }: Props) {
               borderRadius: 8, padding: '8px 10px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s',
             }}>
             <div style={{ fontSize: 14 }}>{s.icon}</div>
-            <div style={{ fontSize: 8, fontWeight: 700, color: activeScenario === s.id ? s.color : 'rgba(255,255,255,0.6)', marginTop: 4 }}>{s.name}</div>
-            <div style={{ fontSize: 7, color: 'rgba(255,255,255,0.25)', marginTop: 2 }}>{Object.keys(s.overrides).length} eventos alterados</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: activeScenario === s.id ? s.color : 'rgba(255,255,255,0.6)', marginTop: 4 }}>{s.name}</div>
+            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', marginTop: 2 }}>{Object.keys(s.overrides).length} eventos alterados</div>
           </button>
         ))}
       </div>
@@ -60,27 +60,27 @@ export default function FTAScenarioPanel({ ftNodes, topProb }: Props) {
       {/* Scenario result KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 16 }}>
         <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 8, padding: '10px 12px', border: '1px solid rgba(255,255,255,0.04)', textAlign: 'center' }}>
-          <div style={{ fontSize: 7, color: 'rgba(255,255,255,0.3)', fontWeight: 600, textTransform: 'uppercase' }}>P(Top) Base</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: 600, textTransform: 'uppercase' }}>P(Top) Base</div>
           <div style={{ fontSize: 16, fontWeight: 800, color: probColor(topProb), fontFamily: 'monospace' }}>{topProb.toExponential(2)}</div>
-          <div style={{ fontSize: 8, color: probColor(topProb), fontWeight: 600 }}>{probTag(topProb)}</div>
+          <div style={{ fontSize: 10, color: probColor(topProb), fontWeight: 600 }}>{probTag(topProb)}</div>
         </div>
         <div style={{ background: `${probColor(scenarioProb)}08`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${probColor(scenarioProb)}22`, textAlign: 'center' }}>
-          <div style={{ fontSize: 7, color: 'rgba(255,255,255,0.3)', fontWeight: 600, textTransform: 'uppercase' }}>P(Top) Cenário</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: 600, textTransform: 'uppercase' }}>P(Top) Cenário</div>
           <div style={{ fontSize: 16, fontWeight: 800, color: probColor(scenarioProb), fontFamily: 'monospace' }}>{scenarioProb.toExponential(2)}</div>
-          <div style={{ fontSize: 8, color: probColor(scenarioProb), fontWeight: 600 }}>{probTag(scenarioProb)}</div>
+          <div style={{ fontSize: 10, color: probColor(scenarioProb), fontWeight: 600 }}>{probTag(scenarioProb)}</div>
         </div>
         <div style={{ background: delta > 0 ? 'rgba(255,50,60,0.06)' : 'rgba(0,255,136,0.06)', borderRadius: 8, padding: '10px 12px', border: `1px solid ${delta > 0 ? 'rgba(255,50,60,0.2)' : 'rgba(0,255,136,0.2)'}`, textAlign: 'center' }}>
-          <div style={{ fontSize: 7, color: 'rgba(255,255,255,0.3)', fontWeight: 600, textTransform: 'uppercase' }}>Variação</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: 600, textTransform: 'uppercase' }}>Variação</div>
           <div style={{ fontSize: 16, fontWeight: 800, color: delta > 0 ? '#ff3344' : '#00ff88', fontFamily: 'monospace' }}>
             {delta > 0 ? '+' : ''}{(delta / topProb * 100).toFixed(0)}%
           </div>
-          <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.35)' }}>vs. base</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>vs. base</div>
         </div>
       </div>
 
       {/* Event Tree (IEC 62502) */}
       <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 10, padding: '12px 14px', marginBottom: 16, border: '1px solid rgba(255,255,255,0.04)' }}>
-        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>
           🌿 Árvore de Eventos Pós-Falha (IEC 62502)
         </div>
         <div style={{ display: 'grid', gap: 4 }}>
@@ -91,12 +91,12 @@ export default function FTAScenarioPanel({ ftNodes, topProb }: Props) {
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', background: `${c}06`, borderRadius: 6, border: `1px solid ${c}15` }}>
                 <div style={{ width: barW, height: 8, borderRadius: 4, background: `linear-gradient(90deg, ${c}44, ${c})`, flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>{branch.name}</div>
-                  <div style={{ fontSize: 7, color: 'rgba(255,255,255,0.3)' }}>{branch.description}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>{branch.name}</div>
+                  <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>{branch.description}</div>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
                   <div style={{ fontSize: 11, fontWeight: 800, color: c, fontFamily: 'monospace' }}>{(branch.probability * 100).toFixed(0)}%</div>
-                  <span style={{ fontSize: 7, padding: '1px 4px', borderRadius: 3, background: `${c}22`, color: c, fontWeight: 600, textTransform: 'uppercase' }}>
+                  <span style={{ fontSize: 9, padding: '1px 4px', borderRadius: 3, background: `${c}22`, color: c, fontWeight: 600, textTransform: 'uppercase' }}>
                     {branch.consequence}
                   </span>
                 </div>
@@ -108,17 +108,17 @@ export default function FTAScenarioPanel({ ftNodes, topProb }: Props) {
 
       {/* FMEA Table */}
       <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 10, padding: '12px 14px', marginBottom: 16, border: '1px solid rgba(255,255,255,0.04)' }}>
-        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>
           📋 FMEA — Modos de Falha e Efeitos (RPN = S × O × D)
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr', gap: 4, padding: '4px 8px', fontSize: 7, color: 'rgba(255,255,255,0.3)', fontWeight: 700, textTransform: 'uppercase', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: 4 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr', gap: 4, padding: '4px 8px', fontSize: 9, color: 'rgba(255,255,255,0.3)', fontWeight: 700, textTransform: 'uppercase', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: 4 }}>
           <span>Modo de Falha</span><span style={{ textAlign: 'center' }}>S</span><span style={{ textAlign: 'center' }}>O</span><span style={{ textAlign: 'center' }}>D</span><span style={{ textAlign: 'center' }}>RPN</span><span style={{ textAlign: 'right' }}>P(falha)</span>
         </div>
         {fmeaData.map(fm => {
           const rpnColor = fm.rpn > 400 ? '#ff3344' : fm.rpn > 200 ? '#ff8844' : fm.rpn > 100 ? '#ffcc00' : '#00ff88';
           return (
             <div key={fm.id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr', gap: 4, padding: '6px 8px', fontSize: 9, borderBottom: '1px solid rgba(255,255,255,0.02)', alignItems: 'center' }}>
-              <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 8 }}>{fm.name}</span>
+              <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10 }}>{fm.name}</span>
               <span style={{ textAlign: 'center', color: '#ff8844', fontWeight: 700 }}>{fm.severity}</span>
               <span style={{ textAlign: 'center', color: '#ffcc00', fontWeight: 700 }}>{fm.occurrence}</span>
               <span style={{ textAlign: 'center', color: '#0af', fontWeight: 700 }}>{fm.detection}</span>
@@ -131,15 +131,15 @@ export default function FTAScenarioPanel({ ftNodes, topProb }: Props) {
 
       {/* Risk Matrix ALARP */}
       <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 10, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.04)' }}>
-        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>
           🟢🟡🟠🔴 Matriz de Risco ALARP (As Low As Reasonably Practicable)
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '80px repeat(4, 1fr)', gap: 2 }}>
-          <div />{['Menor', 'Moderado', 'Major', 'Catastrófico'].map(c => <div key={c} style={{ fontSize: 7, textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontWeight: 600, padding: 4 }}>{c}</div>)}
+          <div />{['Menor', 'Moderado', 'Major', 'Catastrófico'].map(c => <div key={c} style={{ fontSize: 9, textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontWeight: 600, padding: 4 }}>{c}</div>)}
           {['>1e-2', '1e-3–1e-2', '1e-5–1e-3', '<1e-5'].map((pRange, pi) => (
-            <>{[pRange].map(p => <div key={p} style={{ fontSize: 7, color: 'rgba(255,255,255,0.4)', fontWeight: 600, display: 'flex', alignItems: 'center', padding: '0 4px' }}>{p}</div>)}{
+            <>{[pRange].map(p => <div key={p} style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontWeight: 600, display: 'flex', alignItems: 'center', padding: '0 4px' }}>{p}</div>)}{
               ['acceptable', pi === 0 ? 'alarp_low' : 'acceptable', pi < 2 ? 'alarp_high' : pi === 2 ? 'alarp_low' : 'acceptable', pi === 0 ? 'intolerable' : pi === 1 ? 'intolerable' : pi === 2 ? 'alarp_high' : 'alarp_low'].map((level, ci) => (
-                <div key={`${pi}-${ci}`} style={{ background: `${riskColors[level]}22`, border: `1px solid ${riskColors[level]}33`, borderRadius: 4, padding: 6, textAlign: 'center', fontSize: 6, color: riskColors[level], fontWeight: 700, textTransform: 'uppercase' }}>
+                <div key={`${pi}-${ci}`} style={{ background: `${riskColors[level]}22`, border: `1px solid ${riskColors[level]}33`, borderRadius: 4, padding: 6, textAlign: 'center', fontSize: 9, color: riskColors[level], fontWeight: 700, textTransform: 'uppercase' }}>
                   {level === 'intolerable' ? 'INTOLERÁVEL' : level === 'alarp_high' ? 'ALARP↑' : level === 'alarp_low' ? 'ALARP↓' : 'ACEITÁVEL'}
                 </div>
               ))
@@ -148,7 +148,7 @@ export default function FTAScenarioPanel({ ftNodes, topProb }: Props) {
         </div>
       </div>
 
-      <div style={{ marginTop: 10, fontSize: 7, color: 'rgba(255,255,255,0.12)' }}>
+      <div style={{ marginTop: 10, fontSize: 9, color: 'rgba(255,255,255,0.12)' }}>
         IEC 62502:2010 · ICOLD B.130 · ALARP (HSE UK, 2001) · FMEA: IEC 60812
       </div>
     </div>

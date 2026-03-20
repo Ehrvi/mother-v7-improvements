@@ -24,6 +24,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { useShmsDashboardAll } from '@/hooks/useShmsApi';
+import { useDynamicFOS } from '@/hooks/useDynamicFOS';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip as ReTooltip, ResponsiveContainer,
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ReferenceLine,
@@ -557,6 +558,7 @@ const glass: React.CSSProperties = {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 export default function DigitalTwin3DViewer({ structureId, minimal = false }: { structureId: string; minimal?: boolean }) {
+  const fosResult = useDynamicFOS(structureId);
   const containerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const { data: dashData, isLoading } = useShmsDashboardAll();
@@ -804,7 +806,7 @@ export default function DigitalTwin3DViewer({ structureId, minimal = false }: { 
               <div style={{ height: '100%', borderRadius: 3, background: 'linear-gradient(90deg, #0af, #00ff88)', width: `${loadProgress}%`, transition: 'width 0.3s ease' }} />
             </div>
             <div style={{ fontSize: 20, fontWeight: 800, color: '#0af', fontFamily: 'var(--shms-font-mono)' }}>{loadProgress}%</div>
-            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)', marginTop: 8 }}>OBJ 34MB + Textures 48MB — Three.js WebGL</div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', marginTop: 8 }}>OBJ 34MB + Textures 48MB — Three.js WebGL</div>
           </div>
         </div>
       )}
@@ -819,7 +821,7 @@ export default function DigitalTwin3DViewer({ structureId, minimal = false }: { 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <div style={{ fontSize: 13, fontWeight: 700 }}>{hoveredInst.label}</div>
             <span style={{
-              fontSize: 9, padding: '2px 8px', borderRadius: 4, fontWeight: 700,
+              fontSize: 10, padding: '2px 8px', borderRadius: 4, fontWeight: 700,
               background: (hoveredInst.baseValue / hoveredInst.threshold) < 0.5 ? 'rgba(0,255,136,0.15)' : (hoveredInst.baseValue / hoveredInst.threshold) < 0.75 ? 'rgba(255,204,0,0.15)' : 'rgba(255,51,68,0.15)',
               color: (hoveredInst.baseValue / hoveredInst.threshold) < 0.5 ? '#00ff88' : (hoveredInst.baseValue / hoveredInst.threshold) < 0.75 ? '#ffcc00' : '#ff3344',
               border: `1px solid ${(hoveredInst.baseValue / hoveredInst.threshold) < 0.5 ? 'rgba(0,255,136,0.3)' : (hoveredInst.baseValue / hoveredInst.threshold) < 0.75 ? 'rgba(255,204,0,0.3)' : 'rgba(255,51,68,0.3)'}`,
@@ -835,7 +837,7 @@ export default function DigitalTwin3DViewer({ structureId, minimal = false }: { 
             <div><span style={{ color: 'rgba(255,255,255,0.4)' }}>Z-score:</span> <span style={{ fontFamily: 'var(--shms-font-mono)' }}>{(Math.random() * 2.5).toFixed(2)}σ</span></div>
             <div><span style={{ color: 'rgba(255,255,255,0.4)' }}>Qualidade:</span> <span style={{ color: '#00ff88' }}>●</span> Boa</div>
           </div>
-          <div style={{ marginTop: 8, fontSize: 8, color: 'rgba(255,255,255,0.2)', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 6 }}>
+          <div style={{ marginTop: 8, fontSize: 9, color: 'rgba(255,255,255,0.2)', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 6 }}>
             ICOLD B.158 · Z-score (Sohn 2004) · IQR (Tukey 1977)
           </div>
         </div>
@@ -929,16 +931,46 @@ export default function DigitalTwin3DViewer({ structureId, minimal = false }: { 
           { label: 'Nível Reservatório', value: '78.3m', color: '#0af', sub: 'NA máx: 82.0m' },
         ].map((k, i) => (
           <div key={i} style={{ ...glass, padding: '10px 14px', minWidth: 130 }}>
-            <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{k.label}</div>
-            <div style={{ fontSize: 26, fontWeight: 800, color: k.color, lineHeight: 1.1, marginTop: 3 }}>{k.value}</div>
-            <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.25)', marginTop: 2 }}>{k.sub}</div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{k.label}</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: k.color, lineHeight: 1.1, marginTop: 3 }}>{k.value}</div>
+            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', marginTop: 2 }}>{k.sub}</div>
           </div>
         ))}
+        {/* ── Dynamic FOS Card (Phase 12) ── */}
+        {fosResult && (
+          <div style={{
+            ...glass, padding: '10px 14px', minWidth: 130,
+            borderLeft: `3px solid ${fosResult.alertLevel === 'green' ? '#00ff88' : fosResult.alertLevel === 'yellow' ? '#ffcc00' : fosResult.alertLevel === 'red' ? '#ff3344' : '#ff0044'}`,
+            boxShadow: fosResult.alertLevel === 'critical' ? '0 0 20px rgba(255,0,68,0.3)' : undefined,
+          }}>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>⚖️ FOS Dinâmico</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+              <div style={{
+                fontSize: 22, fontWeight: 800, lineHeight: 1.1, marginTop: 3,
+                fontFamily: 'var(--shms-font-mono)',
+                color: fosResult.alertLevel === 'green' ? '#00ff88' : fosResult.alertLevel === 'yellow' ? '#ffcc00' : '#ff3344',
+              }}>
+                {fosResult.currentFOS.toFixed(3)}
+              </div>
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
+                {fosResult.trend === 'stable' ? '→' : fosResult.trend === 'increasing' ? '↗' : fosResult.trend === 'decreasing' ? '↘' : '⚠↘↘'}
+              </span>
+            </div>
+            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', marginTop: 2 }}>
+              Bishop-Dynamic · ru(t) · {fosResult.sensorHealth.online}/{fosResult.sensorHealth.total} online
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 4, fontSize: 8, color: 'rgba(255,255,255,0.25)' }}>
+              <span>24h: {fosResult.predictedFOS24h}</span>
+              <span>7d: {fosResult.predictedFOS7d}</span>
+              <span>Δ: {fosResult.trendRate > 0 ? '+' : ''}{fosResult.trendRate}/d</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── BOTTOM LEFT — Health trend ── */}
       <div style={{ ...glass, position: 'absolute', bottom: 14, left: 14, zIndex: 10, padding: '10px 14px', width: 300, height: 115 }}>
-        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.45)', fontWeight: 600, marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.06em' }}>📈 Tendência Saúde (24h)</div>
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', fontWeight: 600, marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.06em' }}>📈 Tendência Saúde (24h)</div>
         <ResponsiveContainer width="100%" height={80}>
           <AreaChart data={healthTrend}>
             <defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#00ff88" stopOpacity={0.35} /><stop offset="100%" stopColor="#00ff88" stopOpacity={0} /></linearGradient></defs>
@@ -952,11 +984,11 @@ export default function DigitalTwin3DViewer({ structureId, minimal = false }: { 
 
       {/* ── BOTTOM RIGHT — Radar ── */}
       <div style={{ ...glass, position: 'absolute', bottom: 14, right: 14, zIndex: 10, padding: '8px 12px', width: 220, height: 190 }}>
-        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.45)', fontWeight: 600, marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>📊 Saúde Multi-dim</div>
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', fontWeight: 600, marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>📊 Saúde Multi-dim</div>
         <ResponsiveContainer width="100%" height={160}>
           <RadarChart data={radarData}>
             <PolarGrid stroke="rgba(255,255,255,0.05)" />
-            <PolarAngleAxis dataKey="a" tick={{ fontSize: 7, fill: 'rgba(255,255,255,0.3)' }} />
+            <PolarAngleAxis dataKey="a" tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} />
             <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
             <Radar dataKey="v" stroke="#0af" fill="#0af" fillOpacity={0.12} strokeWidth={2} />
           </RadarChart>
@@ -965,21 +997,21 @@ export default function DigitalTwin3DViewer({ structureId, minimal = false }: { 
 
       {/* ── RIGHT — Instrument legend ── */}
       <div style={{ ...glass, position: 'absolute', top: 72, right: 14, zIndex: 10, padding: '10px 12px', width: 200, maxHeight: 'calc(100% - 290px)', overflowY: 'auto' }}>
-        <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.45)', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>📍 Instrumentos ({INSTRUMENTS.length})</div>
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>📍 Instrumentos ({INSTRUMENTS.length})</div>
         {INSTRUMENTS.map((inst) => {
           const ratio = inst.baseValue / inst.threshold;
           const c = ratio < 0.5 ? '#00ff88' : ratio < 0.75 ? '#ffcc00' : ratio < 0.9 ? '#ff8844' : '#ff3344';
           return (
-            <div key={inst.id} onClick={() => setSelectedInst(inst)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: 9, cursor: 'pointer', transition: 'background 0.2s' }}
+            <div key={inst.id} onClick={() => setSelectedInst(inst)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: 10, cursor: 'pointer', transition: 'background 0.2s' }}
               onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: c, boxShadow: `0 0 6px ${c}`, flexShrink: 0 }} />
               <div style={{ flex: 1, overflow: 'hidden' }}>
                 <div style={{ fontWeight: 600, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{inst.id}</div>
-                <div style={{ fontSize: 7, color: 'rgba(255,255,255,0.25)' }}>{inst.section}</div>
+                <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)' }}>{inst.section}</div>
               </div>
-              <div style={{ fontFamily: 'var(--shms-font-mono)', fontWeight: 700, color: c, fontSize: 9, whiteSpace: 'nowrap' }}>
+              <div style={{ fontFamily: 'var(--shms-font-mono)', fontWeight: 700, color: c, fontSize: 10, whiteSpace: 'nowrap' }}>
                 {inst.baseValue.toFixed(1)}
               </div>
             </div>
@@ -990,13 +1022,13 @@ export default function DigitalTwin3DViewer({ structureId, minimal = false }: { 
       {/* ── InSAR Color Legend (visible when InSAR is on) ── */}
       {insarVisible && (
         <div style={{ ...glass, position: 'absolute', bottom: 145, left: 14, zIndex: 15, padding: '10px 14px', width: 300 }}>
-          <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.5)', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>🛰️ InSAR — Deslocamento LOS (mm)</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>🛰️ InSAR — Deslocamento LOS (mm)</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--shms-font-mono)' }}>-50</span>
+            <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--shms-font-mono)' }}>-50</span>
             <div style={{ flex: 1, height: 10, borderRadius: 5, background: 'linear-gradient(90deg, hsl(240,80%,30%), hsl(180,80%,45%), hsl(120,80%,45%), hsl(60,90%,50%), hsl(0,90%,40%))' }} />
-            <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--shms-font-mono)' }}>+10</span>
+            <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--shms-font-mono)' }}>+10</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 7, color: 'rgba(255,255,255,0.25)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 9, color: 'rgba(255,255,255,0.25)' }}>
             <span>Subsidência</span>
             <span>Estável</span>
             <span>Soerguimento</span>
@@ -1012,17 +1044,17 @@ export default function DigitalTwin3DViewer({ structureId, minimal = false }: { 
               style={{ background: 'none', border: 'none', color: autoPlay ? '#0af' : 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: 14, padding: 0 }}>
               {autoPlay ? '⏸' : '▶'}
             </button>
-            <div style={{ fontSize: 7, color: 'rgba(255,255,255,0.4)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', flex: 1 }}>
+            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', flex: 1 }}>
               📅 Série Temporal SBAS — Época {insarEpoch + 1}/24
             </div>
-            <div style={{ fontSize: 8, color: '#0af', fontWeight: 700, fontFamily: 'var(--shms-font-mono)' }}>
+            <div style={{ fontSize: 10, color: '#0af', fontWeight: 700, fontFamily: 'var(--shms-font-mono)' }}>
               {new Date(2024, insarEpoch).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })}
             </div>
           </div>
           <input type="range" min={0} max={23} value={insarEpoch} onChange={e => setInsarEpoch(Number(e.target.value))}
             title={`Época InSAR: ${insarEpoch + 1}/24`}
             style={{ width: '100%', accentColor: '#0af', height: 4, cursor: 'pointer' }} />
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 6, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>
             <span>Jan/24</span><span>Jul/24</span><span>Jan/25</span><span>Jul/25</span><span>Dez/25</span>
           </div>
           {/* Mini displacement sparkline */}
@@ -1041,8 +1073,8 @@ export default function DigitalTwin3DViewer({ structureId, minimal = false }: { 
       {/* ── InSAR Metadata Panel (visible when InSAR is on) ── */}
       {insarVisible && (
         <div style={{ ...glass, position: 'absolute', bottom: 260, left: 14, zIndex: 15, padding: '10px 14px', width: 230 }}>
-          <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.5)', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>📡 Dados InSAR</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px', fontSize: 9 }}>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>📡 Dados InSAR</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px', fontSize: 10 }}>
             <div><span style={{ color: 'rgba(255,255,255,0.35)' }}>Satélite:</span></div>
             <div style={{ fontWeight: 600 }}>Sentinel-1A/B</div>
             <div><span style={{ color: 'rgba(255,255,255,0.35)' }}>Técnica:</span></div>
@@ -1050,7 +1082,7 @@ export default function DigitalTwin3DViewer({ structureId, minimal = false }: { 
             <div><span style={{ color: 'rgba(255,255,255,0.35)' }}>Banda:</span></div>
             <div style={{ fontWeight: 600 }}>C-band (5.6 cm)</div>
             <div><span style={{ color: 'rgba(255,255,255,0.35)' }}>Período:</span></div>
-            <div style={{ fontWeight: 600, fontFamily: 'var(--shms-font-mono)', fontSize: 8 }}>2024-01 — 2026-03</div>
+            <div style={{ fontWeight: 600, fontFamily: 'var(--shms-font-mono)', fontSize: 9 }}>2024-01 — 2026-03</div>
             <div><span style={{ color: 'rgba(255,255,255,0.35)' }}>Imagens:</span></div>
             <div style={{ fontWeight: 600 }}>87 (asc/desc)</div>
             <div><span style={{ color: 'rgba(255,255,255,0.35)' }}>Resolução:</span></div>
@@ -1060,7 +1092,7 @@ export default function DigitalTwin3DViewer({ structureId, minimal = false }: { 
             <div><span style={{ color: 'rgba(255,255,255,0.35)' }}>Max deslocam.:</span></div>
             <div style={{ fontWeight: 700, color: '#ff3344', fontFamily: 'var(--shms-font-mono)' }}>-48.2mm</div>
           </div>
-          <div style={{ marginTop: 6, fontSize: 7, color: 'rgba(255,255,255,0.15)', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 4 }}>
+          <div style={{ marginTop: 6, fontSize: 9, color: 'rgba(255,255,255,0.15)', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 4 }}>
             Hanssen (2001) · Berardino et al. (2002) · ASF DAAC
           </div>
         </div>
@@ -1069,21 +1101,21 @@ export default function DigitalTwin3DViewer({ structureId, minimal = false }: { 
       {/* ── FEM Legend (Von Mises / Seepage) ── */}
       {overlayMode.startsWith('fem') && (
         <div style={{ ...glass, position: 'absolute', bottom: 145, left: 14, zIndex: 15, padding: '10px 14px', width: 300 }}>
-          <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.5)', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             🔬 {overlayMode === 'fem-stress' ? 'FEM — Tensão Von Mises (Pa)' : 'FDM — Percolação Darcy (m)'}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--shms-font-mono)' }}>{overlayMode === 'fem-stress' ? '0' : '0'}</span>
+            <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--shms-font-mono)' }}>{overlayMode === 'fem-stress' ? '0' : '0'}</span>
             <div style={{ flex: 1, height: 10, borderRadius: 5, background: overlayMode === 'fem-stress'
               ? 'linear-gradient(90deg, hsl(216,90%,30%), hsl(180,90%,45%), hsl(60,90%,50%), hsl(30,95%,45%), hsl(0,95%,35%))'
               : 'linear-gradient(90deg, hsl(216,90%,30%), hsl(180,90%,45%), hsl(120,80%,40%), hsl(60,90%,50%), hsl(0,90%,40%))' }} />
-            <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--shms-font-mono)' }}>{overlayMode === 'fem-stress' ? 'σ_max' : 'h_max'}</span>
+            <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--shms-font-mono)' }}>{overlayMode === 'fem-stress' ? 'σ_max' : 'h_max'}</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 7, color: 'rgba(255,255,255,0.25)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 9, color: 'rgba(255,255,255,0.25)' }}>
             <span>{overlayMode === 'fem-stress' ? 'Baixa tensão' : 'Seco'}</span>
             <span>{overlayMode === 'fem-stress' ? 'Concentração' : 'Saturação'}</span>
           </div>
-          <div style={{ marginTop: 6, fontSize: 7, color: 'rgba(255,255,255,0.15)', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 4 }}>
+          <div style={{ marginTop: 6, fontSize: 9, color: 'rgba(255,255,255,0.15)', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 4 }}>
             {overlayMode === 'fem-stress' ? 'Zienkiewicz & Taylor (2000) · Jáky (1944) · Kirsch (1898)' : 'Darcy (1856) · USACE EM 1110-2-1901'}
           </div>
         </div>
@@ -1092,7 +1124,7 @@ export default function DigitalTwin3DViewer({ structureId, minimal = false }: { 
       {/* ── LSTM Predictions Panel ── */}
       {overlayMode === 'lstm' && lstmPreds.length > 0 && (
         <div style={{ ...glass, position: 'absolute', bottom: 14, left: 14, zIndex: 15, padding: '10px 14px', width: 340, maxHeight: 320, overflowY: 'auto' }}>
-          <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.5)', fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>🧠 LSTM Previsões — Horizonte 6h</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>🧠 LSTM Previsões — Horizonte 6h</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {lstmPreds.map(p => {
               const wc = p.warning === 'critical' ? '#ff3344' : p.warning === 'warning' ? '#ff8844' : p.warning === 'watch' ? '#ffcc00' : '#00ff88';
@@ -1100,24 +1132,24 @@ export default function DigitalTwin3DViewer({ structureId, minimal = false }: { 
               return (
                 <div key={p.sensorId} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 6px', borderRadius: 4, background: `${wc}08`, borderLeft: `2px solid ${wc}` }}>
                   <div style={{ width: 6, height: 6, borderRadius: '50%', background: wc, boxShadow: `0 0 6px ${wc}` }} />
-                  <div style={{ flex: 1, fontSize: 8, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{p.sensorId}</div>
-                  <div style={{ fontSize: 8, color: wc, fontWeight: 700, fontFamily: 'var(--shms-font-mono)' }}>{tc} {p.predicted[5]?.toFixed(1)}</div>
-                  <div style={{ fontSize: 7, color: 'rgba(255,255,255,0.3)', width: 32, textAlign: 'right' }}>{(p.confidence * 100).toFixed(0)}%</div>
+                  <div style={{ flex: 1, fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{p.sensorId}</div>
+                  <div style={{ fontSize: 10, color: wc, fontWeight: 700, fontFamily: 'var(--shms-font-mono)' }}>{tc} {p.predicted[5]?.toFixed(1)}</div>
+                  <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', width: 32, textAlign: 'right' }}>{(p.confidence * 100).toFixed(0)}%</div>
                   {p.failProb > 0 && (
-                    <div style={{ fontSize: 7, color: '#ff3344', fontWeight: 700 }}>⚠ {(p.failProb * 100).toFixed(0)}%</div>
+                    <div style={{ fontSize: 9, color: '#ff3344', fontWeight: 700 }}>⚠ {(p.failProb * 100).toFixed(0)}%</div>
                   )}
                 </div>
               );
             })}
           </div>
-          <div style={{ marginTop: 6, fontSize: 7, color: 'rgba(255,255,255,0.15)', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 4 }}>
+          <div style={{ marginTop: 6, fontSize: 9, color: 'rgba(255,255,255,0.15)', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 4 }}>
             Hochreiter & Schmidhuber (1997) · GISTM 2020 §8 · Malhotra et al. (2015)
           </div>
         </div>
       )}
 
       {/* ── Footer ── */}
-      <div style={{ position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 10, fontSize: 7, color: 'rgba(255,255,255,0.12)', textAlign: 'center', maxWidth: 500 }}>
+      <div style={{ position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 10, fontSize: 9, color: 'rgba(255,255,255,0.12)', textAlign: 'center', maxWidth: 500 }}>
         Grieves (2014) · Farrar & Worden (2012) · ISO 13374-1 · ICOLD B.158 · ISA-18.2 · Sohn (2004) · Tukey (1977) · Hanssen (2001) · Three.js WebGL
       </div>
 
@@ -1164,15 +1196,15 @@ export default function DigitalTwin3DViewer({ structureId, minimal = false }: { 
                   { label: 'Confiança LSTM', value: `${(pred.confidence * 100).toFixed(0)}%`, unit: '', color: '#c8f' },
                 ].map((k, i) => (
                   <div key={i} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '8px 10px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <div style={{ fontSize: 7, color: 'rgba(255,255,255,0.35)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 2 }}>{k.label}</div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: k.color, fontFamily: 'var(--shms-font-mono)' }}>{k.value}<span style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)' }}> {k.unit}</span></div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 2 }}>{k.label}</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: k.color, fontFamily: 'var(--shms-font-mono)' }}>{k.value}<span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)' }}> {k.unit}</span></div>
                   </div>
                 ))}
               </div>
 
               {/* Time Series Chart */}
               <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 10, padding: '12px 14px', marginBottom: 16, border: '1px solid rgba(255,255,255,0.04)' }}>
-                <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>📈 Série Temporal + Previsão LSTM (6 meses)</div>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>📈 Série Temporal + Previsão LSTM (6 meses)</div>
                 <ResponsiveContainer width="100%" height={160}>
                   <AreaChart data={[
                     ...history.map(h => ({ ...h, pred: undefined as number | undefined })),
@@ -1188,10 +1220,10 @@ export default function DigitalTwin3DViewer({ structureId, minimal = false }: { 
                         <stop offset="100%" stopColor="#c8f" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <XAxis dataKey="month" tick={{ fontSize: 7, fill: 'rgba(255,255,255,0.25)' }} axisLine={false} interval={3} />
-                    <YAxis tick={{ fontSize: 7, fill: 'rgba(255,255,255,0.25)' }} axisLine={false} width={35} />
-                    <ReTooltip contentStyle={{ background: 'rgba(8,10,18,0.95)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, fontSize: 10 }} />
-                    <ReferenceLine y={inst.threshold} stroke="#ff3344" strokeDasharray="5 3" strokeWidth={1} label={{ value: 'Limiar', fill: '#ff3344', fontSize: 7, position: 'right' }} />
+                    <XAxis dataKey="month" tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.25)' }} axisLine={false} interval={3} />
+                    <YAxis tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.25)' }} axisLine={false} width={35} />
+                    <ReTooltip contentStyle={{ background: 'rgba(8,10,18,0.95)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, fontSize: 11 }} />
+                    <ReferenceLine y={inst.threshold} stroke="#ff3344" strokeDasharray="5 3" strokeWidth={1} label={{ value: 'Limiar', fill: '#ff3344', fontSize: 9, position: 'right' }} />
                     <Area type="monotone" dataKey="value" stroke={sc} strokeWidth={2} fill={`url(#ig-${inst.id})`} dot={false} connectNulls={false} name="Medido" />
                     <Area type="monotone" dataKey="pred" stroke="#c8f" strokeWidth={2} strokeDasharray="6 3" fill={`url(#pg-${inst.id})`} dot={{ r: 3, fill: '#c8f' }} connectNulls={false} name="LSTM" />
                   </AreaChart>
@@ -1200,27 +1232,27 @@ export default function DigitalTwin3DViewer({ structureId, minimal = false }: { 
 
               {/* AI Analysis Section */}
               <div style={{ background: 'linear-gradient(135deg, rgba(180,0,255,0.06), rgba(0,180,255,0.04))', borderRadius: 10, padding: '14px 16px', border: '1px solid rgba(180,0,255,0.15)' }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: '#c8f', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#c8f', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 14 }}>🧠</span> Análise AI — LSTM + Diagnóstico
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                   <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 6, padding: '8px 10px' }}>
-                    <div style={{ fontSize: 7, color: 'rgba(255,255,255,0.35)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>Tendência</div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>Tendência</div>
                     <div style={{ fontSize: 12, fontWeight: 800, color: pred.trend === 'increasing' ? '#ff8844' : pred.trend === 'decreasing' ? '#0cf' : '#00ff88' }}>{trendDir}</div>
                   </div>
                   <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 6, padding: '8px 10px' }}>
-                    <div style={{ fontSize: 7, color: 'rgba(255,255,255,0.35)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>Prob. Falha (6m)</div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>Prob. Falha (6m)</div>
                     <div style={{ fontSize: 12, fontWeight: 800, color: pred.failProb > 0.1 ? '#ff3344' : pred.failProb > 0 ? '#ff8844' : '#00ff88' }}>
                       {pred.failProb > 0 ? `${(pred.failProb * 100).toFixed(1)}%` : '< 0.1%'}
                     </div>
                   </div>
                 </div>
-                <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.55)', lineHeight: 1.6, marginBottom: 8 }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', lineHeight: 1.6, marginBottom: 8 }}>
                   <strong style={{ color: sc }}>Diagnóstico:</strong> {riskText}.
                   Valor previsto em +6m: <strong style={{ color: '#c8f' }}>{pred.predicted[5]?.toFixed(2)} {inst.unit}</strong> ({trendDir.toLowerCase()}).
                   {pred.failProb > 0.05 && <> <strong style={{ color: '#ff3344' }}>⚠ Ação requerida:</strong> Verificar drenagem e piezômetros adjacentes. Recomendar inspeção geotécnica in-loco.</>}
                 </div>
-                <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5 }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5 }}>
                   <strong>Recomendações:</strong>
                   <ul style={{ margin: '4px 0 0 12px', padding: 0 }}>
                     <li>Frequência de leitura: {ratio > 0.75 ? '1h' : ratio > 0.5 ? '4h' : '12h'} (GISTM §8.3)</li>
@@ -1228,7 +1260,7 @@ export default function DigitalTwin3DViewer({ structureId, minimal = false }: { 
                     <li>Modelo: LSTM (Hochreiter 1997) — 64 neurônios, janela 12 épocas, lr=0.001</li>
                   </ul>
                 </div>
-                <div style={{ marginTop: 8, fontSize: 7, color: 'rgba(255,255,255,0.15)', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 4 }}>
+                <div style={{ marginTop: 8, fontSize: 9, color: 'rgba(255,255,255,0.15)', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 4 }}>
                   Hochreiter & Schmidhuber (1997) · GISTM 2020 · Malhotra et al. (2015) · ISO 13374-1
                 </div>
               </div>

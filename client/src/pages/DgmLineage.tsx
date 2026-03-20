@@ -83,7 +83,7 @@ const ACTIVITY_MESSAGES: Record<string, string[]> = {
 
 interface DGMEvent {
   step: string; status: string; message: string; timestamp: string;
-  data?: Record<string, unknown>;
+  data?: Record<string, any>;
 }
 
 interface DGMProposal {

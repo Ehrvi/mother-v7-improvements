@@ -12,7 +12,7 @@ import { type ReactNode } from 'react';
 export type ShmsView =
   | 'overview' | 'structure-detail'
   | 'sensors-timeseries' | 'sensors-table'
-  | 'signal-analysis' | 'rul' | 'stability' | 'fault-tree' | 'big-data'
+  | 'signal-analysis' | 'rul' | 'stability' | 'fault-tree' | 'big-data' | 'numerical' | 'insar'
   | 'risk-map' | 'cross-section' | 'boreholes' | '3d-twin'
   | 'alerts' | 'events' | 'tarp' | 'sirens'
   | 'ingest-status' | 'ingest-import'
@@ -52,6 +52,8 @@ const SECTIONS: NavSection[] = [
       { id: 'signal-analysis', label: 'Sinais FFT/PSD', icon: '🔬' },
       { id: 'rul', label: 'Vida Útil (RUL)', icon: '⏳' },
       { id: 'stability', label: 'Estabilidade', icon: '⛰️' },
+      { id: 'numerical', label: 'Métodos Numéricos', icon: '🔢' },
+      { id: 'insar', label: 'InSAR Mining', icon: '🛰️' },
       { id: 'fault-tree', label: 'Árvore de Falhas', icon: '🌳' },
       { id: 'big-data', label: 'Big Data', icon: '🧮' },
     ],

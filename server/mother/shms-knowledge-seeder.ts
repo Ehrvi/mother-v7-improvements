@@ -493,7 +493,7 @@ ENC — Abrigo IP66 (°C)`,
 export async function seedShmsKnowledge(): Promise<void> {
   try {
     const { addKnowledge } = await import('./knowledge.js');
-    const { searchKnowledge } = await import('../db/index.js');
+    const { searchKnowledge } = await import('../db.js');
 
     let seeded = 0;
     let skipped = 0;

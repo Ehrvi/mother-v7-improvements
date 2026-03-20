@@ -46,6 +46,8 @@ const RULPredictionPanel = safeLazy(() => import('@/components/shms/analysis/RUL
 const StabilityPanel = safeLazy(() => import('@/components/shms/analysis/StabilityPanel'));
 const FaultTreeViewer = safeLazy(() => import('@/components/shms/analysis/FaultTreeViewer'));
 const BigDataPanel = safeLazy(() => import('@/components/shms/analysis/BigDataPanel'));
+const NumericalPanel = safeLazy(() => import('@/components/shms/analysis/NumericalPanel'));
+const InSARPanel = safeLazy(() => import('@/components/shms/analysis/InSARPanel'));
 const RiskMapViewer = safeLazy(() => import('@/components/shms/geo/RiskMapViewer'));
 const CrossSectionViewer = safeLazy(() => import('@/components/shms/geo/CrossSectionViewer'));
 const BoreholeViewer = safeLazy(() => import('@/components/shms/geo/BoreholeViewer'));
@@ -77,6 +79,8 @@ const VIEW_TITLES: Record<ShmsView, string> = {
   'stability': 'Análise de Estabilidade (Bishop)',
   'fault-tree': 'Árvore de Falhas (FTA)',
   'big-data': 'Big Data / Classificação',
+  'numerical': 'Métodos Numéricos (SSR / FEM / Seepage)',
+  'insar': 'InSAR Mining — Estabilidade por Superfície',
   'risk-map': 'Mapa de Risco (ICOLD)',
   'cross-section': 'Seções Transversais',
   'boreholes': 'Sondagens / Perfis Litológicos',
@@ -159,6 +163,10 @@ export default function SHMSPage() {
         return <FaultTreeViewer structureId={sid} />;
       case 'big-data':
         return <BigDataPanel structureId={sid} />;
+      case 'numerical':
+        return <NumericalPanel structureId={sid} />;
+      case 'insar':
+        return <InSARPanel structureId={sid} />;
       case 'risk-map':
         return <RiskMapViewer structureId={sid} />;
       case 'cross-section':
