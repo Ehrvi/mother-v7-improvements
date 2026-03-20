@@ -18,6 +18,7 @@
 
 import { useState, Suspense, lazy } from 'react';
 import '@/styles/shms-tokens.css';
+import '@/styles/shms-themes.css';
 import SHMSSidebar, { type ShmsView } from '@/components/shms/SHMSSidebar';
 import SHMSTopbar from '@/components/shms/SHMSTopbar';
 

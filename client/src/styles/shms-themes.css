@@ -1,0 +1,558 @@
+/**
+ * SHMS Themes — 6 SOTA Structural Variations
+ *
+ * Each theme changes EVERYTHING: color, layout, structure, cards, navigation, typography.
+ * Uses [data-shms-theme="X"] on <html> element for full override.
+ *
+ * Themes:
+ *   1. precision-zen  — DEFAULT: Left sidebar 220px, dark oklch, glassmorphism, cool blue
+ *   2. arctic          — TOP NAV bar, light mode, rounded cards, frost glass, compact grid
+ *   3. copper          — RIGHT sidebar, warm earth tones, flat cards, industrial bold headers
+ *   4. neon-grid       — Collapsed left sidebar (icons), cyberpunk, card glow, grid lines
+ *   5. paper           — FULL-WIDTH no sidebar, Tufte serif, zero decoration, tabbed top nav
+ *   6. obsidian        — Bottom dock + floating panels, OLED black, ultra-minimal
+ */
+
+/* ════════════════════════════════════════════════════════════════════════════
+   SHARED FOUNDATIONS (all themes)
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* Focus (Manual §10.3) */
+:focus-visible {
+  outline: 2px solid var(--shms-accent);
+  outline-offset: 2px;
+}
+
+/* Reduced motion (Manual §9.2) */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ─── Button variants (Manual §7.2) ─── */
+.shms-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; font-size: var(--shms-fs-sm); font-weight: 500;
+  font-family: var(--shms-font); color: var(--shms-text);
+  background: var(--shms-bg-2); border: 1px solid var(--shms-border);
+  border-radius: var(--shms-radius-sm); cursor: pointer;
+  transition: all 200ms ease;
+}
+.shms-btn:hover { background: var(--shms-bg-3); border-color: var(--shms-border-hover); }
+.shms-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.shms-btn--accent {
+  background: linear-gradient(135deg, var(--shms-accent), var(--shms-accent-hover));
+  color: white; border: none; font-weight: 700;
+  box-shadow: 0 2px 8px var(--shms-accent-bg);
+}
+.shms-btn--accent:hover { filter: brightness(1.1); }
+.shms-btn--ghost { background: transparent; border: none; color: var(--shms-text-secondary); }
+.shms-btn--ghost:hover { color: var(--shms-text); background: var(--shms-bg-2); }
+.shms-btn--danger { background: var(--shms-red); color: white; border: none; }
+
+/* ─── Table (Manual §7.4) ─── */
+.shms-table { width: 100%; font-family: var(--shms-font-mono); font-size: 13px; border-collapse: collapse; }
+.shms-table th { color: var(--shms-text-secondary); font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.08em; padding: 8px 12px; border-bottom: 1px solid var(--shms-border); text-align: left; }
+.shms-table td { padding: 8px 12px; color: var(--shms-text); border-bottom: 1px solid var(--shms-border); }
+.shms-table tr:hover td { background: var(--shms-bg-2); }
+
+/* ─── Card (Manual §7.1) ─── */
+.shms-card { background: var(--shms-bg-1); border: 1px solid var(--shms-border); border-radius: var(--shms-radius); padding: 16px; transition: border-color 200ms ease; }
+.shms-card:hover { border-color: var(--shms-border-hover); }
+
+/* KPI */
+.shms-kpi { background: var(--shms-bg-1); border: 1px solid var(--shms-border); border-radius: var(--shms-radius-sm); padding: 12px; transition: all 200ms ease; }
+
+/* Empty state */
+.shms-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--shms-text-muted); font-size: var(--shms-fs-sm); text-align: center; }
+
+/* Slide-in animation */
+.shms-animate-slide-in { animation: shms-slide-in 300ms cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes shms-slide-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   THEME 1: PRECISION ZEN (DEFAULT)
+   Layout: Left sidebar 220px | Top bar | Content
+   Already in shms-tokens.css :root — no overrides needed
+   ════════════════════════════════════════════════════════════════════════════ */
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   THEME 2: ARCTIC
+   STRUCTURE: Horizontal top nav (no sidebar), compact card grid, rounded
+   Inspiration: Linear.app, Apple HIG light, Notion
+   ════════════════════════════════════════════════════════════════════════════ */
+[data-shms-theme="arctic"] {
+  /* Colors: Light mode */
+  --shms-bg-0: oklch(97% 0.005 230);
+  --shms-bg-1: oklch(100% 0 0);
+  --shms-bg-2: oklch(94% 0.008 230);
+  --shms-bg-3: oklch(90% 0.012 230);
+  --shms-border: oklch(88% 0.010 230);
+  --shms-border-hover: oklch(80% 0.015 230);
+  --shms-border-active: oklch(72% 0.020 230);
+  --shms-text: oklch(18% 0.015 230);
+  --shms-text-secondary: oklch(40% 0.012 230);
+  --shms-text-muted: oklch(58% 0.010 230);
+  --shms-text-dim: oklch(72% 0.008 230);
+  --shms-accent: oklch(50% 0.18 240);
+  --shms-accent-hover: oklch(44% 0.20 240);
+  --shms-accent-bg: oklch(94% 0.04 240);
+  --shms-accent-border: oklch(85% 0.06 240);
+  --shms-green: oklch(45% 0.16 148);  --shms-green-bg: oklch(94% 0.04 148);  --shms-green-border: oklch(82% 0.06 148);
+  --shms-yellow: oklch(52% 0.15 85);  --shms-yellow-bg: oklch(94% 0.04 85);  --shms-yellow-border: oklch(82% 0.06 85);
+  --shms-red: oklch(50% 0.22 28);     --shms-red-bg: oklch(94% 0.05 28);     --shms-red-border: oklch(82% 0.07 28);
+  --shms-blue: oklch(50% 0.15 260);   --shms-blue-bg: oklch(94% 0.04 260);   --shms-blue-border: oklch(82% 0.06 260);
+  --shms-orange: oklch(55% 0.17 55);  --shms-orange-bg: oklch(94% 0.04 55);  --shms-orange-border: oklch(82% 0.06 55);
+  /* Structural: more rounded, wider cards */
+  --shms-radius: 14px;
+  --shms-radius-sm: 8px;
+  --shms-radius-lg: 20px;
+}
+
+/* ARCTIC: HIDE sidebar → convert to horizontal top nav tabs */
+[data-shms-theme="arctic"] .shms-layout {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto 1fr;
+  grid-template-areas: "topbar" "sidebar" "content";
+}
+[data-shms-theme="arctic"] .shms-sidebar {
+  grid-area: sidebar;
+  width: 100%;
+  height: auto;
+  display: flex;
+  flex-direction: row;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0 16px;
+  gap: 2px;
+  background: oklch(100% 0 0);
+  border-right: none;
+  border-bottom: 1px solid oklch(88% 0.010 230);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+[data-shms-theme="arctic"] .shms-sidebar__section {
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
+}
+[data-shms-theme="arctic"] .shms-sidebar__section-label { display: none; }
+[data-shms-theme="arctic"] .shms-sidebar__item {
+  white-space: nowrap;
+  padding: 8px 12px;
+  border-radius: 8px 8px 0 0;
+  font-size: 11px;
+}
+[data-shms-theme="arctic"] .shms-sidebar__item--active {
+  background: oklch(94% 0.008 230);
+  border-bottom: 2px solid var(--shms-accent);
+}
+[data-shms-theme="arctic"] .shms-sidebar__item--active::before { display: none; }
+[data-shms-theme="arctic"] .shms-sidebar__logo { display: none; }
+[data-shms-theme="arctic"] .shms-topbar {
+  background: oklch(100% 0 0);
+  border-bottom: 1px solid oklch(88% 0.010 230);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+[data-shms-theme="arctic"] .shms-topbar::after { display: none; }
+/* Arctic cards: elevated with shadow */
+[data-shms-theme="arctic"] .shms-card {
+  box-shadow: 0 1px 4px oklch(0% 0 0 / 0.06), 0 4px 12px oklch(0% 0 0 / 0.03);
+  border-color: oklch(90% 0.008 230);
+}
+/* Arctic mesh override */
+[data-shms-theme="arctic"] .shms-layout::before { display: none; }
+[data-shms-theme="arctic"] .shms-layout::after { display: none; }
+[data-shms-theme="arctic"] ::-webkit-scrollbar-thumb { background: oklch(82% 0.01 230); }
+[data-shms-theme="arctic"] ::-webkit-scrollbar-track { background: oklch(95% 0.005 230); }
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   THEME 3: COPPER
+   STRUCTURE: Right sidebar (reversed), flat cards, industrial bold headers,
+              data-heavy table-first layout
+   Inspiration: Caterpillar, mining dashboards, SAP Fiori dark
+   ════════════════════════════════════════════════════════════════════════════ */
+[data-shms-theme="copper"] {
+  --shms-bg-0: oklch(10% 0.025 50);
+  --shms-bg-1: oklch(13% 0.025 50);
+  --shms-bg-2: oklch(16% 0.028 50);
+  --shms-bg-3: oklch(19% 0.030 50);
+  --shms-border: oklch(22% 0.030 50);
+  --shms-border-hover: oklch(28% 0.035 50);
+  --shms-border-active: oklch(34% 0.040 50);
+  --shms-text: oklch(90% 0.010 60);
+  --shms-text-secondary: oklch(62% 0.018 60);
+  --shms-text-muted: oklch(42% 0.015 55);
+  --shms-text-dim: oklch(30% 0.012 50);
+  --shms-accent: oklch(72% 0.15 55);
+  --shms-accent-hover: oklch(78% 0.17 55);
+  --shms-accent-bg: oklch(16% 0.06 55);
+  --shms-accent-border: oklch(26% 0.08 55);
+  --shms-green: oklch(68% 0.14 148);  --shms-green-bg: oklch(14% 0.04 148);  --shms-green-border: oklch(22% 0.06 148);
+  --shms-yellow: oklch(78% 0.16 80);  --shms-yellow-bg: oklch(14% 0.05 80);  --shms-yellow-border: oklch(22% 0.07 80);
+  --shms-red: oklch(60% 0.20 28);     --shms-red-bg: oklch(14% 0.05 28);     --shms-red-border: oklch(22% 0.07 28);
+  --shms-orange: oklch(70% 0.17 55);  --shms-orange-bg: oklch(14% 0.05 55);  --shms-orange-border: oklch(22% 0.07 55);
+  --shms-blue: oklch(60% 0.13 260);   --shms-blue-bg: oklch(14% 0.04 260);   --shms-blue-border: oklch(22% 0.06 260);
+  /* Structural: squared, industrial */
+  --shms-radius: 4px;
+  --shms-radius-sm: 2px;
+  --shms-radius-lg: 6px;
+}
+
+/* COPPER: Sidebar on RIGHT side */
+[data-shms-theme="copper"] .shms-layout {
+  grid-template-columns: 1fr var(--shms-sidebar-w);
+  grid-template-areas:
+    "topbar  topbar"
+    "content sidebar";
+}
+[data-shms-theme="copper"] .shms-sidebar {
+  border-right: none;
+  border-left: 1px solid var(--shms-border);
+  order: 2;
+}
+/* Copper: flat cards with top colored stripe */
+[data-shms-theme="copper"] .shms-card {
+  border-radius: 0;
+  border-top: 3px solid var(--shms-accent);
+  box-shadow: none;
+}
+[data-shms-theme="copper"] .shms-card:hover {
+  border-top-color: var(--shms-accent-hover);
+}
+/* Copper: bold uppercase topbar */
+[data-shms-theme="copper"] .shms-topbar {
+  background: oklch(8% 0.020 50);
+  border-bottom: 2px solid var(--shms-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+[data-shms-theme="copper"] .shms-topbar::after { display: none; }
+/* Copper: sidebar active = thick left border */
+[data-shms-theme="copper"] .shms-sidebar__item--active {
+  border-right: 3px solid var(--shms-accent);
+  background: var(--shms-bg-2);
+}
+[data-shms-theme="copper"] .shms-sidebar__item--active::before { display: none; }
+/* Copper: mesh override */
+[data-shms-theme="copper"] .shms-layout::before {
+  background:
+    radial-gradient(ellipse at 30% 80%, oklch(18% 0.06 40 / 0.3), transparent 50%),
+    radial-gradient(ellipse at 70% 20%, oklch(16% 0.05 60 / 0.2), transparent 50%);
+}
+[data-shms-theme="copper"] ::-webkit-scrollbar-thumb { background: oklch(28% 0.04 50); }
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   THEME 4: NEON GRID
+   STRUCTURE: Collapsed sidebar (56px icons-only), fullscreen content,
+              data cards with neon glow edges, grid-line background
+   Inspiration: Blade Runner, Tron Legacy, SpaceX Crew Dragon
+   ════════════════════════════════════════════════════════════════════════════ */
+[data-shms-theme="neon-grid"] {
+  --shms-bg-0: oklch(2% 0.005 280);
+  --shms-bg-1: oklch(5% 0.010 280);
+  --shms-bg-2: oklch(9% 0.015 280);
+  --shms-bg-3: oklch(13% 0.020 280);
+  --shms-border: oklch(16% 0.04 280);
+  --shms-border-hover: oklch(26% 0.06 280);
+  --shms-border-active: oklch(36% 0.08 280);
+  --shms-text: oklch(95% 0.005 280);
+  --shms-text-secondary: oklch(70% 0.020 280);
+  --shms-text-muted: oklch(45% 0.015 280);
+  --shms-text-dim: oklch(28% 0.010 280);
+  --shms-accent: oklch(78% 0.22 175);
+  --shms-accent-hover: oklch(85% 0.25 175);
+  --shms-accent-bg: oklch(8% 0.08 175);
+  --shms-accent-border: oklch(20% 0.12 175);
+  --shms-green: oklch(80% 0.24 155);  --shms-green-bg: oklch(6% 0.06 155);  --shms-green-border: oklch(18% 0.10 155);
+  --shms-yellow: oklch(88% 0.20 95);  --shms-yellow-bg: oklch(8% 0.06 95);  --shms-yellow-border: oklch(20% 0.10 95);
+  --shms-red: oklch(70% 0.28 15);     --shms-red-bg: oklch(8% 0.08 15);     --shms-red-border: oklch(20% 0.12 15);
+  --shms-blue: oklch(75% 0.22 270);   --shms-blue-bg: oklch(6% 0.06 270);   --shms-blue-border: oklch(18% 0.10 270);
+  --shms-orange: oklch(75% 0.20 55);  --shms-orange-bg: oklch(8% 0.06 55);  --shms-orange-border: oklch(20% 0.10 55);
+  --shms-radius: 2px;
+  --shms-radius-sm: 1px;
+  --shms-radius-lg: 4px;
+}
+
+/* NEON: Collapsed sidebar (icons only) → wider content */
+[data-shms-theme="neon-grid"] .shms-layout {
+  grid-template-columns: 56px 1fr;
+}
+[data-shms-theme="neon-grid"] .shms-sidebar {
+  width: 56px;
+  background: oklch(2% 0.005 280 / 0.95);
+  overflow: hidden;
+}
+[data-shms-theme="neon-grid"] .shms-sidebar__section-label { display: none; }
+[data-shms-theme="neon-grid"] .shms-sidebar__item span:last-child { display: none; }
+[data-shms-theme="neon-grid"] .shms-sidebar__item {
+  justify-content: center;
+  padding: 12px 0;
+  font-size: 18px;
+}
+[data-shms-theme="neon-grid"] .shms-sidebar__logo span { display: none; }
+[data-shms-theme="neon-grid"] .shms-sidebar__item--active::before {
+  background: var(--shms-accent);
+  box-shadow: 0 0 14px var(--shms-accent);
+}
+/* Neon: grid-line background */
+[data-shms-theme="neon-grid"] .shms-layout::before {
+  background:
+    repeating-linear-gradient(90deg, oklch(18% 0.06 175 / 0.06) 0px, transparent 1px, transparent 80px),
+    repeating-linear-gradient(0deg, oklch(18% 0.06 175 / 0.06) 0px, transparent 1px, transparent 80px),
+    radial-gradient(ellipse at 50% 50%, oklch(8% 0.08 280 / 0.4), transparent 60%);
+}
+/* Neon: cards with glow border on hover */
+[data-shms-theme="neon-grid"] .shms-card {
+  border: 1px solid oklch(16% 0.04 280);
+}
+[data-shms-theme="neon-grid"] .shms-card:hover {
+  border-color: oklch(40% 0.10 175);
+  box-shadow: 0 0 16px oklch(78% 0.22 175 / 0.12), 0 0 32px oklch(78% 0.22 175 / 0.04);
+}
+/* Neon: topbar with accent line */
+[data-shms-theme="neon-grid"] .shms-topbar {
+  background: oklch(2% 0.005 280 / 0.95);
+  border-bottom: 1px solid oklch(16% 0.04 280);
+}
+[data-shms-theme="neon-grid"] .shms-topbar::after {
+  background: linear-gradient(90deg, transparent, var(--shms-accent), transparent);
+  opacity: 0.6;
+}
+[data-shms-theme="neon-grid"] ::-webkit-scrollbar-thumb {
+  background: oklch(22% 0.06 175);
+  box-shadow: 0 0 4px oklch(78% 0.22 175 / 0.25);
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   THEME 5: PAPER
+   STRUCTURE: No sidebar at all, horizontal tab navigation at top,
+              full-width content, serif font, zero decoration, Tufte-pure
+   Inspiration: Edward Tufte books, academic papers, print layout
+   ════════════════════════════════════════════════════════════════════════════ */
+[data-shms-theme="paper"] {
+  --shms-bg-0: oklch(96% 0.003 80);
+  --shms-bg-1: oklch(98% 0.002 80);
+  --shms-bg-2: oklch(93% 0.005 80);
+  --shms-bg-3: oklch(89% 0.007 80);
+  --shms-border: oklch(84% 0.005 80);
+  --shms-border-hover: oklch(76% 0.008 80);
+  --shms-border-active: oklch(68% 0.010 80);
+  --shms-text: oklch(12% 0.008 80);
+  --shms-text-secondary: oklch(32% 0.006 80);
+  --shms-text-muted: oklch(52% 0.005 80);
+  --shms-text-dim: oklch(68% 0.004 80);
+  --shms-accent: oklch(38% 0.08 240);
+  --shms-accent-hover: oklch(32% 0.10 240);
+  --shms-accent-bg: oklch(94% 0.02 240);
+  --shms-accent-border: oklch(82% 0.04 240);
+  --shms-green: oklch(38% 0.10 148);  --shms-green-bg: oklch(94% 0.03 148);  --shms-green-border: oklch(82% 0.04 148);
+  --shms-yellow: oklch(46% 0.10 85);  --shms-yellow-bg: oklch(94% 0.03 85);  --shms-yellow-border: oklch(82% 0.04 85);
+  --shms-red: oklch(44% 0.16 28);     --shms-red-bg: oklch(94% 0.04 28);     --shms-red-border: oklch(82% 0.05 28);
+  --shms-blue: oklch(38% 0.10 260);   --shms-blue-bg: oklch(94% 0.03 260);   --shms-blue-border: oklch(82% 0.04 260);
+  --shms-orange: oklch(48% 0.12 55);  --shms-orange-bg: oklch(94% 0.03 55);  --shms-orange-border: oklch(82% 0.04 55);
+  /* Override to serif */
+  --shms-font: 'Georgia', 'Palatino Linotype', 'Book Antiqua', serif;
+  --shms-radius: 0;
+  --shms-radius-sm: 0;
+  --shms-radius-lg: 0;
+}
+
+/* PAPER: Completely remove sidebar → full-width layout */
+[data-shms-theme="paper"] .shms-layout {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto 1fr;
+  grid-template-areas: "topbar" "sidebar" "content";
+  max-width: 1200px;
+  margin: 0 auto;
+}
+/* Paper: sidebar becomes inline nav links */
+[data-shms-theme="paper"] .shms-sidebar {
+  width: 100%;
+  height: auto;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0;
+  padding: 4px 24px;
+  background: oklch(96% 0.003 80);
+  border-right: none;
+  border-bottom: 1px solid oklch(84% 0.005 80);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+[data-shms-theme="paper"] .shms-sidebar__section { display: flex; flex-direction: row; gap: 0; }
+[data-shms-theme="paper"] .shms-sidebar__section-label { display: none; }
+[data-shms-theme="paper"] .shms-sidebar__item {
+  padding: 6px 10px;
+  font-size: 11px;
+  color: oklch(32% 0.006 80);
+  border-bottom: 2px solid transparent;
+}
+[data-shms-theme="paper"] .shms-sidebar__item--active {
+  border-bottom-color: oklch(12% 0.008 80);
+  font-weight: 600;
+}
+[data-shms-theme="paper"] .shms-sidebar__item--active::before { display: none; }
+[data-shms-theme="paper"] .shms-sidebar__logo { display: none; }
+/* Paper: remove ALL decorations */
+[data-shms-theme="paper"] .shms-layout::before { display: none; }
+[data-shms-theme="paper"] .shms-layout::after { display: none; }
+[data-shms-theme="paper"] .shms-topbar {
+  background: oklch(96% 0.003 80);
+  border-bottom: 2px solid oklch(12% 0.008 80);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+[data-shms-theme="paper"] .shms-topbar::after { display: none; }
+/* Paper: cards are borderless with bottom rule only (Tufte) */
+[data-shms-theme="paper"] .shms-card {
+  border: none;
+  border-bottom: 1px solid oklch(84% 0.005 80);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 20px 0;
+}
+[data-shms-theme="paper"] .shms-card:hover { border-color: oklch(70% 0.008 80); }
+[data-shms-theme="paper"] .shms-kpi {
+  border: none;
+  border-left: 3px solid oklch(12% 0.008 80);
+  border-radius: 0;
+  padding: 8px 16px;
+}
+[data-shms-theme="paper"] ::-webkit-scrollbar-thumb { background: oklch(76% 0.004 80); }
+[data-shms-theme="paper"] ::-webkit-scrollbar-track { background: oklch(93% 0.003 80); }
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   THEME 6: OBSIDIAN
+   STRUCTURE: Bottom dock navigation + floating panels, OLED black,
+              ultra-minimal chrome, centered content
+   Inspiration: OLED, Tesla, SpaceX, macOS dock
+   ════════════════════════════════════════════════════════════════════════════ */
+[data-shms-theme="obsidian"] {
+  --shms-bg-0: oklch(0% 0 0);
+  --shms-bg-1: oklch(4% 0.004 230);
+  --shms-bg-2: oklch(8% 0.006 230);
+  --shms-bg-3: oklch(12% 0.008 230);
+  --shms-border: oklch(12% 0.010 230);
+  --shms-border-hover: oklch(18% 0.012 230);
+  --shms-border-active: oklch(24% 0.015 230);
+  --shms-text: oklch(92% 0.004 230);
+  --shms-text-secondary: oklch(58% 0.008 230);
+  --shms-text-muted: oklch(36% 0.006 230);
+  --shms-text-dim: oklch(22% 0.004 230);
+  --shms-accent: oklch(60% 0.12 240);
+  --shms-accent-hover: oklch(66% 0.14 240);
+  --shms-accent-bg: oklch(6% 0.04 240);
+  --shms-accent-border: oklch(14% 0.05 240);
+  --shms-green: oklch(62% 0.14 148);  --shms-green-bg: oklch(4% 0.03 148);  --shms-green-border: oklch(12% 0.05 148);
+  --shms-yellow: oklch(72% 0.12 85);  --shms-yellow-bg: oklch(4% 0.03 85);  --shms-yellow-border: oklch(12% 0.05 85);
+  --shms-red: oklch(55% 0.18 28);     --shms-red-bg: oklch(4% 0.04 28);     --shms-red-border: oklch(12% 0.06 28);
+  --shms-blue: oklch(58% 0.12 260);   --shms-blue-bg: oklch(4% 0.03 260);   --shms-blue-border: oklch(12% 0.05 260);
+  --shms-orange: oklch(62% 0.15 55);  --shms-orange-bg: oklch(4% 0.04 55);  --shms-orange-border: oklch(12% 0.06 55);
+  --shms-radius: 8px;
+  --shms-radius-sm: 4px;
+  --shms-radius-lg: 12px;
+}
+
+/* OBSIDIAN: Bottom dock layout */
+[data-shms-theme="obsidian"] .shms-layout {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas: "topbar" "content" "sidebar";
+}
+/* Obsidian: sidebar becomes bottom dock */
+[data-shms-theme="obsidian"] .shms-sidebar {
+  grid-area: sidebar;
+  width: 100%;
+  height: 56px;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  padding: 0 16px;
+  background: oklch(0% 0 0 / 0.95);
+  border-right: none;
+  border-top: 1px solid oklch(12% 0.010 230);
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}
+[data-shms-theme="obsidian"] .shms-sidebar__section {
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
+}
+[data-shms-theme="obsidian"] .shms-sidebar__section-label { display: none; }
+[data-shms-theme="obsidian"] .shms-sidebar__item {
+  padding: 8px;
+  font-size: 16px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+}
+[data-shms-theme="obsidian"] .shms-sidebar__item span:last-child { display: none; }
+[data-shms-theme="obsidian"] .shms-sidebar__item--active {
+  background: oklch(12% 0.010 230);
+  transform: translateY(-2px);
+}
+[data-shms-theme="obsidian"] .shms-sidebar__item--active::before { display: none; }
+[data-shms-theme="obsidian"] .shms-sidebar__logo { display: none; }
+/* Obsidian: pure black, no mesh */
+[data-shms-theme="obsidian"] .shms-layout::before { display: none; }
+[data-shms-theme="obsidian"] .shms-layout::after { display: none; }
+[data-shms-theme="obsidian"] .shms-topbar {
+  background: oklch(0% 0 0 / 0.95);
+  border-bottom: 1px solid oklch(12% 0.010 230);
+}
+[data-shms-theme="obsidian"] .shms-topbar::after { display: none; }
+/* Obsidian: floating card panels */
+[data-shms-theme="obsidian"] .shms-card {
+  border: 1px solid oklch(12% 0.010 230);
+  box-shadow: 0 8px 24px oklch(0% 0 0 / 0.5);
+}
+[data-shms-theme="obsidian"] ::-webkit-scrollbar-thumb { background: oklch(16% 0.008 230); }
+[data-shms-theme="obsidian"] ::-webkit-scrollbar-track { background: oklch(0% 0 0); }
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   THEME SWITCHER WIDGET
+   ════════════════════════════════════════════════════════════════════════════ */
+.shms-theme-switcher {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  background: var(--shms-bg-2);
+  border-radius: 20px;
+  border: 1px solid var(--shms-border);
+}
+.shms-theme-swatch {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 150ms ease;
+  flex-shrink: 0;
+}
+.shms-theme-swatch:hover { transform: scale(1.2); }
+.shms-theme-swatch--active {
+  border-color: var(--shms-text);
+  box-shadow: 0 0 6px var(--shms-accent-bg);
+}

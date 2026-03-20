@@ -9,6 +9,7 @@
  */
 
 import { useShmsHealth, useShmsDashboardAll } from '@/hooks/useShmsApi';
+import SHMSThemeSwitcher from './SHMSThemeSwitcher';
 
 interface SHMSTopbarProps {
   currentTitle: string;
@@ -48,6 +49,9 @@ export default function SHMSTopbar({ currentTitle, selectedStructureId, structur
       </div>
 
       <div className="shms-topbar__right">
+        {/* Theme Switcher (6 SOTA variations) */}
+        <SHMSThemeSwitcher />
+
         {/* Structure selector */}
         {structures && structures.length > 0 && onSelectStructure && (
           <select
