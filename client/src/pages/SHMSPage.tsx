@@ -48,6 +48,7 @@ const FaultTreeViewer = safeLazy(() => import('@/components/shms/analysis/FaultT
 const BigDataPanel = safeLazy(() => import('@/components/shms/analysis/BigDataPanel'));
 const NumericalPanel = safeLazy(() => import('@/components/shms/analysis/NumericalPanel'));
 const InSARPanel = safeLazy(() => import('@/components/shms/analysis/InSARPanel'));
+const BenchConsolidationPanel = safeLazy(() => import('@/components/shms/analysis/BenchConsolidationPanel'));
 const RiskMapViewer = safeLazy(() => import('@/components/shms/geo/RiskMapViewer'));
 const CrossSectionViewer = safeLazy(() => import('@/components/shms/geo/CrossSectionViewer'));
 const BoreholeViewer = safeLazy(() => import('@/components/shms/geo/BoreholeViewer'));
@@ -81,6 +82,7 @@ const VIEW_TITLES: Record<ShmsView, string> = {
   'big-data': 'Big Data / Classificação',
   'numerical': 'Métodos Numéricos (SSR / FEM / Seepage)',
   'insar': 'InSAR Mining — Estabilidade por Superfície',
+  'bench-consolidation': 'Consolidação de Bancadas — DGM + DAC',
   'risk-map': 'Mapa de Risco (ICOLD)',
   'cross-section': 'Seções Transversais',
   'boreholes': 'Sondagens / Perfis Litológicos',
@@ -167,6 +169,8 @@ export default function SHMSPage() {
         return <NumericalPanel structureId={sid} />;
       case 'insar':
         return <InSARPanel structureId={sid} />;
+      case 'bench-consolidation':
+        return <BenchConsolidationPanel structureId={sid} />;
       case 'risk-map':
         return <RiskMapViewer structureId={sid} />;
       case 'cross-section':
