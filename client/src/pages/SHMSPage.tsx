@@ -221,7 +221,7 @@ export default function SHMSPage() {
         structures={structures.map(s => ({ structureId: s.structureId, structureName: s.structureName || s.structureId }))}
         onSelectStructure={selectStructure}
       />
-      <div className="shms-content">
+      <div className="shms-content" key={activeView}>
         <Suspense fallback={<ViewLoading />}>
           {renderView()}
         </Suspense>

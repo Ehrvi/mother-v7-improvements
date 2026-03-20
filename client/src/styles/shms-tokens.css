@@ -487,3 +487,335 @@
 
 .shms-animate-spin { animation: shms-spin 1s linear infinite; }
 .shms-animate-slide-in { animation: shms-slide-in 0.3s ease; }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   SOTA PREMIUM DESIGN LAYER — 2026
+   
+   References:
+   - Stripe Dashboard: depth + glassmorphism
+   - Linear.app: micro-animations + transitions
+   - Vercel: gradient mesh + noise texture
+   - Apple HIG: frosted glass + spring animations
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Gradient Mesh Background ─── */
+.shms-root {
+  position: relative;
+}
+
+.shms-root::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 60% 50% at 10% 20%, oklch(14% 0.06 240 / 0.4), transparent),
+    radial-gradient(ellipse 50% 40% at 80% 70%, oklch(12% 0.05 280 / 0.3), transparent),
+    radial-gradient(ellipse 40% 30% at 50% 10%, oklch(14% 0.04 200 / 0.25), transparent);
+}
+
+/* ─── Noise Texture Overlay (Vercel-style) ─── */
+.shms-root::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 128px 128px;
+}
+
+/* ─── Content z-index above mesh ─── */
+.shms-shell { position: relative; z-index: 1; }
+
+/* ─── Premium Sidebar ─── */
+.shms-sidebar {
+  background: oklch(9% 0.015 230 / 0.85);
+  backdrop-filter: var(--shms-glass-blur);
+  -webkit-backdrop-filter: var(--shms-glass-blur);
+  border-right: 1px solid oklch(18% 0.02 230 / 0.6);
+}
+
+.shms-sidebar__logo {
+  border-bottom: 1px solid oklch(18% 0.02 230 / 0.5);
+}
+
+.shms-sidebar__logo-icon {
+  background: linear-gradient(135deg, oklch(68% 0.18 240), oklch(72% 0.17 180));
+  box-shadow: 0 0 16px oklch(68% 0.16 240 / 0.3);
+  animation: shms-logo-glow 3s ease-in-out infinite alternate;
+}
+
+@keyframes shms-logo-glow {
+  0% { box-shadow: 0 0 12px oklch(68% 0.16 240 / 0.2); }
+  100% { box-shadow: 0 0 20px oklch(68% 0.16 240 / 0.5); }
+}
+
+/* Active sidebar item — glow trail */
+.shms-sidebar__item--active {
+  background: linear-gradient(135deg, oklch(16% 0.06 240 / 0.8), oklch(14% 0.04 240 / 0.5));
+  color: var(--shms-accent);
+  border-color: oklch(30% 0.08 240 / 0.5);
+  box-shadow:
+    0 0 12px oklch(68% 0.16 240 / 0.1),
+    inset 0 0 12px oklch(68% 0.16 240 / 0.05);
+  position: relative;
+}
+
+.shms-sidebar__item--active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 25%;
+  bottom: 25%;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--shms-accent);
+  box-shadow: 0 0 8px var(--shms-accent);
+}
+
+.shms-sidebar__item:hover {
+  background: oklch(15% 0.02 230 / 0.6);
+  transform: translateX(2px);
+}
+
+.shms-sidebar__section-label {
+  color: oklch(38% 0.015 230);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+/* ─── Premium Topbar ─── */
+.shms-topbar {
+  background: oklch(9% 0.015 230 / 0.75);
+  backdrop-filter: var(--shms-glass-blur);
+  -webkit-backdrop-filter: var(--shms-glass-blur);
+  border-bottom: 1px solid oklch(18% 0.02 230 / 0.5);
+  position: relative;
+}
+
+/* Adaptive severity glow line at bottom of topbar */
+.shms-topbar::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--shms-accent), transparent);
+  opacity: 0.4;
+}
+
+.shms-topbar[style*="--shms-red"]::after {
+  background: linear-gradient(90deg, transparent, var(--shms-red), transparent);
+  opacity: 0.6;
+  animation: shms-pulse 2s ease-in-out infinite;
+}
+
+/* ─── Premium Content Area ─── */
+.shms-content {
+  background: transparent;
+  animation: shms-view-enter 0.4s var(--shms-ease-out-expo);
+}
+
+@keyframes shms-view-enter {
+  from { opacity: 0; transform: translateY(8px) scale(0.995); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ─── Premium Card System ─── */
+.shms-card {
+  background: oklch(11% 0.015 230 / 0.7);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid oklch(18% 0.02 230 / 0.5);
+  box-shadow:
+    0 1px 2px oklch(0% 0 0 / 0.2),
+    0 4px 12px oklch(0% 0 0 / 0.15);
+  transition: all 0.3s var(--shms-ease-out-expo);
+}
+
+.shms-card:hover {
+  border-color: oklch(24% 0.03 230 / 0.6);
+  box-shadow:
+    0 2px 4px oklch(0% 0 0 / 0.25),
+    0 8px 24px oklch(0% 0 0 / 0.2),
+    0 0 0 1px oklch(24% 0.03 230 / 0.15);
+  transform: translateY(-1px);
+}
+
+/* ─── KPI Card Premium Hover ─── */
+.shms-kpi {
+  background: oklch(11% 0.015 230 / 0.7);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid oklch(18% 0.02 230 / 0.4);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s var(--shms-ease-out-expo);
+}
+
+.shms-kpi::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, oklch(100% 0 0 / 0.03), transparent);
+  transition: left 0.6s ease;
+}
+
+.shms-kpi:hover::before {
+  left: 100%;
+}
+
+.shms-kpi:hover {
+  border-color: oklch(26% 0.03 240 / 0.5);
+  box-shadow: 0 4px 16px oklch(0% 0 0 / 0.2);
+  transform: translateY(-2px);
+}
+
+.shms-kpi__value {
+  font-family: var(--shms-font-mono);
+  letter-spacing: -0.02em;
+}
+
+/* ─── Premium Badge Glow ─── */
+.shms-badge--red { box-shadow: 0 0 12px oklch(62% 0.22 28 / 0.25); }
+.shms-badge--yellow { box-shadow: 0 0 10px oklch(80% 0.15 85 / 0.15); }
+.shms-badge--green { box-shadow: 0 0 10px oklch(72% 0.17 148 / 0.15); }
+
+/* ─── Premium Shimmer Skeleton ─── */
+@keyframes shms-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shms-skeleton {
+  background: linear-gradient(90deg,
+    oklch(14% 0.015 230) 25%,
+    oklch(18% 0.02 230) 50%,
+    oklch(14% 0.015 230) 75%);
+  background-size: 200% 100%;
+  animation: shms-shimmer 1.5s ease-in-out infinite;
+}
+
+/* ─── Premium Button ─── */
+.shms-btn {
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  transition: all 0.25s var(--shms-ease-out-expo);
+}
+
+.shms-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px oklch(0% 0 0 / 0.2);
+}
+
+.shms-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.shms-btn--accent {
+  background: linear-gradient(135deg, oklch(68% 0.16 240), oklch(64% 0.14 260));
+  box-shadow: 0 2px 8px oklch(68% 0.16 240 / 0.3);
+}
+
+.shms-btn--accent:hover {
+  box-shadow: 0 4px 16px oklch(68% 0.16 240 / 0.4);
+}
+
+/* ─── Premium Table Rows ─── */
+.shms-table tr {
+  transition: background 0.2s ease;
+}
+
+.shms-table tr:hover td {
+  background: oklch(14% 0.02 230 / 0.5);
+}
+
+/* ─── Premium Scrollbar ─── */
+.shms-root ::-webkit-scrollbar-thumb {
+  background: oklch(25% 0.03 240 / 0.5);
+  border-radius: 4px;
+  border: 1px solid transparent;
+}
+
+.shms-root ::-webkit-scrollbar-thumb:hover {
+  background: oklch(35% 0.04 240 / 0.6);
+}
+
+/* ─── Suspense Fallback Spinner ─── */
+@keyframes shms-orbit {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.shms-loading-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  gap: 12px;
+  color: var(--shms-text-muted);
+  font-size: var(--shms-fs-sm);
+}
+
+.shms-loading-spinner::before {
+  content: '';
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--shms-border);
+  border-top-color: var(--shms-accent);
+  animation: shms-orbit 0.8s linear infinite;
+}
+
+/* ─── Stagger Animation for Grid Children ─── */
+@keyframes shms-stagger-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+.shms-grid-4 > *,
+.shms-grid-3 > *,
+.shms-grid-2 > * {
+  animation: shms-stagger-in 0.4s var(--shms-ease-out-expo) both;
+}
+
+.shms-grid-4 > *:nth-child(1) { animation-delay: 0ms; }
+.shms-grid-4 > *:nth-child(2) { animation-delay: 50ms; }
+.shms-grid-4 > *:nth-child(3) { animation-delay: 100ms; }
+.shms-grid-4 > *:nth-child(4) { animation-delay: 150ms; }
+.shms-grid-3 > *:nth-child(1) { animation-delay: 0ms; }
+.shms-grid-3 > *:nth-child(2) { animation-delay: 60ms; }
+.shms-grid-3 > *:nth-child(3) { animation-delay: 120ms; }
+.shms-grid-2 > *:nth-child(1) { animation-delay: 0ms; }
+.shms-grid-2 > *:nth-child(2) { animation-delay: 80ms; }
+
+/* ─── Pulse Ring Animation (for health indicator) ─── */
+@keyframes shms-ring-pulse {
+  0%, 100% { filter: drop-shadow(0 0 2px currentColor); }
+  50% { filter: drop-shadow(0 0 8px currentColor); }
+}
+
+.shms-topbar svg circle:last-of-type {
+  animation: shms-ring-pulse 3s ease-in-out infinite;
+}
+
+/* ─── Premium Empty State ─── */
+.shms-empty {
+  background: oklch(10% 0.01 230 / 0.5);
+  border: 1px dashed oklch(20% 0.02 230 / 0.5);
+  border-radius: var(--shms-radius-lg);
+}
+
+/* ─── Selection color ─── */
+.shms-root ::selection {
+  background: oklch(68% 0.16 240 / 0.3);
+  color: var(--shms-text);
+}

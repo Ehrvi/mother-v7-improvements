@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHMS — Checklist de Teste Completo</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
+  :root {
+    --bg: #0a0c14; --surface: #10131c; --card: #141722; --border: #1e2233;
+    --text: #e8eaf0; --muted: #6b7294; --accent: #38bdf8;
+    --green: #22c55e; --yellow: #eab308; --red: #ef4444; --orange: #f97316;
+    --font: 'Inter', system-ui, sans-serif; --mono: 'JetBrains Mono', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6; padding: 24px; max-width: 900px; margin: 0 auto; }
+
+  h1 { font-size: 22px; font-weight: 800; margin-bottom: 4px; background: linear-gradient(135deg, var(--accent), #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .subtitle { font-size: 12px; color: var(--muted); margin-bottom: 24px; }
+  .progress-bar { height: 8px; border-radius: 4px; background: var(--surface); margin-bottom: 24px; overflow: hidden; border: 1px solid var(--border); }
+  .progress-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--green), var(--accent)); transition: width 0.4s ease; }
+  .progress-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; font-family: var(--mono); }
+
+  .section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
+  .section-header { padding: 14px 18px; display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; border-bottom: 1px solid var(--border); transition: background 0.2s; }
+  .section-header:hover { background: rgba(56,189,248,0.04); }
+  .section-icon { font-size: 18px; }
+  .section-title { font-size: 14px; font-weight: 700; flex: 1; }
+  .section-count { font-size: 11px; font-family: var(--mono); padding: 2px 8px; border-radius: 6px; background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
+  .section-body { padding: 8px 18px 14px; }
+  .section.collapsed .section-body { display: none; }
+  .chevron { font-size: 12px; color: var(--muted); transition: transform 0.2s; }
+  .section.collapsed .chevron { transform: rotate(-90deg); }
+
+  .check-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  .check-item:last-child { border-bottom: none; }
+  .check-item input[type="checkbox"] { appearance: none; width: 18px; height: 18px; border-radius: 5px; border: 2px solid var(--border); background: var(--surface); cursor: pointer; flex-shrink: 0; margin-top: 2px; transition: all 0.2s; position: relative; }
+  .check-item input[type="checkbox"]:checked { background: var(--green); border-color: var(--green); }
+  .check-item input[type="checkbox"]:checked::after { content: '✓'; position: absolute; top: -1px; left: 3px; font-size: 12px; font-weight: 800; color: #000; }
+  .check-item.checked .check-label { color: var(--muted); text-decoration: line-through; text-decoration-color: rgba(107,114,148,0.4); }
+
+  .check-label { font-size: 13px; flex: 1; cursor: pointer; }
+  .check-label strong { font-weight: 600; color: var(--accent); }
+  .check-label code { font-family: var(--mono); font-size: 11px; padding: 1px 5px; background: var(--surface); border-radius: 4px; border: 1px solid var(--border); }
+  .check-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .tag { display: inline-block; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 1px 6px; border-radius: 4px; margin-left: 6px; }
+  .tag-critical { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+  .tag-important { background: rgba(234,179,8,0.15); color: var(--yellow); border: 1px solid rgba(234,179,8,0.3); }
+  .tag-nav { background: rgba(56,189,248,0.1); color: var(--accent); border: 1px solid rgba(56,189,248,0.2); }
+  .tag-api { background: rgba(168,85,247,0.15); color: #a78bfa; border: 1px solid rgba(168,85,247,0.3); }
+
+  .link { color: var(--accent); text-decoration: none; font-family: var(--mono); font-size: 11px; }
+  .link:hover { text-decoration: underline; }
+
+  .reset-btn { display: inline-block; padding: 8px 16px; border-radius: 8px; background: rgba(239,68,68,0.1); color: var(--red); border: 1px solid rgba(239,68,68,0.3); font-family: var(--font); font-size: 12px; font-weight: 600; cursor: pointer; margin-top: 16px; transition: all 0.2s; }
+  .reset-btn:hover { background: rgba(239,68,68,0.2); }
+  .export-btn { display: inline-block; padding: 8px 16px; border-radius: 8px; background: rgba(56,189,248,0.1); color: var(--accent); border: 1px solid rgba(56,189,248,0.3); font-family: var(--font); font-size: 12px; font-weight: 600; cursor: pointer; margin-top: 16px; margin-left: 8px; transition: all 0.2s; }
+  .export-btn:hover { background: rgba(56,189,248,0.2); }
+
+  .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); text-align: center; }
+</style>
+</head>
+<body>
+
+<h1>⚡ SHMS — Checklist de Teste Completo</h1>
+<p class="subtitle">Teste manual do SHMS MVP • Abra <a class="link" href="http://localhost:3000/shms" target="_blank">localhost:3000/shms</a> em outra aba</p>
+
+<div class="progress-label" id="progressLabel">0 / 0 (0%)</div>
+<div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+
+<div id="sections"></div>
+
+<button class="reset-btn" onclick="resetAll()">🗑 Resetar Tudo</button>
+<button class="export-btn" onclick="exportReport()">📋 Exportar Relatório</button>
+
+<div class="footer">
+  MOTHER SHMS v2.0 • Phase 13 Hardening • Commit <code>256d746</code> • 2026-03-20
+</div>
+
+<script>
+const CHECKLIST = [
+  {
+    icon: '🚀', title: 'Inicialização & Login',
+    items: [
+      { id: 'init-01', label: 'App carrega em <code>localhost:3000</code> sem tela branca', sub: 'Verificar que o Vite HMR está ativo', tags: ['critical'] },
+      { id: 'init-02', label: 'Navegação para <strong>/shms</strong> mostra o dashboard SHMS', sub: 'Não deve cair na tela de chat MOTHER', tags: ['critical'] },
+      { id: 'init-03', label: 'Navegação para <strong>/shms-narrative</strong> mostra o Digital Twin', sub: 'Chat + 3D Viewer lado a lado', tags: ['critical'] },
+      { id: 'init-04', label: 'Console do browser sem erros <code>TypeError</code> ou <code>ReferenceError</code>', sub: 'Warnings de CSS inline são aceitáveis', tags: [] },
+      { id: 'init-05', label: '<code>npm run dev</code> roda sem crash', sub: 'Porta padrão 3000 ou conforme .env', tags: [] },
+    ]
+  },
+  {
+    icon: '📊', title: 'Dashboard Principal (OverviewDashboard)',
+    items: [
+      { id: 'dash-01', label: 'KPI cards visíveis: Health Index, Sensores, Anomalias', sub: 'Dados podem ser mock ou live', tags: ['nav'] },
+      { id: 'dash-02', label: 'Topbar mostra health ring + MQTT pulse + alert badge', sub: 'SHMSTopbar.tsx', tags: [] },
+      { id: 'dash-03', label: 'Sidebar tem 9 seções e ≥25 itens de navegação', sub: 'SHMSSidebar.tsx — contar itens', tags: ['nav'] },
+      { id: 'dash-04', label: 'Trocar entre views via sidebar funciona sem tela branca', sub: 'React.lazy + Suspense', tags: ['critical'] },
+    ]
+  },
+  {
+    icon: '📏', title: 'Sensores (SensorTimeSeries / SensorTable)',
+    items: [
+      { id: 'sens-01', label: 'View <strong>sensors</strong> carrega gráfico de série temporal', sub: 'SensorTimeSeries.tsx — Recharts', tags: ['nav'] },
+      { id: 'sens-02', label: 'View <strong>sensor-table</strong> mostra tabela de sensores', sub: 'SensorTable.tsx', tags: ['nav'] },
+      { id: 'sens-03', label: 'Hover nos gráficos mostra tooltip com valor/data', sub: 'Recharts ReTooltip', tags: [] },
+    ]
+  },
+  {
+    icon: '⚙️', title: 'Análise — Estabilidade LEM',
+    items: [
+      { id: 'stab-01', label: 'View <strong>stability</strong> carrega o StabilityPanel', sub: 'StabilityPanel.tsx', tags: ['nav', 'critical'] },
+      { id: 'stab-02', label: 'Selecionar benchmark e rodar Bishop retorna FOS', sub: 'Bishop Simplified — valor numérico visível', tags: ['critical'] },
+      { id: 'stab-03', label: 'Spencer e M-P retornam FOS convergido', sub: 'Valores próximos ao esperado na tabela', tags: ['important'] },
+      { id: 'stab-04', label: 'Visualização 2D do talude + fatias aparece', sub: 'SVG com layers coloridos', tags: [] },
+      { id: 'stab-05', label: 'Trocar entre 4 benchmarks funciona', sub: 'ClassicExamples.ts — dropdown', tags: [] },
+    ]
+  },
+  {
+    icon: '🛰️', title: 'InSAR Mining',
+    items: [
+      { id: 'insar-01', label: 'View <strong>insar</strong> carrega o InSARPanel', sub: 'InSARPanel.tsx', tags: ['nav'] },
+      { id: 'insar-02', label: 'Aba "Displacement Map" mostra heatmap SVG', sub: 'Cores de deslocamento LOS', tags: ['important'] },
+      { id: 'insar-03', label: 'Aba "Inverse Velocity" mostra gráfico IVM', sub: 'Fukuzono 1985 — regressão linear', tags: [] },
+      { id: 'insar-04', label: 'Aba "GA Back-Analysis" roda e mostra resultado', sub: 'surfaceBackAnalysis — FOS estimado', tags: [] },
+      { id: 'insar-05', label: 'Aba "LSTM Forecast" mostra previsão de deformação', sub: 'lstmDeformationPredict — 30 pontos', tags: [] },
+    ]
+  },
+  {
+    icon: '🔬', title: 'Análise — Métodos Numéricos (Experimental)',
+    items: [
+      { id: 'num-01', label: 'View <strong>numerical</strong> carrega o NumericalPanel', sub: 'NumericalPanel.tsx', tags: ['nav'] },
+      { id: 'num-02', label: 'Selecionar exemplo e rodar FDM SSR retorna SRF', sub: 'Pode demorar 1-2s', tags: [] },
+      { id: 'num-03', label: 'Contour map (displacement/stress) renderiza', sub: 'SVG com cores HSL', tags: [] },
+    ]
+  },
+  {
+    icon: '🏗️', title: 'Digital Twin 3D (DigitalTwin3DViewer)',
+    items: [
+      { id: 'dt3d-01', label: '3D viewer carrega modelo OBJ (barra de progresso 0→100%)', sub: 'Three.js WebGL — mine model', tags: ['critical'] },
+      { id: 'dt3d-02', label: 'Instrumentos (esferas coloridas) visíveis no modelo 3D', sub: '16 instrumentos raycasted', tags: ['important'] },
+      { id: 'dt3d-03', label: 'Hover em instrumento mostra tooltip com dados', sub: 'ID, tipo, valor, limiar, status', tags: [] },
+      { id: 'dt3d-04', label: 'HUD cards no lado esquerdo: Saúde, Instrumentos, Anomalias, Nível', sub: '4 KPI cards glassmorphism', tags: [] },
+      { id: 'dt3d-05', label: '<strong>⚖️ FOS Dinâmico</strong> card aparece no HUD esquerdo', sub: 'DynamicFOS.ts → useDynamicFOS.ts — PHASE 12', tags: ['critical', 'api'] },
+      { id: 'dt3d-06', label: 'FOS card mostra: valor, trend arrow, alert color, sensor health', sub: 'Ex: 1.652 → stable, 16/16 online', tags: ['important'] },
+      { id: 'dt3d-07', label: 'Botão InSAR overlay funciona (toggle on/off)', sub: 'Heatmap sobre o terreno 3D', tags: [] },
+      { id: 'dt3d-08', label: 'Botão FEM overlay funciona', sub: 'Von Mises / Seepage toggle', tags: [] },
+      { id: 'dt3d-09', label: 'Botão LSTM overlay funciona', sub: 'Predictions markers', tags: [] },
+      { id: 'dt3d-10', label: 'Chart de tendência saúde (24h) no canto inferior esquerdo', sub: 'AreaChart Recharts', tags: [] },
+      { id: 'dt3d-11', label: 'Radar multi-dim no canto inferior direito', sub: 'RadarChart 5 eixos', tags: [] },
+    ]
+  },
+  {
+    icon: '💬', title: 'Narrative Twin (Chat Inteligente)',
+    items: [
+      { id: 'chat-01', label: 'Chat carrega com mensagem de boas-vindas', sub: '"Bom dia. A estrutura está estável."', tags: [] },
+      { id: 'chat-02', label: 'Digitar <strong>"Status geral"</strong> retorna dados <strong>LIVE</strong>', sub: 'Health Index, FOS Dinâmico, MQTT status — PHASE 12', tags: ['critical', 'api'] },
+      { id: 'chat-03', label: 'Digitar <strong>"PZ-003"</strong> abre modal do instrumento', sub: 'Aba Chart, HST, Specs, AI', tags: ['important'] },
+      { id: 'chat-04', label: 'Modal tem 4 abas funcionais: Chart, HST, Specs, IA', sub: 'Sparkline, HST bar, specs table, AI diagnóstico', tags: [] },
+      { id: 'chat-05', label: 'Digitar <strong>"LSTM previsão"</strong> mostra previsões de todos os sensores', sub: 'Forecast 48h com tendência', tags: [] },
+      { id: 'chat-06', label: 'Digitar <strong>"Anomalias 24h"</strong> mostra análise de anomalias', sub: 'Z-score, IQR check', tags: [] },
+      { id: 'chat-07', label: 'Sugestões rápidas (chips) funcionam ao clicar', sub: '6 chips: Status geral, PZ-003, etc.', tags: [] },
+    ]
+  },
+  {
+    icon: '🗺️', title: 'Geotécnico (Geo Views)',
+    items: [
+      { id: 'geo-01', label: 'View <strong>risk-map</strong> carrega', sub: 'RiskMap component', tags: ['nav'] },
+      { id: 'geo-02', label: 'View <strong>cross-section</strong> carrega', sub: 'CrossSection component', tags: ['nav'] },
+      { id: 'geo-03', label: 'View <strong>boreholes</strong> carrega', sub: 'Borehole visualization', tags: ['nav'] },
+    ]
+  },
+  {
+    icon: '🚨', title: 'Alertas & TARP',
+    items: [
+      { id: 'alert-01', label: 'View <strong>alerts</strong> carrega lista de alertas', sub: 'AlertsView component', tags: ['nav'] },
+      { id: 'alert-02', label: 'View <strong>events</strong> carrega', sub: 'EventsView component', tags: ['nav'] },
+      { id: 'alert-03', label: 'View <strong>tarp</strong> carrega TARP matrix', sub: 'TARPView component', tags: ['nav'] },
+      { id: 'alert-04', label: 'View <strong>sirens</strong> carrega', sub: 'SirensView component', tags: ['nav'] },
+    ]
+  },
+  {
+    icon: '📄', title: 'Documentos & Admin',
+    items: [
+      { id: 'doc-01', label: 'View <strong>files</strong> carrega', sub: 'FilesView component', tags: ['nav'] },
+      { id: 'doc-02', label: 'View <strong>documents</strong> carrega', sub: 'DocumentsView component', tags: ['nav'] },
+      { id: 'doc-03', label: 'View <strong>bi</strong> carrega BI panel', sub: 'BIView component', tags: ['nav'] },
+      { id: 'doc-04', label: 'View <strong>system-health</strong> carrega', sub: 'SystemHealth component', tags: ['nav'] },
+      { id: 'doc-05', label: 'View <strong>ai-chat</strong> carrega AIAnalysisChat', sub: 'AI Analysis component', tags: ['nav'] },
+    ]
+  },
+  {
+    icon: '🔧', title: 'Compilação & Infraestrutura',
+    items: [
+      { id: 'infra-01', label: '<code>npx tsc --noEmit</code> → <strong>0 errors</strong>', sub: 'Zero erros de tipo TypeScript', tags: ['critical'] },
+      { id: 'infra-02', label: '<code>npx tsx tests/benchmark_validation.ts</code> → ALL PASS', sub: 'Benchmark 4: Bishop/Spencer/M-P dentro de ±15%', tags: ['critical'] },
+      { id: 'infra-03', label: 'HMR (Hot Module Replacement) funciona ao editar arquivo', sub: 'Salvar .tsx → browser atualiza', tags: [] },
+      { id: 'infra-04', label: 'Nenhum <code>import</code> quebrado no console', sub: 'Sem "Failed to resolve import"', tags: ['important'] },
+    ]
+  },
+];
+
+const STORAGE_KEY = 'shms-test-checklist-v2';
+
+function loadState() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; }
+}
+function saveState(state) { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+function render() {
+  const state = loadState();
+  const container = document.getElementById('sections');
+  container.innerHTML = '';
+  let total = 0, checked = 0;
+
+  CHECKLIST.forEach((section, si) => {
+    const div = document.createElement('div');
+    div.className = 'section' + (state[`section-${si}-collapsed`] ? ' collapsed' : '');
+
+    let sectionChecked = 0;
+    section.items.forEach(item => { total++; if (state[item.id]) { checked++; sectionChecked++; } });
+
+    div.innerHTML = `
+      <div class="section-header" onclick="toggleSection(${si})">
+        <span class="section-icon">${section.icon}</span>
+        <span class="section-title">${section.title}</span>
+        <span class="section-count">${sectionChecked}/${section.items.length}</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body">
+        ${section.items.map(item => {
+          const isChecked = !!state[item.id];
+          const tags = (item.tags || []).map(t => `<span class="tag tag-${t}">${t}</span>`).join('');
+          return `
+            <div class="check-item ${isChecked ? 'checked' : ''}">
+              <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggle('${item.id}')">
+              <div>
+                <label class="check-label" onclick="toggle('${item.id}')">${item.label} ${tags}</label>
+                <div class="check-sub">${item.sub}</div>
+              </div>
+            </div>`;
+        }).join('')}
+      </div>`;
+    container.appendChild(div);
+  });
+
+  const pct = total > 0 ? Math.round((checked / total) * 100) : 0;
+  document.getElementById('progressFill').style.width = `${pct}%`;
+  document.getElementById('progressLabel').textContent = `${checked} / ${total} (${pct}%)`;
+}
+
+function toggle(id) {
+  const state = loadState();
+  state[id] = !state[id];
+  saveState(state);
+  render();
+}
+
+function toggleSection(idx) {
+  const state = loadState();
+  state[`section-${idx}-collapsed`] = !state[`section-${idx}-collapsed`];
+  saveState(state);
+  render();
+}
+
+function resetAll() {
+  if (confirm('Resetar todo o checklist? Isso não pode ser desfeito.')) {
+    localStorage.removeItem(STORAGE_KEY);
+    render();
+  }
+}
+
+function exportReport() {
+  const state = loadState();
+  const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  let report = `# SHMS Test Report — ${now}\n\n`;
+  let total = 0, checked = 0;
+
+  CHECKLIST.forEach(section => {
+    report += `## ${section.icon} ${section.title}\n`;
+    section.items.forEach(item => {
+      total++;
+      const p = state[item.id] ? '✅' : '❌';
+      if (state[item.id]) checked++;
+      const label = item.label.replace(/<[^>]+>/g, '');
+      report += `- ${p} ${label}\n`;
+    });
+    report += '\n';
+  });
+
+  const pct = Math.round((checked / total) * 100);
+  report = `> **Score: ${checked}/${total} (${pct}%)**\n\n` + report;
+
+  const blob = new Blob([report], { type: 'text/markdown' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `shms-test-report-${now.replace(/[: ]/g, '-')}.md`;
+  a.click();
+}
+
+render();
+</script>
+</body>
+</html>
