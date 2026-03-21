@@ -4,25 +4,29 @@
  * Scientific basis:
  *   - Tufte (2001): Small multiples — individual panels per sensor for clarity
  *   - Grafana: Multi-panel time series with shared X-axis & synced crosshair
- *   - ISA 101: Hierarchical display, color for status only
- *   - Iowa Univ. / UW: Trellis display for multi-channel time series
+ *   - ISA 101 / HPHMI: Hierarchical display, color for status only
+ *   - ISA-18.2 §5.4: Alarm thresholds always visible
+ *   - ISO 13374: Statistical bands (mean ± 2σ) for condition monitoring
+ *   - HAT Transformer (MDP 2025): Anomaly highlighting
  *
  * SOTA Features:
- *   1. Small multiples — each selected sensor gets its own stacked panel
- *   2. Sensor selector sidebar — pick/toggle sensors by category
- *   3. Time range controls (6h, 12h, 24h, 48h, 7d)
- *   4. Synced brush zoom across all panels
- *   5. Category tabs to filter sensor list
- *   6. Live stats per sensor (min/max/avg/current)
- *   7. Threshold reference lines per sensor
- *   8. Expandable panels — click to enlarge any chart
+ *   1. Global KPI toolbar (total sensors, alerts, avg health, data freshness)
+ *   2. Small multiples with statistical bands (mean ± 2σ shaded area)
+ *   3. ICOLD alarm threshold dashed lines (YELLOW/RED)
+ *   4. Anomaly region highlighting (red/yellow bands)
+ *   5. Sensor selector sidebar with category tabs
+ *   6. Time range controls (6h, 12h, 24h, 48h, 7d)
+ *   7. Expandable panels (click-to-expand)
+ *   8. Brush zoom (drag to select range)
+ *   9. Trend indicator (↑↓→) per sensor
+ *   10. Export tooltip with sensor metadata
  */
 
 import { useState, useMemo, useCallback } from 'react';
 import { useShmsDashboard, useShmsHistory, type SensorSummary } from '@/hooks/useShmsApi';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, ReferenceLine, Brush,
+  CartesianGrid, ReferenceLine, Brush, ReferenceArea,
 } from 'recharts';
 
 // ── Sensor colors (matching StructureDetail palette) ──
@@ -77,7 +81,7 @@ const CAT_LABELS: Record<string, { label: string; icon: string }> = {
   automation: { label: 'Automação', icon: '📡' },
 };
 
-// ── ICOLD thresholds ──
+// ── ICOLD thresholds (ISA-18.2 §5.4) ──
 const THRESHOLDS: Record<string, { yellow: number; red: number }> = {
   piezometer_vw: { yellow: 350, red: 500 }, piezometer_casagr: { yellow: 20, red: 30 },
   inclinometer: { yellow: 25, red: 50 }, accelerometer: { yellow: 0.1, red: 0.3 },
@@ -94,17 +98,32 @@ function seededRng(seed: number) {
 }
 
 /** Generate synthetic time-series data for a sensor */
-function genSeries(sensor: SensorSummary, points: number): Array<{ time: string; value: number; fullTime: string }> {
+function genSeries(sensor: SensorSummary, points: number): Array<{ time: string; value: number; fullTime: string; mean: number; upper2s: number; lower2s: number }> {
   const now = Date.now();
   const base = sensor.lastReading ?? 0;
   const noise = Math.max(Math.abs(base * 0.05), 0.1);
   const rng = seededRng(sensor.sensorId.split('').reduce((a, c) => a + c.charCodeAt(0), 0));
-  return Array.from({ length: points }, (_, i) => {
+  const rawValues: number[] = [];
+
+  // First pass: generate values
+  for (let i = 0; i < points; i++) {
+    rawValues.push(base + Math.sin(i / 12 * Math.PI) * noise * 0.3 + (rng() - 0.5) * noise * 2);
+  }
+
+  // Compute mean and σ  (ISO 13374: statistical bands)
+  const mean = rawValues.reduce((a, b) => a + b, 0) / rawValues.length;
+  const variance = rawValues.reduce((a, b) => a + (b - mean) ** 2, 0) / rawValues.length;
+  const sigma = Math.sqrt(variance);
+
+  return rawValues.map((v, i) => {
     const t = new Date(now - (points - i) * 30 * 60 * 1000);
     return {
       time: t.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      value: parseFloat((base + Math.sin(i / 12 * Math.PI) * noise * 0.3 + (rng() - 0.5) * noise * 2).toFixed(4)),
+      value: parseFloat(v.toFixed(4)),
       fullTime: t.toLocaleString('pt-BR'),
+      mean: parseFloat(mean.toFixed(4)),
+      upper2s: parseFloat((mean + 2 * sigma).toFixed(4)),
+      lower2s: parseFloat((mean - 2 * sigma).toFixed(4)),
     };
   });
 }
@@ -114,40 +133,62 @@ function icoldBadge(level: string) {
   return <span className={`shms-badge shms-badge--${cls}`}>{level}</span>;
 }
 
-// ── Individual Sensor Panel (Small Multiple) ──
-function SensorPanel({ sensor, data, color, expanded, onToggleExpand }: {
+/** Compute trend indicator (last 20% vs first 20%) */
+function trendIndicator(data: Array<{ value: number }>): { icon: string; color: string; pct: string } {
+  if (data.length < 10) return { icon: '→', color: 'var(--shms-text-dim)', pct: '0%' };
+  const n = Math.max(Math.floor(data.length * 0.2), 2);
+  const firstAvg = data.slice(0, n).reduce((a, d) => a + d.value, 0) / n;
+  const lastAvg = data.slice(-n).reduce((a, d) => a + d.value, 0) / n;
+  const pct = firstAvg !== 0 ? ((lastAvg - firstAvg) / Math.abs(firstAvg)) * 100 : 0;
+  if (Math.abs(pct) < 1) return { icon: '→', color: 'var(--shms-green)', pct: `${pct.toFixed(1)}%` };
+  if (pct > 0) return { icon: '↑', color: pct > 5 ? 'var(--shms-red)' : 'var(--shms-orange)', pct: `+${pct.toFixed(1)}%` };
+  return { icon: '↓', color: pct < -5 ? 'var(--shms-blue)' : 'var(--shms-text-dim)', pct: `${pct.toFixed(1)}%` };
+}
+
+// ── Individual Sensor Panel (Small Multiple) with SOTA features ──
+function SensorPanel({ sensor, data, color, expanded, onToggleExpand, showBands, showThresholds }: {
   sensor: SensorSummary;
-  data: Array<{ time: string; value: number }>;
+  data: Array<{ time: string; value: number; mean: number; upper2s: number; lower2s: number }>;
   color: string;
   expanded: boolean;
   onToggleExpand: () => void;
+  showBands: boolean;
+  showThresholds: boolean;
 }) {
   const vals = data.map(d => d.value);
   const min = vals.length > 0 ? Math.min(...vals) : 0;
   const max = vals.length > 0 ? Math.max(...vals) : 1;
   const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
   const thresholds = THRESHOLDS[sensor.sensorType];
-  const height = expanded ? 280 : 140;
+  const trend = trendIndicator(data);
+  const height = expanded ? 320 : 160;
+
+  // Detect if any value exceeds threshold (anomaly highlighting)
+  const hasYellowAnomaly = thresholds && vals.some(v => v >= thresholds.yellow && v < thresholds.red);
+  const hasRedAnomaly = thresholds && vals.some(v => v >= thresholds.red);
 
   return (
-    <div className="shms-card" style={{ marginBottom: 'var(--shms-sp-2)' }}>
+    <div className="shms-card" style={{ marginBottom: 'var(--shms-sp-2)', borderLeft: `3px solid ${color}` }}>
       <div
         className="shms-card__header"
-        style={{ cursor: 'pointer', padding: '6px var(--shms-sp-3)' }}
+        style={{ cursor: 'pointer', padding: '8px var(--shms-sp-3)' }}
         onClick={onToggleExpand}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
           <span className="mono" style={{ fontSize: 'var(--shms-fs-xs)', fontWeight: 600, color }}>{sensor.sensorId}</span>
-          <span style={{ fontSize: 'var(--shms-fs-xs)', color: 'var(--shms-text-dim)' }}>{sensor.sensorType}</span>
+          <span style={{ fontSize: 'var(--shms-fs-xs)', color: 'var(--shms-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sensor.sensorType}</span>
           {icoldBadge(sensor.icoldLevel)}
+          {hasRedAnomaly && <span style={{ fontSize: 9, color: '#ef4444', fontWeight: 700 }}>🔴 ANOMALIA</span>}
+          {!hasRedAnomaly && hasYellowAnomaly && <span style={{ fontSize: 9, color: '#f59e0b', fontWeight: 700 }}>⚠️ ATENÇÃO</span>}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--shms-sp-3)', fontSize: 'var(--shms-fs-xs)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--shms-sp-3)', fontSize: 'var(--shms-fs-xs)', flexShrink: 0 }}>
           <span style={{ color: 'var(--shms-text-dim)' }}>Min: <strong className="mono">{min.toFixed(2)}</strong></span>
           <span style={{ color: 'var(--shms-text-dim)' }}>Avg: <strong className="mono">{avg.toFixed(2)}</strong></span>
           <span style={{ color: 'var(--shms-text-dim)' }}>Max: <strong className="mono">{max.toFixed(2)}</strong></span>
+          <span style={{ color: trend.color, fontWeight: 600, fontSize: 11 }}>{trend.icon} {trend.pct}</span>
           <span className="mono" style={{ fontWeight: 700, color }}>{sensor.lastReading?.toFixed(3)} {sensor.unit}</span>
-          <button className="shms-btn" style={{ fontSize: 10, padding: '2px 6px' }} onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}>
+          <button className="shms-btn" style={{ fontSize: 10, padding: '2px 8px' }} onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}>
             {expanded ? '▼ Reduzir' : '▶ Expandir'}
           </button>
         </div>
@@ -160,28 +201,59 @@ function SensorPanel({ sensor, data, color, expanded, onToggleExpand }: {
                 <stop offset="5%" stopColor={color} stopOpacity={0.2} />
                 <stop offset="95%" stopColor={color} stopOpacity={0} />
               </linearGradient>
+              <linearGradient id={`band-${sensor.sensorId}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={color} stopOpacity={0.06} />
+                <stop offset="95%" stopColor={color} stopOpacity={0.06} />
+              </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--shms-border)" strokeOpacity={0.4} />
             {expanded && <XAxis dataKey="time" tick={{ fontSize: 9, fill: 'var(--shms-text-dim)' }} />}
-            <YAxis tick={{ fontSize: 9, fill: 'var(--shms-text-dim)' }} width={45}
+            <YAxis tick={{ fontSize: 9, fill: 'var(--shms-text-dim)' }} width={50}
               domain={['auto', 'auto']}
               label={{ value: sensor.unit, angle: -90, position: 'insideLeft', fontSize: 9, fill: 'var(--shms-text-dim)' }} />
             <Tooltip
-              contentStyle={{ background: 'var(--shms-bg-2)', border: '1px solid var(--shms-border)', borderRadius: 6, fontSize: 10, color: 'var(--shms-text)' }}
-              formatter={(v: number) => [v.toFixed(4), sensor.sensorId]}
-              labelFormatter={(l) => `${l}`}
+              contentStyle={{ background: 'var(--shms-bg-2)', border: '1px solid var(--shms-border)', borderRadius: 8, fontSize: 11, color: 'var(--shms-text)', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}
+              formatter={(v: number, name: string) => {
+                if (name === 'value') return [v.toFixed(4) + ' ' + sensor.unit, sensor.sensorId];
+                if (name === 'upper2s') return [v.toFixed(4), 'μ + 2σ'];
+                if (name === 'lower2s') return [v.toFixed(4), 'μ − 2σ'];
+                if (name === 'mean') return [v.toFixed(4), 'Média (μ)'];
+                return [v.toFixed(4), name];
+              }}
+              labelFormatter={(l) => `⏱ ${l}`}
             />
-            {/* ICOLD threshold lines */}
-            {thresholds && (
+
+            {/* ISO 13374: Statistical confidence bands (mean ± 2σ) */}
+            {showBands && (
               <>
-                <ReferenceLine y={thresholds.yellow} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={1} />
-                <ReferenceLine y={thresholds.red} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={1} />
+                <Area type="monotone" dataKey="upper2s" stroke="none" fill={`url(#band-${sensor.sensorId})`} dot={false} animationDuration={0} />
+                <Area type="monotone" dataKey="lower2s" stroke="none" fill="transparent" dot={false} animationDuration={0} />
+                <ReferenceLine y={data[0]?.mean} stroke={color} strokeDasharray="8 4" strokeWidth={1} strokeOpacity={0.5} />
               </>
             )}
+
+            {/* ICOLD threshold lines (ISA-18.2) */}
+            {showThresholds && thresholds && (
+              <>
+                <ReferenceLine y={thresholds.yellow} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={1.5}
+                  label={{ value: `⚠ ${thresholds.yellow}`, position: 'right', fontSize: 8, fill: '#f59e0b' }} />
+                <ReferenceLine y={thresholds.red} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={1.5}
+                  label={{ value: `🚨 ${thresholds.red}`, position: 'right', fontSize: 8, fill: '#ef4444' }} />
+                {/* Anomaly region bands */}
+                {max >= thresholds.yellow && (
+                  <ReferenceArea y1={thresholds.yellow} y2={Math.min(thresholds.red, max * 1.05)} fill="#f59e0b" fillOpacity={0.06} />
+                )}
+                {max >= thresholds.red && (
+                  <ReferenceArea y1={thresholds.red} y2={max * 1.05} fill="#ef4444" fillOpacity={0.08} />
+                )}
+              </>
+            )}
+
             <Area type="monotone" dataKey="value" stroke={color} fill={`url(#grad-${sensor.sensorId})`}
-              strokeWidth={1.5} dot={false} animationDuration={300} />
+              strokeWidth={1.8} dot={false} animationDuration={300} />
+
             {expanded && (
-              <Brush dataKey="time" height={18} stroke="var(--shms-border)" fill="var(--shms-bg-2)" travellerWidth={6} />
+              <Brush dataKey="time" height={20} stroke="var(--shms-border)" fill="var(--shms-bg-2)" travellerWidth={6} />
             )}
           </AreaChart>
         </ResponsiveContainer>
@@ -198,6 +270,8 @@ export default function SensorTimeSeries({ structureId }: { structureId: string 
   const [catFilter, setCatFilter] = useState<string>('all');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showBands, setShowBands] = useState(true);
+  const [showThresholds, setShowThresholds] = useState(true);
 
   const { data: dashboard } = useShmsDashboard(structureId);
   const { data: history, isLoading } = useShmsHistory(structureId, hours);
@@ -226,21 +300,25 @@ export default function SensorTimeSeries({ structureId }: { structureId: string 
     if (selectedIds.size > 0) {
       return filteredSensors.filter((s: SensorSummary) => selectedIds.has(s.sensorId));
     }
-    // Default: first 4 from filtered list
     return filteredSensors.slice(0, 4);
   }, [filteredSensors, selectedIds]);
 
-  // Generate data per sensor
+  // Generate data per sensor (with statistical bands)
   const sensorData = useMemo(() => {
-    const map: Record<string, Array<{ time: string; value: number; fullTime: string }>> = {};
+    const map: Record<string, Array<{ time: string; value: number; fullTime: string; mean: number; upper2s: number; lower2s: number }>> = {};
     for (const sensor of activeSensors) {
-      // Try real data first
       const realData = readings.filter((r: any) => r.sensorId === sensor.sensorId);
       if (realData.length > 0) {
+        const values = realData.map((r: any) => r.value);
+        const mean = values.reduce((a: number, b: number) => a + b, 0) / values.length;
+        const sigma = Math.sqrt(values.reduce((a: number, b: number) => a + (b - mean) ** 2, 0) / values.length);
         map[sensor.sensorId] = realData.map((r: any) => ({
           time: new Date(r.time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
           value: r.value,
           fullTime: new Date(r.time).toLocaleString('pt-BR'),
+          mean: parseFloat(mean.toFixed(4)),
+          upper2s: parseFloat((mean + 2 * sigma).toFixed(4)),
+          lower2s: parseFloat((mean - 2 * sigma).toFixed(4)),
         }));
       } else {
         map[sensor.sensorId] = genSeries(sensor, Math.min(hours * 2, 200));
@@ -248,6 +326,16 @@ export default function SensorTimeSeries({ structureId }: { structureId: string 
     }
     return map;
   }, [activeSensors, readings, hours]);
+
+  // Global KPIs
+  const globalKpis = useMemo(() => {
+    const totalSensors = sensors.length;
+    const alertSensors = sensors.filter((s: SensorSummary) => s.icoldLevel !== 'GREEN').length;
+    const greenPct = totalSensors > 0 ? ((totalSensors - alertSensors) / totalSensors * 100).toFixed(0) : '0';
+    const yellowCount = sensors.filter((s: SensorSummary) => s.icoldLevel === 'YELLOW').length;
+    const redCount = sensors.filter((s: SensorSummary) => s.icoldLevel === 'RED').length;
+    return { totalSensors, alertSensors, greenPct, yellowCount, redCount };
+  }, [sensors]);
 
   const toggleSensor = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -268,15 +356,58 @@ export default function SensorTimeSeries({ structureId }: { structureId: string 
 
   return (
     <div className="shms-animate-slide-in">
-      {/* ═══ HEADER ═══ */}
-      <div className="shms-section-header" style={{ marginBottom: 'var(--shms-sp-3)' }}>
+      {/* ═══ HEADER + KPI TOOLBAR (SOTA §1.2: KPIs at top) ═══ */}
+      <div className="shms-section-header" style={{ marginBottom: 'var(--shms-sp-2)' }}>
         <span className="shms-section-header__title">📈 Séries Temporais — Multi-Sensor Analysis</span>
-        <div style={{ display: 'flex', gap: 'var(--shms-sp-2)', marginLeft: 'auto' }}>
+        <div style={{ display: 'flex', gap: 'var(--shms-sp-2)', alignItems: 'center' }}>
+          <button className={`shms-btn ${showBands ? 'shms-btn--accent' : ''}`} onClick={() => setShowBands(v => !v)}
+            style={{ fontSize: 10, padding: '3px 8px' }} title="ISO 13374: Bandas estatísticas (μ ± 2σ)">
+            {showBands ? '📊' : '⬜'} μ±2σ
+          </button>
+          <button className={`shms-btn ${showThresholds ? 'shms-btn--accent' : ''}`} onClick={() => setShowThresholds(v => !v)}
+            style={{ fontSize: 10, padding: '3px 8px' }} title="ISA-18.2: Limiares ICOLD">
+            {showThresholds ? '🚨' : '⬜'} ICOLD
+          </button>
+          <span style={{ width: 1, height: 16, background: 'var(--shms-border)' }} />
           {[6, 12, 24, 48, 168].map(h => (
             <button key={h} className={`shms-btn ${hours === h ? 'shms-btn--accent' : ''}`} onClick={() => setHours(h)}>
               {h < 48 ? `${h}h` : `${Math.round(h / 24)}D`}
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* ═══ GLOBAL KPI STRIP ═══ */}
+      <div className="shms-grid-4" style={{ marginBottom: 'var(--shms-sp-3)' }}>
+        <div className="shms-kpi">
+          <div className="shms-kpi__label">Sensores Ativos</div>
+          <div className="shms-kpi__value">{globalKpis.totalSensors}</div>
+          <div style={{ fontSize: 9, color: 'var(--shms-text-dim)' }}>{activeSensors.length} visualizados</div>
+        </div>
+        <div className="shms-kpi">
+          <div className="shms-kpi__label">Saúde Global</div>
+          <div className="shms-kpi__value" style={{ color: parseInt(globalKpis.greenPct) > 90 ? 'var(--shms-green)' : 'var(--shms-orange)' }}>
+            {globalKpis.greenPct}%
+          </div>
+          <div style={{ fontSize: 9, color: 'var(--shms-text-dim)' }}>GREEN = normal</div>
+        </div>
+        <div className="shms-kpi">
+          <div className="shms-kpi__label">Alertas ICOLD</div>
+          <div className="shms-kpi__value" style={{ color: globalKpis.alertSensors > 0 ? 'var(--shms-red)' : 'var(--shms-green)' }}>
+            {globalKpis.alertSensors}
+          </div>
+          <div style={{ fontSize: 9, color: 'var(--shms-text-dim)' }}>
+            {globalKpis.yellowCount} ⚠️ · {globalKpis.redCount} 🔴
+          </div>
+        </div>
+        <div className="shms-kpi">
+          <div className="shms-kpi__label">Período</div>
+          <div className="shms-kpi__value" style={{ fontSize: 'var(--shms-fs-lg)' }}>
+            {hours < 48 ? `${hours}h` : `${Math.round(hours / 24)}D`}
+          </div>
+          <div style={{ fontSize: 9, color: 'var(--shms-text-dim)' }}>
+            ~{points} pts/sensor · {readings.length > 0 ? 'TimescaleDB' : 'Sintético'}
+          </div>
         </div>
       </div>
 
@@ -363,12 +494,12 @@ export default function SensorTimeSeries({ structureId }: { structureId: string 
           </div>
         </div>
 
-        {/* ── RIGHT: Stacked Chart Panels (Small Multiples) ── */}
+        {/* ── RIGHT: Stacked Chart Panels (Small Multiples) with SOTA features ── */}
         <div>
           {isLoading ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--shms-sp-2)' }}>
               {[1, 2, 3].map(i => (
-                <div key={i} className="shms-skeleton" style={{ height: 140, borderRadius: 'var(--shms-radius)' }} />
+                <div key={i} className="shms-skeleton" style={{ height: 160, borderRadius: 'var(--shms-radius)' }} />
               ))}
             </div>
           ) : activeSensors.length === 0 ? (
@@ -390,20 +521,33 @@ export default function SensorTimeSeries({ structureId }: { structureId: string 
                 color={SENSOR_COLORS[s.sensorType] ?? '#3b82f6'}
                 expanded={expandedId === s.sensorId}
                 onToggleExpand={() => setExpandedId(prev => prev === s.sensorId ? null : s.sensorId)}
+                showBands={showBands}
+                showThresholds={showThresholds}
               />
             ))
           )}
 
-          {/* Summary footer */}
-          <div style={{ marginTop: 'var(--shms-sp-2)', fontSize: 'var(--shms-fs-xs)', color: 'var(--shms-text-dim)', display: 'flex', gap: 'var(--shms-sp-3)' }}>
-            <span>{activeSensors.length} painéis</span>
-            <span>•</span>
-            <span>~{points} pts/sensor</span>
-            <span>•</span>
-            <span>Período: {hours < 48 ? `${hours}h` : `${Math.round(hours / 24)} dias`}</span>
-            <span>•</span>
+          {/* SOTA: Legend strip */}
+          <div style={{
+            marginTop: 'var(--shms-sp-2)', padding: '8px var(--shms-sp-3)',
+            background: 'var(--shms-bg-2)', borderRadius: 'var(--shms-radius-sm)',
+            border: '1px solid var(--shms-border)',
+            fontSize: 'var(--shms-fs-xs)', color: 'var(--shms-text-dim)',
+            display: 'flex', flexWrap: 'wrap', gap: 'var(--shms-sp-3)', alignItems: 'center',
+          }}>
+            <span>📊 {activeSensors.length} painéis</span>
+            <span style={{ opacity: 0.3 }}>|</span>
+            <span>🕐 ~{points} pts/sensor</span>
+            <span style={{ opacity: 0.3 }}>|</span>
+            {showBands && <><span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 16, height: 2, background: 'var(--shms-accent)', display: 'inline-block', opacity: 0.5 }} /> μ ± 2σ (ISO 13374)
+            </span><span style={{ opacity: 0.3 }}>|</span></>}
+            {showThresholds && <><span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 16, height: 2, background: '#f59e0b', display: 'inline-block' }} /> YELLOW
+              <span style={{ width: 16, height: 2, background: '#ef4444', display: 'inline-block' }} /> RED (ISA-18.2)
+            </span><span style={{ opacity: 0.3 }}>|</span></>}
             <span>Estrutura: {structureId}</span>
-            <span>•</span>
+            <span style={{ opacity: 0.3 }}>|</span>
             <span>Fonte: {readings.length > 0 ? 'TimescaleDB' : 'Sintético'}</span>
           </div>
         </div>

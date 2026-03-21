@@ -266,6 +266,28 @@ class SDKServer {
     }
     const sessionUserId = session.openId;
     const signedInAt = new Date();
+
+    // ── DEV MODE BYPASS: Return mock user for dev_admin sessions ──
+    // When DATABASE_URL points to production and MySQL isn't running locally,
+    // the login bypass creates sessions with openId='dev_admin_*'.
+    // Return a mock User object so the full auth chain works without DB.
+    if (sessionUserId.startsWith('dev_admin_') && process.env.NODE_ENV === 'development') {
+      return {
+        id: 0,
+        openId: sessionUserId,
+        name: session.name || 'Dev Admin',
+        username: 'dev_admin',
+        email: 'dev@mother.local',
+        passwordHash: null,
+        loginMethod: 'dev_bypass',
+        role: 'admin',
+        status: 'active',
+        createdAt: signedInAt,
+        updatedAt: signedInAt,
+        lastSignedIn: signedInAt,
+      } as User;
+    }
+
     let user = await db.getUserByOpenId(sessionUserId);
     // Native auth users (openId starts with 'native_') are managed locally.
     // Skip OAuth sync for them — they exist in our DB only.

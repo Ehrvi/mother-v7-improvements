@@ -1,28 +1,21 @@
 /**
- * SHMS Themes — 6 SOTA Structural Variations
+ * SHMS Themes — 7 SOTA Structural Variations
  *
- * Each theme changes EVERYTHING: color, layout, structure, cards, navigation, typography.
- * Uses [data-shms-theme="X"] on <html> element for full override.
+ * Each theme overrides CSS custom properties from shms-tokens.css.
+ * Uses [data-shms-theme="X"] on <html> element.
  *
- * ACTUAL SELECTORS (from shms-tokens.css):
- *   .shms-shell         — grid layout container (grid-template-columns/rows/areas)
- *   .shms-sidebar        — sidebar <aside>
- *   .shms-sidebar__item  — nav buttons
- *   .shms-sidebar__section — nav groups
- *   .shms-sidebar__section-label — section headers
- *   .shms-sidebar__logo  — logo bar at top
- *   .shms-topbar         — top bar <header>
- *   .shms-content        — main content area
- *   .shms-root::before   — gradient mesh background
- *   .shms-root::after    — scanlines overlay
+ * Layout: topbar / content+chatpanel / dock (bottom)
+ * All themes share the same dock-based layout grid from shms-tokens.css.
+ * Themes only override: colors, radius, font, card styles, topbar/dock appearance.
  *
  * Themes:
- *   1. precision-zen  — DEFAULT: Left sidebar 220px, dark oklch, glassmorphism
- *   2. arctic          — TOP NAV, light mode, rounded cards, no sidebar
- *   3. copper          — RIGHT sidebar, warm, flat industrial cards
- *   4. neon-grid       — Collapsed 56px icon sidebar, cyberpunk, glow
- *   5. paper           — No sidebar, serif, tabbed nav, zero decoration
- *   6. obsidian        — Bottom dock, OLED black, floating panels
+ *   1. precision-zen       — DEFAULT: Dark oklch, glassmorphism
+ *   2. precision-zen-light — Light variant of Precision Zen
+ *   3. arctic              — Light mode, frost, rounded cards
+ *   4. copper              — Warm earth, industrial flat cards
+ *   5. neon-grid           — Cyberpunk, glow
+ *   6. paper               — Tufte serif, zero chrome
+ *   7. obsidian            — OLED black, floating panels
  */
 
 /* ════════════════════════════════════════════════════════════════════════════
@@ -46,7 +39,56 @@
 
 
 /* ════════════════════════════════════════════════════════════════════════════
-   THEME 2: ARCTIC — Top horizontal nav, light mode, rounded
+   THEME 1B: PRECISION ZEN LIGHT — Light variant of default
+   ════════════════════════════════════════════════════════════════════════════ */
+[data-shms-theme="precision-zen-light"] {
+  --shms-bg-0: oklch(96% 0.006 230);
+  --shms-bg-1: oklch(99% 0.003 230);
+  --shms-bg-2: oklch(93% 0.008 230);
+  --shms-bg-3: oklch(89% 0.010 230);
+  --shms-border: oklch(86% 0.010 230);
+  --shms-border-hover: oklch(78% 0.015 230);
+  --shms-border-active: oklch(70% 0.020 230);
+  --shms-text: oklch(15% 0.012 230);
+  --shms-text-secondary: oklch(38% 0.010 230);
+  --shms-text-muted: oklch(55% 0.008 230);
+  --shms-text-dim: oklch(70% 0.006 230);
+  --shms-accent: oklch(50% 0.18 240);
+  --shms-accent-hover: oklch(44% 0.20 240);
+  --shms-accent-bg: oklch(93% 0.04 240);
+  --shms-accent-border: oklch(82% 0.06 240);
+  --shms-green: oklch(42% 0.15 148);  --shms-green-bg: oklch(94% 0.04 148);  --shms-green-border: oklch(82% 0.06 148);
+  --shms-yellow: oklch(50% 0.14 85);  --shms-yellow-bg: oklch(94% 0.04 85);  --shms-yellow-border: oklch(82% 0.06 85);
+  --shms-red: oklch(48% 0.20 28);     --shms-red-bg: oklch(94% 0.05 28);     --shms-red-border: oklch(82% 0.07 28);
+  --shms-blue: oklch(48% 0.15 260);   --shms-blue-bg: oklch(94% 0.04 260);   --shms-blue-border: oklch(82% 0.06 260);
+  --shms-orange: oklch(52% 0.16 55);  --shms-orange-bg: oklch(94% 0.04 55);  --shms-orange-border: oklch(82% 0.06 55);
+}
+[data-shms-theme="precision-zen-light"] .shms-topbar {
+  background: oklch(99% 0.003 230) !important;
+  border-bottom: 1px solid oklch(86% 0.010 230) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+[data-shms-theme="precision-zen-light"] .shms-topbar::after { display: none !important; }
+[data-shms-theme="precision-zen-light"] .shms-root::before { display: none !important; }
+[data-shms-theme="precision-zen-light"] .shms-root::after { display: none !important; }
+[data-shms-theme="precision-zen-light"] .shms-card {
+  box-shadow: 0 1px 3px oklch(0% 0 0 / 0.04), 0 2px 8px oklch(0% 0 0 / 0.02) !important;
+}
+[data-shms-theme="precision-zen-light"] .shms-dock {
+  background: oklch(99% 0.003 230) !important;
+  border-top-color: oklch(86% 0.010 230) !important;
+}
+[data-shms-theme="precision-zen-light"] .shms-chatpanel {
+  background: oklch(97% 0.005 230) !important;
+  border-left-color: oklch(86% 0.010 230) !important;
+}
+[data-shms-theme="precision-zen-light"] ::-webkit-scrollbar-thumb { background: oklch(80% 0.01 230) !important; }
+[data-shms-theme="precision-zen-light"] ::-webkit-scrollbar-track { background: oklch(94% 0.005 230) !important; }
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   THEME 2: ARCTIC — Light mode, frost, rounded cards
    ════════════════════════════════════════════════════════════════════════════ */
 [data-shms-theme="arctic"] {
   --shms-bg-0: oklch(97% 0.005 230);
@@ -73,63 +115,6 @@
   --shms-radius-sm: 8px;
   --shms-radius-lg: 20px;
 }
-
-/* ARCTIC STRUCTURE: sidebar becomes top horizontal nav */
-[data-shms-theme="arctic"] .shms-shell {
-  grid-template-columns: 1fr !important;
-  grid-template-rows: var(--shms-topbar-h) auto 1fr !important;
-  grid-template-areas:
-    "topbar"
-    "sidebar"
-    "content" !important;
-}
-[data-shms-theme="arctic"] .shms-shell--collapsed {
-  grid-template-columns: 1fr !important;
-}
-[data-shms-theme="arctic"] .shms-sidebar {
-  grid-area: sidebar !important;
-  width: 100% !important;
-  height: auto !important;
-  max-height: none !important;
-  display: flex !important;
-  flex-direction: row !important;
-  overflow-x: auto !important;
-  overflow-y: hidden !important;
-  padding: 0 16px !important;
-  gap: 2px !important;
-  background: oklch(100% 0 0) !important;
-  border-right: none !important;
-  border-bottom: 1px solid oklch(88% 0.010 230) !important;
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
-}
-[data-shms-theme="arctic"] .shms-sidebar__nav {
-  display: flex !important;
-  flex-direction: row !important;
-  flex-wrap: nowrap !important;
-  gap: 2px !important;
-  padding: 0 !important;
-  overflow-x: auto !important;
-}
-[data-shms-theme="arctic"] .shms-sidebar__section {
-  display: flex !important;
-  flex-direction: row !important;
-  gap: 2px !important;
-  margin-top: 0 !important;
-}
-[data-shms-theme="arctic"] .shms-sidebar__section-label { display: none !important; }
-[data-shms-theme="arctic"] .shms-sidebar__item {
-  white-space: nowrap !important;
-  padding: 8px 12px !important;
-  border-radius: 8px 8px 0 0 !important;
-  font-size: 11px !important;
-}
-[data-shms-theme="arctic"] .shms-sidebar__item--active {
-  background: oklch(94% 0.008 230) !important;
-  border-bottom: 2px solid var(--shms-accent) !important;
-}
-[data-shms-theme="arctic"] .shms-sidebar__item--active::before { display: none !important; }
-[data-shms-theme="arctic"] .shms-sidebar__logo { display: none !important; }
 [data-shms-theme="arctic"] .shms-topbar {
   background: oklch(100% 0 0) !important;
   border-bottom: 1px solid oklch(88% 0.010 230) !important;
@@ -143,12 +128,20 @@
   box-shadow: 0 1px 4px oklch(0% 0 0 / 0.06), 0 4px 12px oklch(0% 0 0 / 0.03) !important;
   border-color: oklch(90% 0.008 230) !important;
 }
+[data-shms-theme="arctic"] .shms-dock {
+  background: oklch(100% 0 0) !important;
+  border-top-color: oklch(88% 0.010 230) !important;
+}
+[data-shms-theme="arctic"] .shms-chatpanel {
+  background: oklch(98% 0.003 230) !important;
+  border-left-color: oklch(88% 0.010 230) !important;
+}
 [data-shms-theme="arctic"] ::-webkit-scrollbar-thumb { background: oklch(82% 0.01 230) !important; }
 [data-shms-theme="arctic"] ::-webkit-scrollbar-track { background: oklch(95% 0.005 230) !important; }
 
 
 /* ════════════════════════════════════════════════════════════════════════════
-   THEME 3: COPPER — Right sidebar, warm earth, industrial flat cards
+   THEME 3: COPPER — Warm earth, industrial flat cards
    ════════════════════════════════════════════════════════════════════════════ */
 [data-shms-theme="copper"] {
   --shms-bg-0: oklch(10% 0.025 50);
@@ -175,29 +168,6 @@
   --shms-radius-sm: 2px;
   --shms-radius-lg: 6px;
 }
-
-/* COPPER STRUCTURE: Sidebar moves to RIGHT */
-[data-shms-theme="copper"] .shms-shell {
-  grid-template-columns: 1fr var(--shms-sidebar-w) !important;
-  grid-template-areas:
-    "topbar  topbar"
-    "content sidebar" !important;
-}
-[data-shms-theme="copper"] .shms-shell--collapsed {
-  grid-template-columns: 1fr var(--shms-sidebar-collapsed) !important;
-}
-[data-shms-theme="copper"] .shms-sidebar {
-  border-right: none !important;
-  border-left: 2px solid var(--shms-border) !important;
-}
-[data-shms-theme="copper"] .shms-sidebar__item--active {
-  border-right: none !important;
-  background: var(--shms-bg-2) !important;
-}
-[data-shms-theme="copper"] .shms-sidebar__item--active::before {
-  left: auto !important;
-  right: 0 !important;
-}
 [data-shms-theme="copper"] .shms-card {
   border-radius: 0 !important;
   border-top: 3px solid var(--shms-accent) !important;
@@ -221,7 +191,7 @@
 
 
 /* ════════════════════════════════════════════════════════════════════════════
-   THEME 4: NEON GRID — Collapsed 56px icon sidebar, cyberpunk, glow
+   THEME 4: NEON GRID — Cyberpunk, glow
    ════════════════════════════════════════════════════════════════════════════ */
 [data-shms-theme="neon-grid"] {
   --shms-bg-0: oklch(2% 0.005 280);
@@ -248,31 +218,6 @@
   --shms-radius-sm: 1px;
   --shms-radius-lg: 4px;
 }
-
-/* NEON STRUCTURE: Always collapsed sidebar (56px icons) */
-[data-shms-theme="neon-grid"] .shms-shell {
-  grid-template-columns: 56px 1fr !important;
-}
-[data-shms-theme="neon-grid"] .shms-shell--collapsed {
-  grid-template-columns: 56px 1fr !important;
-}
-[data-shms-theme="neon-grid"] .shms-sidebar {
-  width: 56px !important;
-  background: oklch(2% 0.005 280 / 0.95) !important;
-  overflow: hidden !important;
-}
-[data-shms-theme="neon-grid"] .shms-sidebar__section-label { display: none !important; }
-[data-shms-theme="neon-grid"] .shms-sidebar__item span:not(.shms-sidebar__item-icon) { display: none !important; }
-[data-shms-theme="neon-grid"] .shms-sidebar__item {
-  justify-content: center !important;
-  padding: 12px 0 !important;
-  font-size: 18px !important;
-}
-[data-shms-theme="neon-grid"] .shms-sidebar__logo-text { display: none !important; }
-[data-shms-theme="neon-grid"] .shms-sidebar__item--active::before {
-  background: var(--shms-accent) !important;
-  box-shadow: 0 0 14px var(--shms-accent) !important;
-}
 /* Neon grid lines background */
 [data-shms-theme="neon-grid"] .shms-root::before {
   background:
@@ -291,6 +236,9 @@
   background: linear-gradient(90deg, transparent, var(--shms-accent), transparent) !important;
   opacity: 0.6 !important;
 }
+[data-shms-theme="neon-grid"] .shms-dock__item--active {
+  box-shadow: 0 0 8px oklch(78% 0.22 175 / 0.3) !important;
+}
 [data-shms-theme="neon-grid"] ::-webkit-scrollbar-thumb {
   background: oklch(22% 0.06 175) !important;
   box-shadow: 0 0 4px oklch(78% 0.22 175 / 0.25) !important;
@@ -298,7 +246,7 @@
 
 
 /* ════════════════════════════════════════════════════════════════════════════
-   THEME 5: PAPER — No sidebar, serif, tabbed top nav, Tufte-pure
+   THEME 5: PAPER — Tufte serif, zero decoration
    ════════════════════════════════════════════════════════════════════════════ */
 [data-shms-theme="paper"] {
   --shms-bg-0: oklch(96% 0.003 80);
@@ -326,64 +274,6 @@
   --shms-radius-sm: 0;
   --shms-radius-lg: 0;
 }
-
-/* PAPER STRUCTURE: Full-width, sidebar becomes horizontal tab links */
-[data-shms-theme="paper"] .shms-shell {
-  grid-template-columns: 1fr !important;
-  grid-template-rows: var(--shms-topbar-h) auto 1fr !important;
-  grid-template-areas:
-    "topbar"
-    "sidebar"
-    "content" !important;
-  max-width: 1200px !important;
-  margin: 0 auto !important;
-}
-[data-shms-theme="paper"] .shms-shell--collapsed {
-  grid-template-columns: 1fr !important;
-}
-[data-shms-theme="paper"] .shms-sidebar {
-  grid-area: sidebar !important;
-  width: 100% !important;
-  height: auto !important;
-  display: flex !important;
-  flex-direction: row !important;
-  flex-wrap: wrap !important;
-  gap: 0 !important;
-  padding: 4px 24px !important;
-  background: oklch(96% 0.003 80) !important;
-  border-right: none !important;
-  border-bottom: 1px solid oklch(84% 0.005 80) !important;
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
-}
-[data-shms-theme="paper"] .shms-sidebar__nav {
-  display: flex !important;
-  flex-direction: row !important;
-  flex-wrap: wrap !important;
-  gap: 0 !important;
-  padding: 0 !important;
-}
-[data-shms-theme="paper"] .shms-sidebar__section {
-  display: flex !important;
-  flex-direction: row !important;
-  gap: 0 !important;
-  margin-top: 0 !important;
-}
-[data-shms-theme="paper"] .shms-sidebar__section-label { display: none !important; }
-[data-shms-theme="paper"] .shms-sidebar__item {
-  padding: 6px 10px !important;
-  font-size: 11px !important;
-  color: oklch(32% 0.006 80) !important;
-  border-bottom: 2px solid transparent !important;
-  border-radius: 0 !important;
-}
-[data-shms-theme="paper"] .shms-sidebar__item--active {
-  border-bottom-color: oklch(12% 0.008 80) !important;
-  background: transparent !important;
-  font-weight: 600 !important;
-}
-[data-shms-theme="paper"] .shms-sidebar__item--active::before { display: none !important; }
-[data-shms-theme="paper"] .shms-sidebar__logo { display: none !important; }
 [data-shms-theme="paper"] .shms-root::before { display: none !important; }
 [data-shms-theme="paper"] .shms-root::after { display: none !important; }
 [data-shms-theme="paper"] .shms-topbar {
@@ -393,7 +283,6 @@
   backdrop-filter: none !important;
 }
 [data-shms-theme="paper"] .shms-topbar::after { display: none !important; }
-/* Paper: borderless cards, just bottom rules (Tufte) */
 [data-shms-theme="paper"] .shms-card {
   border: none !important;
   border-bottom: 1px solid oklch(84% 0.005 80) !important;
@@ -412,7 +301,7 @@
 
 
 /* ════════════════════════════════════════════════════════════════════════════
-   THEME 6: OBSIDIAN — Bottom dock nav, OLED black, floating panels
+   THEME 6: OBSIDIAN — OLED black, floating panels
    ════════════════════════════════════════════════════════════════════════════ */
 [data-shms-theme="obsidian"] {
   --shms-bg-0: oklch(0% 0 0);
@@ -439,68 +328,6 @@
   --shms-radius-sm: 4px;
   --shms-radius-lg: 12px;
 }
-
-/* OBSIDIAN STRUCTURE: Bottom dock navigation */
-[data-shms-theme="obsidian"] .shms-shell {
-  grid-template-columns: 1fr !important;
-  grid-template-rows: var(--shms-topbar-h) 1fr 56px !important;
-  grid-template-areas:
-    "topbar"
-    "content"
-    "sidebar" !important;
-}
-[data-shms-theme="obsidian"] .shms-shell--collapsed {
-  grid-template-columns: 1fr !important;
-}
-[data-shms-theme="obsidian"] .shms-sidebar {
-  grid-area: sidebar !important;
-  width: 100% !important;
-  height: 56px !important;
-  display: flex !important;
-  flex-direction: row !important;
-  justify-content: center !important;
-  align-items: center !important;
-  gap: 4px !important;
-  padding: 0 16px !important;
-  background: oklch(0% 0 0 / 0.95) !important;
-  border-right: none !important;
-  border-top: 1px solid oklch(12% 0.010 230) !important;
-  overflow-x: auto !important;
-  overflow-y: hidden !important;
-  -webkit-backdrop-filter: blur(20px) !important;
-  backdrop-filter: blur(20px) !important;
-}
-[data-shms-theme="obsidian"] .shms-sidebar__nav {
-  display: flex !important;
-  flex-direction: row !important;
-  justify-content: center !important;
-  gap: 2px !important;
-  padding: 0 !important;
-}
-[data-shms-theme="obsidian"] .shms-sidebar__section {
-  display: flex !important;
-  flex-direction: row !important;
-  gap: 2px !important;
-  margin-top: 0 !important;
-}
-[data-shms-theme="obsidian"] .shms-sidebar__section-label { display: none !important; }
-[data-shms-theme="obsidian"] .shms-sidebar__item {
-  padding: 8px !important;
-  font-size: 16px !important;
-  border-radius: 10px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 40px !important;
-  height: 40px !important;
-}
-[data-shms-theme="obsidian"] .shms-sidebar__item span:not(.shms-sidebar__item-icon) { display: none !important; }
-[data-shms-theme="obsidian"] .shms-sidebar__item--active {
-  background: oklch(12% 0.010 230) !important;
-  transform: translateY(-2px) !important;
-}
-[data-shms-theme="obsidian"] .shms-sidebar__item--active::before { display: none !important; }
-[data-shms-theme="obsidian"] .shms-sidebar__logo { display: none !important; }
 [data-shms-theme="obsidian"] .shms-root::before { display: none !important; }
 [data-shms-theme="obsidian"] .shms-root::after { display: none !important; }
 [data-shms-theme="obsidian"] .shms-topbar {
@@ -511,6 +338,11 @@
 [data-shms-theme="obsidian"] .shms-card {
   border: 1px solid oklch(12% 0.010 230) !important;
   box-shadow: 0 8px 24px oklch(0% 0 0 / 0.5) !important;
+}
+[data-shms-theme="obsidian"] .shms-dock {
+  background: oklch(0% 0 0 / 0.95) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  backdrop-filter: blur(20px) !important;
 }
 [data-shms-theme="obsidian"] ::-webkit-scrollbar-thumb { background: oklch(16% 0.008 230) !important; }
 [data-shms-theme="obsidian"] ::-webkit-scrollbar-track { background: oklch(0% 0 0) !important; }

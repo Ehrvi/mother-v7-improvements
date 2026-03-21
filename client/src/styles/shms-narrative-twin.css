@@ -375,11 +375,11 @@
 
 .nt-modal {
   position: fixed;
-  top: 50%;
+  top: 45%;
   left: 50%;
   transform: translate(-50%, -50%);
   width: min(1150px, 92vw);
-  max-height: 88vh;
+  max-height: 75vh;
   overflow-y: auto;
   background: oklch(10% 0.02 220);
   border: 1px solid oklch(18% 0.03 220);

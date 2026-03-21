@@ -561,7 +561,7 @@ export default function StructureDetail({ structureId, onNavigate }: StructureDe
           { view: 'stability' as ShmsView, icon: '⛰️', label: 'Estabilidade', desc: 'Fator de segurança' },
           { view: 'risk-map' as ShmsView, icon: '🗺️', label: 'Mapa de Risco', desc: 'Matriz probabilidade' },
           { view: 'fault-tree' as ShmsView, icon: '🌳', label: 'Árvore de Falhas', desc: 'FTA / FMEA' },
-          { view: 'ai-chat' as ShmsView, icon: '🧠', label: 'AI Cognitiva', desc: 'Consulta MOTHER' },
+          { view: '3d-twin' as ShmsView, icon: '🎮', label: 'Digital Twin 3D', desc: 'Visualização 3D' },
         ].map(item => (
           <button key={item.view} className="shms-card" onClick={() => onNavigate(item.view)}
             style={{

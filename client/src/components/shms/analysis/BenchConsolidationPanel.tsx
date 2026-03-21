@@ -32,17 +32,42 @@ import {
   type DGMEvolutionResult,
   type DGMConstraints,
   type DACResult,
+  type MonteCarloResult,
+  type BenchComplianceEntry,
 } from './BenchConsolidationEngine';
 
 interface Props { structureId: string; }
-type Tab = 'design' | 'dac' | 'dgm' | 'audit';
+type Tab = 'design' | 'lab' | 'dac' | 'dgm' | 'audit';
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'design', label: 'Design', icon: '📐' },
+  { key: 'lab',    label: 'Lab ASTM', icon: '🧪' },
   { key: 'dac',    label: 'DAC',    icon: '⚖️' },
   { key: 'dgm',    label: 'DGM',    icon: '🧬' },
   { key: 'audit',  label: 'Audit',  icon: '🔐' },
 ];
+
+// ── ASTM D2435 Load Stage type ──
+interface LoadStage { pressure: number; duration: number; }
+
+// ── Consolidation Lab Parameters (SOTA §2.4) ──
+interface ConsolidationLabParams {
+  e0: number;           // Initial void ratio
+  Gs: number;           // Specific gravity of solids
+  sampleH: number;      // Sample height (mm)
+  sampleD: number;      // Sample diameter (mm)
+  drainage: 'single' | 'double';
+  loadSchedule: LoadStage[];
+  // Method toggles
+  methodCasagrande: boolean;
+  methodTaylor: boolean;
+  methodIsotache: boolean;
+  // Output toggles
+  outputELogSigma: boolean;
+  outputCv: boolean;
+  outputCcCr: boolean;
+  outputSettlement: boolean;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  SOTA COMPONENT: Annotated SVG Profile (Improvement #2 + #6)
@@ -125,11 +150,23 @@ function DACCard({ d, label }: { d: DACResult; label: string }) {
   const status = d.fos >= d.minFOS * 1.15 ? 'green' : d.fos >= d.minFOS ? 'yellow' : 'red';
   const borderColor = status === 'green' ? 'oklch(72% 0.17 148 / 0.5)' : status === 'yellow' ? 'oklch(80% 0.15 85 / 0.5)' : 'oklch(62% 0.22 28 / 0.5)';
   const glowColor = status === 'green' ? 'oklch(72% 0.17 148 / 0.15)' : status === 'yellow' ? 'oklch(80% 0.15 85 / 0.1)' : 'oklch(62% 0.22 28 / 0.2)';
+  const pofColor = d.pof <= 10 ? 'var(--shms-green)' : d.pof <= 25 ? 'oklch(80% 0.15 85)' : 'var(--shms-red)';
   return (
     <div style={{ background: 'var(--shms-bg-1)', border: `2px solid ${borderColor}`, borderRadius: 'var(--shms-radius)', padding: '16px', textAlign: 'center', boxShadow: `0 0 20px ${glowColor}`, transition: 'all 0.3s ease' }}>
       <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--shms-text-dim)', marginBottom: '8px' }}>{label}</div>
       <div style={{ fontSize: '28px', fontWeight: 800, fontFamily: 'var(--shms-font-mono)', letterSpacing: '-0.03em', color: `var(--shms-${status})` }}>{d.fos.toFixed(3)}</div>
-      <div style={{ fontSize: '10px', color: 'var(--shms-text-muted)', margin: '4px 0 12px' }}>≥ {d.minFOS.toFixed(1)} | PF &lt; {d.maxPF}%</div>
+      <div style={{ fontSize: '10px', color: 'var(--shms-text-muted)', margin: '4px 0 8px' }}>≥ {d.minFOS.toFixed(1)} | PF &lt; {d.maxPF}%</div>
+      {/* PoF Monte Carlo gauge (SOTA) */}
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
+        <svg width="36" height="36" viewBox="0 0 36 36">
+          <circle cx="18" cy="18" r="15" fill="none" stroke="oklch(20% 0.02 230)" strokeWidth="3" />
+          <circle cx="18" cy="18" r="15" fill="none" stroke={pofColor} strokeWidth="3"
+            strokeDasharray={`${Math.min(100, d.pof) * 0.94} ${94 - Math.min(100, d.pof) * 0.94}`}
+            strokeDashoffset="23.5" strokeLinecap="round" />
+          <text x="18" y="20" textAnchor="middle" fontSize="8" fontWeight="700" fill={pofColor} fontFamily="var(--shms-font-mono)">{d.pof.toFixed(0)}%</text>
+        </svg>
+        <div style={{ fontSize: '8px', color: 'var(--shms-text-dim)', textTransform: 'uppercase', textAlign: 'left', lineHeight: 1.3 }}>PoF<br/>Monte Carlo</div>
+      </div>
       {/* Method breakdown — Tufte small text */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px', fontSize: '9px', fontFamily: 'var(--shms-font-mono)' }}>
         <div><span style={{ color: 'var(--shms-text-dim)' }}>Bishop</span><div style={{ fontWeight: 700 }}>{d.fosBishop.toFixed(3)}</div></div>
@@ -147,29 +184,39 @@ function DACCard({ d, label }: { d: DACResult; label: string }) {
 
 function CatchmentBar({ result }: { result: ConsolidationResult }) {
   const c = result.catchment;
-  const pct = Math.min(200, c.retentionCapacity);
-  const color = c.adequate ? 'var(--shms-green)' : 'var(--shms-red)';
+  const pctMRC = Math.min(200, c.retentionCapacity);
+  const pctEMRC = Math.min(200, c.retentionCapacityEMRC);
+  const colorMRC = c.adequate ? 'var(--shms-green)' : 'var(--shms-red)';
+  const colorEMRC = c.adequateEMRC ? 'oklch(68% 0.16 240)' : 'var(--shms-red)';
   return (
     <div style={{ background: 'var(--shms-bg-1)', border: '1px solid var(--shms-border)', borderRadius: 'var(--shms-radius)', padding: '16px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, marginBottom: '12px' }}>🛡️ Catchment — Modified Ritchie</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, marginBottom: '12px' }}>🛡️ Catchment — MRC + EMRC</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px', marginBottom: '12px' }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: '9px', color: 'var(--shms-text-dim)', textTransform: 'uppercase' }}>Berma</div>
           <div style={{ fontFamily: 'var(--shms-font-mono)', fontSize: '16px', fontWeight: 700 }}>{c.bermWidth.toFixed(1)}m</div>
         </div>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '9px', color: 'var(--shms-text-dim)', textTransform: 'uppercase' }}>Mín. Ritchie</div>
-          <div style={{ fontFamily: 'var(--shms-font-mono)', fontSize: '16px', fontWeight: 700, color }}>{c.requiredWidth.toFixed(1)}m</div>
+          <div style={{ fontSize: '9px', color: 'var(--shms-text-dim)', textTransform: 'uppercase' }}>MRC Mín.</div>
+          <div style={{ fontFamily: 'var(--shms-font-mono)', fontSize: '16px', fontWeight: 700, color: colorMRC }}>{c.requiredWidth.toFixed(1)}m</div>
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '9px', color: 'var(--shms-text-dim)', textTransform: 'uppercase' }}>EMRC 90%</div>
+          <div style={{ fontFamily: 'var(--shms-font-mono)', fontSize: '16px', fontWeight: 700, color: colorEMRC }}>{c.emrcRetentionDist.toFixed(1)}m</div>
         </div>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: '9px', color: 'var(--shms-text-dim)', textTransform: 'uppercase' }}>Spill Radius</div>
           <div style={{ fontFamily: 'var(--shms-font-mono)', fontSize: '16px', fontWeight: 700 }}>{c.spillRadius.toFixed(1)}m</div>
         </div>
       </div>
-      {/* Retention progress bar (#5) */}
-      <div style={{ fontSize: '10px', color: 'var(--shms-text-muted)', marginBottom: '4px' }}>Retenção: {c.retentionCapacity.toFixed(0)}%</div>
-      <div style={{ height: '8px', background: 'var(--shms-bg-2)', borderRadius: '4px', overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${Math.min(100, pct / 2)}%`, background: color, borderRadius: '4px', transition: 'width 0.5s ease' }} />
+      {/* Dual retention bars — MRC vs EMRC */}
+      <div style={{ fontSize: '10px', color: 'var(--shms-text-muted)', marginBottom: '4px' }}>MRC: {c.retentionCapacity.toFixed(0)}%</div>
+      <div style={{ height: '6px', background: 'var(--shms-bg-2)', borderRadius: '3px', overflow: 'hidden', marginBottom: '8px' }}>
+        <div style={{ height: '100%', width: `${Math.min(100, pctMRC / 2)}%`, background: colorMRC, borderRadius: '3px', transition: 'width 0.5s ease' }} />
+      </div>
+      <div style={{ fontSize: '10px', color: 'var(--shms-text-muted)', marginBottom: '4px' }}>EMRC: {c.retentionCapacityEMRC.toFixed(0)}%</div>
+      <div style={{ height: '6px', background: 'var(--shms-bg-2)', borderRadius: '3px', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${Math.min(100, pctEMRC / 2)}%`, background: colorEMRC, borderRadius: '3px', transition: 'width 0.5s ease' }} />
       </div>
     </div>
   );
@@ -191,7 +238,7 @@ function HeroVerdict({ result }: { result: ConsolidationResult }) {
       <div>
         <div style={{ fontSize: '18px', fontWeight: 800, color }}>{pass ? '✅ DESIGN APROVADO' : '❌ DESIGN REPROVADO'}</div>
         <div style={{ fontSize: '11px', color: 'var(--shms-text-secondary)', marginTop: '2px' }}>
-          DAC {result.dac.every(d => d.pass) ? '3/3 satisfeito' : `${result.dac.filter(d => d.pass).length}/3`} • Catchment {result.catchment.adequate ? '✅' : '❌'} • Vol: {result.volume.toFixed(0)} m³/m
+          DAC {result.dac.every(d => d.pass) ? '3/3 satisfeito' : `${result.dac.filter(d => d.pass).length}/3`} • Catchment {result.catchment.adequate ? '✅' : '❌'} • EMRC {result.catchment.adequateEMRC ? '✅' : '❌'} • Vol: {result.volume.toFixed(0)} m³/m
         </div>
       </div>
       <div style={{ textAlign: 'right' }}>
@@ -274,8 +321,24 @@ export default function BenchConsolidationPanel({ structureId }: Props) {
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState<ConsolidationResult[]>([]);
 
+  // ── Consolidation Lab state (ASTM D2435) ──
+  const [labParams, setLabParams] = useState<ConsolidationLabParams>({
+    e0: 0.85, Gs: 2.65, sampleH: 20, sampleD: 63.5, drainage: 'double',
+    loadSchedule: [
+      { pressure: 12.5, duration: 24 },
+      { pressure: 25, duration: 24 },
+      { pressure: 50, duration: 24 },
+      { pressure: 100, duration: 24 },
+      { pressure: 200, duration: 24 },
+      { pressure: 400, duration: 48 },
+    ],
+    methodCasagrande: true, methodTaylor: true, methodIsotache: false,
+    outputELogSigma: true, outputCv: true, outputCcCr: true, outputSettlement: true,
+  });
+  const [labComputed, setLabComputed] = useState(false);
+
   const interRamp = useMemo(() => computeInterRampAngle(H, W, alpha, N), [H, W, alpha, N]);
-  const catchment = useMemo(() => assessCatchment(H, W), [H, W]);
+  const catchment = useMemo(() => assessCatchment(H, W, alpha), [H, W, alpha]);
 
   // Get slip circle from best result for overlay
   const slipCircle = result ? (() => {
@@ -334,7 +397,7 @@ export default function BenchConsolidationPanel({ structureId }: Props) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontSize: 'var(--shms-fs-lg)', fontWeight: 700 }}>🏗️ Consolidação de Bancadas</div>
-          <div style={{ fontSize: 'var(--shms-fs-xs)', color: 'var(--shms-text-dim)' }}>DGM × DAC Read & Stacey 2009 × Modified Ritchie × SHA-256</div>
+          <div style={{ fontSize: 'var(--shms-fs-xs)', color: 'var(--shms-text-dim)' }}>DGM × DAC Read & Stacey 2009 × MRC + EMRC (NIOSH 2023) × Monte Carlo PoF × SHA-256</div>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button className="shms-btn" onClick={runAnalysis} disabled={loading}>{loading ? '⏳' : '▶'} Analisar</button>
@@ -411,6 +474,158 @@ export default function BenchConsolidationPanel({ structureId }: Props) {
         </div>
       )}
 
+      {/* ─── TAB: LAB (ASTM D2435 Oedometer — SOTA §2.4) ─── */}
+      {tab === 'lab' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--shms-sp-4)' }}>
+          {/* Left: Input Parameters */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--shms-sp-3)' }}>
+            {/* Sample Properties */}
+            <div className="shms-card" style={{ padding: '16px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>🧪 Parâmetros do Ensaio (ASTM D2435)</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                {[
+                  { label: 'Índice de Vazios Inicial (e₀)', key: 'e0' as const, val: labParams.e0, step: 0.01, min: 0.3, max: 3.0 },
+                  { label: 'Peso Específico (Gs)', key: 'Gs' as const, val: labParams.Gs, step: 0.01, min: 2.5, max: 2.8 },
+                  { label: 'Altura da Amostra (mm)', key: 'sampleH' as const, val: labParams.sampleH, step: 0.5, min: 10, max: 40 },
+                  { label: 'Diâmetro da Amostra (mm)', key: 'sampleD' as const, val: labParams.sampleD, step: 0.5, min: 50, max: 100 },
+                ].map(({ label, key, val, step, min, max }) => (
+                  <div key={key}>
+                    <div style={{ fontSize: '9px', color: 'var(--shms-text-dim)', textTransform: 'uppercase', marginBottom: '3px' }}>{label}</div>
+                    <input type="number" value={val} step={step} min={min} max={max}
+                      onChange={e => setLabParams({ ...labParams, [key]: +e.target.value })}
+                      style={{ width: '100%', background: 'var(--shms-bg-2)', border: '1px solid var(--shms-border)', borderRadius: '4px', padding: '6px 8px', color: 'var(--shms-text)', fontSize: '12px', fontFamily: 'var(--shms-font-mono)' }} />
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: '10px' }}>
+                <div style={{ fontSize: '9px', color: 'var(--shms-text-dim)', textTransform: 'uppercase', marginBottom: '3px' }}>Drenagem</div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {(['single', 'double'] as const).map(d => (
+                    <button key={d} className={`shms-btn ${labParams.drainage === d ? 'shms-btn--accent' : ''}`}
+                      style={{ fontSize: '10px', padding: '4px 10px' }}
+                      onClick={() => setLabParams({ ...labParams, drainage: d })}>
+                      {d === 'single' ? '▲ Simples' : '▲▼ Dupla'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Load Schedule */}
+            <div className="shms-card" style={{ padding: '16px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>📊 Programa de Carregamento</div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--shms-border)' }}>
+                    <th style={{ padding: '4px', textAlign: 'left', fontSize: '9px', color: 'var(--shms-text-dim)' }}>Estágio</th>
+                    <th style={{ padding: '4px', textAlign: 'right', fontSize: '9px', color: 'var(--shms-text-dim)' }}>σ (kPa)</th>
+                    <th style={{ padding: '4px', textAlign: 'right', fontSize: '9px', color: 'var(--shms-text-dim)' }}>Duração (h)</th>
+                    <th style={{ padding: '4px', textAlign: 'center', fontSize: '9px' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {labParams.loadSchedule.map((stage, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid var(--shms-border)' }}>
+                      <td style={{ padding: '4px', fontFamily: 'var(--shms-font-mono)' }}>{i + 1}</td>
+                      <td style={{ padding: '4px' }}>
+                        <input type="number" value={stage.pressure} min={0} step={12.5}
+                          onChange={e => {
+                            const s = [...labParams.loadSchedule];
+                            s[i] = { ...s[i], pressure: +e.target.value };
+                            setLabParams({ ...labParams, loadSchedule: s });
+                          }}
+                          style={{ width: '70px', background: 'var(--shms-bg-2)', border: '1px solid var(--shms-border)', borderRadius: '3px', padding: '2px 6px', color: 'var(--shms-text)', fontSize: '11px', fontFamily: 'var(--shms-font-mono)', textAlign: 'right' }} />
+                      </td>
+                      <td style={{ padding: '4px' }}>
+                        <input type="number" value={stage.duration} min={1} step={1}
+                          onChange={e => {
+                            const s = [...labParams.loadSchedule];
+                            s[i] = { ...s[i], duration: +e.target.value };
+                            setLabParams({ ...labParams, loadSchedule: s });
+                          }}
+                          style={{ width: '60px', background: 'var(--shms-bg-2)', border: '1px solid var(--shms-border)', borderRadius: '3px', padding: '2px 6px', color: 'var(--shms-text)', fontSize: '11px', fontFamily: 'var(--shms-font-mono)', textAlign: 'right' }} />
+                      </td>
+                      <td style={{ padding: '4px', textAlign: 'center' }}>
+                        <button className="shms-btn" style={{ fontSize: '9px', padding: '1px 4px', color: 'var(--shms-red)' }}
+                          onClick={() => {
+                            const s = labParams.loadSchedule.filter((_, j) => j !== i);
+                            setLabParams({ ...labParams, loadSchedule: s });
+                          }}>✕</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <button className="shms-btn" style={{ fontSize: '10px', padding: '4px 10px', marginTop: '8px' }}
+                onClick={() => {
+                  const last = labParams.loadSchedule[labParams.loadSchedule.length - 1];
+                  setLabParams({ ...labParams, loadSchedule: [...labParams.loadSchedule, { pressure: (last?.pressure ?? 200) * 2, duration: 24 }] });
+                }}>+ Adicionar Estágio</button>
+            </div>
+          </div>
+
+          {/* Right: Method + Output Selection */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--shms-sp-3)' }}>
+            {/* Methods */}
+            <div className="shms-card" style={{ padding: '16px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '12px' }}>🔬 Método de Interpretação</div>
+              {[
+                { key: 'methodCasagrande' as const, label: 'Casagrande log-t', desc: 'ASTM D2435 — EOP via t₅₀ (curva √t50 = 0.197)', ref: 'ASTM D2435-11' },
+                { key: 'methodTaylor' as const, label: 'Taylor √t', desc: 'Método gráfico √t — t₉₀ pela tangente', ref: 'Taylor (1948)' },
+                { key: 'methodIsotache' as const, label: 'Isotache (Bjerrum)', desc: 'Inclui fluência — válido para argilas moles orgânicas', ref: 'Bjerrum (1967)' },
+              ].map(({ key, label, desc, ref }) => (
+                <label key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '8px', borderRadius: '6px', cursor: 'pointer', marginBottom: '4px', background: labParams[key] ? 'var(--shms-accent-bg)' : 'transparent', border: labParams[key] ? '1px solid var(--shms-accent-border)' : '1px solid transparent', transition: 'all 0.2s ease' }}>
+                  <input type="checkbox" checked={labParams[key]} onChange={e => setLabParams({ ...labParams, [key]: e.target.checked })}
+                    style={{ accentColor: 'var(--shms-accent)', marginTop: '2px' }} />
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: 600 }}>{label}</div>
+                    <div style={{ fontSize: '10px', color: 'var(--shms-text-dim)' }}>{desc}</div>
+                    <div style={{ fontSize: '9px', color: 'var(--shms-text-muted)', fontStyle: 'italic' }}>{ref}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            {/* Output Parameters */}
+            <div className="shms-card" style={{ padding: '16px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '12px' }}>📈 Parâmetros de Saída</div>
+              {[
+                { key: 'outputELogSigma' as const, label: 'Curva e–log σ\'', desc: 'Curva de compressibilidade (Cc, Cr, σ\'p)' },
+                { key: 'outputCv' as const, label: 'Cv (coef. consolidação)', desc: 'cm²/s — por estágio de carga' },
+                { key: 'outputCcCr' as const, label: 'Cc / Cr', desc: 'Índices de compressão e recompressão' },
+                { key: 'outputSettlement' as const, label: 'Previsão de recalque', desc: 'Recalque primário + secundário (Cα)' },
+              ].map(({ key, label, desc }) => (
+                <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', borderRadius: '4px', cursor: 'pointer', marginBottom: '2px', background: labParams[key] ? 'var(--shms-accent-bg)' : 'transparent', transition: 'all 0.2s ease' }}>
+                  <input type="checkbox" checked={labParams[key]} onChange={e => setLabParams({ ...labParams, [key]: e.target.checked })}
+                    style={{ accentColor: 'var(--shms-accent)' }} />
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: 500 }}>{label}</div>
+                    <div style={{ fontSize: '9px', color: 'var(--shms-text-dim)' }}>{desc}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            {/* Computed Preview */}
+            <div className="shms-card" style={{ padding: '16px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '12px' }}>📋 Resumo do Ensaio</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '11px' }}>
+                <div><span style={{ color: 'var(--shms-text-dim)', fontSize: '9px', textTransform: 'uppercase' }}>Saturação Inicial</span><div style={{ fontFamily: 'var(--shms-font-mono)', fontWeight: 700 }}>{((labParams.Gs * (labParams.sampleH / 10)) / (labParams.e0 * (labParams.sampleH / 10)) * 100).toFixed(0)}%</div></div>
+                <div><span style={{ color: 'var(--shms-text-dim)', fontSize: '9px', textTransform: 'uppercase' }}>Hdr (drenagem)</span><div style={{ fontFamily: 'var(--shms-font-mono)', fontWeight: 700 }}>{labParams.drainage === 'double' ? (labParams.sampleH / 2).toFixed(1) : labParams.sampleH.toFixed(1)} mm</div></div>
+                <div><span style={{ color: 'var(--shms-text-dim)', fontSize: '9px', textTransform: 'uppercase' }}>σ máx</span><div style={{ fontFamily: 'var(--shms-font-mono)', fontWeight: 700 }}>{Math.max(...labParams.loadSchedule.map(s => s.pressure))} kPa</div></div>
+                <div><span style={{ color: 'var(--shms-text-dim)', fontSize: '9px', textTransform: 'uppercase' }}>Estágios</span><div style={{ fontFamily: 'var(--shms-font-mono)', fontWeight: 700 }}>{labParams.loadSchedule.length}</div></div>
+                <div><span style={{ color: 'var(--shms-text-dim)', fontSize: '9px', textTransform: 'uppercase' }}>Duração Total</span><div style={{ fontFamily: 'var(--shms-font-mono)', fontWeight: 700 }}>{labParams.loadSchedule.reduce((a, s) => a + s.duration, 0)}h ({(labParams.loadSchedule.reduce((a, s) => a + s.duration, 0) / 24).toFixed(1)}d)</div></div>
+                <div><span style={{ color: 'var(--shms-text-dim)', fontSize: '9px', textTransform: 'uppercase' }}>Métodos</span><div style={{ fontFamily: 'var(--shms-font-mono)', fontWeight: 700 }}>{[labParams.methodCasagrande && 'Casa.', labParams.methodTaylor && 'Taylor', labParams.methodIsotache && 'Isot.'].filter(Boolean).join(', ') || '—'}</div></div>
+              </div>
+              <button className="shms-btn shms-btn--accent" style={{ width: '100%', marginTop: '12px', padding: '8px' }}
+                onClick={() => { setLabComputed(true); setTab('dac'); }}>
+                ▶ Processar Ensaio e Analisar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ─── TAB: DAC ─── */}
       {tab === 'dac' && result && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--shms-sp-4)' }}>
@@ -474,11 +689,10 @@ export default function BenchConsolidationPanel({ structureId }: Props) {
               </div>
             </div>
           </div>
-          {/* Pareto scatter (#3) */}
+          {/* Pareto scatter — 3-axis: FOS vs Volume vs Catchment (#3) */}
           <div className="shms-card" style={{ padding: '16px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 600, marginBottom: '8px' }}>🎯 Pareto Front (FOS vs Volume)</div>
+            <div style={{ fontSize: '11px', fontWeight: 600, marginBottom: '8px' }}>🎯 Pareto Front — NSGA-II (FOS × Volume × Retenção)</div>
             <svg viewBox="0 0 400 150" style={{ width: '100%', height: 150, background: 'oklch(8% 0.01 230)', borderRadius: '6px' }}>
-              {/* Axes */}
               <line x1="40" y1="130" x2="390" y2="130" stroke="oklch(25% 0.02 230)" strokeWidth="1" />
               <line x1="40" y1="10" x2="40" y2="130" stroke="oklch(25% 0.02 230)" strokeWidth="1" />
               <text x="215" y="148" fontSize="8" fill="var(--shms-text-dim)" textAnchor="middle" fontFamily="var(--shms-font-mono)">Volume (m³/m)</text>
@@ -486,19 +700,69 @@ export default function BenchConsolidationPanel({ structureId }: Props) {
               {dgmResult.paretoFront.length > 0 && (() => {
                 const vols = dgmResult.paretoFront.map(r => r.volume);
                 const foss = dgmResult.paretoFront.map(r => Math.min(...r.dac.map(d => d.fos)));
+                const rets = dgmResult.paretoFront.map(r => r.catchment.retentionCapacity);
                 const vMin = Math.min(...vols); const vMax = Math.max(...vols) || 1;
                 const fMin = Math.min(...foss); const fMax = Math.max(...foss) || 1;
                 return dgmResult.paretoFront.map((r, i) => {
                   const x = 45 + ((vols[i] - vMin) / (vMax - vMin || 1)) * 340;
                   const y = 125 - ((foss[i] - fMin) / (fMax - fMin || 1)) * 110;
                   const isBest = r === dgmResult.bestDesign;
-                  return <circle key={i} cx={x} cy={y} r={isBest ? 5 : 3} fill={isBest ? 'oklch(68% 0.16 240)' : 'oklch(72% 0.17 148 / 0.6)'} stroke={isBest ? 'white' : 'none'} strokeWidth={isBest ? 1.5 : 0}>
-                    <title>FOS={foss[i].toFixed(3)} Vol={vols[i].toFixed(0)}</title>
+                  // 3rd axis — retention → dot size
+                  const dotR = 2 + (rets[i] / 100) * 4;
+                  return <circle key={i} cx={x} cy={y} r={isBest ? 6 : dotR} fill={isBest ? 'oklch(68% 0.16 240)' : 'oklch(72% 0.17 148 / 0.6)'} stroke={isBest ? 'white' : 'none'} strokeWidth={isBest ? 1.5 : 0}>
+                    <title>FOS={foss[i].toFixed(3)} Vol={vols[i].toFixed(0)} Ret={rets[i].toFixed(0)}%</title>
                   </circle>;
                 });
               })()}
             </svg>
           </div>
+          {/* Monte Carlo histogram + Compliance heatmap */}
+          {dgmResult.monteCarlo && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--shms-sp-4)' }}>
+              {/* MC Histogram */}
+              <div className="shms-card" style={{ padding: '16px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 600, marginBottom: '8px' }}>🎲 Monte Carlo PoF — {dgmResult.monteCarlo.nSims} sims</div>
+                <div style={{ display: 'flex', gap: '12px', marginBottom: '10px', fontSize: '10px', fontFamily: 'var(--shms-font-mono)' }}>
+                  <span>PoF: <strong style={{ color: dgmResult.monteCarlo.pof <= 10 ? 'var(--shms-green)' : 'var(--shms-red)' }}>{dgmResult.monteCarlo.pof.toFixed(1)}%</strong></span>
+                  <span>μ: {dgmResult.monteCarlo.mean.toFixed(3)}</span>
+                  <span>σ: {dgmResult.monteCarlo.stdDev.toFixed(3)}</span>
+                  <span>β: {dgmResult.monteCarlo.reliabilityIndex.toFixed(2)}</span>
+                </div>
+                <svg viewBox="0 0 300 80" style={{ width: '100%', height: 80 }}>
+                  {(() => {
+                    const mc = dgmResult.monteCarlo!;
+                    const maxC = Math.max(...mc.histogram.map(h => h.count)) || 1;
+                    const bw = 300 / mc.histogram.length;
+                    const fosRange = mc.histogram.length > 0 ? [mc.histogram[0].bin, mc.histogram[mc.histogram.length - 1].bin] : [0, 2];
+                    return <>
+                      {mc.histogram.map((h, i) => (
+                        <rect key={i} x={i * bw} y={75 - (h.count / maxC) * 70} width={bw - 1} height={(h.count / maxC) * 70}
+                          fill={h.bin < 1.0 ? 'oklch(62% 0.22 28 / 0.7)' : 'oklch(68% 0.16 240 / 0.5)'} rx="1" />
+                      ))}
+                      {/* Red line at FoS = 1.0 */}
+                      {fosRange[0] < 1.0 && fosRange[1] > 1.0 && (
+                        <line x1={((1.0 - fosRange[0]) / (fosRange[1] - fosRange[0])) * 300} y1="0" x2={((1.0 - fosRange[0]) / (fosRange[1] - fosRange[0])) * 300} y2="75" stroke="var(--shms-red)" strokeWidth="1.5" strokeDasharray="4,2" />
+                      )}
+                    </>;
+                  })()}
+                </svg>
+              </div>
+              {/* Compliance Heatmap */}
+              <div className="shms-card" style={{ padding: '16px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 600, marginBottom: '8px' }}>🗺️ Compliance — BFA (Maptek)</div>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {dgmResult.compliance.map(c => (
+                    <div key={c.benchIndex} style={{ background: c.color + '22', border: `2px solid ${c.color}`, borderRadius: '6px', padding: '8px 10px', textAlign: 'center', minWidth: '60px' }}>
+                      <div style={{ fontSize: '9px', fontWeight: 600, color: c.color }}>B{c.benchIndex + 1}</div>
+                      <div style={{ fontSize: '12px', fontFamily: 'var(--shms-font-mono)', fontWeight: 700 }}>{c.designedBFA}°</div>
+                      <div style={{ fontSize: '9px', fontFamily: 'var(--shms-font-mono)', color: c.color }}>Δ{c.deviationDeg > 0 ? '+' : ''}{c.deviationDeg}°</div>
+                      <div style={{ fontSize: '7px', color: 'var(--shms-text-dim)', textTransform: 'uppercase' }}>{c.status}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
       {tab === 'dgm' && !dgmResult && (

@@ -67,6 +67,11 @@ async function startServer() {
   const { shmsRouter } = await import("../_core/routers/shms-router.js");
   app.use("/api/shms/v2", shmsRouter);
 
+  // SHMS Multi-tenant routes — NC-MULTI-001 FIX: row-level security (Sprint 9 C208)
+  // Must also be BEFORE Vite catch-all
+  const { shmsMultitenantRouter } = await import("../shms/shms-multitenant.js");
+  app.use(shmsMultitenantRouter);
+
   // ==================== SOTA Gap 3: CONCURRENCY LIMITER ====================
   // Scientific basis: Backpressure pattern (Reactive Streams, 2014); Circuit Breaker (Nygard, 2007)
   // Benchmark finding: 60% of sequential queries returned "sistema sobrecarregado" under load

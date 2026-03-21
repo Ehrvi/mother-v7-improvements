@@ -4,14 +4,15 @@ import { ThemeProvider } from '@/contexts/ThemeContext'; // C239: WCAG AA — Th
 import { trpc } from '@/lib/trpc';
 import HomeV2 from './pages/HomeV2';
 import DgmLineage from './pages/DgmLineage';
-import DgmTest from './pages/DgmTest';
+
 import Login from './pages/Login';
 import Admin from './pages/Admin';
+import TenantDashboard from './pages/TenantDashboard';
 import SHMSPage from './pages/SHMSPage';
 import SHMS2DEnvironment from './pages/SHMS2DEnvironment';
 import SHMS3DEnvironment from './pages/SHMS3DEnvironment';
 import SHMSNarrativeTwin from './pages/SHMSNarrativeTwin';
-import './design-tokens.css'; // Design system tokens
+// Design tokens consolidated into index.css (single source of truth)
 import './accessibility.css'; // P5 Upgrade: WCAG 2.1 AA Accessibility
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -50,8 +51,9 @@ function App() {
                 <Route path="/" element={<AuthGuard><HomeV2 /></AuthGuard>} />
                 <Route path="/lineage" element={<AuthGuard><DgmLineage /></AuthGuard>} />
                 <Route path="/dgm" element={<AuthGuard><DgmLineage /></AuthGuard>} />
-                <Route path="/dgm-test" element={<AuthGuard><DgmTest /></AuthGuard>} />
+                <Route path="/dgm-test" element={<Navigate to="/dgm" replace />} />
                 <Route path="/admin" element={<AuthGuard><Admin /></AuthGuard>} />
+                <Route path="/tenants" element={<AuthGuard><TenantDashboard /></AuthGuard>} />
                 <Route path="/shms" element={<AuthGuard><SHMSPage /></AuthGuard>} />
                 <Route path="/shms-2d" element={<AuthGuard><SHMS2DEnvironment /></AuthGuard>} />
                 <Route path="/shms-3d" element={<AuthGuard><SHMS3DEnvironment /></AuthGuard>} />

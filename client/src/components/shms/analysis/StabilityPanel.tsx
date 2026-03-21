@@ -11,10 +11,9 @@
  *
  * Scientific basis: see SlopeStabilityEngine.ts, ReliabilityEngine.ts
  */
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useStabilityWorker } from './useStabilityWorker';
 import {
-  bishopSimplified, spencerMethod, morgensternPrice, femCPhiReduction,
-  gaOptimize, psoOptimize,
   type SlopeProfile, type SlipCircle, type StabilityResult, type FEMResult,
   type GAResult, type PSOResult,
 } from './SlopeStabilityEngine';
@@ -27,6 +26,8 @@ import {
 import {
   generateReport, reportToText, AVAILABLE_STANDARDS, type ReportStandard,
 } from './StabilityReportEngine';
+import { predictFOS, type SurrogateInput, type SurrogateResult } from './FOSSurrogate';
+import LayerEditModal, { type LayerData } from './LayerEditModal';
 
 type Tab = 'geometry' | 'stability' | 'fem' | 'optimization' | 'reliability' | 'reports';
 const TABS: { id: Tab; label: string; icon: string }[] = [
@@ -43,19 +44,66 @@ export default function StabilityPanel({ structureId }: { structureId: string })
   const [selectedExample, setSelectedExample] = useState<ClassicExample>(CLASSIC_EXAMPLES[0]);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
-  // ─── Analysis State ──────────────────────────────────────────────────
-  const [bishopResult, setBishopResult] = useState<StabilityResult | null>(null);
-  const [spencerResult, setSpencerResult] = useState<StabilityResult | null>(null);
-  const [mpResult, setMpResult] = useState<StabilityResult | null>(null);
-  const [femResult, setFemResult] = useState<FEMResult | null>(null);
-  const [gaResult, setGaResult] = useState<GAResult | null>(null);
-  const [psoResult, setPsoResult] = useState<PSOResult | null>(null);
+  // ─── Web Worker LEM Engine (SOTA: non-blocking computation) ────────
+  const {
+    analyze: workerAnalyze,
+    cancel: workerCancel,
+    results: workerResults,
+    progress: workerProgress,
+    progressStatus: workerProgressStatus,
+    isComputing: workerComputing,
+  } = useStabilityWorker();
+
+  // ─── Analysis State (derived from worker + local for reliability) ──
+  const felleniusResult = workerResults.fellenius;
+  const bishopResult = workerResults.bishop;
+  const janbuSimpResult = workerResults.janbuSimp;
+  const janbuCorrResult = workerResults.janbuCorr;
+  const spencerResult = workerResults.spencer;
+  const mpResult = workerResults.mp;
+  const coeResult = workerResults.coe;
+  const femResult = workerResults.fem;
+  const gaResult = workerResults.ga;
+  const psoResult = workerResults.pso;
   const [mcResult, setMcResult] = useState<MonteCarloResult | null>(null);
   const [formResult, setFormResult] = useState<FORMResult | null>(null);
   const [scenarioResults, setScenarioResults] = useState<ScenarioResult[] | null>(null);
   const [reportText, setReportText] = useState<string>('');
   const [selectedStandard, setSelectedStandard] = useState<ReportStandard>('ICOLD');
-  const [computing, setComputing] = useState(false);
+  const computing = workerComputing;
+
+  // ── Auto-publish LEM FOS to Digital Twin (Müller et al. 2022: Reality↔Simulation sync) ──
+  // Fire-and-forget: non-blocking POST to existing DT REST API (digital-twin-routes-c206.ts)
+  useEffect(() => {
+    if (!bishopResult) return;
+    const fos = bishopResult.factorOfSafety;
+    if (!fos || fos <= 0) return;
+
+    fetch(`/api/shms/v2/structures/${structureId}/fos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fos,
+        method: 'bishop',
+        circle: (bishopResult as any).circle || null,
+        timing: (bishopResult as any).timing || null,
+      }),
+    }).catch(() => {}); // silent — DT update is best-effort
+  }, [bishopResult, structureId]);
+
+  // ─── SOTA §3.2: User-defined Loading & Options ─────────────────────
+  const [surchargeLoad, setSurchargeLoad] = useState(0);      // kPa
+  const [seismicKh, setSeismicKh] = useState(0);              // horizontal seismic coeff
+  const [seismicKv, setSeismicKv] = useState(0);              // vertical seismic coeff
+  const [pwpMode, setPwpMode] = useState<'ru' | 'water-table' | 'piezometric'>('ru');
+  const [slipSearchMode, setSlipSearchMode] = useState<'circular' | 'non-circular' | 'auto'>('circular');
+  const [editableLayers, setEditableLayers] = useState<Record<string, { cohesion: number; frictionAngle: number; unitWeight: number; ru: number }>>({});
+
+  // ─── SOTA: New editable parameters (Slide2/SLOPE-W patterns) ───────
+  const [nSlices, setNSlices] = useState(30);                 // number of slices (10-100)
+  const [surcharges, setSurcharges] = useState<{ x1: number; x2: number; magnitude: number; type: 'uniform' | 'trapezoidal' }[]>([]);
+  const [piezometers, setPiezometers] = useState<{ x: number; y: number; pressure: number }[]>([]);
+  const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
 
   // ─── Slip Circle (uses published critical circle when available) ─────
   const defaultCircle = useMemo<SlipCircle>(() => {
@@ -81,51 +129,45 @@ export default function StabilityPanel({ structureId }: { structureId: string })
     [categoryFilter]
   );
 
-  // ─── Run All Stability Analyses ─────────────────────────────────────
+  // ─── Run Analyses via Web Worker (non-blocking) ─────────────────────
   const runStability = useCallback(() => {
-    setComputing(true);
-    setTimeout(() => {
-      const profile = selectedExample.profile;
-      const circle = defaultCircle;
-      setBishopResult(bishopSimplified(profile, circle, 20, 100, 0.001));
-      setSpencerResult(spencerMethod(profile, circle, 20, 150, 0.001));
-      setMpResult(morgensternPrice(profile, circle, 'half-sine', 20, 200, 0.001));
-      setComputing(false);
-      setActiveTab('stability');
-    }, 50);
-  }, [selectedExample, defaultCircle]);
+    workerAnalyze(selectedExample.profile, {
+      nSlices,
+      methods: ['fellenius', 'bishop', 'janbu_simp', 'janbu_corr', 'spencer', 'mp', 'coe'],
+    });
+    setActiveTab('stability');
+  }, [selectedExample, nSlices, workerAnalyze]);
 
   const runFEM = useCallback(() => {
-    setComputing(true);
-    setTimeout(() => {
-      setFemResult(femCPhiReduction(selectedExample.profile, 12));
-      setComputing(false);
-      setActiveTab('fem');
-    }, 50);
-  }, [selectedExample]);
+    workerAnalyze(selectedExample.profile, {
+      nSlices,
+      methods: ['bishop'],
+      includeFEM: true,
+    });
+    setActiveTab('fem');
+  }, [selectedExample, nSlices, workerAnalyze]);
 
   const runOptimization = useCallback(() => {
-    setComputing(true);
-    setTimeout(() => {
-      setGaResult(gaOptimize(selectedExample.profile, { generations: 80, populationSize: 50 }));
-      setPsoResult(psoOptimize(selectedExample.profile, { iterations: 60, particleCount: 30 }));
-      setComputing(false);
-      setActiveTab('optimization');
-    }, 50);
-  }, [selectedExample]);
+    workerAnalyze(selectedExample.profile, {
+      nSlices,
+      methods: ['bishop'],
+      includeGA: true,
+      includePSO: true,
+      gaOptions: { generations: 80, populationSize: 50 },
+      psoOptions: { iterations: 60, particleCount: 30 },
+    });
+    setActiveTab('optimization');
+  }, [selectedExample, nSlices, workerAnalyze]);
 
   const runReliability = useCallback(() => {
-    setComputing(true);
-    setTimeout(() => {
-      const dists = extractDistributions(selectedExample.profile);
-      if (dists.length > 0) {
-        setMcResult(monteCarloSimulation(selectedExample.profile, defaultCircle, dists, { iterations: 5000, samplingMethod: 'lhs' }));
-        setFormResult(formAnalysis(selectedExample.profile, defaultCircle, dists, 30));
-      }
-      setScenarioResults(scenarioAnalysis(selectedExample.profile, defaultCircle));
-      setComputing(false);
-      setActiveTab('reliability');
-    }, 50);
+    // Reliability runs on main thread (uses different data flow from worker)
+    const dists = extractDistributions(selectedExample.profile);
+    if (dists.length > 0) {
+      setMcResult(monteCarloSimulation(selectedExample.profile, defaultCircle, dists, { iterations: 5000, samplingMethod: 'lhs' }));
+      setFormResult(formAnalysis(selectedExample.profile, defaultCircle, dists, 30));
+    }
+    setScenarioResults(scenarioAnalysis(selectedExample.profile, defaultCircle));
+    setActiveTab('reliability');
   }, [selectedExample, defaultCircle]);
 
   const generateReportAction = useCallback(() => {
@@ -142,25 +184,30 @@ export default function StabilityPanel({ structureId }: { structureId: string })
   }, [selectedExample, structureId, selectedStandard, bishopResult, spencerResult, mpResult, femResult, gaResult, psoResult, mcResult, formResult, scenarioResults]);
 
   const runAll = useCallback(() => {
-    setComputing(true);
-    setTimeout(() => {
+    workerAnalyze(selectedExample.profile, {
+      nSlices,
+      methods: ['fellenius', 'bishop', 'janbu_simp', 'janbu_corr', 'spencer', 'mp', 'coe'],
+      includeFEM: true,
+      includeGA: true,
+      includePSO: true,
+      gaOptions: { generations: 60, populationSize: 40 },
+      psoOptions: { iterations: 50, particleCount: 25 },
+    });
+  }, [selectedExample, nSlices, workerAnalyze]);
+
+  // Run reliability analysis when worker results arrive (needs circle from worker)
+  useEffect(() => {
+    if (workerResults.circle && workerResults.bishop) {
       const profile = selectedExample.profile;
-      const circle = defaultCircle;
-      setBishopResult(bishopSimplified(profile, circle, 20, 100, 0.001));
-      setSpencerResult(spencerMethod(profile, circle, 20, 150, 0.001));
-      setMpResult(morgensternPrice(profile, circle, 'half-sine', 20, 200, 0.001));
-      setFemResult(femCPhiReduction(profile, 12));
-      setGaResult(gaOptimize(profile, { generations: 60, populationSize: 40 }));
-      setPsoResult(psoOptimize(profile, { iterations: 50, particleCount: 25 }));
+      const circle = workerResults.circle;
       const dists = extractDistributions(profile);
       if (dists.length > 0) {
         setMcResult(monteCarloSimulation(profile, circle, dists, { iterations: 3000, samplingMethod: 'lhs' }));
         setFormResult(formAnalysis(profile, circle, dists, 20));
       }
       setScenarioResults(scenarioAnalysis(profile, circle));
-      setComputing(false);
-    }, 100);
-  }, [selectedExample, defaultCircle]);
+    }
+  }, [workerResults.circle, workerResults.bishop, selectedExample]);
 
   // ─── SVG Profile Visualization ──────────────────────────────────────
   // Uses data-space coordinates with Y-flip transform so geometry renders correctly
@@ -353,30 +400,108 @@ export default function StabilityPanel({ structureId }: { structureId: string })
     );
   };
 
+  // ─── Layer Edit Modal Integration ──────────────────────────────────
+  const editingLayer = useMemo(() => {
+    if (!editingLayerId) return null;
+    const layer = selectedExample.profile.layers.find(l => l.id === editingLayerId);
+    if (!layer) return null;
+    const ed = editableLayers[layer.id];
+    return {
+      id: layer.id,
+      name: layer.name,
+      color: layer.color,
+      cohesion: ed?.cohesion ?? layer.cohesion,
+      frictionAngle: ed?.frictionAngle ?? layer.frictionAngle,
+      unitWeight: ed?.unitWeight ?? layer.unitWeight,
+      unitWeightSat: (ed?.unitWeight ?? layer.unitWeight) + 2,
+      ru: ed?.ru ?? layer.ru,
+      piezometricHead: 0,
+      strengthModel: 'mohr-coulomb' as const,
+    } satisfies LayerData;
+  }, [editingLayerId, selectedExample, editableLayers]);
+
+  const handleLayerSave = useCallback((updated: LayerData) => {
+    setEditableLayers(prev => ({
+      ...prev,
+      [updated.id]: {
+        cohesion: updated.cohesion,
+        frictionAngle: updated.frictionAngle,
+        unitWeight: updated.unitWeight,
+        ru: updated.ru,
+      },
+    }));
+    setEditingLayerId(null);
+  }, []);
+
+  // ─── Sidebar Input Component ─────────────────────────────────────
+  const SidebarInput = ({ label, unit, value, onChange, min, max, step, hint }: {
+    label: string; unit: string; value: number; onChange: (v: number) => void;
+    min?: number; max?: number; step?: number; hint?: string;
+  }) => (
+    <div className="stab-input">
+      <label className="stab-input__label">
+        {label}
+        {hint && <span className="stab-modal__hint" title={hint}>?</span>}
+      </label>
+      <div className="stab-input__wrap">
+        <input type="number" value={value} min={min} max={max} step={step ?? 0.1}
+          onChange={e => onChange(+e.target.value)} />
+        <span className="stab-input__unit">{unit}</span>
+      </div>
+    </div>
+  );
+
   return (
     <div className="shms-animate-slide-in">
+      {/* Layer Edit Modal */}
+      {editingLayer && (
+        <LayerEditModal
+          layer={editingLayer}
+          onSave={handleLayerSave}
+          onClose={() => setEditingLayerId(null)}
+        />
+      )}
+
       {/* Header */}
-      <div className="shms-section-header" style={{ marginBottom: 'var(--shms-sp-3)' }}>
-        <span className="shms-section-header__title">🏗️ Análise Estrutural Integrada (Bishop/Spencer/FEM/MC)</span>
-        <div style={{ display: 'flex', gap: 'var(--shms-sp-2)' }}>
-          <button className="shms-btn shms-btn--primary" onClick={runAll} disabled={computing}>
-            {computing ? '⏳ Calculando...' : '▶️ Executar Todos'}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--shms-sp-4)' }}>
+        <div>
+          <div style={{ fontSize: 'var(--shms-fs-xl)', fontWeight: 700 }}>🏗️ Análise Estrutural Integrada</div>
+          <div style={{ fontSize: 'var(--shms-fs-xs)', color: 'var(--shms-text-dim)', marginTop: 2 }}>
+            Bishop · Spencer · M-Price · FEM c-φ · GA/PSO · Monte Carlo · FORM
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--shms-sp-2)' }}>
+          <button className="stab-btn--primary" onClick={runAll} disabled={computing}>
+            {computing ? (<><div className="stab-computing__spinner" style={{ width: 16, height: 16, borderWidth: 2 }} /> {workerProgressStatus || 'Calculando...'}</>) : '▶ Executar Todos'}
           </button>
+          {computing && (
+            <button className="shms-btn" onClick={workerCancel} style={{ fontSize: 'var(--shms-fs-sm)', padding: '4px 8px' }}>✕ Cancelar</button>
+          )}
+          {computing && (
+            <div style={{ flex: 1, maxWidth: 200 }}>
+              <div style={{ height: 4, background: 'var(--shms-bg-card)', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ width: `${workerProgress}%`, height: '100%', background: 'var(--shms-accent)', borderRadius: 2, transition: 'width 0.3s ease' }} />
+              </div>
+              <div style={{ fontSize: 'var(--shms-fs-xs)', color: 'var(--shms-text-dim)', marginTop: 2, textAlign: 'center' }}>{workerProgress}%</div>
+            </div>
+          )}
+          {workerResults.timing != null && !computing && (
+            <span className="shms-badge" style={{ fontSize: 'var(--shms-fs-xs)' }}>⚡ {(workerResults.timing / 1000).toFixed(1)}s</span>
+          )}
         </div>
       </div>
 
-      {/* Tab Bar */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 'var(--shms-sp-3)', flexWrap: 'wrap' }}>
+      {/* Workflow Tabs (Slide2 pattern) */}
+      <div className="stab-workflow">
         {TABS.map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`shms-btn ${activeTab === tab.id ? 'shms-btn--primary' : ''}`}
-            style={{ fontSize: 'var(--shms-fs-sm)', padding: '6px 12px' }}>
+            className={`stab-workflow__tab ${activeTab === tab.id ? 'stab-workflow__tab--active' : ''}`}>
             {tab.icon} {tab.label}
           </button>
         ))}
       </div>
 
-      {/* ═══ TAB 1: Geometry & Examples ═══ */}
+      {/* ═══ TAB 1: Geometry & Examples — SOTA Layout ═══ */}
       {activeTab === 'geometry' && (
         <div>
           {/* Category Filter */}
@@ -392,10 +517,10 @@ export default function StabilityPanel({ structureId }: { structureId: string })
           </div>
 
           {/* Examples Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 'var(--shms-sp-3)', marginBottom: 'var(--shms-sp-4)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 'var(--shms-sp-3)', marginBottom: 'var(--shms-sp-4)' }}>
             {filteredExamples.map(ex => (
               <div key={ex.id} onClick={() => setSelectedExample(ex)}
-                className={`shms-card shms-animate-slide-in ${selectedExample.id === ex.id ? '' : ''}`}
+                className="shms-card shms-animate-slide-in"
                 style={{ cursor: 'pointer', border: selectedExample.id === ex.id ? '2px solid var(--shms-accent)' : '1px solid var(--shms-border)', padding: 'var(--shms-sp-3)' }}>
                 <div style={{ fontSize: 'var(--shms-fs-base)', fontWeight: 600, marginBottom: 4 }}>{ex.name}</div>
                 <div style={{ fontSize: 'var(--shms-fs-sm)', color: 'var(--shms-text-dim)', marginBottom: 6 }}>{ex.description}</div>
@@ -411,53 +536,162 @@ export default function StabilityPanel({ structureId }: { structureId: string })
             ))}
           </div>
 
-          {/* Selected Example Detail */}
-          <div className="shms-card" style={{ padding: 'var(--shms-sp-4)' }}>
-            <div style={{ fontSize: 'var(--shms-fs-lg)', fontWeight: 700, marginBottom: 'var(--shms-sp-3)' }}>
-              {selectedExample.name}
-            </div>
-            {renderProfileSVG()}
-            <div style={{ marginTop: 'var(--shms-sp-3)' }}>
-              <div style={{ fontSize: 'var(--shms-fs-sm)', color: 'var(--shms-text-dim)' }}>{selectedExample.reference}</div>
-              <div style={{ fontSize: 'var(--shms-fs-sm)', marginTop: 4 }}>{selectedExample.calibrationNotes}</div>
-              {selectedExample.mqttTopics && (
-                <div style={{ fontSize: 'var(--shms-fs-xs)', color: 'var(--shms-text-dim)', marginTop: 8 }}>
-                  MQTT: {selectedExample.mqttTopics.join(', ')}
+          {/* ─── SOTA Split Layout: Viz Left + Sidebar Right ─── */}
+          <div className="stab-layout">
+            {/* LEFT: Visualization + Reference */}
+            <div>
+              <div className="stab-viz">
+                {computing && (
+                  <div className="stab-computing">
+                    <div className="stab-computing__spinner" />
+                  </div>
+                )}
+                {renderProfileSVG()}
+              </div>
+              <div style={{ marginTop: 'var(--shms-sp-3)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 'var(--shms-fs-sm)', color: 'var(--shms-text-dim)', flex: 1 }}>
+                  <strong>{selectedExample.name}</strong> — {selectedExample.reference}
+                  {selectedExample.calibrationNotes && (
+                    <div style={{ marginTop: 4, fontSize: 'var(--shms-fs-xs)' }}>{selectedExample.calibrationNotes}</div>
+                  )}
                 </div>
-              )}
+              </div>
+
+              {/* Action buttons row */}
+              <div style={{ marginTop: 'var(--shms-sp-3)', display: 'flex', gap: 'var(--shms-sp-2)', flexWrap: 'wrap', alignItems: 'center' }}>
+                <button className="stab-btn--primary" onClick={runStability} disabled={computing}>📐 Estabilidade</button>
+                <button className="shms-btn" onClick={runFEM} disabled={computing}>🔬 FEM</button>
+                <button className="shms-btn" onClick={runOptimization} disabled={computing}>🧬 GA/PSO</button>
+                <button className="shms-btn" onClick={runReliability} disabled={computing}>🎲 Monte Carlo</button>
+                {surchargeLoad > 0 && <span className="shms-badge shms-badge--yellow">q={surchargeLoad}kPa</span>}
+                {seismicKh > 0 && <span className="shms-badge shms-badge--red">kh={seismicKh}</span>}
+                {nSlices !== 30 && <span className="shms-badge shms-badge--blue">n={nSlices}</span>}
+              </div>
             </div>
-            {/* Soil Layers Table */}
-            <table style={{ width: '100%', marginTop: 'var(--shms-sp-3)', borderCollapse: 'collapse', fontSize: 'var(--shms-fs-sm)' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--shms-border)', color: 'var(--shms-text-dim)' }}>
-                  <th style={{ padding: 4, textAlign: 'left' }}>Camada</th>
-                  <th style={{ padding: 4, textAlign: 'right' }}>c&apos; (kPa)</th>
-                  <th style={{ padding: 4, textAlign: 'right' }}>φ&apos; (°)</th>
-                  <th style={{ padding: 4, textAlign: 'right' }}>γ (kN/m³)</th>
-                  <th style={{ padding: 4, textAlign: 'right' }}>ru</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedExample.profile.layers.map(layer => (
-                  <tr key={layer.id} style={{ borderBottom: '1px solid var(--shms-border)' }}>
-                    <td style={{ padding: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ width: 12, height: 12, borderRadius: 2, background: layer.color, display: 'inline-block' }} />
-                      {layer.name}
-                    </td>
-                    <td className="mono" style={{ padding: 4, textAlign: 'right' }}>{layer.cohesion}</td>
-                    <td className="mono" style={{ padding: 4, textAlign: 'right' }}>{layer.frictionAngle}</td>
-                    <td className="mono" style={{ padding: 4, textAlign: 'right' }}>{layer.unitWeight}</td>
-                    <td className="mono" style={{ padding: 4, textAlign: 'right' }}>{layer.ru.toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div style={{ marginTop: 'var(--shms-sp-3)', display: 'flex', gap: 'var(--shms-sp-2)' }}>
-              <button className="shms-btn shms-btn--primary" onClick={runStability}>📐 Estabilidade</button>
-              <button className="shms-btn" onClick={runFEM}>🔬 FEM</button>
-              <button className="shms-btn" onClick={runOptimization}>🧬 GA/PSO</button>
-              <button className="shms-btn" onClick={runReliability}>🎲 Monte Carlo</button>
-              <button className="shms-btn" onClick={runAll}>▶️ Todos</button>
+
+            {/* RIGHT: Sidebar (Slide2 pattern) */}
+            <div className="stab-sidebar">
+              {/* ─── Soil Layers ─── */}
+              <div>
+                <div className="stab-sidebar__title">🪨 Camadas de Solo</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                  {selectedExample.profile.layers.map(layer => {
+                    const ed = editableLayers[layer.id];
+                    const c = ed?.cohesion ?? layer.cohesion;
+                    const phi = ed?.frictionAngle ?? layer.frictionAngle;
+                    const gamma = ed?.unitWeight ?? layer.unitWeight;
+                    return (
+                      <div
+                        key={layer.id}
+                        className="stab-layer-row"
+                        style={{ '--layer-color': layer.color } as React.CSSProperties}
+                        onClick={() => setEditingLayerId(layer.id)}
+                      >
+                        <div className="stab-layer-row__color" style={{ background: layer.color }} />
+                        <div className="stab-layer-row__info">
+                          <div className="stab-layer-row__name">{layer.name}</div>
+                          <div className="stab-layer-row__params">c'={c} φ'={phi}° γ={gamma}</div>
+                        </div>
+                        <span className="stab-layer-row__edit">✏️</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* ─── Number of Slices (SOTA) ─── */}
+              <div>
+                <div className="stab-sidebar__title">🔢 Nº de Fatias</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+                  <input
+                    type="range"
+                    className="stab-slider"
+                    min={10}
+                    max={100}
+                    step={5}
+                    value={nSlices}
+                    onChange={e => setNSlices(+e.target.value)}
+                    title={`Número de fatias: ${nSlices}`}
+                  />
+                  <span style={{ fontFamily: 'var(--shms-font-mono)', fontSize: 13, fontWeight: 700, minWidth: 30, textAlign: 'right' }}>{nSlices}</span>
+                </div>
+                <div style={{ fontSize: 9, color: 'var(--shms-text-dim)', marginTop: 4 }}>Ref: CalcForge=50, SLOPE/W=30</div>
+              </div>
+
+              {/* ─── Surcharges (multiple, add/remove) ─── */}
+              <div>
+                <div className="stab-sidebar__title">⚡ Sobrecargas</div>
+                <div style={{ marginTop: 8 }}>
+                  <SidebarInput label="Sobrecarga Global" unit="kPa" value={surchargeLoad}
+                    onChange={setSurchargeLoad} min={0} step={5} hint="Carga uniforme sobre toda a superfície" />
+                  {surcharges.map((s, i) => (
+                    <div key={i} className="stab-surcharge-row">
+                      <SidebarInput label={`x₁`} unit="m" value={s.x1}
+                        onChange={v => setSurcharges(prev => prev.map((p, j) => j === i ? { ...p, x1: v } : p))} />
+                      <SidebarInput label={`x₂`} unit="m" value={s.x2}
+                        onChange={v => setSurcharges(prev => prev.map((p, j) => j === i ? { ...p, x2: v } : p))} />
+                      <SidebarInput label="q" unit="kPa" value={s.magnitude}
+                        onChange={v => setSurcharges(prev => prev.map((p, j) => j === i ? { ...p, magnitude: v } : p))} />
+                      <button className="stab-surcharge-row__remove"
+                        onClick={() => setSurcharges(prev => prev.filter((_, j) => j !== i))}
+                        title="Remover sobrecarga">✕</button>
+                    </div>
+                  ))}
+                  <button className="stab-add-btn" style={{ marginTop: 6 }}
+                    onClick={() => setSurcharges(prev => [...prev, { x1: 0, x2: 10, magnitude: 20, type: 'uniform' }])}>
+                    + Adicionar Sobrecarga Pontual
+                  </button>
+                </div>
+              </div>
+
+              {/* ─── Seismic ─── */}
+              <div>
+                <div className="stab-sidebar__title">🌊 Coeficientes Sísmicos</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
+                  <SidebarInput label="kh" unit="" value={seismicKh}
+                    onChange={setSeismicKh} min={0} max={0.5} step={0.01}
+                    hint="Coeficiente horizontal (⅔ PGA, Hynes-Griffin 1984)" />
+                  <SidebarInput label="kv" unit="" value={seismicKv}
+                    onChange={setSeismicKv} min={0} max={0.3} step={0.01}
+                    hint="Coeficiente vertical" />
+                </div>
+              </div>
+
+              {/* ─── Analysis Config ─── */}
+              <div>
+                <div className="stab-sidebar__title">⚙️ Configurações</div>
+                <div style={{ marginTop: 8 }}>
+                  {/* PWP Mode */}
+                  <div style={{ marginBottom: 10 }}>
+                    <div className="stab-input__label">Poropressão (u)</div>
+                    <div className="stab-modal__toggle-row" style={{ marginTop: 4 }}>
+                      {(['ru', 'water-table', 'piezometric'] as const).map(m => (
+                        <button key={m}
+                          className={`stab-modal__toggle ${pwpMode === m ? 'stab-modal__toggle--active' : ''}`}
+                          onClick={() => setPwpMode(m)}>
+                          {m === 'ru' ? 'ru' : m === 'water-table' ? 'N.A.' : 'Piezom.'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Slip Surface */}
+                  <div>
+                    <div className="stab-input__label">Superfície de Ruptura</div>
+                    <div className="stab-modal__toggle-row" style={{ marginTop: 4 }}>
+                      {(['circular', 'non-circular', 'auto'] as const).map(m => (
+                        <button key={m}
+                          className={`stab-modal__toggle ${slipSearchMode === m ? 'stab-modal__toggle--active' : ''}`}
+                          onClick={() => setSlipSearchMode(m)}>
+                          {m === 'circular' ? '⭕ Circ.' : m === 'non-circular' ? '〰️ Não-circ.' : '🔍 Auto'}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 9, color: 'var(--shms-text-dim)', marginTop: 4 }}>
+                      Slide2: Grid/Slope/Cuckoo Search
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -470,26 +704,42 @@ export default function StabilityPanel({ structureId }: { structureId: string })
             <div className="shms-empty"><div className="shms-empty__text">Execute a análise de estabilidade primeiro (Tab Geometria → 📐 Estabilidade)</div></div>
           ) : (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 'var(--shms-sp-3)', marginBottom: 'var(--shms-sp-4)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 'var(--shms-sp-3)', marginBottom: 'var(--shms-sp-4)' }}>
+                {felleniusResult && <KPI label="Fellenius (OMS)" value={felleniusResult.factorOfSafety.toFixed(3)} color={classifyFOS(felleniusResult.factorOfSafety).color} sub={`1 iter, ✅`} />}
                 <KPI label="Bishop Simplificado" value={bishopResult.factorOfSafety.toFixed(3)} color={classifyFOS(bishopResult.factorOfSafety).color} sub={`${bishopResult.iterations} iter, ${bishopResult.converged ? '✅' : '⚠️'}`} />
+                {janbuSimpResult && <KPI label="Janbu Simplificado" value={janbuSimpResult.factorOfSafety.toFixed(3)} color={classifyFOS(janbuSimpResult.factorOfSafety).color} sub={`${janbuSimpResult.iterations} iter`} />}
+                {janbuCorrResult && <KPI label="Janbu Corrigido" value={janbuCorrResult.factorOfSafety.toFixed(3)} color={classifyFOS(janbuCorrResult.factorOfSafety).color} sub={`com f₀`} />}
                 {spencerResult && <KPI label="Spencer" value={spencerResult.factorOfSafety.toFixed(3)} color={classifyFOS(spencerResult.factorOfSafety).color} sub={`θ = ${spencerResult.theta?.toFixed(1) ?? 'N/A'}°`} />}
                 {mpResult && <KPI label="Morgenstern-Price" value={mpResult.factorOfSafety.toFixed(3)} color={classifyFOS(mpResult.factorOfSafety).color} sub={mpResult.method} />}
+                {coeResult && <KPI label="Corps of Engineers" value={coeResult.factorOfSafety.toFixed(3)} color={classifyFOS(coeResult.factorOfSafety).color} sub={`${coeResult.iterations} iter`} />}
               </div>
               {/* Comparison Table */}
               <div className="shms-card" style={{ padding: 'var(--shms-sp-4)' }}>
-                <div style={{ fontSize: 'var(--shms-fs-base)', fontWeight: 600, marginBottom: 'var(--shms-sp-3)' }}>Comparação de Métodos</div>
+                <div style={{ fontSize: 'var(--shms-fs-base)', fontWeight: 600, marginBottom: 'var(--shms-sp-3)' }}>Comparação de Métodos LEM</div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--shms-fs-sm)' }}>
                   <thead><tr style={{ borderBottom: '2px solid var(--shms-border)' }}>
-                    <th style={{ padding: 6, textAlign: 'left' }}>Método</th><th style={{ textAlign: 'right', padding: 6 }}>FOS</th>
-                    <th style={{ textAlign: 'right', padding: 6 }}>Convergiu</th><th style={{ textAlign: 'right', padding: 6 }}>Iterações</th>
+                    <th style={{ padding: 6, textAlign: 'left' }}>Método</th>
+                    <th style={{ textAlign: 'center', padding: 6 }}>Equilíbrio</th>
+                    <th style={{ textAlign: 'right', padding: 6 }}>FOS</th>
+                    <th style={{ textAlign: 'right', padding: 6 }}>Convergiu</th>
+                    <th style={{ textAlign: 'right', padding: 6 }}>Iterações</th>
                     <th style={{ textAlign: 'right', padding: 6 }}>Classificação</th>
                   </tr></thead>
                   <tbody>
-                    {[bishopResult, spencerResult, mpResult].filter(Boolean).map(r => {
+                    {[
+                      { r: felleniusResult, eq: 'M' },
+                      { r: bishopResult, eq: 'M+V' },
+                      { r: janbuSimpResult, eq: 'F' },
+                      { r: janbuCorrResult, eq: 'F+f₀' },
+                      { r: coeResult, eq: 'F' },
+                      { r: spencerResult, eq: 'M+F' },
+                      { r: mpResult, eq: 'M+F' },
+                    ].filter(x => x.r).map(({ r, eq }) => {
                       const cl = classifyFOS(r!.factorOfSafety);
                       return (
                         <tr key={r!.method} style={{ borderBottom: '1px solid var(--shms-border)' }}>
                           <td style={{ padding: 6 }}>{r!.method}</td>
+                          <td style={{ padding: 6, textAlign: 'center', fontSize: 'var(--shms-fs-xs)', opacity: 0.7 }}>{eq}</td>
                           <td className="mono" style={{ padding: 6, textAlign: 'right', color: cl.color, fontWeight: 700 }}>{r!.factorOfSafety.toFixed(4)}</td>
                           <td style={{ padding: 6, textAlign: 'right' }}>{r!.converged ? '✅' : '⚠️'}</td>
                           <td className="mono" style={{ padding: 6, textAlign: 'right' }}>{r!.iterations}</td>
@@ -500,7 +750,7 @@ export default function StabilityPanel({ structureId }: { structureId: string })
                   </tbody>
                 </table>
                 <div style={{ fontSize: 'var(--shms-fs-xs)', color: 'var(--shms-text-dim)', marginTop: 8 }}>
-                  Ref: Bishop (1955), Spencer (1967), Morgenstern & Price (1965). FOS requerido ≥ 1.50 (USACE EM 1110-2-1902)
+                  M = Momento, F = Forças, V = Equilíbrio Vertical. Ref: USACE EM 1110-2-1902, Rocscience Slide2. FOS req. ≥ 1.50
                 </div>
               </div>
               {/* Profile with slip circle */}
@@ -944,6 +1194,38 @@ export default function StabilityPanel({ structureId }: { structureId: string })
       {/* ═══ TAB 5: Reliability ═══ */}
       {activeTab === 'reliability' && (
         <div>
+          {/* ── ML Surrogate Screening (Qi & Tang 2018, RF 97%) ── */}
+          {(() => {
+            const layer0 = selectedExample.profile.layers[0];
+            const pts = selectedExample.profile.surfacePoints;
+            const H = Math.max(...pts.map(p => p.y)) - Math.min(...pts.map(p => p.y));
+            const beta = selectedExample.profile.slopeAngle || 35;
+            const surrogateInput: SurrogateInput = {
+              H, beta,
+              c: layer0.cohesion, phi: layer0.frictionAngle,
+              gamma: layer0.unitWeight, ru: layer0.ru || 0,
+            };
+            const sr = predictFOS(surrogateInput);
+            return (
+              <div className="shms-card" style={{ marginBottom: 'var(--shms-sp-4)', borderLeft: `3px solid ${sr.tarpLevel === 'green' ? 'var(--shms-green)' : sr.tarpLevel === 'yellow' ? 'var(--shms-orange)' : 'var(--shms-red)'}` }}>
+                <div className="shms-card__header">
+                  <span className="shms-card__title">⚡ ML Screening Rápido (Random Forest)</span>
+                  <span className="shms-badge shms-badge--blue">Inference: {sr.inferenceMs}ms</span>
+                </div>
+                <div className="shms-card__body">
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 'var(--shms-sp-3)' }}>
+                    <KPI label="FOS Previsto" value={sr.fosPredicted.toFixed(3)} color={sr.tarpLevel === 'green' ? '#22c55e' : sr.tarpLevel === 'yellow' ? '#eab308' : '#ef4444'} sub={sr.classification} />
+                    <KPI label="Confiança" value={`${(sr.confidence * 100).toFixed(1)}%`} sub={`${sr.treePredictions.length} árvores`} />
+                    <KPI label="TARP" value={sr.tarpLevel.toUpperCase()} color={sr.tarpLevel === 'green' ? '#22c55e' : sr.tarpLevel === 'yellow' ? '#eab308' : sr.tarpLevel === 'orange' ? '#f97316' : '#ef4444'} sub="ICOLD B.158" />
+                  </div>
+                  <div style={{ fontSize: 'var(--shms-fs-xs)', color: 'var(--shms-text-dim)', marginTop: 'var(--shms-sp-2)', fontStyle: 'italic' }}>
+                    ⚠️ Screening — não substitui análise LEM regulatória. Ref: Qi & Tang (2018), Lin et al. (2022).
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {!mcResult && !scenarioResults ? (
             <div className="shms-empty"><div className="shms-empty__text">Execute análise de confiabilidade (Tab Geometria → 🎲 Monte Carlo)</div></div>
           ) : (

@@ -32,6 +32,7 @@
  * Used by chat components via var(--color-*)
  * ================================================================ */
 :root {
+  /* ═══ Semantic Color Tokens (oklch — single source of truth) ═══ */
   --color-bg-base: oklch(8% 0.02 280);
   --color-bg-surface: oklch(10% 0.02 280);
   --color-bg-elevated: oklch(12% 0.02 280);
@@ -51,6 +52,39 @@
   --color-accent-red: oklch(65% 0.22 25);
   --color-gradient-start: oklch(55% 0.25 300);
   --color-gradient-end: oklch(50% 0.22 260);
+
+  /* ═══ Backwards-compat aliases (consolidated from design-tokens.css) ═══ */
+  --bg-void: oklch(6% 0.02 280);
+  --bg-deep: oklch(8% 0.02 280);
+  --bg-base: oklch(10% 0.02 280);
+  --bg-surface: oklch(12% 0.02 280);
+  --bg-elevated: oklch(14% 0.02 280);
+  --bg-hover: oklch(18% 0.03 280);
+  --text-primary: oklch(92% 0.01 280);
+  --text-secondary: oklch(62% 0.02 280);
+  --text-tertiary: oklch(42% 0.02 280);
+  --text-muted: oklch(32% 0.02 280);
+  --accent-primary: oklch(68% 0.16 285);
+  --accent-primary-dim: oklch(68% 0.16 285 / 0.15);
+  --accent-primary-glow: oklch(68% 0.16 285 / 0.3);
+  --accent-secondary: oklch(72% 0.14 195);
+  --accent-secondary-dim: oklch(72% 0.14 195 / 0.15);
+  --success: oklch(72% 0.18 145);
+  --warning: oklch(75% 0.14 70);
+  --error: oklch(65% 0.22 25);
+  --border-subtle: oklch(18% 0.02 280);
+  --border-default: oklch(22% 0.03 280);
+  --border-accent: oklch(35% 0.10 300);
+  --gradient-primary: linear-gradient(135deg, oklch(58% 0.18 295), oklch(45% 0.15 300));
+  --gradient-glow: radial-gradient(ellipse at center, oklch(58% 0.18 295 / 0.15) 0%, transparent 70%);
+  --shadow-glow-sm: 0 0 20px oklch(58% 0.18 295 / 0.15);
+  --shadow-glow-md: 0 0 40px oklch(58% 0.18 295 / 0.2);
+  --shadow-glow-lg: 0 0 80px oklch(58% 0.18 295 / 0.25);
+  --shadow-elevated: 0 8px 32px oklch(0% 0 0 / 0.5);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
 }
 
 /* ================================================================

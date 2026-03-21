@@ -184,13 +184,56 @@ export const nativeAuthRouter = router({
       }
 
       const db = await getDb();
+
+      // ── DEV MODE BYPASS: Auto-login when DB unavailable in development ──
+      // DATABASE_URL points to production MySQL which is not available locally.
+      // createPool() succeeds but queries fail when MySQL isn't running.
+      // In dev mode, catch the connection error and create a mock session.
+      if (!db && process.env.NODE_ENV === 'development') {
+        console.warn('[Auth] DEV MODE: Database null — auto-login as dev admin');
+        clearRateLimit(clientIp);
+        const devOpenId = `dev_admin_${Date.now()}`;
+        const sessionToken = await sdk.createSessionToken(devOpenId, {
+          name: 'Dev Admin',
+          expiresInMs: SESSION_EXPIRY_MS,
+        });
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: SESSION_EXPIRY_MS });
+        return {
+          success: true,
+          user: { id: 0, name: 'Dev Admin', email: input.email, role: 'admin' },
+        } as const;
+      }
+
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível" });
 
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, input.email))
-        .limit(1);
+      let user: any;
+      try {
+        const [result] = await db
+          .select()
+          .from(users)
+          .where(eq(users.email, input.email))
+          .limit(1);
+        user = result;
+      } catch (dbError: any) {
+        // DB query failed (MySQL not running, connection refused, etc.)
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('[Auth] DEV MODE: DB query failed — auto-login as dev admin:', dbError.message?.slice(0, 80));
+          clearRateLimit(clientIp);
+          const devOpenId = `dev_admin_${Date.now()}`;
+          const sessionToken = await sdk.createSessionToken(devOpenId, {
+            name: 'Dev Admin',
+            expiresInMs: SESSION_EXPIRY_MS,
+          });
+          const cookieOptions = getSessionCookieOptions(ctx.req);
+          ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: SESSION_EXPIRY_MS });
+          return {
+            success: true,
+            user: { id: 0, name: 'Dev Admin', email: input.email, role: 'admin' },
+          } as const;
+        }
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível" });
+      }
 
       // OWASP ASVS 2.4.5: Constant-time comparison to prevent timing attacks
       const dummyHash = "$2b$12$invalidhashfortimingatacksprotection00000000000000000000";

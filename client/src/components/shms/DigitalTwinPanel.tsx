@@ -22,6 +22,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
 } from 'recharts';
+import FOSTimeSeries from './analysis/FOSTimeSeries';
 
 // ── Structure type SVG paths ──
 const STRUCTURE_WIREFRAMES: Record<string, { viewBox: string; paths: string[]; sensorSpots: Array<{ cx: number; cy: number; label: string }> }> = {
@@ -136,16 +137,60 @@ function riskBadgeClass(risk: string) {
 }
 
 // ── Main Component ──
+/**
+ * Map FOS value to radar chart 0-100 scale.
+ * FOS >= 1.5 = 95 (excellent, ICOLD Green)
+ * FOS 1.0 = 50 (critical threshold)
+ * FOS 0.5 = 10 (failure imminent)
+ * Ref: ICOLD Bulletin 158 (2017) — FOS thresholds
+ */
+function fosToRadarValue(fos: number | null): number {
+  if (!fos || fos <= 0) return 50; // unknown → neutral
+  return Math.min(100, Math.max(0, fos * 60 - 10));
+}
+
 export default function DigitalTwinPanel({ structureId }: { structureId: string }) {
   const { data: dashData, isLoading } = useShmsDashboardAll();
   const [selectedSensor, setSelectedSensor] = useState<string | null>(null);
   const [animFrame, setAnimFrame] = useState(0);
+
+  // ── LEM FOS state (fetched from DT API) ──
+  // Ref: Xu et al. (2025) — AI-Powered DT for Highway Slope Stability
+  const [latestFOS, setLatestFOS] = useState<number | null>(null);
+  const [fosHistory, setFosHistory] = useState<Array<{ timestamp: number; fos: number; method: string }>>([]); 
 
   // Animate sensor pulse
   useEffect(() => {
     const t = setInterval(() => setAnimFrame(f => (f + 1) % 120), 50);
     return () => clearInterval(t);
   }, []);
+
+  // Fetch latest FOS from DT state (polls every 30s)
+  useEffect(() => {
+    let active = true;
+    const fetchFOS = async () => {
+      try {
+        const res = await fetch(`/api/shms/v2/structures/${structureId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        // Look for LEM sensor readings in the DT state
+        const lemReadings = (data.structure?.recentReadings || []).filter(
+          (r: any) => r.sensorId?.startsWith('LEM-') && r.unit === 'FOS'
+        );
+        if (lemReadings.length > 0 && active) {
+          const latest = lemReadings[lemReadings.length - 1];
+          setLatestFOS(Number(latest.value));
+          setFosHistory(prev => {
+            const next = [...prev, { timestamp: Date.now(), fos: Number(latest.value), method: latest.sensorId?.replace('LEM-', '').split('-')[0] || 'bishop' }];
+            return next.slice(-100); // keep last 100 points
+          });
+        }
+      } catch { /* silent — DT may not have FOS data yet */ }
+    };
+    fetchFOS();
+    const interval = setInterval(fetchFOS, 30000);
+    return () => { active = false; clearInterval(interval); };
+  }, [structureId]);
 
   // Extract structure data
   const structure = useMemo(() => {
@@ -172,14 +217,16 @@ export default function DigitalTwinPanel({ structureId }: { structureId: string 
   }, [health]);
 
   // Radar chart data for multi-dimensional health
+  // Estabilidade axis now uses REAL Bishop FOS from LEM Worker
+  // Ref: ICOLD B.158 + USACE EM 1110-2-1902
   const radarData = useMemo(() => [
     { axis: 'Integridade', value: health * 95 },
-    { axis: 'Estabilidade', value: 70 + Math.random() * 25 },
+    { axis: 'Estabilidade', value: fosToRadarValue(latestFOS) },
     { axis: 'Drenagem', value: 60 + Math.random() * 30 },
     { axis: 'Fundação', value: 75 + Math.random() * 20 },
     { axis: 'Instrumentação', value: sensors.length > 0 ? 85 : 20 },
     { axis: 'Manutenção', value: 65 + Math.random() * 30 },
-  ], [health, sensors.length]);
+  ], [health, sensors.length, latestFOS]);
 
   if (isLoading) return <div className="shms-skeleton" style={{ height: 600, borderRadius: 'var(--shms-radius)' }} />;
 
@@ -336,6 +383,26 @@ export default function DigitalTwinPanel({ structureId }: { structureId: string 
         </div>
       </div>
 
+      {/* ── FOS Time-Series (LEM Integration) ── */}
+      {/* Ref: Liu et al. (2022) — Slope DT for rainfall instability; ICOLD B.158 TARP zones */}
+      {fosHistory.length > 0 && (
+        <div className="shms-card" style={{ marginBottom: 'var(--shms-sp-4)' }}>
+          <div className="shms-card__header">
+            <span className="shms-card__title">⚖️ Fator de Segurança — Histórico LEM</span>
+            <span className={`shms-badge shms-badge--${latestFOS && latestFOS >= 1.5 ? 'green' : latestFOS && latestFOS >= 1.3 ? 'yellow' : latestFOS && latestFOS >= 1.1 ? 'orange' : 'red'}`}>
+              FOS = {latestFOS?.toFixed(3) || '—'}
+            </span>
+          </div>
+          <div className="shms-card__body" style={{ height: 220, padding: 'var(--shms-sp-2)' }}>
+            <FOSTimeSeries
+              data={fosHistory}
+              height={200}
+              showRainfall={false}
+            />
+          </div>
+        </div>
+      )}
+
       {/* ── Live Sensor Readings Table ── */}
       <div className="shms-card" style={{ marginBottom: 'var(--shms-sp-4)' }}>
         <div className="shms-card__header">
@@ -386,8 +453,9 @@ export default function DigitalTwinPanel({ structureId }: { structureId: string 
             <div style={{ fontWeight: 600, marginBottom: 4, color: 'var(--shms-text-secondary)' }}>📖 Referências</div>
             <div>• Grieves (2014) — Digital Twin Manufacturing</div>
             <div>• Farrar & Worden (2012) — SHM ML Perspective</div>
-            <div>• Sohn et al. (2004) — SHM Literature Review</div>
             <div>• ISO 13374-1:2003 — Condition Monitoring</div>
+            <div>• ICOLD B.158 (2017) — Dam Surveillance</div>
+            <div>• Bishop (1955) / Spencer (1967) — LEM</div>
           </div>
           <div style={{ fontSize: 'var(--shms-fs-xs)', color: 'var(--shms-text-muted)' }}>
             <div style={{ fontWeight: 600, marginBottom: 4, color: 'var(--shms-text-secondary)' }}>🔬 Detecção de Anomalias</div>

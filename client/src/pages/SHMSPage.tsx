@@ -16,10 +16,10 @@
  * - WCAG 2.1 AA: accessibility
  */
 
-import { useState, Suspense, lazy } from 'react';
+import { useState, Suspense, lazy, useCallback, useRef, useEffect } from 'react';
 import '@/styles/shms-tokens.css';
 import '@/styles/shms-themes.css';
-import SHMSSidebar, { type ShmsView } from '@/components/shms/SHMSSidebar';
+import { SECTIONS, type ShmsView } from '@/components/shms/SHMSSidebar';
 import SHMSTopbar from '@/components/shms/SHMSTopbar';
 
 // Safe lazy loader: returns placeholder if module doesn't exist
@@ -65,8 +65,6 @@ const ExportPanel = safeLazy(() => import('@/components/shms/documents/ExportPan
 const BIIntegration = safeLazy(() => import('@/components/shms/admin/BIIntegration'));
 const BudgetOverview = safeLazy(() => import('@/components/shms/admin/BudgetOverview'));
 const SystemHealth = safeLazy(() => import('@/components/shms/admin/SystemHealth'));
-const AIAnalysisChat = safeLazy(() => import('@/components/shms/ai/AIAnalysisChat'));
-const CognitiveTimeSeries = safeLazy(() => import('@/components/shms/sensors/CognitiveTimeSeries'));
 const DigitalTwinPanel = safeLazy(() => import('@/components/shms/DigitalTwin3DViewer'));
 
 
@@ -100,7 +98,6 @@ const VIEW_TITLES: Record<ShmsView, string> = {
   'bi-integration': 'BI Integration',
   'budget': 'Orçamento',
   'system-health': 'Saúde do Sistema',
-  'ai-chat': 'AI Cognitiva — Cognitive Blender',
 };
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
@@ -118,17 +115,29 @@ function ViewLoading() {
   );
 }
 
+// ─── Chat message type ───────────────────────────────────────────────────────
+interface ChatMsg { role: 'user' | 'assistant'; text: string; ts: number; }
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 export default function SHMSPage() {
   const [activeView, setActiveView] = useState<ShmsView>('overview');
   const [selectedStructureId, setSelectedStructureId] = useState('');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [messages, setMessages] = useState<ChatMsg[]>([
+    { role: 'assistant', text: '🧠 MOTHER SHMS pronta. Pergunte qualquer coisa sobre suas estruturas, sensores ou análises.', ts: Date.now() },
+  ]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const msgsEndRef = useRef<HTMLDivElement>(null);
 
   const { data: dashboard } = useShmsDashboardAll();
   const structures = dashboard?.structures ?? [];
   const alertCount = dashboard?.activeAlerts ?? 0;
 
-  // Navigate to a view (auto-select first structure if needed)
+  // Auto-scroll chat
+  useEffect(() => { msgsEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+  // Navigate to a view
   const navigate = (view: ShmsView) => {
     setActiveView(view);
     if (view === 'structure-detail' && !selectedStructureId && structures.length > 0) {
@@ -136,101 +145,170 @@ export default function SHMSPage() {
     }
   };
 
-  // Select a structure and go to detail
   const selectStructure = (id: string) => {
     setSelectedStructureId(id);
     setActiveView('structure-detail');
   };
 
-  // Use first structure as default for structure-scoped views
   const sid = selectedStructureId || (structures.length > 0 ? structures[0].structureId : 'default');
+
+  // ─── Chat submit (connects to MOTHER tRPC API) ─────────────────────────
+  const sendChat = useCallback(async () => {
+    const text = chatInput.trim();
+    if (!text || chatLoading) return;
+    setChatInput('');
+    setMessages(prev => [...prev, { role: 'user', text, ts: Date.now() }]);
+    setChatLoading(true);
+    if (!chatOpen) setChatOpen(true);
+
+    try {
+      // Build conversation history for multi-turn
+      const conversationHistory = messages.slice(-6).map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.text,
+      }));
+
+      const res = await fetch('/api/trpc/mother.query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ json: { query: text, useCache: true, conversationHistory } }),
+        credentials: 'include',
+      });
+      const data = await res.json();
+      const response = data?.result?.data?.json?.response ?? data?.result?.data?.response ?? 'Sem resposta.';
+      setMessages(prev => [...prev, { role: 'assistant', text: response, ts: Date.now() }]);
+    } catch {
+      setMessages(prev => [...prev, { role: 'assistant', text: '⚠️ Erro de conexão com MOTHER. Verifique o backend.', ts: Date.now() }]);
+    } finally {
+      setChatLoading(false);
+    }
+  }, [chatInput, chatLoading, chatOpen, messages, sid, activeView]);
 
   // ─── View Router ─────────────────────────────────────────────────────────
   function renderView() {
     switch (activeView) {
-      case 'overview':
-        return <OverviewDashboard onSelectStructure={selectStructure} onNavigate={navigate} />;
-      case 'structure-detail':
-        return <StructureDetail structureId={sid} onNavigate={navigate} onSelectStructure={selectStructure} />;
-      case 'sensors-timeseries':
-        return <SensorTimeSeries structureId={sid} />;
-      case 'sensors-table':
-        return <SensorTable structureId={sid} />;
-      case 'signal-analysis':
-        return <SignalAnalysisPanel structureId={sid} />;
-      case 'rul':
-        return <RULPredictionPanel structureId={sid} />;
-      case 'stability':
-        return <StabilityPanel structureId={sid} />;
-      case 'fault-tree':
-        return <FaultTreeViewer structureId={sid} />;
-      case 'big-data':
-        return <BigDataPanel structureId={sid} />;
-      case 'numerical':
-        return <NumericalPanel structureId={sid} />;
-      case 'insar':
-        return <InSARPanel structureId={sid} />;
-      case 'bench-consolidation':
-        return <BenchConsolidationPanel structureId={sid} />;
-      case 'risk-map':
-        return <RiskMapViewer structureId={sid} />;
-      case 'cross-section':
-        return <CrossSectionViewer structureId={sid} />;
-      case 'boreholes':
-        return <BoreholeViewer structureId={sid} />;
-      case '3d-twin':
-        return <DigitalTwinPanel structureId={sid} />;
-      case 'alerts':
-        return <AlertsPanel structureId={sid} />;
-      case 'events':
-        return <EventTimeline structureId={sid} />;
-      case 'tarp':
-        return <TARPMatrix structureId={sid} />;
-      case 'sirens':
-        return <SirenControl structureId={sid} />;
-      case 'ingest-status':
-        return <IngestionStatus />;
-      case 'ingest-import':
-        return <DataImport />;
-      case 'files':
-        return <FileManager structureId={sid} />;
-      case 'documents':
-        return <DocumentLibrary structureId={sid} />;
-      case 'export':
-        return <ExportPanel structureId={sid} />;
-      case 'bi-integration':
-        return <BIIntegration structureId={sid} />;
-      case 'budget':
-        return <BudgetOverview structureId={sid} />;
-      case 'system-health':
-        return <SystemHealth />;
-      case 'ai-chat':
-        return <CognitiveTimeSeries structureId={sid} />;
-      default:
-        return <OverviewDashboard onSelectStructure={selectStructure} onNavigate={navigate} />;
+      case 'overview': return <OverviewDashboard onSelectStructure={selectStructure} onNavigate={navigate} />;
+      case 'structure-detail': return <StructureDetail structureId={sid} onNavigate={navigate} onSelectStructure={selectStructure} />;
+      case 'sensors-timeseries': return <SensorTimeSeries structureId={sid} />;
+      case 'sensors-table': return <SensorTable structureId={sid} />;
+      case 'signal-analysis': return <SignalAnalysisPanel structureId={sid} />;
+      case 'rul': return <RULPredictionPanel structureId={sid} />;
+      case 'stability': return <StabilityPanel structureId={sid} />;
+      case 'fault-tree': return <FaultTreeViewer structureId={sid} />;
+      case 'big-data': return <BigDataPanel structureId={sid} />;
+      case 'numerical': return <NumericalPanel structureId={sid} />;
+      case 'insar': return <InSARPanel structureId={sid} />;
+      case 'bench-consolidation': return <BenchConsolidationPanel structureId={sid} />;
+      case 'risk-map': return <RiskMapViewer structureId={sid} />;
+      case 'cross-section': return <CrossSectionViewer structureId={sid} />;
+      case 'boreholes': return <BoreholeViewer structureId={sid} />;
+      case '3d-twin': return <DigitalTwinPanel structureId={sid} />;
+      case 'alerts': return <AlertsPanel structureId={sid} />;
+      case 'events': return <EventTimeline structureId={sid} />;
+      case 'tarp': return <TARPMatrix structureId={sid} />;
+      case 'sirens': return <SirenControl structureId={sid} />;
+      case 'ingest-status': return <IngestionStatus />;
+      case 'ingest-import': return <DataImport />;
+      case 'files': return <FileManager structureId={sid} />;
+      case 'documents': return <DocumentLibrary structureId={sid} />;
+      case 'export': return <ExportPanel structureId={sid} />;
+      case 'bi-integration': return <BIIntegration structureId={sid} />;
+      case 'budget': return <BudgetOverview structureId={sid} />;
+      case 'system-health': return <SystemHealth />;
+      default: return <OverviewDashboard onSelectStructure={selectStructure} onNavigate={navigate} />;
     }
   }
 
   return (
-    <div className={`shms-root shms-shell ${sidebarCollapsed ? 'shms-shell--collapsed' : ''}`}>
-      <SHMSSidebar
-        activeView={activeView}
-        onNavigate={navigate}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-        alertCount={alertCount}
-      />
+    <div className="shms-root shms-shell">
+      {/* ─── Topbar ─── */}
       <SHMSTopbar
         currentTitle={VIEW_TITLES[activeView] ?? 'SHMS'}
         selectedStructureId={selectedStructureId}
         structures={structures.map(s => ({ structureId: s.structureId, structureName: s.structureName || s.structureId }))}
         onSelectStructure={selectStructure}
       />
+
+      {/* ─── Content (full width) ─── */}
       <div className="shms-content" key={activeView}>
         <Suspense fallback={<ViewLoading />}>
           {renderView()}
         </Suspense>
       </div>
+
+      {/* ─── Floating Chat Panel (macOS style overlay) ─── */}
+      <div className={`shms-chatpanel ${chatOpen ? '' : 'shms-chatpanel--hidden'}`}>
+        <div className="shms-chatpanel__header">
+          🧠 MOTHER AI
+          <button
+            className="shms-chatpanel__close"
+            onClick={() => setChatOpen(false)}
+            title="Fechar chat"
+          >✕</button>
+        </div>
+        <div className="shms-chatpanel__messages">
+          {messages.map((m, i) => (
+            <div key={i} className={`shms-chatpanel__msg shms-chatpanel__msg--${m.role}`}>
+              {m.text}
+            </div>
+          ))}
+          {chatLoading && (
+            <div className="shms-chatpanel__msg shms-chatpanel__msg--assistant">
+              <span className="shms-animate-pulse">⏳ MOTHER processando...</span>
+            </div>
+          )}
+          <div ref={msgsEndRef} />
+        </div>
+      </div>
+
+      {/* ─── Floating Chat Bar (DECOUPLED from dock) ─── */}
+      <div className="shms-chat-bar">
+        <span
+          className="shms-chat-bar__icon"
+          onClick={() => setChatOpen(o => !o)}
+          title="Toggle MOTHER AI"
+        >🧠</span>
+        <input
+          type="text"
+          value={chatInput}
+          onChange={e => setChatInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && sendChat()}
+          placeholder="Pergunte à MOTHER sobre análises, estruturas, sensores..."
+          aria-label="Chat com MOTHER AI"
+          onFocus={() => { if (!chatOpen) setChatOpen(true); }}
+        />
+        <button
+          className="shms-btn shms-btn--accent shms-chat-bar__send"
+          onClick={sendChat}
+          disabled={chatLoading}
+        >
+          {chatLoading ? '⏳' : '↗'}
+        </button>
+      </div>
+
+      {/* ─── Floating Dock (macOS style — NAV ONLY) ─── */}
+      <div className="shms-dock">
+        <nav className="shms-dock__nav" aria-label="SHMS Navigation">
+          {SECTIONS.map((section, si) => (
+            <>
+              {si > 0 && <div key={`sep-${si}`} className="shms-dock__separator" />}
+              {section.items.map(item => (
+                <button
+                  key={item.id}
+                  className={`shms-dock__item ${activeView === item.id ? 'shms-dock__item--active' : ''}`}
+                  onClick={() => navigate(item.id)}
+                  aria-current={activeView === item.id ? 'page' : undefined}
+                  title={item.label}
+                >
+                  <span className="shms-dock__item-icon">{item.icon}</span>
+                  {item.label}
+                </button>
+              ))}
+            </>
+          ))}
+        </nav>
+      </div>
     </div>
   );
 }
+

@@ -217,6 +217,69 @@ digitalTwinRoutesC206.post('/structures/:id/readings', async (req: Request, res:
 });
 
 /**
+ * POST /api/shms/v2/structures/:id/fos
+ * Receive FOS result from client-side LEM Worker and update DT stability dimension.
+ * Maps FOS → TARP level and injects as sensor reading into existing DT engine.
+ *
+ * Scientific basis:
+ * - ICOLD Bulletin 158 (2017) — FOS thresholds: ≥1.5 Green, 1.3-1.5 Yellow, 1.1-1.3 Orange, <1.1 Red
+ * - Xu et al. (2025) — AI-Powered DT for Highway Slope Stability Risk Monitoring
+ * - Müller et al. (2022) — Self-Improving DT Models (Reality-to-Simulation Gap)
+ * - USACE EM 1110-2-1902 — Slope Stability (Bishop/Spencer/M-P methods)
+ *
+ * Body: { fos: number, method: string, circle?: object, timing?: number }
+ */
+digitalTwinRoutesC206.post('/structures/:id/fos', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { fos, method, circle, timing } = req.body;
+
+    if (fos === undefined || !method) {
+      return res.status(400).json({
+        success: false,
+        error: 'Campos obrigatórios: fos (number), method (string)',
+        example: { fos: 1.45, method: 'bishop', circle: { cx: 15, cy: -5, r: 20 }, timing: 95 },
+      });
+    }
+
+    // Map FOS → TARP level (ICOLD B.158 thresholds)
+    const tarpLevel = fos >= 1.5 ? 'green' : fos >= 1.3 ? 'yellow' : fos >= 1.1 ? 'orange' : 'red';
+
+    // Inject as stability sensor reading into existing DT engine (no new infrastructure)
+    const reading: SensorReading = {
+      sensorId: `LEM-${method}-${id}`,
+      structureId: id,
+      type: 'displacement', // maps to stability dimension in DT
+      value: Number(fos),
+      unit: 'FOS',
+      quality: 'good',
+      timestamp: new Date().toISOString(),
+    };
+
+    const result = ingestSensorReading(reading);
+
+    log.info(`[LEM] POST /structures/${id}/fos — FOS=${fos} method=${method} TARP=${tarpLevel} HI=${result.twin.healthIndex.toFixed(3)} timing=${timing || '?'}ms`);
+    return res.json({
+      success: true,
+      structureId: id,
+      fos: Number(fos),
+      method,
+      tarpLevel,
+      circle: circle || null,
+      timingMs: timing || null,
+      healthIndexAfter: result.twin.healthIndex,
+      anomalyDetected: result.anomaly.isAnomaly,
+      timestamp: new Date().toISOString(),
+      cycle: 'C206',
+      scientificBasis: 'ICOLD B.158 FOS thresholds + USACE EM 1110-2-1902 + Xu et al. (2025) DT+LEM',
+    });
+  } catch (err) {
+    log.error(`[LEM] POST /structures/${req.params.id}/fos error:`, err);
+    return res.status(500).json({ success: false, error: (err as Error).message });
+  }
+});
+
+/**
  * GET /api/shms/v2/health
  * Health check do Digital Twin Engine.
  * ISO 13374-1:2003 §5.1 — System availability monitoring

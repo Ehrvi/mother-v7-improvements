@@ -238,11 +238,13 @@ const soil1: SoilLayer = {
 };
 
 // Soil #2 (middle): between y≈24-31 on right, slope face on left
+// Extended down to toe (20,20) to close gap with soil #3
 const soil2: SoilLayer = {
   id: 'soil-2-mid',
   name: 'Solo #2 (Intermediário)',
   color: '#8B7355',
   points: [
+    { x: 20, y: 20 },
     { x: 30, y: 25 },
     { x: 40, y: 27 },
     { x: 50, y: 29 },
@@ -250,6 +252,7 @@ const soil2: SoilLayer = {
     { x: 70, y: 31 },
     { x: 70, y: 24 },
     { x: 30, y: 24 },
+    { x: 20, y: 20 },
   ],
   cohesion: 5.3,
   frictionAngle: 23.0,
@@ -261,16 +264,16 @@ const soil2: SoilLayer = {
   unitWeightStdDev: 0.5,
 };
 
-// Soil #3 (bottom): below y=24
+// Soil #3 (bottom): below y=24 — rectangular slab
 const soil3: SoilLayer = {
   id: 'soil-3-bot',
   name: 'Solo #3 (Base)',
   color: '#5C4A3A',
   points: [
-    { x: 20, y: 20 },
-    { x: 30, y: 24 },
+    { x: 20, y: 24 },
     { x: 70, y: 24 },
     { x: 70, y: 20 },
+    { x: 20, y: 20 },
   ],
   cohesion: 7.2,
   frictionAngle: 20.0,
@@ -361,13 +364,14 @@ const bench4Surface: Point2D[] = [
 ];
 
 // Embankment fill — main body of slope
+// Extended to include toe triangle (10,20)→(10.5,20)→(34.4,32.2) to close gap
 const fkFill: SoilLayer = {
   id: 'fk-fill',
   name: 'Aterro (Fredlund-Krahn)',
   color: '#B8956A',
   points: [
-    { x: 10.5, y: 20 }, { x: 34.4, y: 32.2 }, { x: 60, y: 32.2 },
-    { x: 60, y: 20 }, { x: 34.4, y: 20 },
+    { x: 10, y: 20 }, { x: 10.5, y: 20 }, { x: 34.4, y: 32.2 }, { x: 60, y: 32.2 },
+    { x: 60, y: 20 },
   ],
   cohesion: 28.7,
   frictionAngle: 20.0,

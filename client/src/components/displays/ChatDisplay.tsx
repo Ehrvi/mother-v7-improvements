@@ -12,7 +12,6 @@ import MessageList from '@/components/chat/MessageList';
 import QuickPrompts from '@/components/chat/QuickPrompts';
 import StreamingInput from '@/components/chat/StreamingInput';
 import { SessionHistory } from '@/components/SessionHistory';
-import { DGMTestPanel } from '@/components/DGMTestPanel';
 import { useChatStore } from '@/store/chatStore';
 
 interface ChatDisplayProps {
@@ -37,35 +36,6 @@ export default function ChatDisplay({ onSendMessage, onStopStream }: ChatDisplay
       {/* Session history overlay */}
       {store.showSessionHistory && (
         <SessionHistory onSelectSession={() => store.setShowSessionHistory(false)} />
-      )}
-
-      {/* DGM test overlay */}
-      {store.showDGMTest && (
-        <div
-          onClick={() => store.setShowDGMTest(false)}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 9999,
-            background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: '20px',
-          }}
-        >
-          <div onClick={e => e.stopPropagation()} style={{ position: 'relative', maxWidth: '720px', width: '100%' }}>
-            <button
-              onClick={() => store.setShowDGMTest(false)}
-              style={{
-                position: 'absolute', top: -12, right: -12, zIndex: 10,
-                background: '#2d2d4e', border: '1px solid #4040a0', borderRadius: '50%',
-                width: 28, height: 28, color: '#e0e0ff', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '14px', fontWeight: 700,
-              }}
-            >
-              X
-            </button>
-            <DGMTestPanel />
-          </div>
-        </div>
       )}
 
       {/* Input bar */}

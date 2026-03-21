@@ -17,8 +17,7 @@ export type ShmsView =
   | 'alerts' | 'events' | 'tarp' | 'sirens'
   | 'ingest-status' | 'ingest-import'
   | 'files' | 'documents' | 'export'
-  | 'bi-integration' | 'budget' | 'system-health'
-  | 'ai-chat';
+  | 'bi-integration' | 'budget' | 'system-health';
 
 interface NavItem {
   id: ShmsView;
@@ -100,12 +99,6 @@ const SECTIONS: NavSection[] = [
       { id: 'system-health', label: 'Sistema', icon: '🖥️' },
     ],
   },
-  {
-    label: 'Inteligência',
-    items: [
-      { id: 'ai-chat', label: 'AI Cognitiva', icon: '🧠' },
-    ],
-  },
 ];
 
 interface SHMSSidebarProps {
@@ -137,8 +130,6 @@ export default function SHMSSidebar({ activeView, onNavigate, collapsed = false,
             {section.items.map((item) => {
               const badge = item.id === 'alerts' && alertCount > 0
                 ? alertCount
-                : item.id === 'ai-chat' && aiInsightCount > 0
-                ? aiInsightCount
                 : null;
 
               return (

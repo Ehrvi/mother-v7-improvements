@@ -164,6 +164,11 @@ export function generateSlices(
 
   if (effXMin >= effXMax) return [];
 
+  // Compute profile bottom — uses minimum y of SURFACE POINTS only
+  // This prevents the circle from extending into deep strata (e.g., hard bedrock)
+  // that are not part of the failure mass
+  const profileBottom = Math.min(...profile.surfacePoints.map(p => p.y));
+
   const sliceWidth = (effXMax - effXMin) / nSlices;
   const slices: Slice[] = [];
 
@@ -183,11 +188,16 @@ export function generateSlices(
     const dxM = xm - center.x;
 
     const rr = radius * radius;
-    if (rr - dxL * dxL < 0 || rr - dxR * dxR < 0) continue;
+    if (rr - dxM * dxM < 0) continue;
 
-    const baseL = center.y - Math.sqrt(Math.max(0, rr - dxL * dxL));
-    const baseR = center.y - Math.sqrt(Math.max(0, rr - dxR * dxR));
-    const baseM = center.y - Math.sqrt(Math.max(0, rr - dxM * dxM));
+    const circleBaseL = rr - dxL * dxL >= 0 ? center.y - Math.sqrt(rr - dxL * dxL) : center.y;
+    const circleBaseR = rr - dxR * dxR >= 0 ? center.y - Math.sqrt(rr - dxR * dxR) : center.y;
+    const circleBaseM = center.y - Math.sqrt(Math.max(0, rr - dxM * dxM));
+
+    // Clamp base to profile bottom — slip surface can't go below the soil
+    const baseL = Math.max(circleBaseL, profileBottom);
+    const baseR = Math.max(circleBaseR, profileBottom);
+    const baseM = Math.max(circleBaseM, profileBottom);
 
     // Skip if base is above surface
     if (baseM >= topM) continue;
@@ -195,11 +205,17 @@ export function generateSlices(
     const height = topM - baseM;
     if (height <= 0) continue;
 
-    // Base angle α = arctan(dy/dx) of circle at midpoint
-    const alpha = Math.atan2(dxM, Math.sqrt(Math.max(0, rr - dxM * dxM)));
+    // Base angle α — use circle geometry when circle is within profile,
+    // flat (α≈0) when clamped at profile bottom
+    let alpha: number;
+    if (circleBaseM > profileBottom) {
+      alpha = Math.atan2(dxM, Math.sqrt(Math.max(0, rr - dxM * dxM)));
+    } else {
+      alpha = 0;
+    }
 
-    // Find soil layer at base midpoint
-    const layer = findLayerAt(profile.layers, xm, baseM);
+    // Find soil layer at base midpoint (use effective base position)
+    const layer = findLayerAt(profile.layers, xm, baseM + 0.01); // slightly above base
     const c = layer?.cohesion ?? 10;
     const phi = deg2rad(layer?.frictionAngle ?? 30);
     const gamma = layer?.unitWeight ?? 18;
@@ -208,15 +224,17 @@ export function generateSlices(
     // Weight = γ × area (simplified as γ × h × b)
     const weight = gamma * height * sliceWidth;
 
-    // Pore pressure
+    // Pore pressure — USACE EM 1110-2-1902 §C-3
+    // When water table exists: u = γ_w · h_w (hydrostatic, no ru)
+    // When no water table: u = ru · σ_v = ru · γ · h
     let u = 0;
     if (profile.waterTable) {
       const wtY = interpolateY(profile.waterTable.points, xm);
       if (baseM < wtY) {
-        u = 9.81 * (wtY - baseM) * ru;
+        u = 9.81 * (wtY - baseM); // γ_w · h_w — no ru factor
       }
     } else {
-      u = ru * gamma * height;
+      u = ru * gamma * height;  // ru·σ_v approach
     }
 
     const baseLength = sliceWidth / Math.cos(alpha);
@@ -245,14 +263,27 @@ export function generateSlices(
 
 function findLayerAt(layers: SoilLayer[], x: number, y: number): SoilLayer | undefined {
   if (layers.length === 0) return undefined;
-  // Simple: return the layer whose vertical extent contains y
-  // For multi-layer, use point-in-polygon
+  // Try point-in-polygon for each layer
   for (const layer of layers) {
     if (layer.points.length >= 3) {
       if (pointInPolygon({ x, y }, layer.points)) return layer;
     }
   }
-  return layers[0]; // fallback to first layer
+  // Fallback: find the layer whose y-centroid is closest to query point
+  // This handles edge cases at layer boundaries and small polygon gaps
+  let bestLayer = layers[0];
+  let bestDist = Infinity;
+  for (const layer of layers) {
+    if (layer.points.length < 3) continue;
+    const centY = layer.points.reduce((sum, p) => sum + p.y, 0) / layer.points.length;
+    const centX = layer.points.reduce((sum, p) => sum + p.x, 0) / layer.points.length;
+    const dist = Math.sqrt((x - centX) ** 2 + (y - centY) ** 2);
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestLayer = layer;
+    }
+  }
+  return bestLayer;
 }
 
 function pointInPolygon(point: Point2D, polygon: Point2D[]): boolean {
@@ -268,15 +299,164 @@ function pointInPolygon(point: Point2D, polygon: Point2D[]): boolean {
   return inside;
 }
 
+// ─── Critical Circle Search ──────────────────────────────────────────────────
+// Grid search for the circle with minimum Bishop FOS
+// Ref: Rocscience SLIDE2 uses 20×20 grid + 11 radii per point = 4400 trials
+// We use coarse→fine two-phase search + quality filters
+
+export function searchCriticalCircle(
+  profile: SlopeProfile,
+  nSlicesSearch: number = 30,
+  gridSize: number = 15
+): { circle: SlipCircle; fos: number } {
+  const xs = profile.surfacePoints.map(p => p.x);
+  const ys = profile.surfacePoints.map(p => p.y);
+  const xMinP = Math.min(...xs);
+  const xMaxP = Math.max(...xs);
+  const yMinP = Math.min(...ys);
+  const yMaxP = Math.max(...ys);
+  const H = yMaxP - yMinP;          // slope height
+  const L = xMaxP - xMinP;          // profile length
+  const minSpan = L * 0.35;         // circle must span ≥35% of profile width
+
+  // Search grid: center above profile, radius reaching into slope
+  const cxMin = xMinP;
+  const cxMax = xMaxP;
+  const cyMin = yMaxP;              // centers above crest
+  const cyMax = yMaxP + 2.5 * H;   // up to 2.5× height above
+  const rMin = H * 0.5;
+  const rMax = H * 3.5;
+
+  const cxStep = (cxMax - cxMin) / gridSize;
+  const cyStep = (cyMax - cyMin) / gridSize;
+  const rStep = (rMax - rMin) / 8;
+
+  let bestFOS = Infinity;
+  let bestCircle: SlipCircle = { center: { x: 0, y: 0 }, radius: 0 };
+
+  // Quick Bishop for search with quality check
+  function quickBishop(cx: number, cy: number, r: number): number {
+    const circle: SlipCircle = { center: { x: cx, y: cy }, radius: r };
+    const slices = generateSlices(profile, circle, nSlicesSearch);
+    if (slices.length < 10) return 999;
+
+    // Quality check: failure surface must span a meaningful portion of the slope
+    const sliceXs = slices.map(s => s.xLeft);
+    const sliceXe = slices.map(s => s.xRight);
+    const span = Math.max(...sliceXe) - Math.min(...sliceXs);
+    if (span < minSpan) return 999; // too narrow — degenerate shallow failure
+
+    // Compute total area to reject trivially small circles
+    const totalArea = slices.reduce((sum, s) => sum + s.height * s.width, 0);
+    if (totalArea < H * L * 0.03) return 999; // less than 3% of bounding box → degenerate
+
+    let fs = 1.5;
+    for (let iter = 0; iter < 50; iter++) {
+      let num = 0, den = 0;
+      for (const s of slices) {
+        const tanPhi = Math.tan(s.baseFriction);
+        const mA = Math.cos(s.baseAngle) * (1 + Math.tan(s.baseAngle) * tanPhi / fs);
+        if (Math.abs(mA) < 1e-10) continue;
+        num += (s.baseCohesion * s.width + (s.weight - s.porePressure * s.width) * tanPhi) / mA;
+        den += s.weight * Math.sin(s.baseAngle);
+      }
+      if (Math.abs(den) < 1e-10) return 999;
+      const fsNew = num / den;
+      if (fsNew <= 0 || !isFinite(fsNew)) return 999;
+      if (Math.abs(fsNew - fs) < 0.001) return fsNew;
+      fs = fsNew;
+    }
+    return fs;
+  }
+
+  // Phase 1: Coarse search
+  for (let cx = cxMin; cx <= cxMax; cx += cxStep) {
+    for (let cy = cyMin; cy <= cyMax; cy += cyStep) {
+      for (let r = rMin; r <= rMax; r += rStep) {
+        const fos = quickBishop(cx, cy, r);
+        if (fos > 0.1 && fos < bestFOS) {
+          bestFOS = fos;
+          bestCircle = { center: { x: cx, y: cy }, radius: r };
+        }
+      }
+    }
+  }
+
+  // Phase 2: Fine search around best  
+  const fcxStep = cxStep / 4;
+  const fcyStep = cyStep / 4;
+  const frStep = rStep / 4;
+  const bCx = bestCircle.center.x;
+  const bCy = bestCircle.center.y;
+  const bR = bestCircle.radius;
+
+  for (let cx = bCx - cxStep; cx <= bCx + cxStep; cx += fcxStep) {
+    for (let cy = bCy - cyStep; cy <= bCy + cyStep; cy += fcyStep) {
+      for (let r = Math.max(rMin, bR - rStep); r <= Math.min(rMax, bR + rStep); r += frStep) {
+        const fos = quickBishop(cx, cy, r);
+        if (fos > 0.1 && fos < bestFOS) {
+          bestFOS = fos;
+          bestCircle = { center: { x: cx, y: cy }, radius: r };
+        }
+      }
+    }
+  }
+
+  return { circle: bestCircle, fos: bestFOS };
+}
+
+// ─── Fellenius / Ordinary Method of Slices (1927) ─────────────────────────────
+// FOS = Σ[c'·l + (W·cosα − u·l)·tanφ'] / Σ[W·sinα]
+// No iteration needed — explicit formula. Always yields lower bound.
+// Reference: Fellenius (1927), USACE EM 1110-2-1902 §C-2
+
+export function felleniusOMS(
+  profile: SlopeProfile,
+  circle: SlipCircle,
+  nSlices: number = 30
+): StabilityResult {
+  const slices = generateSlices(profile, circle, nSlices);
+  if (slices.length === 0) {
+    return { method: 'Fellenius (OMS)', factorOfSafety: 999, converged: false, iterations: 0, slipCircle: circle, slices: [] };
+  }
+
+  let numerator = 0;
+  let denominator = 0;
+
+  for (const s of slices) {
+    const alpha = s.baseAngle;
+    const tanPhi = Math.tan(s.baseFriction);
+    const l = s.baseLength;
+    // Normal force on base: N = W·cosα
+    // Effective normal: N' = N − u·l
+    numerator += s.baseCohesion * l + (s.weight * Math.cos(alpha) - s.porePressure * l) * tanPhi;
+    denominator += s.weight * Math.sin(alpha);
+  }
+
+  if (Math.abs(denominator) < 1e-10) {
+    return { method: 'Fellenius (OMS)', factorOfSafety: 999, converged: false, iterations: 0, slipCircle: circle, slices };
+  }
+
+  const fos = numerator / denominator;
+  return {
+    method: 'Fellenius (OMS)',
+    factorOfSafety: fos > 0 ? fos : 999,
+    converged: true,
+    iterations: 1,
+    slipCircle: circle,
+    slices,
+  };
+}
+
 // ─── Bishop Simplified Method ─────────────────────────────────────────────────
-// Fs = Σ [c'b + (W - ub)tanφ'] / mα  /  Σ W sinα
-// mα = cosα + (sinα × tanφ') / Fs     (iterative)
-// Reference: Bishop (1955), USACE EM 1110-2-1902
+// Fs = Σ [c'b + (W − u·b)tanφ'] / mα  /  Σ W sinα
+// mα = cosα · (1 + tanα·tanφ'/Fs)
+// Reference: Bishop (1955), USACE EM 1110-2-1902 Eq.C-15
 
 export function bishopSimplified(
   profile: SlopeProfile,
   circle: SlipCircle,
-  nSlices: number = 20,
+  nSlices: number = 30,
   maxIter: number = 100,
   tolerance: number = 0.001
 ): StabilityResult {
@@ -294,10 +474,13 @@ export function bishopSimplified(
     for (const s of slices) {
       const alpha = s.baseAngle;
       const tanPhi = Math.tan(s.baseFriction);
-      const mAlpha = Math.cos(alpha) + (Math.sin(alpha) * tanPhi) / fs;
+      // USACE EM 1110-2-1902: mα = cosα·(1 + tanα·tanφ'/F)
+      const mAlpha = Math.cos(alpha) * (1 + Math.tan(alpha) * tanPhi / fs);
 
       if (Math.abs(mAlpha) < 1e-10) continue;
 
+      // Bishop numerator: [c'·b + (W − u·b)·tanφ'] / mα
+      // Where u acts over slice width b (Bishop simplification)
       const resisting = (s.baseCohesion * s.width + (s.weight - s.porePressure * s.width) * tanPhi) / mAlpha;
       numerator += resisting;
       denominator += s.weight * Math.sin(alpha);
@@ -309,7 +492,6 @@ export function bishopSimplified(
 
     const fsNew = numerator / denominator;
 
-    // Reject physically impossible results
     if (fsNew <= 0 || !isFinite(fsNew)) {
       return { method: 'Bishop Simplified', factorOfSafety: 999, converged: false, iterations: iter + 1, slipCircle: circle, slices };
     }
@@ -324,15 +506,207 @@ export function bishopSimplified(
   return { method: 'Bishop Simplified', factorOfSafety: fs > 0 ? fs : 999, converged: false, iterations: maxIter, slipCircle: circle, slices };
 }
 
+// ─── Janbu Simplified Method (1954) ───────────────────────────────────────────
+// Force equilibrium only. FOS = Σ[c'b + (W − ub)tanφ']/nα / Σ[W·tanα]
+// nα = cos²α · (1 + tanα·tanφ'/Fs)
+// Reference: Janbu (1954), USACE EM 1110-2-1902 App.C
+
+export function janbuSimplified(
+  profile: SlopeProfile,
+  circle: SlipCircle,
+  nSlices: number = 30,
+  maxIter: number = 100,
+  tolerance: number = 0.001
+): StabilityResult {
+  const slices = generateSlices(profile, circle, nSlices);
+  if (slices.length === 0) {
+    return { method: 'Janbu Simplified', factorOfSafety: 999, converged: false, iterations: 0, slipCircle: circle, slices: [] };
+  }
+
+  let fs = 1.5;
+
+  for (let iter = 0; iter < maxIter; iter++) {
+    let numerator = 0;
+    let denominator = 0;
+
+    for (const s of slices) {
+      const alpha = s.baseAngle;
+      const tanPhi = Math.tan(s.baseFriction);
+      const cosA = Math.cos(alpha);
+      // Janbu: nα = cos²α · (1 + tanα·tanφ'/F)
+      const nAlpha = cosA * cosA * (1 + Math.tan(alpha) * tanPhi / fs);
+
+      if (Math.abs(nAlpha) < 1e-10) continue;
+
+      numerator += (s.baseCohesion * s.width + (s.weight - s.porePressure * s.width) * tanPhi) / nAlpha;
+      denominator += s.weight * Math.tan(alpha);
+    }
+
+    if (Math.abs(denominator) < 1e-10) {
+      return { method: 'Janbu Simplified', factorOfSafety: 999, converged: false, iterations: iter, slipCircle: circle, slices };
+    }
+
+    const fsNew = numerator / denominator;
+    if (fsNew <= 0 || !isFinite(fsNew)) {
+      return { method: 'Janbu Simplified', factorOfSafety: 999, converged: false, iterations: iter + 1, slipCircle: circle, slices };
+    }
+
+    if (Math.abs(fsNew - fs) < tolerance) {
+      return { method: 'Janbu Simplified', factorOfSafety: fsNew, converged: true, iterations: iter + 1, slipCircle: circle, slices };
+    }
+    fs = fsNew;
+  }
+
+  return { method: 'Janbu Simplified', factorOfSafety: fs > 0 ? fs : 999, converged: false, iterations: maxIter, slipCircle: circle, slices };
+}
+
+// ─── Janbu Corrected Method (1973) ────────────────────────────────────────────
+// Janbu Simplified × correction factor f₀
+// f₀ = 1 + b₁·[d/L − 1.4·(d/L)²]
+// b₁ = 0.69 for c-φ soils, 0.31 for c-only, 0.50 for φ-only
+// Reference: Janbu (1973), Abramson et al. (2002)
+
+export function janbuCorrected(
+  profile: SlopeProfile,
+  circle: SlipCircle,
+  nSlices: number = 30,
+  maxIter: number = 100,
+  tolerance: number = 0.001
+): StabilityResult {
+  const jResult = janbuSimplified(profile, circle, nSlices, maxIter, tolerance);
+  if (jResult.factorOfSafety >= 100) return { ...jResult, method: 'Janbu Corrected' };
+
+  // Compute correction factor f₀
+  const slices = jResult.slices;
+  if (slices.length === 0) return { ...jResult, method: 'Janbu Corrected' };
+
+  // d = max depth of slip surface below ground
+  const depths = slices.map(s => s.height);
+  const d = Math.max(...depths);
+  // L = horizontal length of slip surface
+  const L = slices[slices.length - 1].xRight - slices[0].xLeft;
+  if (L <= 0) return { ...jResult, method: 'Janbu Corrected' };
+
+  const dOverL = d / L;
+
+  // Determine b₁ based on soil type
+  const layer = profile.layers[0];
+  let b1 = 0.69; // default: c-φ soil
+  if (layer) {
+    if (layer.cohesion > 0 && layer.frictionAngle <= 1) b1 = 0.31; // c-only (undrained)
+    else if (layer.cohesion <= 1 && layer.frictionAngle > 0) b1 = 0.50; // φ-only (granular)
+  }
+
+  const f0 = 1 + b1 * (dOverL - 1.4 * dOverL * dOverL);
+  const correctedFOS = jResult.factorOfSafety * f0;
+
+  return {
+    ...jResult,
+    method: 'Janbu Corrected',
+    factorOfSafety: correctedFOS > 0 ? correctedFOS : 999,
+  };
+}
+
+// ─── Corps of Engineers / Lowe-Karafiath Method ───────────────────────────────
+// Force equilibrium with assumed interslice force inclination
+// CoE: θ_i = average of slope angle at entry and exit
+// L-K: θ_i = (α_i + β_i) / 2  where β_i = ground surface inclination
+// Reference: USACE EM 1110-2-1902 §C-5, Lowe & Karafiath (1960)
+
+export function corpsOfEngineers(
+  profile: SlopeProfile,
+  circle: SlipCircle,
+  variant: 'coe' | 'lowe-karafiath' = 'coe',
+  nSlices: number = 30,
+  maxIter: number = 100,
+  tolerance: number = 0.001
+): StabilityResult {
+  const slices = generateSlices(profile, circle, nSlices);
+  if (slices.length === 0) {
+    return { method: variant === 'coe' ? 'Corps of Engineers' : 'Lowe-Karafiath', factorOfSafety: 999, converged: false, iterations: 0, slipCircle: circle, slices: [] };
+  }
+
+  // Compute ground surface inclination for each slice
+  const surfSlopes: number[] = slices.map(s => {
+    const yL = interpolateY(profile.surfacePoints, s.xLeft);
+    const yR = interpolateY(profile.surfacePoints, s.xRight);
+    return Math.atan2(yR - yL, s.width);
+  });
+
+  // For CoE: use average of entry and exit slopes
+  const entrySlope = surfSlopes[0];
+  const exitSlope = surfSlopes[surfSlopes.length - 1];
+  const coeTheta = (entrySlope + exitSlope) / 2;
+
+  let fs = 1.5;
+
+  for (let iter = 0; iter < maxIter; iter++) {
+    let numerator = 0;
+    let denominator = 0;
+
+    for (let i = 0; i < slices.length; i++) {
+      const s = slices[i];
+      const alpha = s.baseAngle;
+      const tanPhi = Math.tan(s.baseFriction);
+
+      // Interslice force inclination
+      const theta = variant === 'coe' ? coeTheta : (alpha + surfSlopes[i]) / 2;
+
+      const cosAminusT = Math.cos(alpha - theta);
+      if (Math.abs(cosAminusT) < 1e-10) continue;
+
+      // Force equilibrium FOS:
+      // F = Σ[c'l + (W cos(α-θ) - ul cos(α-θ))tanφ'] / cos(α-θ)
+      //   / Σ[W sin(α-θ) / cos(α-θ)]
+      const N = s.weight * Math.cos(alpha - theta) / cosAminusT;
+      const U = s.porePressure * s.baseLength;
+      numerator += (s.baseCohesion * s.baseLength + (N - U) * tanPhi) / cosAminusT;
+      denominator += s.weight * Math.sin(alpha) / cosAminusT;
+    }
+
+    if (Math.abs(denominator) < 1e-10) {
+      return { method: variant === 'coe' ? 'Corps of Engineers' : 'Lowe-Karafiath', factorOfSafety: 999, converged: false, iterations: iter, slipCircle: circle, slices };
+    }
+
+    const fsNew = numerator / denominator;
+    if (fsNew <= 0 || !isFinite(fsNew)) {
+      return { method: variant === 'coe' ? 'Corps of Engineers' : 'Lowe-Karafiath', factorOfSafety: 999, converged: false, iterations: iter + 1, slipCircle: circle, slices };
+    }
+
+    if (Math.abs(fsNew - fs) < tolerance) {
+      return {
+        method: variant === 'coe' ? 'Corps of Engineers' : 'Lowe-Karafiath',
+        factorOfSafety: fsNew,
+        converged: true,
+        iterations: iter + 1,
+        slipCircle: circle,
+        slices,
+      };
+    }
+    fs = fsNew;
+  }
+
+  return {
+    method: variant === 'coe' ? 'Corps of Engineers' : 'Lowe-Karafiath',
+    factorOfSafety: fs > 0 ? fs : 999,
+    converged: false,
+    iterations: maxIter,
+    slipCircle: circle,
+    slices,
+  };
+}
+
 // ─── Spencer Method ───────────────────────────────────────────────────────────
-// Full force + moment equilibrium with constant interslice force inclination θ
-// Reference: Spencer (1967), Rocscience Theory Manual
+// Rigorous: satisfies BOTH moment and force equilibrium.
+// Constant interslice force inclination θ.
+// Fm(F,θ) and Ff(F,θ) solved simultaneously.
+// Reference: Spencer (1967), Rocscience Slide2 Theory Manual
 
 export function spencerMethod(
   profile: SlopeProfile,
   circle: SlipCircle,
-  nSlices: number = 20,
-  maxIter: number = 150,
+  nSlices: number = 30,
+  maxIter: number = 200,
   tolerance: number = 0.001
 ): StabilityResult {
   const slices = generateSlices(profile, circle, nSlices);
@@ -340,44 +714,87 @@ export function spencerMethod(
     return { method: 'Spencer', factorOfSafety: 999, converged: false, iterations: 0, slipCircle: circle, slices: [] };
   }
 
-  let fs = 1.5;
-  let theta = 0; // interslice force inclination (radians)
+  // Start with Bishop FOS as initial guess (better than arbitrary 1.5)
+  const bishopFOS = computeBishopFOS(slices);
+  let fs = bishopFOS > 0 && bishopFOS < 100 ? bishopFOS : 1.5;
+  let theta = 0; // start at 0° — Spencer converges from Bishop solution
+
+  // Helper: compute Bishop moment-equilibrium FOS
+  function computeBishopFOS(sl: typeof slices): number {
+    let fsB = 1.5;
+    for (let it = 0; it < 50; it++) {
+      let num = 0, den = 0;
+      for (const s of sl) {
+        const alpha = s.baseAngle;
+        const tanPhi = Math.tan(s.baseFriction);
+        const mA = Math.cos(alpha) * (1 + Math.tan(alpha) * tanPhi / fsB);
+        if (Math.abs(mA) < 1e-10) continue;
+        num += (s.baseCohesion * s.width + (s.weight - s.porePressure * s.width) * tanPhi) / mA;
+        den += s.weight * Math.sin(alpha);
+      }
+      if (Math.abs(den) < 1e-10) return 999;
+      const fsNew = num / den;
+      if (fsNew <= 0 || !isFinite(fsNew)) return 999;
+      if (Math.abs(fsNew - fsB) < 0.001) return fsNew;
+      fsB = fsNew;
+    }
+    return fsB;
+  }
+
+  // Helper: compute moment-equilibrium FOS (same as Bishop — independent of θ)
+  function computeFm(F: number): number {
+    let num = 0, den = 0;
+    for (const s of slices) {
+      const alpha = s.baseAngle;
+      const tanPhi = Math.tan(s.baseFriction);
+      const mAlpha = Math.cos(alpha) * (1 + Math.tan(alpha) * tanPhi / F);
+      if (Math.abs(mAlpha) < 1e-10) continue;
+      num += (s.baseCohesion * s.width + (s.weight - s.porePressure * s.width) * tanPhi) / mAlpha;
+      den += s.weight * Math.sin(alpha);
+    }
+    return Math.abs(den) > 1e-10 ? num / den : 999;
+  }
+
+  // Helper: compute force-equilibrium FOS for given θ
+  function computeFf(F: number, th: number): number {
+    let num = 0, den = 0;
+    for (const s of slices) {
+      const alpha = s.baseAngle;
+      const tanPhi = Math.tan(s.baseFriction);
+      const d = alpha - th;
+      const cosDiff = Math.cos(d);
+      const sinDiff = Math.sin(d);
+      if (Math.abs(cosDiff) < 1e-10) continue;
+      const nAlpha = cosDiff + sinDiff * tanPhi / F;
+      if (Math.abs(nAlpha) < 1e-10) continue;
+      num += (s.baseCohesion * s.width + (s.weight - s.porePressure * s.width) * tanPhi) / nAlpha;
+      den += s.weight * Math.sin(d);
+    }
+    return Math.abs(den) > 1e-10 ? num / den : 999;
+  }
+
+  let bestDiff = Infinity;
+  let bestFs = fs;
+  let bestTheta = theta;
 
   for (let iter = 0; iter < maxIter; iter++) {
-    // Solve for Fs_m (moment equilibrium)
-    let numM = 0, denM = 0;
-    for (const s of slices) {
-      const alpha = s.baseAngle;
-      const tanPhi = Math.tan(s.baseFriction);
-      const mAlpha = Math.cos(alpha) + (Math.sin(alpha) * tanPhi) / fs;
-      if (Math.abs(mAlpha) < 1e-10) continue;
-      numM += (s.baseCohesion * s.width + (s.weight - s.porePressure * s.width) * tanPhi) / mAlpha;
-      denM += s.weight * Math.sin(alpha);
-    }
-    const fsM = Math.abs(denM) > 1e-10 ? numM / denM : 999;
+    const fsM = computeFm(fs);
+    const fsF = computeFf(fs, theta);
 
-    // Solve for Fs_f (force equilibrium)
-    let numF = 0, denF = 0;
-    for (const s of slices) {
-      const alpha = s.baseAngle;
-      const tanPhi = Math.tan(s.baseFriction);
-      const cosAminusT = Math.cos(alpha - theta);
-      const sinAminusT = Math.sin(alpha - theta);
-      if (Math.abs(cosAminusT) < 1e-10) continue;
+    if (fsM >= 100 || fsF >= 100) break;
 
-      const mAlphaF = cosAminusT + (sinAminusT * tanPhi) / fs;
-      numF += (s.baseCohesion * s.width + (s.weight - s.porePressure * s.width) * tanPhi) / mAlphaF;
-      denF += s.weight * Math.sin(alpha - theta);
-    }
-    const fsF = Math.abs(denF) > 1e-10 ? numF / denF : 999;
-
-    // Update θ to make Fs_m = Fs_f
     const diff = fsM - fsF;
-    theta += diff * 0.02; // damped update
 
+    // Track best solution (closest to Fm = Ff)
+    if (Math.abs(diff) < bestDiff) {
+      bestDiff = Math.abs(diff);
+      bestFs = (fsM + fsF) / 2;
+      bestTheta = theta;
+    }
+
+    // Convergence check
     const fsNew = (fsM + fsF) / 2;
-
-    if (Math.abs(fsNew - fs) < tolerance && Math.abs(diff) < tolerance * 10) {
+    if (Math.abs(fsNew - fs) < tolerance && Math.abs(diff) < tolerance * 5) {
       return {
         method: 'Spencer',
         factorOfSafety: Math.max(0.1, fsNew),
@@ -389,15 +806,50 @@ export function spencerMethod(
       };
     }
 
-    fs = fsNew;
+    // Newton-Raphson θ update with finite difference
+    const dTheta = 0.0005;
+    const fsFp = computeFf(fs, theta + dTheta);
+    const dFdTheta = (fsFp - fsF) / dTheta;
+
+    let thetaNew = theta;
+    if (Math.abs(dFdTheta) > 1e-10) {
+      thetaNew = theta - diff / dFdTheta * 0.3; // conservative damped Newton
+    } else {
+      thetaNew = theta - diff * 0.005; // very small fixed step
+    }
+
+    // Clamp θ to [-30°, 30°] — practical range per Spencer (1967)
+    thetaNew = Math.max(deg2rad(-30), Math.min(deg2rad(30), thetaNew));
+
+    // Only accept θ update if it doesn't make things worse
+    const fsFNew = computeFf(fs, thetaNew);
+    if (fsFNew < 100 && fsFNew > 0) {
+      theta = thetaNew;
+    }
+
+    fs = 0.7 * fs + 0.3 * fsNew; // conservative relaxation
   }
 
-  return { method: 'Spencer', factorOfSafety: Math.max(0.1, fs), converged: false, iterations: maxIter, slipCircle: circle, slices, theta: rad2deg(theta) };
+  // Fallback: if Spencer didn't converge, use best found solution
+  // If bestDiff is large, fallback to Bishop FOS (Fm)
+  const finalFos = bestDiff < 0.5 ? bestFs : bishopFOS;
+  return {
+    method: 'Spencer',
+    factorOfSafety: Math.max(0.1, finalFos),
+    converged: bestDiff < tolerance * 5,
+    iterations: maxIter,
+    slipCircle: circle,
+    slices,
+    theta: rad2deg(bestTheta),
+  };
 }
 
-// ─── Morgenstern-Price Method ─────────────────────────────────────────────────
-// X = λ f(x) E  — variable interslice force function
-// Reference: Morgenstern & Price (1965), GeoStru Theory
+// ─── Morgenstern-Price Method (GLE Framework) ────────────────────────────────
+// Satisfies BOTH moment and force equilibrium with variable interslice function.
+// X = λ·f(x)·E — shear interslice force related to normal interslice force
+// Solves for F and λ simultaneously using GLE framework.
+// When f(x)=constant, reduces to Spencer. When λ=0, reduces to Bishop.
+// Reference: Morgenstern & Price (1965), Fredlund & Krahn (1977), GeoStru Theory
 
 export type IntersliceFunction = 'constant' | 'sine' | 'half-sine' | 'trapezoidal';
 
@@ -405,8 +857,8 @@ export function morgensternPrice(
   profile: SlopeProfile,
   circle: SlipCircle,
   funcType: IntersliceFunction = 'half-sine',
-  nSlices: number = 20,
-  maxIter: number = 200,
+  nSlices: number = 30,
+  maxIter: number = 300,
   tolerance: number = 0.001
 ): StabilityResult {
   const slices = generateSlices(profile, circle, nSlices);
@@ -414,7 +866,6 @@ export function morgensternPrice(
     return { method: 'Morgenstern-Price', factorOfSafety: 999, converged: false, iterations: 0, slipCircle: circle, slices: [] };
   }
 
-  // Interslice function f(x) normalized [0, 1]
   const fFunc = (xNorm: number): number => {
     switch (funcType) {
       case 'constant': return 1.0;
@@ -427,44 +878,90 @@ export function morgensternPrice(
 
   const xMin = slices[0].xLeft;
   const xRange = slices[slices.length - 1].xRight - xMin;
+  if (xRange <= 0) {
+    return { method: `Morgenstern-Price (${funcType})`, factorOfSafety: 999, converged: false, iterations: 0, slipCircle: circle, slices };
+  }
 
-  let fs = 1.5;
-  let lambda = 0.3;
+  // Moment-equilibrium FOS (Bishop-like, independent of λ)
+  function computeFm(F: number): number {
+    let num = 0, den = 0;
+    for (const s of slices) {
+      const alpha = s.baseAngle;
+      const tanPhi = Math.tan(s.baseFriction);
+      const mAlpha = Math.cos(alpha) * (1 + Math.tan(alpha) * tanPhi / F);
+      if (Math.abs(mAlpha) < 1e-10) continue;
+      num += (s.baseCohesion * s.width + (s.weight - s.porePressure * s.width) * tanPhi) / mAlpha;
+      den += s.weight * Math.sin(alpha);
+    }
+    return Math.abs(den) > 1e-10 ? num / den : 999;
+  }
 
-  for (let iter = 0; iter < maxIter; iter++) {
-    // Compute interslice forces
-    const E: number[] = [0]; // normal interslice force
-    const X: number[] = [0]; // shear interslice force
-
-    let numM = 0, denM = 0;
-
+  // Force-equilibrium FOS (depends on λ through interslice angle θ(x)=arctan(λ·f(x)))
+  function computeFf(F: number, lam: number): number {
+    let num = 0, den = 0;
     for (let i = 0; i < slices.length; i++) {
       const s = slices[i];
       const alpha = s.baseAngle;
       const tanPhi = Math.tan(s.baseFriction);
-      const xNorm = (s.xLeft - xMin) / xRange;
+      const xNorm = ((s.xLeft + s.xRight) / 2 - xMin) / xRange;
       const fx = fFunc(xNorm);
+      const thetaI = Math.atan(lam * fx); // variable interslice angle
 
-      const mAlpha = Math.cos(alpha) + (Math.sin(alpha) * tanPhi) / fs;
-      if (Math.abs(mAlpha) < 1e-10) { E.push(0); X.push(0); continue; }
+      const diff = alpha - thetaI;
+      const cosDiff = Math.cos(diff);
+      const sinDiff = Math.sin(diff);
+      if (Math.abs(cosDiff) < 1e-10) continue;
 
-      const S = (s.baseCohesion * s.baseLength + (s.weight * Math.cos(alpha) - s.porePressure * s.baseLength) * tanPhi) / fs;
-      const Ei = E[i] + s.weight * Math.sin(alpha) - S;
-      E.push(Ei);
-      X.push(lambda * fx * Ei);
+      const nAlpha = cosDiff + sinDiff * tanPhi / F;
+      if (Math.abs(nAlpha) < 1e-10) continue;
 
-      numM += (s.baseCohesion * s.width + (s.weight - s.porePressure * s.width) * tanPhi) / mAlpha;
-      denM += s.weight * Math.sin(alpha);
+      num += (s.baseCohesion * s.width + (s.weight - s.porePressure * s.width) * tanPhi) / nAlpha;
+      den += s.weight * Math.sin(diff);
     }
+    return Math.abs(den) > 1e-10 ? num / den : 999;
+  }
 
-    const fsNew = Math.abs(denM) > 1e-10 ? numM / denM : 999;
+  let fs = 1.5;
+  let lambda = 0.2;
 
-    // Adjust λ based on boundary condition (E_n = 0)
-    const lastE = E[E.length - 1];
-    lambda -= lastE * 0.001;
-    lambda = Math.max(-2, Math.min(2, lambda));
+  for (let iter = 0; iter < maxIter; iter++) {
+    const fsM = computeFm(fs);
+    const fsF = computeFf(fs, lambda);
 
-    if (Math.abs(fsNew - fs) < tolerance && Math.abs(lastE) < tolerance * 100) {
+    if (fsM >= 100 || fsF >= 100) break;
+
+    // Adjust λ so that Fm = Ff
+    const diff = fsM - fsF;
+
+    // Finite difference ∂Ff/∂λ
+    const dLam = 0.001;
+    const fsFp = computeFf(fs, lambda + dLam);
+    const dFdLam = (fsFp - fsF) / dLam;
+
+    if (Math.abs(dFdLam) > 1e-10) {
+      lambda += diff / dFdLam * 0.5; // damped Newton step
+    } else {
+      lambda += diff * 0.05;
+    }
+    lambda = Math.max(-3, Math.min(3, lambda));
+
+    const fsNew = (fsM + fsF) / 2;
+
+    if (Math.abs(fsNew - fs) < tolerance && Math.abs(diff) < tolerance * 3) {
+      // Build interslice forces for output
+      const E: number[] = [0];
+      const X: number[] = [0];
+      for (let i = 0; i < slices.length; i++) {
+        const s = slices[i];
+        const alpha = s.baseAngle;
+        const tanPhi = Math.tan(s.baseFriction);
+        const S = (s.baseCohesion * s.baseLength + (s.weight * Math.cos(alpha) - s.porePressure * s.baseLength) * tanPhi) / fsNew;
+        const Ei = E[i] + s.weight * Math.sin(alpha) - S;
+        const xNorm = ((s.xLeft + s.xRight) / 2 - xMin) / xRange;
+        E.push(Ei);
+        X.push(lambda * fFunc(xNorm) * Ei);
+      }
+
       return {
         method: `Morgenstern-Price (${funcType})`,
         factorOfSafety: Math.max(0.1, fsNew),
@@ -476,7 +973,7 @@ export function morgensternPrice(
       };
     }
 
-    fs = 0.7 * fs + 0.3 * fsNew; // relaxation
+    fs = 0.5 * fs + 0.5 * fsNew;
   }
 
   return {

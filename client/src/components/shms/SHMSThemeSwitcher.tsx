@@ -11,7 +11,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
-export type ShmsTheme = 'precision-zen' | 'arctic' | 'copper' | 'neon-grid' | 'paper' | 'obsidian';
+export type ShmsTheme = 'precision-zen' | 'precision-zen-light' | 'arctic' | 'copper' | 'neon-grid' | 'paper' | 'obsidian';
 
 interface ThemeInfo {
   id: ShmsTheme;
@@ -22,12 +22,13 @@ interface ThemeInfo {
 }
 
 const THEMES: ThemeInfo[] = [
-  { id: 'precision-zen', label: 'Precision Zen', description: 'Dark oklch, left sidebar, glassmorphism', swatchColor: 'oklch(11% 0.015 230)', swatchBorder: 'oklch(68% 0.16 240)' },
-  { id: 'arctic',        label: 'Arctic',        description: 'Light mode, top nav, rounded cards, frost', swatchColor: 'oklch(97% 0.005 230)', swatchBorder: 'oklch(50% 0.18 240)' },
-  { id: 'copper',        label: 'Copper',         description: 'Warm, right sidebar, industrial flat cards', swatchColor: 'oklch(13% 0.025 50)', swatchBorder: 'oklch(72% 0.15 55)' },
-  { id: 'neon-grid',     label: 'Neon Grid',      description: 'Cyberpunk, icon sidebar, glow cards, grid bg', swatchColor: 'oklch(2% 0.005 280)', swatchBorder: 'oklch(78% 0.22 175)' },
-  { id: 'paper',         label: 'Paper',          description: 'Tufte serif, no sidebar, tabbed nav, zero chrome', swatchColor: 'oklch(96% 0.003 80)', swatchBorder: 'oklch(12% 0.008 80)' },
-  { id: 'obsidian',      label: 'Obsidian',       description: 'OLED black, bottom dock, floating panels', swatchColor: 'oklch(0% 0 0)', swatchBorder: 'oklch(60% 0.12 240)' },
+  { id: 'precision-zen',       label: 'Precision Zen',       description: 'Dark oklch, glassmorphism, dock', swatchColor: 'oklch(11% 0.015 230)', swatchBorder: 'oklch(68% 0.16 240)' },
+  { id: 'precision-zen-light', label: 'Precision Zen Light', description: 'Light oklch, clean, dock',       swatchColor: 'oklch(96% 0.006 230)', swatchBorder: 'oklch(50% 0.18 240)' },
+  { id: 'arctic',              label: 'Arctic',              description: 'Light mode, frost, rounded',     swatchColor: 'oklch(97% 0.005 230)', swatchBorder: 'oklch(50% 0.18 240)' },
+  { id: 'copper',              label: 'Copper',              description: 'Warm earth, industrial flat',    swatchColor: 'oklch(13% 0.025 50)',  swatchBorder: 'oklch(72% 0.15 55)' },
+  { id: 'neon-grid',           label: 'Neon Grid',           description: 'Cyberpunk, glow',                swatchColor: 'oklch(2% 0.005 280)',  swatchBorder: 'oklch(78% 0.22 175)' },
+  { id: 'paper',               label: 'Paper',               description: 'Tufte serif, zero chrome',       swatchColor: 'oklch(96% 0.003 80)',  swatchBorder: 'oklch(12% 0.008 80)' },
+  { id: 'obsidian',            label: 'Obsidian',            description: 'OLED black, floating panels',    swatchColor: 'oklch(0% 0 0)',        swatchBorder: 'oklch(60% 0.12 240)' },
 ];
 
 const STORAGE_KEY = 'shms-theme';
