@@ -97,6 +97,7 @@ export default function StabilityPanel({ structureId }: { structureId: string })
   const [seismicKv, setSeismicKv] = useState(0);              // vertical seismic coeff
   const [pwpMode, setPwpMode] = useState<'ru' | 'water-table' | 'piezometric'>('ru');
   const [slipSearchMode, setSlipSearchMode] = useState<'circular' | 'non-circular' | 'auto'>('circular');
+  const [usePrescribedCircle, setUsePrescribedCircle] = useState(false); // benchmark validation mode
   const [editableLayers, setEditableLayers] = useState<Record<string, { cohesion: number; frictionAngle: number; unitWeight: number; ru: number }>>({});
 
   // ─── SOTA: New editable parameters (Slide2/SLOPE-W patterns) ───────
@@ -187,13 +188,14 @@ export default function StabilityPanel({ structureId }: { structureId: string })
     workerAnalyze(selectedExample.profile, {
       nSlices,
       methods: ['fellenius', 'bishop', 'janbu_simp', 'janbu_corr', 'spencer', 'mp', 'coe'],
+      circle: usePrescribedCircle ? selectedExample.criticalCircle : undefined,
       includeFEM: true,
-      includeGA: true,
-      includePSO: true,
+      includeGA: !usePrescribedCircle, // skip GA/PSO in validation mode
+      includePSO: !usePrescribedCircle,
       gaOptions: { generations: 60, populationSize: 40 },
       psoOptions: { iterations: 50, particleCount: 25 },
     });
-  }, [selectedExample, nSlices, workerAnalyze]);
+  }, [selectedExample, nSlices, workerAnalyze, usePrescribedCircle]);
 
   // Run reliability analysis when worker results arrive (needs circle from worker)
   useEffect(() => {
@@ -471,8 +473,14 @@ export default function StabilityPanel({ structureId }: { structureId: string })
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--shms-sp-2)' }}>
+          {selectedExample.criticalCircle && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 'var(--shms-fs-xs)', color: 'var(--shms-text-dim)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={usePrescribedCircle} onChange={e => setUsePrescribedCircle(e.target.checked)} />
+              📐 Círculo Prescrito
+            </label>
+          )}
           <button className="stab-btn--primary" onClick={runAll} disabled={computing}>
-            {computing ? (<><div className="stab-computing__spinner" style={{ width: 16, height: 16, borderWidth: 2 }} /> {workerProgressStatus || 'Calculando...'}</>) : '▶ Executar Todos'}
+            {computing ? (<><div className="stab-computing__spinner" style={{ width: 16, height: 16, borderWidth: 2 }} /> {workerProgressStatus || 'Calculando...'}</>) : usePrescribedCircle ? '▶ Validar Benchmark' : '▶ Executar Todos'}
           </button>
           {computing && (
             <button className="shms-btn" onClick={workerCancel} style={{ fontSize: 'var(--shms-fs-sm)', padding: '4px 8px' }}>✕ Cancelar</button>

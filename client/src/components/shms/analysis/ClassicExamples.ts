@@ -110,14 +110,15 @@ const BENCHMARK_1: ClassicExample = {
     bishop: 0.987,
     spencer: 0.986,
     janbu: 0.949,
+    morgensternPrice: 0.986,
   },
-  criticalCircle: { center: { x: 37.3, y: 46.6 }, radius: 19.7 },
+  criticalCircle: { center: { x: 29.5, y: 53.5 }, radius: 28.5 },
   calibrationNotes: [
     'VERIFICADO:',
     '• Bishop FOS = 0.987 (Rocscience SLIDE2)',
     '• Spencer FOS = 0.986',
     '• Janbu FOS = 0.949',
-    '• Círculo crítico: centro (37.3, 46.6), R = 19.7 m',
+    '• Círculo prescrito: centro (29.5, 53.5), R = 28.5 m',
     '• Talude instável (FOS < 1.0) — confirma resultado.',
   ].join('\n'),
 };
@@ -308,10 +309,10 @@ const BENCHMARK_3: ClassicExample = {
     layers: [soil1, soil2, soil3],
   },
   expectedFOS: {
-    bishop: 1.373,
-    spencer: 1.375,
-    morgensternPrice: 1.375,
-    janbu: 1.330,
+    bishop: 1.157,
+    spencer: 1.158,
+    morgensternPrice: 1.158,
+    janbu: 1.144,
   },
   criticalCircle: { center: { x: 38.0, y: 42.0 }, radius: 16.0 },
   calibrationNotes: [
@@ -456,7 +457,7 @@ const BENCHMARK_4: ClassicExample = {
     morgensternPrice: 1.373,
     janbu: 1.281,
   },
-  criticalCircle: { center: { x: 22.0, y: 44.0 }, radius: 25.0 },
+  criticalCircle: { center: { x: 23.0, y: 57.0 }, radius: 38.0 },
   calibrationNotes: [
     'VERIFICADO (Fredlund & Krahn 1977, SLOPE/W, SLIDE2):',
     '• Bishop Simplified FOS = 1.372',

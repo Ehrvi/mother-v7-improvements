@@ -164,10 +164,15 @@ export function generateSlices(
 
   if (effXMin >= effXMax) return [];
 
-  // Compute profile bottom — uses minimum y of SURFACE POINTS only
-  // This prevents the circle from extending into deep strata (e.g., hard bedrock)
-  // that are not part of the failure mass
-  const profileBottom = Math.min(...profile.surfacePoints.map(p => p.y));
+  // Compute profile bottom — uses minimum y of ALL SOIL LAYER polygons
+  // This allows the circle to cut through all soil layers (critical for multi-layer)
+  // Ref: Rocscience SLIDE2 allows slip surfaces through any defined material
+  let profileBottom = Math.min(...profile.surfacePoints.map(p => p.y));
+  for (const layer of profile.layers) {
+    for (const pt of layer.points) {
+      if (pt.y < profileBottom) profileBottom = pt.y;
+    }
+  }
 
   const sliceWidth = (effXMax - effXMin) / nSlices;
   const slices: Slice[] = [];
@@ -202,16 +207,22 @@ export function generateSlices(
     // Skip if base is above surface
     if (baseM >= topM) continue;
 
+    const heightL = topL - baseL;
+    const heightR = topR - baseR;
     const height = topM - baseM;
     if (height <= 0) continue;
 
-    // Base angle α — use circle geometry when circle is within profile,
-    // flat (α≈0) when clamped at profile bottom
+    // Base angle α — from circle geometry: α = arcsin((x - cx) / R)
+    // Equivalent: α = atan2(dx, sqrt(R² - dx²))
+    // When base is clamped at profileBottom, use finite difference from base geometry
+    // Ref: Bishop (1955), USACE EM 1110-2-1902 §C-2
     let alpha: number;
-    if (circleBaseM > profileBottom) {
+    if (circleBaseM > profileBottom + 0.01) {
+      // Circle is within soil — use exact circle geometry
       alpha = Math.atan2(dxM, Math.sqrt(Math.max(0, rr - dxM * dxM)));
     } else {
-      alpha = 0;
+      // Base clamped at profileBottom — use finite difference of actual base
+      alpha = Math.atan2(baseL - baseR, sliceWidth);
     }
 
     // Find soil layer at base midpoint (use effective base position)
@@ -221,8 +232,9 @@ export function generateSlices(
     const gamma = layer?.unitWeight ?? 18;
     const ru = layer?.ru ?? 0;
 
-    // Weight = γ × area (simplified as γ × h × b)
-    const weight = gamma * height * sliceWidth;
+    // Weight = γ × trapezoidal area — more accurate than rectangular
+    // Ref: USACE EM 1110-2-1902 §C-2 — W = γ · b · (hL + hR) / 2
+    const weight = gamma * sliceWidth * (Math.max(0, heightL) + Math.max(0, heightR)) / 2;
 
     // Pore pressure — USACE EM 1110-2-1902 §C-3
     // When water table exists: u = γ_w · h_w (hydrostatic, no ru)
@@ -317,19 +329,21 @@ export function searchCriticalCircle(
   const yMaxP = Math.max(...ys);
   const H = yMaxP - yMinP;          // slope height
   const L = xMaxP - xMinP;          // profile length
-  const minSpan = L * 0.35;         // circle must span ≥35% of profile width
+  const yMid = (yMinP + yMaxP) / 2; // midpoint elevation
+  const minSpan = L * 0.25;         // circle must span ≥25% of profile width
 
-  // Search grid: center above profile, radius reaching into slope
-  const cxMin = xMinP;
-  const cxMax = xMaxP;
-  const cyMin = yMaxP;              // centers above crest
-  const cyMax = yMaxP + 2.5 * H;   // up to 2.5× height above
-  const rMin = H * 0.5;
-  const rMax = H * 3.5;
+  // Search grid: wider range per Fredlund et al. (1981)
+  // Centers from midpoint elevation to well above crest
+  const cxMin = xMinP - L * 0.1;
+  const cxMax = xMaxP + L * 0.1;
+  const cyMin = yMid;                // start from slope midpoint (was yMaxP)
+  const cyMax = yMaxP + 3.0 * H;    // up to 3.0× height above crest (was 2.5)
+  const rMin = H * 0.4;             // smaller min radius (was 0.5)
+  const rMax = H * 4.5;             // larger max radius (was 3.5)
 
   const cxStep = (cxMax - cxMin) / gridSize;
   const cyStep = (cyMax - cyMin) / gridSize;
-  const rStep = (rMax - rMin) / 8;
+  const rStep = (rMax - rMin) / 12;  // 12 radius steps (was 8)
 
   let bestFOS = Infinity;
   let bestCircle: SlipCircle = { center: { x: 0, y: 0 }, radius: 0 };
@@ -652,16 +666,15 @@ export function corpsOfEngineers(
       // Interslice force inclination
       const theta = variant === 'coe' ? coeTheta : (alpha + surfSlopes[i]) / 2;
 
-      const cosAminusT = Math.cos(alpha - theta);
-      if (Math.abs(cosAminusT) < 1e-10) continue;
+      // Force equilibrium per USACE EM 1110-2-1902 §C-5:
+      // nα = cos(α-θ) + sin(α-θ)·tanφ'/F
+      const nAlpha = Math.cos(alpha - theta) + Math.sin(alpha - theta) * tanPhi / fs;
+      if (Math.abs(nAlpha) < 1e-10) continue;
 
-      // Force equilibrium FOS:
-      // F = Σ[c'l + (W cos(α-θ) - ul cos(α-θ))tanφ'] / cos(α-θ)
-      //   / Σ[W sin(α-θ) / cos(α-θ)]
-      const N = s.weight * Math.cos(alpha - theta) / cosAminusT;
-      const U = s.porePressure * s.baseLength;
-      numerator += (s.baseCohesion * s.baseLength + (N - U) * tanPhi) / cosAminusT;
-      denominator += s.weight * Math.sin(alpha) / cosAminusT;
+      // Numerator: [c'·b + (W - u·b)·tanφ'] / nα
+      // Denominator: W·sin(α) — same driving force as Bishop
+      numerator += (s.baseCohesion * s.width + (s.weight - s.porePressure * s.width) * tanPhi) / nAlpha;
+      denominator += s.weight * Math.sin(alpha);
     }
 
     if (Math.abs(denominator) < 1e-10) {
