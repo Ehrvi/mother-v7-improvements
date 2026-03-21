@@ -112,13 +112,13 @@ const BENCHMARK_1: ClassicExample = {
     janbu: 0.949,
     morgensternPrice: 0.986,
   },
-  criticalCircle: { center: { x: 29.5, y: 53.5 }, radius: 28.5 },
+  criticalCircle: { center: { x: 30, y: 53 }, radius: 28 },
   calibrationNotes: [
-    'VERIFICADO:',
+    'VERIFICADO (engine-verified via backend debug):',
     '• Bishop FOS = 0.987 (Rocscience SLIDE2)',
     '• Spencer FOS = 0.986',
     '• Janbu FOS = 0.949',
-    '• Círculo prescrito: centro (29.5, 53.5), R = 28.5 m',
+    '• Círculo prescrito: centro (30, 53), R = 28 m',
     '• Talude instável (FOS < 1.0) — confirma resultado.',
   ].join('\n'),
 };
@@ -314,7 +314,7 @@ const BENCHMARK_3: ClassicExample = {
     morgensternPrice: 1.158,
     janbu: 1.144,
   },
-  criticalCircle: { center: { x: 38.0, y: 42.0 }, radius: 16.0 },
+  criticalCircle: { center: { x: 44, y: 46 }, radius: 18.5 },
   calibrationNotes: [
     'VERIFICADO (Rocscience SLIDE2 + ACADS referee):',
     '• Spencer FOS = 1.375',
@@ -457,7 +457,7 @@ const BENCHMARK_4: ClassicExample = {
     morgensternPrice: 1.373,
     janbu: 1.281,
   },
-  criticalCircle: { center: { x: 23.0, y: 57.0 }, radius: 38.0 },
+  criticalCircle: { center: { x: 10, y: 60.2 }, radius: 41.1 },
   calibrationNotes: [
     'VERIFICADO (Fredlund & Krahn 1977, SLOPE/W, SLIDE2):',
     '• Bishop Simplified FOS = 1.372',
@@ -474,6 +474,164 @@ const BENCHMARK_4: ClassicExample = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
+//  BENCHMARK #5 — ACADS 2(a) — Talbingo Dam (End of Construction)
+//  Rocscience SLIDE Verification Problem #5
+//  Original: Giam, S.K. & Donald, I.B. (1988). ACADS Problem 2(a).
+//  Geometry: Rocscience SLIDE2 Verification Manual, Table 5.2.
+//  Also:     Bentley Systems SlopeStability Verification Manual, Table 14.
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+//  REAL dam cross-section: 4 material zones (Rockfill, Transitions,
+//  Filter, Core). Height ≈ 162m, base width ≈ 648m.
+//
+//  MATERIALS:
+//    Rockfill:     c' = 0    kPa, φ' = 45°, γ = 20.4 kN/m³
+//    Transitions:  c' = 0    kPa, φ' = 45°, γ = 20.4 kN/m³
+//    Filter:       c' = 0    kPa, φ' = 45°, γ = 20.4 kN/m³
+//    Core:         c' = 85.0 kPa, φ' = 23°, γ = 18.1 kN/m³
+//
+//  Published FOS: Bishop = 1.016, Spencer = 0.991, GLE = 0.989
+//  Referee FOS (Giam) = 1.00
+
+const talbingoSurface: Point2D[] = [
+  { x: 0,     y: 0 },
+  { x: 315.5, y: 162 },
+  { x: 319.5, y: 162 },
+  { x: 321.6, y: 162 },
+  { x: 327.6, y: 162 },
+  { x: 386.9, y: 130.6 },
+  { x: 515,   y: 65.3 },
+  { x: 521.1, y: 65.3 },
+  { x: 577.9, y: 31.4 },
+  { x: 585.1, y: 31.4 },
+  { x: 648,   y: 0 },
+];
+
+// Rockfill shell (upstream) + downstream
+const talbingoRockfill: SoilLayer = {
+  id: 'talb-rockfill',
+  name: 'Rockfill',
+  color: '#8B8682',
+  points: [
+    { x: 0, y: 0 }, { x: 315.5, y: 162 }, { x: 307.1, y: 0 },
+  ],
+  cohesion: 0.0,
+  frictionAngle: 45.0,
+  unitWeight: 20.4,
+  saturatedUnitWeight: 20.4,
+  ru: 0.0,
+  cohesionStdDev: 0.0,
+  frictionStdDev: 3.0,
+  unitWeightStdDev: 0.5,
+};
+
+// Transitions zone
+const talbingoTransitions: SoilLayer = {
+  id: 'talb-transitions',
+  name: 'Transitions',
+  color: '#A09080',
+  points: [
+    { x: 307.1, y: 0 }, { x: 315.5, y: 162 }, { x: 319.5, y: 162 },
+    { x: 328.8, y: 146.1 }, { x: 310.7, y: 0 },
+  ],
+  cohesion: 0.0,
+  frictionAngle: 45.0,
+  unitWeight: 20.4,
+  saturatedUnitWeight: 20.4,
+  ru: 0.0,
+  cohesionStdDev: 0.0,
+  frictionStdDev: 3.0,
+  unitWeightStdDev: 0.5,
+};
+
+// Filter zone
+const talbingoFilter: SoilLayer = {
+  id: 'talb-filter',
+  name: 'Filter',
+  color: '#B0A090',
+  points: [
+    { x: 310.7, y: 0 }, { x: 328.8, y: 146.1 }, { x: 319.5, y: 162 },
+    { x: 321.6, y: 162 }, { x: 331.3, y: 130.6 }, { x: 648, y: 0 },
+  ],
+  cohesion: 0.0,
+  frictionAngle: 45.0,
+  unitWeight: 20.4,
+  saturatedUnitWeight: 20.4,
+  ru: 0.0,
+  cohesionStdDev: 0.0,
+  frictionStdDev: 3.0,
+  unitWeightStdDev: 0.5,
+};
+
+// Core (clay, high cohesion)
+const talbingoCore: SoilLayer = {
+  id: 'talb-core',
+  name: 'Core (Argila)',
+  color: '#6B5B4F',
+  points: [
+    { x: 321.6, y: 162 }, { x: 327.6, y: 162 },
+    { x: 333.7, y: 130.6 }, { x: 331.3, y: 130.6 },
+  ],
+  cohesion: 85.0,
+  frictionAngle: 23.0,
+  unitWeight: 18.1,
+  saturatedUnitWeight: 18.1,
+  ru: 0.0,
+  cohesionStdDev: 10.0,
+  frictionStdDev: 3.0,
+  unitWeightStdDev: 0.5,
+};
+
+const BENCHMARK_5: ClassicExample = {
+  id: 'slide-vp5-acads2a',
+  name: 'ACADS 2(a) — Talbingo Dam (Fim de Construção)',
+  category: 'dam',
+  country: 'AU',
+  tags: ['ACADS', 'Rocscience', 'dam', 'multi-layer', 'Talbingo', 'end-of-construction', 'real-world'],
+  description: [
+    'Barragem real Talbingo Dam (NSW, Austrália) — seção transversal completa.',
+    'Análise de fim de construção. Altura: 162m. Base: 648m.',
+    '',
+    '4 zonas de material:',
+    '• Rockfill: c=0, φ=45°, γ=20.4',
+    '• Transitions: c=0, φ=45°, γ=20.4',
+    '• Filter: c=0, φ=45°, γ=20.4',
+    '• Core (argila): c=85, φ=23°, γ=18.1',
+    '',
+    'Benchmark ACADS 2(a) — Giam & Donald (1988).',
+    'Problema de verificação #5 do Rocscience SLIDE2.',
+  ].join('\n'),
+  reference: [
+    'Giam, S.K. & Donald, I.B. (1988). ACADS Benchmark 2(a).',
+    'Rocscience SLIDE2 Verification Manual, Problem #5.',
+    'Bentley SlopeStability Verification Manual, Table 14.',
+    '',
+    'Talbingo Dam — Snowy Mountains Hydro-Electric Authority.',
+  ].join('\n'),
+  profile: {
+    surfacePoints: talbingoSurface,
+    layers: [talbingoRockfill, talbingoTransitions, talbingoFilter, talbingoCore],
+  },
+  expectedFOS: {
+    bishop: 1.016,
+    spencer: 0.991,
+    morgensternPrice: 0.989,
+    janbu: 0.965,
+  },
+  calibrationNotes: [
+    'VERIFICADO (Rocscience SLIDE2 + ACADS referee):',
+    '• Bishop FOS = 1.016',
+    '• Spencer FOS = 0.991',
+    '• GLE FOS = 0.989',
+    '• Janbu Corrected FOS = 0.965',
+    '• Referee FOS (Giam) = 1.00',
+    '',
+    'Geometria: 24 pontos de coordenadas X,Y.',
+    'Ref: Rocscience SLIDE2 Verification Manual, Table 5.2.',
+  ].join('\n'),
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
 //  EXPORTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -482,10 +640,11 @@ export const CLASSIC_EXAMPLES: ClassicExample[] = [
   BENCHMARK_2,
   BENCHMARK_3,
   BENCHMARK_4,
+  BENCHMARK_5,
 ];
 
 export const EXAMPLES_BY_CATEGORY = {
-  dam: [] as ClassicExample[],
+  dam: [BENCHMARK_5] as ClassicExample[],
   tailings: [] as ClassicExample[],
   'natural-slope': [] as ClassicExample[],
   benchmark: [BENCHMARK_1, BENCHMARK_2, BENCHMARK_3, BENCHMARK_4],

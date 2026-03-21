@@ -329,40 +329,27 @@ export function searchCriticalCircle(
   const yMaxP = Math.max(...ys);
   const H = yMaxP - yMinP;          // slope height
   const L = xMaxP - xMinP;          // profile length
-  const yMid = (yMinP + yMaxP) / 2; // midpoint elevation
-  const minSpan = L * 0.25;         // circle must span ≥25% of profile width
 
-  // Search grid: wider range per Fredlund et al. (1981)
-  // Centers from midpoint elevation to well above crest
+  // Search grid: per Fredlund et al. (1981), center ABOVE crest
   const cxMin = xMinP - L * 0.1;
   const cxMax = xMaxP + L * 0.1;
-  const cyMin = yMid;                // start from slope midpoint (was yMaxP)
-  const cyMax = yMaxP + 3.0 * H;    // up to 3.0× height above crest (was 2.5)
-  const rMin = H * 0.4;             // smaller min radius (was 0.5)
-  const rMax = H * 4.5;             // larger max radius (was 3.5)
+  const cyMin = yMaxP;               // center must be above crest for circular failure
+  const cyMax = yMaxP + 3.0 * H;    // up to 3.0× height above crest
+  const rMin = H * 0.5;
+  const rMax = H * 4.0;
 
   const cxStep = (cxMax - cxMin) / gridSize;
   const cyStep = (cyMax - cyMin) / gridSize;
-  const rStep = (rMax - rMin) / 12;  // 12 radius steps (was 8)
+  const rStep = (rMax - rMin) / 12;
 
   let bestFOS = Infinity;
   let bestCircle: SlipCircle = { center: { x: 0, y: 0 }, radius: 0 };
 
-  // Quick Bishop for search with quality check
+  // Quick Bishop with physical validity checks (NOT result filters)
   function quickBishop(cx: number, cy: number, r: number): number {
     const circle: SlipCircle = { center: { x: cx, y: cy }, radius: r };
     const slices = generateSlices(profile, circle, nSlicesSearch);
-    if (slices.length < 10) return 999;
-
-    // Quality check: failure surface must span a meaningful portion of the slope
-    const sliceXs = slices.map(s => s.xLeft);
-    const sliceXe = slices.map(s => s.xRight);
-    const span = Math.max(...sliceXe) - Math.min(...sliceXs);
-    if (span < minSpan) return 999; // too narrow — degenerate shallow failure
-
-    // Compute total area to reject trivially small circles
-    const totalArea = slices.reduce((sum, s) => sum + s.height * s.width, 0);
-    if (totalArea < H * L * 0.03) return 999; // less than 3% of bounding box → degenerate
+    if (slices.length < 5) return 999;
 
     let fs = 1.5;
     for (let iter = 0; iter < 50; iter++) {
@@ -419,10 +406,14 @@ export function searchCriticalCircle(
   return { circle: bestCircle, fos: bestFOS };
 }
 
-// ─── Fellenius / Ordinary Method of Slices (1927) ─────────────────────────────
-// FOS = Σ[c'·l + (W·cosα − u·l)·tanφ'] / Σ[W·sinα]
-// No iteration needed — explicit formula. Always yields lower bound.
-// Reference: Fellenius (1927), USACE EM 1110-2-1902 §C-2
+// ─── Fellenius / Ordinary Method of Slices (OMS) ─────────────────────────────
+// Original: Fellenius, W. (1936). "Calculation of the stability of earth dams."
+//           Transactions of the 2nd Congress on Large Dams, Washington, Vol.4, 445-462.
+// Also:     Fellenius, W. (1927). Erdstatische Berechnungen. W. Ernst & Sohn, Berlin.
+//
+// F = Σ[c'·l + (W·cosα − u·l)·tanφ'] / Σ[W·sinα]
+// Ignores all interslice forces → conservative (lowest FOS).
+// No iteration needed — direct calculation.
 
 export function felleniusOMS(
   profile: SlopeProfile,
@@ -520,10 +511,13 @@ export function bishopSimplified(
   return { method: 'Bishop Simplified', factorOfSafety: fs > 0 ? fs : 999, converged: false, iterations: maxIter, slipCircle: circle, slices };
 }
 
-// ─── Janbu Simplified Method (1954) ───────────────────────────────────────────
-// Force equilibrium only. FOS = Σ[c'b + (W − ub)tanφ']/nα / Σ[W·tanα]
-// nα = cos²α · (1 + tanα·tanφ'/Fs)
-// Reference: Janbu (1954), USACE EM 1110-2-1902 App.C
+// ─── Janbu Simplified Method ──────────────────────────────────────────────────
+// Original: Janbu, N. (1954). "Application of composite slip surfaces for stability
+//           analysis." European Conf. on Stability of Earth Slopes, Stockholm, Vol.3, 43-49.
+//
+// F = Σ[c'·b + (W − u·b)·tanφ'] / nα  /  Σ[W·tanα]
+// nα = cos²α · (1 + tanα·tanφ'/F)
+// Force equilibrium only (horizontal). Iterative.
 
 export function janbuSimplified(
   profile: SlopeProfile,
@@ -574,11 +568,17 @@ export function janbuSimplified(
   return { method: 'Janbu Simplified', factorOfSafety: fs > 0 ? fs : 999, converged: false, iterations: maxIter, slipCircle: circle, slices };
 }
 
-// ─── Janbu Corrected Method (1973) ────────────────────────────────────────────
-// Janbu Simplified × correction factor f₀
-// f₀ = 1 + b₁·[d/L − 1.4·(d/L)²]
-// b₁ = 0.69 for c-φ soils, 0.31 for c-only, 0.50 for φ-only
-// Reference: Janbu (1973), Abramson et al. (2002)
+// ─── Janbu Corrected Method ───────────────────────────────────────────────────
+// Original: Janbu, N. (1973). "Slope Stability Computations." In Embankment Dam
+//           Engineering — Casagrande Volume (eds. Hirschfeld & Poulos), Wiley, 47-86.
+//
+// Fc = F_janbu_simplified × f₀
+// f₀ = 1 + b₁ · (d/L)                               [Janbu 1973, Fig. 9]
+// b₁ = 0.69 for c-only (φ=0, undrained clay)
+// b₁ = 0.50 for c-φ soils (effective stress)
+// b₁ = 0.31 for φ-only (c=0, granular)
+// d  = max vertical depth of slip surface below ground
+// L  = horizontal distance between entry and exit points
 
 export function janbuCorrected(
   profile: SlopeProfile,
@@ -603,15 +603,25 @@ export function janbuCorrected(
 
   const dOverL = d / L;
 
-  // Determine b₁ based on soil type
-  const layer = profile.layers[0];
-  let b1 = 0.69; // default: c-φ soil
-  if (layer) {
-    if (layer.cohesion > 0 && layer.frictionAngle <= 1) b1 = 0.31; // c-only (undrained)
-    else if (layer.cohesion <= 1 && layer.frictionAngle > 0) b1 = 0.50; // φ-only (granular)
+  // Determine b₁ based on weighted soil properties at the slip surface base
+  // Ref: Janbu (1973) — b₁ depends on soil TYPE along slip surface, not just first layer
+  let totalC = 0;
+  let totalPhi = 0;
+  for (const s of slices) {
+    totalC += s.baseCohesion;
+    totalPhi += s.baseFriction; // already in radians
   }
+  const avgC = totalC / slices.length;          // average cohesion (kPa)
+  const avgPhiDeg = (totalPhi / slices.length) * 180 / Math.PI; // avg φ in degrees
 
-  const f0 = 1 + b1 * (dOverL - 1.4 * dOverL * dOverL);
+  // Janbu (1973) Fig. 9: b₁ depends on soil type
+  let b1 = 0.50; // default: c-φ soil [Janbu 1973]
+  if (avgC > 1 && avgPhiDeg <= 1) b1 = 0.69;            // c-only (undrained clay) [Janbu 1973]
+  else if (avgC <= 1 && avgPhiDeg > 1) b1 = 0.31;       // φ-only (granular) [Janbu 1973]
+  // else c-φ: b1 = 0.50 [Janbu 1973]
+
+  // f₀ = 1 + b₁·(d/L)  [Janbu 1973, Eq. from Fig. 9]
+  const f0 = 1 + b1 * dOverL;
   const correctedFOS = jResult.factorOfSafety * f0;
 
   return {
@@ -622,10 +632,14 @@ export function janbuCorrected(
 }
 
 // ─── Corps of Engineers / Lowe-Karafiath Method ───────────────────────────────
-// Force equilibrium with assumed interslice force inclination
-// CoE: θ_i = average of slope angle at entry and exit
-// L-K: θ_i = (α_i + β_i) / 2  where β_i = ground surface inclination
-// Reference: USACE EM 1110-2-1902 §C-5, Lowe & Karafiath (1960)
+// Original: USACE (2003). "Slope Stability." Engineer Manual EM 1110-2-1902,
+//           U.S. Army Corps of Engineers, Appendix C, §C-5.
+// Also:     Lowe, J. & Karafiath, L. (1960). "Stability of Earth Dams upon
+//           Drawdown." Proc. 1st Pan-Am. CSMFE, Mexico City, Vol.2, 537-552.
+//
+// Force equilibrium with assumed interslice force inclination θ:
+// CoE variant: θ = (slope_entry + slope_exit) / 2
+// L-K variant: θᵢ = (αᵢ + βᵢ) / 2  where βᵢ = ground surface inclination
 
 export function corpsOfEngineers(
   profile: SlopeProfile,
@@ -710,10 +724,13 @@ export function corpsOfEngineers(
 }
 
 // ─── Spencer Method ───────────────────────────────────────────────────────────
+// Original: Spencer, E. (1967). "A method of analysis of the stability of
+//           embankments assuming parallel inter-slice forces."
+//           Géotechnique, 17(1), 11-26.
+//
 // Rigorous: satisfies BOTH moment and force equilibrium.
 // Constant interslice force inclination θ.
 // Fm(F,θ) and Ff(F,θ) solved simultaneously.
-// Reference: Spencer (1967), Rocscience Slide2 Theory Manual
 
 export function spencerMethod(
   profile: SlopeProfile,

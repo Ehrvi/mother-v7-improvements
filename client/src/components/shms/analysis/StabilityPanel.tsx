@@ -11,7 +11,7 @@
  *
  * Scientific basis: see SlopeStabilityEngine.ts, ReliabilityEngine.ts
  */
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useStabilityWorker } from './useStabilityWorker';
 import {
   type SlopeProfile, type SlipCircle, type StabilityResult, type FEMResult,
@@ -43,6 +43,7 @@ export default function StabilityPanel({ structureId }: { structureId: string })
   const [activeTab, setActiveTab] = useState<Tab>('geometry');
   const [selectedExample, setSelectedExample] = useState<ClassicExample>(CLASSIC_EXAMPLES[0]);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const carouselRef = useRef<HTMLDivElement>(null);
 
   // ─── Web Worker LEM Engine (SOTA: non-blocking computation) ────────
   const {
@@ -211,9 +212,67 @@ export default function StabilityPanel({ structureId }: { structureId: string })
     }
   }, [workerResults.circle, workerResults.bishop, selectedExample]);
 
+  // ─── Compute SVG arc path for a circle clipped to surface ──────────
+  // Returns an SVG <path d="..."> for the portion of the circle below surface
+  const computeSlipArc = (circle: SlipCircle, surfacePts: { x: number; y: number }[]) => {
+    const { center, radius } = circle;
+    const cx = center.x, cy = center.y, r = radius;
+    if (r <= 0) return null;
+
+    // Find intersections of circle with the piecewise-linear surface
+    const intersections: { x: number; y: number; angle: number }[] = [];
+    for (let i = 0; i < surfacePts.length - 1; i++) {
+      const p1 = surfacePts[i], p2 = surfacePts[i + 1];
+      const dx = p2.x - p1.x, dy = p2.y - p1.y;
+      const fx = p1.x - cx, fy = p1.y - cy;
+      const a = dx * dx + dy * dy;
+      const b = 2 * (fx * dx + fy * dy);
+      const c = fx * fx + fy * fy - r * r;
+      const disc = b * b - 4 * a * c;
+      if (disc < 0) continue;
+      const sqrtDisc = Math.sqrt(disc);
+      for (const sign of [-1, 1]) {
+        const t = (-b + sign * sqrtDisc) / (2 * a);
+        if (t >= -0.001 && t <= 1.001) {
+          const ix = p1.x + t * dx, iy = p1.y + t * dy;
+          const angle = Math.atan2(iy - cy, ix - cx);
+          intersections.push({ x: ix, y: iy, angle });
+        }
+      }
+    }
+
+    if (intersections.length < 2) {
+      // No valid intersection — draw full circle as fallback
+      return null;
+    }
+
+    // Sort by angle, pick the arc below surface (lower y in data = below)
+    intersections.sort((a, b) => a.angle - b.angle);
+    // Take first and last intersection for the arc
+    const entry = intersections[0];
+    const exit = intersections[intersections.length - 1];
+
+    // Arc goes from entry to exit through the bottom (below surface)
+    // We want the arc that goes through the lower portion
+    const midAngle = (entry.angle + exit.angle) / 2;
+    const midY = cy + r * Math.sin(midAngle);
+    const surfaceMidY = surfacePts.reduce((best, p) => {
+      const d = Math.abs(p.x - (cx + r * Math.cos(midAngle)));
+      return d < Math.abs(best.x - (cx + r * Math.cos(midAngle))) ? p : best;
+    }, surfacePts[0]).y;
+
+    // If midpoint of short arc is below surface, use short arc; otherwise long arc
+    const midIsBelow = midY < surfaceMidY;
+    const largeArc = midIsBelow ? 0 : 1;
+    // Sweep direction: always draw the arc that goes below
+    const sweep = midIsBelow ? 0 : 1;
+
+    return `M${entry.x.toFixed(2)},${entry.y.toFixed(2)} A${r.toFixed(2)},${r.toFixed(2)} 0 ${largeArc},${sweep} ${exit.x.toFixed(2)},${exit.y.toFixed(2)}`;
+  };
+
   // ─── SVG Profile Visualization ──────────────────────────────────────
   // Uses data-space coordinates with Y-flip transform so geometry renders correctly
-  const renderProfileSVG = () => {
+  const renderProfileSVG = (showCalculated = false) => {
     const profile = selectedExample.profile;
     const allPts = [
       ...profile.surfacePoints,
@@ -228,21 +287,18 @@ export default function StabilityPanel({ structureId }: { structureId: string })
     const W = xMax - xMin;
     const H = yMax - yMin;
 
-    // SVG viewBox in data-space, Y flipped via transform
-    // We use a group with transform="scale(1,-1) translate(0, -yMax-yMin)"
-    // so that y increases upward as in geotechnical convention
     const polyPath = (pts: { x: number; y: number }[]) =>
       pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-
-    // Use published critical circle
-    const circleCx = defaultCircle.center.x;
-    const circleCy = defaultCircle.center.y;
-    const circleR = defaultCircle.radius;
 
     // Stroke widths proportional to data size
     const sw = Math.max(W, H) * 0.004;
     const swThin = sw * 0.6;
     const fontSize = Math.max(W, H) * 0.025;
+
+    // Compute arcs
+    const refArc = computeSlipArc(defaultCircle, profile.surfacePoints);
+    const calcCircle = showCalculated && workerResults.circle ? workerResults.circle : null;
+    const calcArc = calcCircle ? computeSlipArc(calcCircle, profile.surfacePoints) : null;
 
     return (
       <svg
@@ -253,7 +309,7 @@ export default function StabilityPanel({ structureId }: { structureId: string })
           background: 'var(--shms-bg-card)',
           borderRadius: 'var(--shms-radius)',
           border: '1px solid var(--shms-border)',
-          maxHeight: 400,
+          maxHeight: 500,
         }}
       >
         {/* Flip Y so y increases upward */}
@@ -291,24 +347,45 @@ export default function StabilityPanel({ structureId }: { structureId: string })
             strokeLinejoin="round"
           />
 
-          {/* Slip circle */}
-          <circle
-            cx={circleCx}
-            cy={circleCy}
-            r={circleR}
-            fill="none"
-            stroke="#ef4444"
-            strokeWidth={swThin}
-            strokeDasharray={`${sw * 2.5},${sw * 1.5}`}
-            opacity={0.6}
-          />
+          {/* Reference slip surface — red dashed arc (only below-ground portion) */}
+          {refArc ? (
+            <path
+              d={refArc}
+              fill="none"
+              stroke="#ef4444"
+              strokeWidth={sw}
+              strokeDasharray={`${sw * 2.5},${sw * 1.5}`}
+              opacity={0.7}
+            />
+          ) : (
+            <circle
+              cx={defaultCircle.center.x}
+              cy={defaultCircle.center.y}
+              r={defaultCircle.radius}
+              fill="none"
+              stroke="#ef4444"
+              strokeWidth={swThin}
+              strokeDasharray={`${sw * 2.5},${sw * 1.5}`}
+              opacity={0.3}
+            />
+          )}
+
+          {/* Calculated slip surface — cyan solid arc */}
+          {calcArc && (
+            <path
+              d={calcArc}
+              fill="none"
+              stroke="#06b6d4"
+              strokeWidth={sw * 1.1}
+              opacity={0.85}
+            />
+          )}
         </g>
 
         {/* Labels — NOT flipped (text needs to be right-side up) */}
         {profile.layers.map(layer => {
           const cx = layer.points.reduce((s, p) => s + p.x, 0) / layer.points.length;
           const cy = layer.points.reduce((s, p) => s + p.y, 0) / layer.points.length;
-          // Convert to flipped coords: svgY = (yMin + yMax) - cy
           const svgY = (yMin + yMax) - cy;
           return (
             <text
@@ -327,7 +404,7 @@ export default function StabilityPanel({ structureId }: { structureId: string })
           );
         })}
 
-        {/* Y-axis grid marks (dynamic based on data range) */}
+        {/* Y-axis grid marks */}
         {(() => {
           const dataYMin = Math.min(...profile.surfacePoints.map(p => p.y));
           const dataYMax = Math.max(...profile.surfacePoints.map(p => p.y));
@@ -346,6 +423,20 @@ export default function StabilityPanel({ structureId }: { structureId: string })
             );
           });
         })()}
+
+        {/* Legend */}
+        {showCalculated && (
+          <g>
+            <line x1={xMax - W * 0.28} y1={yMin + fontSize * 1.5} x2={xMax - W * 0.22} y2={yMin + fontSize * 1.5}
+              stroke="#ef4444" strokeWidth={sw} strokeDasharray={`${sw * 2.5},${sw * 1.5}`} />
+            <text x={xMax - W * 0.21} y={yMin + fontSize * 1.8} fill="rgba(255,255,255,0.5)" fontSize={fontSize * 0.6}>Referência</text>
+            {calcArc && <>
+              <line x1={xMax - W * 0.28} y1={yMin + fontSize * 3} x2={xMax - W * 0.22} y2={yMin + fontSize * 3}
+                stroke="#06b6d4" strokeWidth={sw * 1.1} />
+              <text x={xMax - W * 0.21} y={yMin + fontSize * 3.3} fill="rgba(255,255,255,0.5)" fontSize={fontSize * 0.6}>Calculado</text>
+            </>}
+          </g>
+        )}
       </svg>
     );
   };
@@ -464,8 +555,8 @@ export default function StabilityPanel({ structureId }: { structureId: string })
         />
       )}
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--shms-sp-4)' }}>
+      {/* ═══ HEADER — full width above grid ═══ */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--shms-sp-2)' }}>
         <div>
           <div style={{ fontSize: 'var(--shms-fs-xl)', fontWeight: 700 }}>🏗️ Análise Estrutural Integrada</div>
           <div style={{ fontSize: 'var(--shms-fs-xs)', color: 'var(--shms-text-dim)', marginTop: 2 }}>
@@ -499,8 +590,8 @@ export default function StabilityPanel({ structureId }: { structureId: string })
         </div>
       </div>
 
-      {/* Workflow Tabs (Slide2 pattern) */}
-      <div className="stab-workflow">
+      {/* ═══ TABS — full width below header ═══ */}
+      <div className="stab-workflow" style={{ marginBottom: 'var(--shms-sp-3)' }}>
         {TABS.map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
             className={`stab-workflow__tab ${activeTab === tab.id ? 'stab-workflow__tab--active' : ''}`}>
@@ -509,45 +600,57 @@ export default function StabilityPanel({ structureId }: { structureId: string })
         ))}
       </div>
 
-      {/* ═══ TAB 1: Geometry & Examples — SOTA Layout ═══ */}
-      {activeTab === 'geometry' && (
-        <div>
-          {/* Category Filter */}
-          <div style={{ display: 'flex', gap: 'var(--shms-sp-2)', marginBottom: 'var(--shms-sp-3)', flexWrap: 'wrap' }}>
-            {['all', 'dam', 'tailings', 'natural-slope', 'benchmark', 'cut'].map(cat => (
-              <button key={cat} onClick={() => setCategoryFilter(cat)}
-                className={`shms-btn ${categoryFilter === cat ? 'shms-btn--primary' : ''}`}
-                style={{ fontSize: 'var(--shms-fs-sm)', padding: '4px 10px' }}>
-                {cat === 'all' ? '📚 Todos' : cat === 'dam' ? '🏛️ Barragens' : cat === 'tailings' ? '⚠️ Rejeitos' : cat === 'natural-slope' ? '🏔️ Taludes' : cat === 'benchmark' ? '🔬 Benchmarks' : '🔨 Cortes'}
-                ({(cat === 'all' ? CLASSIC_EXAMPLES : CLASSIC_EXAMPLES.filter(e => e.category === cat)).length})
-              </button>
-            ))}
-          </div>
-
-          {/* Examples Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 'var(--shms-sp-3)', marginBottom: 'var(--shms-sp-4)' }}>
-            {filteredExamples.map(ex => (
-              <div key={ex.id} onClick={() => setSelectedExample(ex)}
-                className="shms-card shms-animate-slide-in"
-                style={{ cursor: 'pointer', border: selectedExample.id === ex.id ? '2px solid var(--shms-accent)' : '1px solid var(--shms-border)', padding: 'var(--shms-sp-3)' }}>
-                <div style={{ fontSize: 'var(--shms-fs-base)', fontWeight: 600, marginBottom: 4 }}>{ex.name}</div>
-                <div style={{ fontSize: 'var(--shms-fs-sm)', color: 'var(--shms-text-dim)', marginBottom: 6 }}>{ex.description}</div>
-                <div style={{ display: 'flex', gap: 'var(--shms-sp-2)', flexWrap: 'wrap' }}>
+      {/* ═══ MASTER GRID: Benchmark cards LEFT + Content RIGHT ═══ */}
+      <div style={{ display: 'grid', gridTemplateColumns: '210px 1fr', gap: 'var(--shms-sp-3)', height: 'calc(100vh - 200px)' }}>
+        {/* ─── LEFT: Benchmark Cards Carousel ─── */}
+        <div style={{ height: '100%', overflow: 'hidden' }}>
+          {/* Scrollable Card Container */}
+          <div
+            ref={carouselRef}
+            style={{
+              display: 'flex', flexDirection: 'column', gap: 'var(--shms-sp-2)',
+              overflowY: 'auto', height: '100%',
+              padding: 'var(--shms-sp-2)',
+              scrollbarWidth: 'thin',
+              scrollBehavior: 'smooth',
+            }}
+          >
+            {CLASSIC_EXAMPLES.map(ex => (
+              <div key={ex.id} onClick={() => { setSelectedExample(ex); carouselRef.current?.querySelector(`[data-card="${ex.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }}
+                data-card={ex.id}
+                className="shms-card"
+                style={{
+                  cursor: 'pointer',
+                  border: selectedExample.id === ex.id ? '2px solid var(--shms-accent)' : '1px solid var(--shms-border)',
+                  padding: 'var(--shms-sp-2)',
+                  fontSize: 'var(--shms-fs-xs)',
+                  flexShrink: 0,
+                }}>
+                <div style={{ fontWeight: 600, marginBottom: 2, fontSize: 'var(--shms-fs-sm)' }}>{ex.name}</div>
+                <div style={{ color: 'var(--shms-text-dim)', marginBottom: 4, lineHeight: 1.3 }}>{ex.description.slice(0, 80)}...</div>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                   <span className={`shms-badge shms-badge--${(ex.expectedFOS.bishop ?? 2) >= 1.5 ? 'green' : (ex.expectedFOS.bishop ?? 2) >= 1.0 ? 'yellow' : 'red'}`}>
                     FOS ≈ {ex.expectedFOS.bishop?.toFixed(2)}
                   </span>
                   <span className="shms-badge">{ex.country}</span>
-                  {ex.failureYear && <span className="shms-badge shms-badge--red">Ruptura {ex.failureYear}</span>}
                 </div>
-                <div style={{ fontSize: 'var(--shms-fs-xs)', color: 'var(--shms-text-dim)', marginTop: 4 }}>{ex.reference.split('.')[0]}</div>
+                <div style={{ color: 'var(--shms-text-dim)', marginTop: 2, fontSize: 8 }}>{ex.reference.split('.')[0]}</div>
               </div>
             ))}
           </div>
+        </div>
+
+        {/* ─── RIGHT: Tab Content ─── */}
+        <div style={{ height: '100%', overflowY: 'auto' }}>
+
+      {/* ═══ SECTION 1: Geometry & Examples ═══ */}
+      {activeTab === 'geometry' && (
+        <div style={{ height: '100%' }}>
 
           {/* ─── SOTA Split Layout: Viz Left + Sidebar Right ─── */}
           <div className="stab-layout">
             {/* LEFT: Visualization + Reference */}
-            <div>
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
               <div className="stab-viz">
                 {computing && (
                   <div className="stab-computing">
@@ -555,25 +658,14 @@ export default function StabilityPanel({ structureId }: { structureId: string })
                   </div>
                 )}
                 {renderProfileSVG()}
-              </div>
-              <div style={{ marginTop: 'var(--shms-sp-3)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <div style={{ fontSize: 'var(--shms-fs-sm)', color: 'var(--shms-text-dim)', flex: 1 }}>
-                  <strong>{selectedExample.name}</strong> — {selectedExample.reference}
-                  {selectedExample.calibrationNotes && (
-                    <div style={{ marginTop: 4, fontSize: 'var(--shms-fs-xs)' }}>{selectedExample.calibrationNotes}</div>
-                  )}
+                <div style={{ position: 'absolute', bottom: 8, left: 8, right: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: 'var(--shms-fs-sm)', color: 'var(--shms-text-dim)', flex: 1 }}>
+                    <strong>{selectedExample.name}</strong> — {selectedExample.reference}
+                    {selectedExample.calibrationNotes && (
+                      <div style={{ marginTop: 4, fontSize: 'var(--shms-fs-xs)' }}>{selectedExample.calibrationNotes}</div>
+                    )}
+                  </div>
                 </div>
-              </div>
-
-              {/* Action buttons row */}
-              <div style={{ marginTop: 'var(--shms-sp-3)', display: 'flex', gap: 'var(--shms-sp-2)', flexWrap: 'wrap', alignItems: 'center' }}>
-                <button className="stab-btn--primary" onClick={runStability} disabled={computing}>📐 Estabilidade</button>
-                <button className="shms-btn" onClick={runFEM} disabled={computing}>🔬 FEM</button>
-                <button className="shms-btn" onClick={runOptimization} disabled={computing}>🧬 GA/PSO</button>
-                <button className="shms-btn" onClick={runReliability} disabled={computing}>🎲 Monte Carlo</button>
-                {surchargeLoad > 0 && <span className="shms-badge shms-badge--yellow">q={surchargeLoad}kPa</span>}
-                {seismicKh > 0 && <span className="shms-badge shms-badge--red">kh={seismicKh}</span>}
-                {nSlices !== 30 && <span className="shms-badge shms-badge--blue">n={nSlices}</span>}
               </div>
             </div>
 
@@ -582,7 +674,7 @@ export default function StabilityPanel({ structureId }: { structureId: string })
               {/* ─── Soil Layers ─── */}
               <div>
                 <div className="stab-sidebar__title">🪨 Camadas de Solo</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
                   {selectedExample.profile.layers.map(layer => {
                     const ed = editableLayers[layer.id];
                     const c = ed?.cohesion ?? layer.cohesion;
@@ -610,7 +702,7 @@ export default function StabilityPanel({ structureId }: { structureId: string })
               {/* ─── Number of Slices (SOTA) ─── */}
               <div>
                 <div className="stab-sidebar__title">🔢 Nº de Fatias</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
                   <input
                     type="range"
                     className="stab-slider"
@@ -621,9 +713,9 @@ export default function StabilityPanel({ structureId }: { structureId: string })
                     onChange={e => setNSlices(+e.target.value)}
                     title={`Número de fatias: ${nSlices}`}
                   />
-                  <span style={{ fontFamily: 'var(--shms-font-mono)', fontSize: 13, fontWeight: 700, minWidth: 30, textAlign: 'right' }}>{nSlices}</span>
+                  <span style={{ fontFamily: 'var(--shms-font-mono)', fontSize: 12, fontWeight: 700, minWidth: 32, textAlign: 'right' }}>{nSlices}</span>
                 </div>
-                <div style={{ fontSize: 9, color: 'var(--shms-text-dim)', marginTop: 4 }}>Ref: CalcForge=50, SLOPE/W=30</div>
+                <div style={{ fontSize: 10, color: 'var(--shms-text-dim)', marginTop: 4 }}>Ref: CalcForge=50, SLOPE/W=30</div>
               </div>
 
               {/* ─── Surcharges (multiple, add/remove) ─── */}
@@ -645,7 +737,7 @@ export default function StabilityPanel({ structureId }: { structureId: string })
                         title="Remover sobrecarga">✕</button>
                     </div>
                   ))}
-                  <button className="stab-add-btn" style={{ marginTop: 6 }}
+                  <button className="stab-add-btn" style={{ marginTop: 8 }}
                     onClick={() => setSurcharges(prev => [...prev, { x1: 0, x2: 10, magnitude: 20, type: 'uniform' }])}>
                     + Adicionar Sobrecarga Pontual
                   </button>
@@ -670,7 +762,7 @@ export default function StabilityPanel({ structureId }: { structureId: string })
                 <div className="stab-sidebar__title">⚙️ Configurações</div>
                 <div style={{ marginTop: 8 }}>
                   {/* PWP Mode */}
-                  <div style={{ marginBottom: 10 }}>
+                  <div style={{ marginBottom: 8 }}>
                     <div className="stab-input__label">Poropressão (u)</div>
                     <div className="stab-modal__toggle-row" style={{ marginTop: 4 }}>
                       {(['ru', 'water-table', 'piezometric'] as const).map(m => (
@@ -694,7 +786,7 @@ export default function StabilityPanel({ structureId }: { structureId: string })
                         </button>
                       ))}
                     </div>
-                    <div style={{ fontSize: 9, color: 'var(--shms-text-dim)', marginTop: 4 }}>
+                    <div style={{ fontSize: 10, color: 'var(--shms-text-dim)', marginTop: 4 }}>
                       Slide2: Grid/Slope/Cuckoo Search
                     </div>
                   </div>
@@ -705,33 +797,44 @@ export default function StabilityPanel({ structureId }: { structureId: string })
         </div>
       )}
 
-      {/* ═══ TAB 2: Stability Methods ═══ */}
+      {/* ═══ SECTION 2: Stability Methods ═══ */}
       {activeTab === 'stability' && (
         <div>
           {!bishopResult ? (
             <div className="shms-empty"><div className="shms-empty__text">Execute a análise de estabilidade primeiro (Tab Geometria → 📐 Estabilidade)</div></div>
           ) : (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 'var(--shms-sp-3)', marginBottom: 'var(--shms-sp-4)' }}>
-                {felleniusResult && <KPI label="Fellenius (OMS)" value={felleniusResult.factorOfSafety.toFixed(3)} color={classifyFOS(felleniusResult.factorOfSafety).color} sub={`1 iter, ✅`} />}
-                <KPI label="Bishop Simplificado" value={bishopResult.factorOfSafety.toFixed(3)} color={classifyFOS(bishopResult.factorOfSafety).color} sub={`${bishopResult.iterations} iter, ${bishopResult.converged ? '✅' : '⚠️'}`} />
-                {janbuSimpResult && <KPI label="Janbu Simplificado" value={janbuSimpResult.factorOfSafety.toFixed(3)} color={classifyFOS(janbuSimpResult.factorOfSafety).color} sub={`${janbuSimpResult.iterations} iter`} />}
-                {janbuCorrResult && <KPI label="Janbu Corrigido" value={janbuCorrResult.factorOfSafety.toFixed(3)} color={classifyFOS(janbuCorrResult.factorOfSafety).color} sub={`com f₀`} />}
-                {spencerResult && <KPI label="Spencer" value={spencerResult.factorOfSafety.toFixed(3)} color={classifyFOS(spencerResult.factorOfSafety).color} sub={`θ = ${spencerResult.theta?.toFixed(1) ?? 'N/A'}°`} />}
-                {mpResult && <KPI label="Morgenstern-Price" value={mpResult.factorOfSafety.toFixed(3)} color={classifyFOS(mpResult.factorOfSafety).color} sub={mpResult.method} />}
-                {coeResult && <KPI label="Corps of Engineers" value={coeResult.factorOfSafety.toFixed(3)} color={classifyFOS(coeResult.factorOfSafety).color} sub={`${coeResult.iterations} iter`} />}
+              {/* Horizontal layout: Cards LEFT, Graph RIGHT */}
+              <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 'var(--shms-sp-3)', marginBottom: 'var(--shms-sp-4)' }}>
+                {/* LEFT: FOS Cards stack */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--shms-sp-2)' }}>
+                  {felleniusResult && <KPI label="Fellenius (OMS)" value={felleniusResult.factorOfSafety.toFixed(3)} color={classifyFOS(felleniusResult.factorOfSafety).color} sub={`1 iter, ✅`} />}
+                  <KPI label="Bishop Simplificado" value={bishopResult.factorOfSafety.toFixed(3)} color={classifyFOS(bishopResult.factorOfSafety).color} sub={`${bishopResult.iterations} iter, ${bishopResult.converged ? '✅' : '⚠️'}`} />
+                  {janbuSimpResult && <KPI label="Janbu Simplificado" value={janbuSimpResult.factorOfSafety.toFixed(3)} color={classifyFOS(janbuSimpResult.factorOfSafety).color} sub={`${janbuSimpResult.iterations} iter`} />}
+                  {janbuCorrResult && <KPI label="Janbu Corrigido" value={janbuCorrResult.factorOfSafety.toFixed(3)} color={classifyFOS(janbuCorrResult.factorOfSafety).color} sub={`com f₀`} />}
+                  {coeResult && <KPI label="Corps of Engineers" value={coeResult.factorOfSafety.toFixed(3)} color={classifyFOS(coeResult.factorOfSafety).color} sub={`${coeResult.iterations} iter`} />}
+                  {spencerResult && <KPI label="Spencer" value={spencerResult.factorOfSafety.toFixed(3)} color={classifyFOS(spencerResult.factorOfSafety).color} sub={`θ = ${spencerResult.theta?.toFixed(1) ?? 'N/A'}°`} />}
+                  {mpResult && <KPI label="Morgenstern-Price" value={mpResult.factorOfSafety.toFixed(3)} color={classifyFOS(mpResult.factorOfSafety).color} sub={mpResult.method} />}
+                </div>
+
+                {/* RIGHT: Cross section with slip circles */}
+                <div className="shms-card" style={{ padding: 'var(--shms-sp-3)' }}>
+                  <div style={{ fontSize: 'var(--shms-fs-sm)', fontWeight: 600, marginBottom: 'var(--shms-sp-2)' }}>Seção Transversal + Círculo de Ruptura</div>
+                  {renderProfileSVG(true)}
+                </div>
               </div>
+
               {/* Comparison Table */}
               <div className="shms-card" style={{ padding: 'var(--shms-sp-4)' }}>
                 <div style={{ fontSize: 'var(--shms-fs-base)', fontWeight: 600, marginBottom: 'var(--shms-sp-3)' }}>Comparação de Métodos LEM</div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--shms-fs-sm)' }}>
                   <thead><tr style={{ borderBottom: '2px solid var(--shms-border)' }}>
-                    <th style={{ padding: 6, textAlign: 'left' }}>Método</th>
-                    <th style={{ textAlign: 'center', padding: 6 }}>Equilíbrio</th>
-                    <th style={{ textAlign: 'right', padding: 6 }}>FOS</th>
-                    <th style={{ textAlign: 'right', padding: 6 }}>Convergiu</th>
-                    <th style={{ textAlign: 'right', padding: 6 }}>Iterações</th>
-                    <th style={{ textAlign: 'right', padding: 6 }}>Classificação</th>
+                    <th style={{ padding: 8, textAlign: 'left' }}>Método</th>
+                    <th style={{ textAlign: 'center', padding: 8 }}>Equilíbrio</th>
+                    <th style={{ textAlign: 'right', padding: 8 }}>FOS</th>
+                    <th style={{ textAlign: 'right', padding: 8 }}>Convergiu</th>
+                    <th style={{ textAlign: 'right', padding: 8 }}>Iterações</th>
+                    <th style={{ textAlign: 'right', padding: 8 }}>Classificação</th>
                   </tr></thead>
                   <tbody>
                     {[
@@ -746,12 +849,12 @@ export default function StabilityPanel({ structureId }: { structureId: string })
                       const cl = classifyFOS(r!.factorOfSafety);
                       return (
                         <tr key={r!.method} style={{ borderBottom: '1px solid var(--shms-border)' }}>
-                          <td style={{ padding: 6 }}>{r!.method}</td>
-                          <td style={{ padding: 6, textAlign: 'center', fontSize: 'var(--shms-fs-xs)', opacity: 0.7 }}>{eq}</td>
-                          <td className="mono" style={{ padding: 6, textAlign: 'right', color: cl.color, fontWeight: 700 }}>{r!.factorOfSafety.toFixed(4)}</td>
-                          <td style={{ padding: 6, textAlign: 'right' }}>{r!.converged ? '✅' : '⚠️'}</td>
-                          <td className="mono" style={{ padding: 6, textAlign: 'right' }}>{r!.iterations}</td>
-                          <td style={{ padding: 6, textAlign: 'right', color: cl.color }}>{cl.level}</td>
+                          <td style={{ padding: 8 }}>{r!.method}</td>
+                          <td style={{ padding: 8, textAlign: 'center', fontSize: 'var(--shms-fs-xs)', opacity: 0.7 }}>{eq}</td>
+                          <td className="mono" style={{ padding: 8, textAlign: 'right', color: cl.color, fontWeight: 700 }}>{r!.factorOfSafety.toFixed(4)}</td>
+                          <td style={{ padding: 8, textAlign: 'right' }}>{r!.converged ? '✅' : '⚠️'}</td>
+                          <td className="mono" style={{ padding: 8, textAlign: 'right' }}>{r!.iterations}</td>
+                          <td style={{ padding: 8, textAlign: 'right', color: cl.color }}>{cl.level}</td>
                         </tr>
                       );
                     })}
@@ -761,17 +864,12 @@ export default function StabilityPanel({ structureId }: { structureId: string })
                   M = Momento, F = Forças, V = Equilíbrio Vertical. Ref: USACE EM 1110-2-1902, Rocscience Slide2. FOS req. ≥ 1.50
                 </div>
               </div>
-              {/* Profile with slip circle */}
-              <div className="shms-card" style={{ padding: 'var(--shms-sp-4)', marginTop: 'var(--shms-sp-3)' }}>
-                <div style={{ fontSize: 'var(--shms-fs-base)', fontWeight: 600, marginBottom: 'var(--shms-sp-2)' }}>Seção Transversal + Círculo de Ruptura</div>
-                {renderProfileSVG()}
-              </div>
             </>
           )}
         </div>
       )}
 
-      {/* ═══ TAB 3: FEM ═══ */}
+      {/* ═══ SECTION 3: FEM ═══ */}
       {activeTab === 'fem' && (
         <div>
           {!femResult ? (
@@ -812,7 +910,7 @@ export default function StabilityPanel({ structureId }: { structureId: string })
         </div>
       )}
 
-      {/* ═══ TAB 4: GA/PSO Optimization ═══ */}
+      {/* ═══ SECTION 4: GA/PSO Optimization ═══ */}
       {activeTab === 'optimization' && (
         <div>
           {!gaResult && !psoResult ? (
@@ -1199,7 +1297,7 @@ export default function StabilityPanel({ structureId }: { structureId: string })
         </div>
       )}
 
-      {/* ═══ TAB 5: Reliability ═══ */}
+      {/* ═══ SECTION 5: Reliability ═══ */}
       {activeTab === 'reliability' && (
         <div>
           {/* ── ML Surrogate Screening (Qi & Tang 2018, RF 97%) ── */}
@@ -1276,20 +1374,20 @@ export default function StabilityPanel({ structureId }: { structureId: string })
                   <div style={{ fontSize: 'var(--shms-fs-base)', fontWeight: 600, marginBottom: 'var(--shms-sp-3)' }}>Análise de Cenários (ICOLD/USACE/ANM)</div>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--shms-fs-sm)' }}>
                     <thead><tr style={{ borderBottom: '2px solid var(--shms-border)' }}>
-                      <th style={{ padding: 6, textAlign: 'left' }}>Cenário</th>
-                      <th style={{ padding: 6, textAlign: 'right' }}>FOS</th>
-                      <th style={{ padding: 6, textAlign: 'right' }}>Requerido</th>
-                      <th style={{ padding: 6, textAlign: 'center' }}>Status</th>
-                      <th style={{ padding: 6, textAlign: 'left' }}>Referência</th>
+                      <th style={{ padding: 8, textAlign: 'left' }}>Cenário</th>
+                      <th style={{ padding: 8, textAlign: 'right' }}>FOS</th>
+                      <th style={{ padding: 8, textAlign: 'right' }}>Requerido</th>
+                      <th style={{ padding: 8, textAlign: 'center' }}>Status</th>
+                      <th style={{ padding: 8, textAlign: 'left' }}>Referência</th>
                     </tr></thead>
                     <tbody>
                       {scenarioResults.map((sr, i) => (
                         <tr key={i} style={{ borderBottom: '1px solid var(--shms-border)' }}>
-                          <td style={{ padding: 6 }}>{sr.scenario.name}</td>
-                          <td className="mono" style={{ padding: 6, textAlign: 'right', fontWeight: 700, color: sr.passes ? '#22c55e' : '#ef4444' }}>{sr.fos.toFixed(3)}</td>
-                          <td className="mono" style={{ padding: 6, textAlign: 'right' }}>{sr.scenario.requiredFOS.toFixed(1)}</td>
-                          <td style={{ padding: 6, textAlign: 'center' }}>{sr.passes ? '✅' : '❌'}</td>
-                          <td style={{ padding: 6, fontSize: 'var(--shms-fs-xs)', color: 'var(--shms-text-dim)' }}>{sr.scenario.reference}</td>
+                          <td style={{ padding: 8 }}>{sr.scenario.name}</td>
+                          <td className="mono" style={{ padding: 8, textAlign: 'right', fontWeight: 700, color: sr.passes ? '#22c55e' : '#ef4444' }}>{sr.fos.toFixed(3)}</td>
+                          <td className="mono" style={{ padding: 8, textAlign: 'right' }}>{sr.scenario.requiredFOS.toFixed(1)}</td>
+                          <td style={{ padding: 8, textAlign: 'center' }}>{sr.passes ? '✅' : '❌'}</td>
+                          <td style={{ padding: 8, fontSize: 'var(--shms-fs-xs)', color: 'var(--shms-text-dim)' }}>{sr.scenario.reference}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1301,7 +1399,7 @@ export default function StabilityPanel({ structureId }: { structureId: string })
         </div>
       )}
 
-      {/* ═══ TAB 6: Reports ═══ */}
+      {/* ═══ SECTION 6: Reports ═══ */}
       {activeTab === 'reports' && (
         <div>
           <div style={{ display: 'flex', gap: 'var(--shms-sp-3)', marginBottom: 'var(--shms-sp-3)', flexWrap: 'wrap' }}>
@@ -1323,6 +1421,8 @@ export default function StabilityPanel({ structureId }: { structureId: string })
           )}
         </div>
       )}
+        </div>{/* end RIGHT content */}
+      </div>{/* end MASTER grid */}
     </div>
   );
 }

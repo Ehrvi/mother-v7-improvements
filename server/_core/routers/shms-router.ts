@@ -1081,3 +1081,119 @@ shmsRouter.post('/fta/mappings', async (req: Request, res: Response) => {
   }
 });
 
+// ─── 3D Model Upload & Conversion ────────────────────────────────────────────
+// Scientific basis: Khronos Group (2015) glTF 2.0 — "JPEG of 3D"
+// Pipeline: Upload any supported format → convert to GLB + Draco → serve
+
+/**
+ * GET /shms/model/formats — List supported 3D model formats
+ */
+shmsRouter.get('/model/formats', (_req: Request, res: Response) => {
+  res.json({
+    supported: ['.obj', '.gltf', '.glb', '.stl', '.ply'],
+    recommended: '.glb',
+    maxSizeMB: 100,
+    compression: 'Draco (Google, 2017)',
+  });
+});
+
+/**
+ * POST /shms/model/upload — Upload and convert 3D model to GLB
+ * Accepts: multipart/form-data with field "model"
+ * Max size: 100MB
+ * Returns: { success, modelUrl, originalFormat, originalSize, convertedSize, compressionRatio }
+ */
+shmsRouter.post('/model/upload', async (req: Request, res: Response) => {
+  try {
+    const multer = (await import('multer')).default;
+    const path = await import('path');
+    const fs = await import('fs');
+
+    const modelsDir = path.resolve('client/public/models/mine');
+    const tmpDir = path.resolve('client/public/models/mine/tmp');
+
+    // Ensure tmp dir exists
+    if (!fs.existsSync(tmpDir)) {
+      fs.mkdirSync(tmpDir, { recursive: true });
+    }
+
+    const storage = multer.diskStorage({
+      destination: (_r, _f, cb) => cb(null, tmpDir),
+      filename: (_r, file, cb) => {
+        const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+        cb(null, `${Date.now()}_${safeName}`);
+      },
+    });
+
+    const upload = multer({
+      storage,
+      limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
+      fileFilter: (_r, file, cb) => {
+        const ext = path.extname(file.originalname).toLowerCase();
+        const allowed = ['.obj', '.gltf', '.glb', '.stl', '.ply'];
+        if (allowed.includes(ext)) {
+          cb(null, true);
+        } else {
+          cb(new Error(`Unsupported format: ${ext}. Supported: ${allowed.join(', ')}`));
+        }
+      },
+    }).single('model');
+
+    // Handle multer upload
+    upload(req, res, async (uploadErr) => {
+      if (uploadErr) {
+        log.error('[ModelUpload] Upload error:', uploadErr);
+        res.status(400).json({ success: false, error: uploadErr.message });
+        return;
+      }
+
+      const file = (req as any).file;
+      if (!file) {
+        res.status(400).json({ success: false, error: 'No file uploaded. Use field name "model".' });
+        return;
+      }
+
+      try {
+        const { convertModel } = await import('../../shms/model-converter.js');
+        const result = await convertModel(file.path, modelsDir);
+
+        // Clean up tmp file
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+
+        if (!result.success) {
+          res.status(422).json({ success: false, error: result.error });
+          return;
+        }
+
+        // Generate public URL
+        const glbFilename = path.basename(result.outputPath);
+        const modelUrl = `/models/mine/${glbFilename}`;
+
+        log.info(`[ModelUpload] Converted ${file.originalname} → ${glbFilename} (${result.compressionRatio.toFixed(0)}% reduction)`);
+
+        res.json({
+          success: true,
+          modelUrl,
+          originalFormat: result.originalFormat,
+          originalSize: result.originalSize,
+          convertedSize: result.convertedSize,
+          compressionRatio: Math.round(result.compressionRatio),
+          conversionTimeMs: result.conversionTimeMs,
+        });
+      } catch (convErr) {
+        log.error('[ModelUpload] Conversion error:', convErr);
+        // Clean up tmp file on error
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+        res.status(500).json({ success: false, error: 'Model conversion failed' });
+      }
+    });
+  } catch (err) {
+    log.error('[ModelUpload] Setup error:', err);
+    res.status(500).json({ success: false, error: 'Model upload service unavailable' });
+  }
+});
+

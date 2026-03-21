@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MOTHER — Layout Editor (Stability Panel)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: #0d1117; color: #e6edf3; overflow: hidden; height: 100vh; }
+
+  .editor-toolbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+    background: linear-gradient(135deg, #161b22, #1c2333);
+    padding: 8px 16px; display: flex; align-items: center; gap: 12px;
+    border-bottom: 1px solid #30363d; height: 48px;
+  }
+  .editor-toolbar h1 { font-size: 14px; font-weight: 600; color: #58a6ff; }
+  .editor-toolbar .info { font-size: 11px; color: #8b949e; flex: 1; }
+  .editor-toolbar button {
+    padding: 6px 16px; border: none; border-radius: 6px; cursor: pointer;
+    font-size: 12px; font-weight: 600; transition: all 0.2s;
+  }
+  .btn-export { background: #238636; color: #fff; }
+  .btn-export:hover { background: #2ea043; }
+  .btn-reset { background: #30363d; color: #c9d1d9; }
+  .btn-reset:hover { background: #484f58; }
+
+  .canvas {
+    position: absolute; top: 48px; left: 0; right: 0; bottom: 0;
+    background: #0d1117; overflow: hidden;
+  }
+
+  .region {
+    position: absolute; border: 2px dashed #30363d; border-radius: 8px;
+    background: rgba(22, 27, 34, 0.9); cursor: move; user-select: none;
+    transition: box-shadow 0.15s;
+  }
+  .region:hover { border-color: #58a6ff; box-shadow: 0 0 12px rgba(88, 166, 255, 0.2); }
+  .region.active { border-color: #58a6ff; border-style: solid; box-shadow: 0 0 20px rgba(88, 166, 255, 0.3); }
+
+  .region-label {
+    position: absolute; top: 4px; left: 8px; font-size: 10px; font-weight: 700;
+    color: #58a6ff; text-transform: uppercase; letter-spacing: 0.5px;
+    pointer-events: none;
+  }
+  .region-dims {
+    position: absolute; bottom: 4px; right: 8px; font-size: 9px;
+    font-family: 'JetBrains Mono', monospace; color: #8b949e;
+    pointer-events: none;
+  }
+
+  .resize-handle {
+    position: absolute; width: 12px; height: 12px; background: #58a6ff;
+    border-radius: 2px; cursor: nwse-resize; z-index: 10;
+    bottom: -6px; right: -6px;
+  }
+  .resize-handle-w { cursor: ew-resize; left: -6px; top: 50%; transform: translateY(-50%); bottom: auto; right: auto; }
+  .resize-handle-e { cursor: ew-resize; right: -6px; top: 50%; transform: translateY(-50%); bottom: auto; left: auto; }
+
+  .region-content { padding: 24px 8px 8px; height: 100%; overflow: hidden; pointer-events: none; }
+
+  /* Card previews inside sidebar */
+  .card-preview {
+    background: #21262d; border: 1px solid #30363d; border-radius: 6px;
+    padding: 6px; margin-bottom: 6px; font-size: 9px; line-height: 1.3;
+  }
+  .card-preview .card-title { font-weight: 600; font-size: 10px; margin-bottom: 2px; color: #e6edf3; }
+  .card-preview .card-desc { color: #8b949e; margin-bottom: 3px; }
+  .card-preview .card-badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 8px; font-weight: 600; }
+  .card-badge--red { background: rgba(248, 81, 73, 0.2); color: #f85149; }
+  .card-badge--yellow { background: rgba(210, 153, 34, 0.2); color: #d29922; }
+  .card-badge--green { background: rgba(63, 185, 80, 0.2); color: #3fb950; }
+  .card-badge--gray { background: rgba(139, 148, 158, 0.2); color: #8b949e; }
+
+  /* Tab previews */
+  .tab-bar { display: flex; gap: 4px; padding: 4px; }
+  .tab-btn { padding: 4px 10px; border-radius: 6px; font-size: 10px; background: #21262d; color: #8b949e; border: none; }
+  .tab-btn.active { background: linear-gradient(135deg, #00d4aa, #00b4d8); color: #0d1117; font-weight: 600; }
+
+  /* Viz placeholder */
+  .viz-placeholder { background: #161b22; border: 1px solid #30363d; border-radius: 8px; height: 100%; display: flex; align-items: center; justify-content: center; color: #30363d; font-size: 14px; }
+
+  /* Sidebar config placeholder */
+  .config-item { margin-bottom: 8px; }
+  .config-item .label { font-size: 9px; color: #8b949e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .config-item .bar { height: 6px; background: #21262d; border-radius: 3px; }
+  .config-item .toggle-row { display: flex; gap: 3px; }
+  .config-item .toggle { padding: 2px 8px; font-size: 8px; border-radius: 4px; background: #21262d; color: #8b949e; border: none; }
+  .config-item .toggle.active { background: #58a6ff; color: #0d1117; }
+
+  /* Export overlay */
+  .export-overlay {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.85); z-index: 2000;
+    align-items: center; justify-content: center;
+  }
+  .export-overlay.visible { display: flex; }
+  .export-box {
+    background: #161b22; border: 1px solid #30363d; border-radius: 12px;
+    padding: 24px; max-width: 800px; width: 90%; max-height: 80vh; overflow: auto;
+  }
+  .export-box h2 { font-size: 16px; color: #58a6ff; margin-bottom: 12px; }
+  .export-box pre {
+    background: #0d1117; border: 1px solid #30363d; border-radius: 8px;
+    padding: 16px; font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    white-space: pre-wrap; color: #e6edf3; line-height: 1.6;
+  }
+  .export-box .close-btn {
+    margin-top: 12px; padding: 8px 20px; background: #238636; color: #fff;
+    border: none; border-radius: 6px; cursor: pointer; font-weight: 600;
+  }
+  .btn-copy { background: #58a6ff; color: #0d1117; margin-left: 8px; }
+</style>
+</head>
+<body>
+
+<div class="editor-toolbar">
+  <h1>🏗️ Layout Editor</h1>
+  <div class="info">Arraste para mover · Resize pelos cantos · Posições em pixels relativos ao viewport</div>
+  <button class="btn-reset" onclick="resetLayout()">↺ Reset</button>
+  <button class="btn-export" onclick="exportLayout()">📋 Exportar Layout</button>
+</div>
+
+<div class="canvas" id="canvas">
+  <!-- Regions will be created by JS -->
+</div>
+
+<div class="export-overlay" id="exportOverlay">
+  <div class="export-box">
+    <h2>📋 Layout Final</h2>
+    <pre id="exportData"></pre>
+    <button class="close-btn" onclick="document.getElementById('exportOverlay').classList.remove('visible')">✕ Fechar</button>
+    <button class="close-btn btn-copy" onclick="copyExport()">📋 Copiar</button>
+  </div>
+</div>
+
+<script>
+const VIEWPORT = { w: window.innerWidth, h: window.innerHeight - 48 };
+
+// Define regions matching StabilityPanel layout
+const DEFAULT_REGIONS = [
+  {
+    id: 'sidebar',
+    label: 'Benchmark Cards (LEFT)',
+    x: 0, y: 0, w: 120, h: VIEWPORT.h,
+    color: '#58a6ff',
+    content: 'cards',
+    resizeX: true,
+    minW: 80, maxW: 300,
+  },
+  {
+    id: 'header',
+    label: 'Header + Actions',
+    x: 130, y: 0, w: VIEWPORT.w - 130, h: 60,
+    color: '#3fb950',
+    content: 'header',
+    resizeY: true,
+  },
+  {
+    id: 'tabs',
+    label: 'Workflow Tabs',
+    x: 130, y: 68, w: VIEWPORT.w - 130, h: 36,
+    color: '#d29922',
+    content: 'tabs',
+    resizeY: true,
+  },
+  {
+    id: 'viz',
+    label: 'Visualization (SVG)',
+    x: 130, y: 112, w: VIEWPORT.w - 130 - 260, h: VIEWPORT.h - 112,
+    color: '#bc8cff',
+    content: 'viz',
+  },
+  {
+    id: 'config',
+    label: 'Config Sidebar (RIGHT)',
+    x: VIEWPORT.w - 250, y: 112, w: 250, h: VIEWPORT.h - 112,
+    color: '#f85149',
+    content: 'config',
+    resizeX: true,
+  },
+];
+
+const BENCHMARK_CARDS = [
+  { name: 'ACADS 1(a) — Talude Homogêneo', desc: 'Talude homogêneo simples sem água...', fos: '0.99', badge: 'red', country: 'AU' },
+  { name: 'ACADS 1(b) — Talude com Trinca de Tração', desc: 'Mesma geometria do ACADS 1a com trinca...', fos: '1.60', badge: 'yellow', country: 'AU' },
+  { name: 'ACADS 1(c) — Talude Não-Homogêneo 3 Camadas', desc: 'Talude não-homogêneo com 3 camadas...', fos: '1.16', badge: 'yellow', country: 'BR' },
+  { name: 'Fredlund & Krahn (1977) — Aterro com Lençol', desc: 'Problema benchmark MAIS CITADO em estabilidade...', fos: '1.37', badge: 'green', country: 'CA' },
+  { name: 'ACADS 2(a) — Talbingo Dam (Fim de Construção)', desc: 'Barragem real Talbingo Dam (NSW, Austrália)...', fos: '1.02', badge: 'red', country: 'AU' },
+];
+
+let regions = JSON.parse(JSON.stringify(DEFAULT_REGIONS));
+let activeRegion = null;
+let dragOffset = { x: 0, y: 0 };
+let resizing = false;
+let resizeDir = '';
+
+function renderRegions() {
+  const canvas = document.getElementById('canvas');
+  canvas.innerHTML = '';
+
+  regions.forEach(r => {
+    const div = document.createElement('div');
+    div.className = 'region';
+    div.id = `region-${r.id}`;
+    div.style.left = r.x + 'px';
+    div.style.top = r.y + 'px';
+    div.style.width = r.w + 'px';
+    div.style.height = r.h + 'px';
+    div.style.borderColor = r.color + '80';
+
+    div.innerHTML = `
+      <div class="region-label" style="color:${r.color}">${r.label}</div>
+      <div class="region-dims">${Math.round(r.w)}×${Math.round(r.h)}px</div>
+      <div class="resize-handle"></div>
+      ${r.resizeX ? '<div class="resize-handle resize-handle-e"></div>' : ''}
+      <div class="region-content">${getContent(r)}</div>
+    `;
+
+    // Drag
+    div.addEventListener('mousedown', e => {
+      if (e.target.classList.contains('resize-handle')) return;
+      activeRegion = r;
+      resizing = false;
+      dragOffset = { x: e.clientX - r.x, y: e.clientY - r.y };
+      div.classList.add('active');
+      e.preventDefault();
+    });
+
+    // Resize handle (bottom-right)
+    const resizeHandle = div.querySelector('.resize-handle:not(.resize-handle-e):not(.resize-handle-w)');
+    resizeHandle.addEventListener('mousedown', e => {
+      activeRegion = r;
+      resizing = true;
+      resizeDir = 'se';
+      e.stopPropagation();
+      e.preventDefault();
+    });
+
+    // Resize handle (east)
+    const resizeE = div.querySelector('.resize-handle-e');
+    if (resizeE) {
+      resizeE.addEventListener('mousedown', e => {
+        activeRegion = r;
+        resizing = true;
+        resizeDir = 'e';
+        e.stopPropagation();
+        e.preventDefault();
+      });
+    }
+
+    canvas.appendChild(div);
+  });
+}
+
+function getContent(r) {
+  if (r.content === 'cards') {
+    return BENCHMARK_CARDS.map(c => `
+      <div class="card-preview">
+        <div class="card-title">${c.name.length > 30 ? c.name.slice(0, 30) + '...' : c.name}</div>
+        <div class="card-desc">${c.desc.slice(0, 50)}...</div>
+        <span class="card-badge card-badge--${c.badge}">FOS ≈ ${c.fos}</span>
+        <span class="card-badge card-badge--gray">${c.country}</span>
+      </div>
+    `).join('');
+  }
+  if (r.content === 'header') {
+    return `<div style="font-size:14px;font-weight:700;margin-top:4px">🏗️ Análise Estrutural Integrada</div>
+            <div style="font-size:9px;color:#8b949e;margin-top:2px">Bishop · Spencer · M-Price · FEM · GA/PSO · Monte Carlo · FORM</div>`;
+  }
+  if (r.content === 'tabs') {
+    return `<div class="tab-bar">
+      <span class="tab-btn active">⛰️ Geometria</span>
+      <span class="tab-btn">📐 Estabilidade</span>
+      <span class="tab-btn">🔬 FEM</span>
+      <span class="tab-btn">🧬 GA/PSO</span>
+      <span class="tab-btn">🎲 Monte Carlo</span>
+      <span class="tab-btn">📋 Relatórios</span>
+    </div>`;
+  }
+  if (r.content === 'viz') {
+    return `<div class="viz-placeholder">
+      <div style="text-align:center">
+        <div style="font-size:40px;opacity:0.3">⛰️</div>
+        <div style="font-size:11px;margin-top:8px">SVG Cross-Section</div>
+        <div style="font-size:9px;color:#484f58;margin-top:4px">Solo Homogêneo · y=25m a y=34m</div>
+      </div>
+    </div>`;
+  }
+  if (r.content === 'config') {
+    return `
+      <div class="config-item"><div class="label">🪨 Camadas de Solo</div><div class="bar" style="width:80%;background:#30363d"></div></div>
+      <div class="config-item"><div class="label">🔢 Nº de Fatias</div><div class="bar" style="width:60%;background:#238636"></div></div>
+      <div class="config-item"><div class="label">⚡ Sobrecargas</div><div class="bar" style="width:40%;background:#30363d"></div></div>
+      <div class="config-item"><div class="label">🌊 Coef. Sísmicos</div>
+        <div class="toggle-row"><span class="toggle">kh</span><span class="toggle">kv</span></div>
+      </div>
+      <div class="config-item"><div class="label">⚙️ Configurações</div>
+        <div class="toggle-row"><span class="toggle active">ru</span><span class="toggle">N.A.</span><span class="toggle">Piezom.</span></div>
+      </div>
+      <div class="config-item">
+        <div class="toggle-row"><span class="toggle active">⭕ Circ.</span><span class="toggle">〰️ Não-circ.</span><span class="toggle">🔍 Auto</span></div>
+      </div>
+    `;
+  }
+  return '';
+}
+
+document.addEventListener('mousemove', e => {
+  if (!activeRegion) return;
+  if (resizing) {
+    if (resizeDir === 'se') {
+      activeRegion.w = Math.max(60, e.clientX - activeRegion.x);
+      activeRegion.h = Math.max(30, e.clientY - 48 - activeRegion.y);
+    } else if (resizeDir === 'e') {
+      activeRegion.w = Math.max(activeRegion.minW || 60, e.clientX - activeRegion.x);
+      if (activeRegion.maxW) activeRegion.w = Math.min(activeRegion.maxW, activeRegion.w);
+    }
+  } else {
+    activeRegion.x = e.clientX - dragOffset.x;
+    activeRegion.y = e.clientY - 48 - dragOffset.y;
+  }
+  renderRegions();
+});
+
+document.addEventListener('mouseup', () => {
+  activeRegion = null;
+  resizing = false;
+  document.querySelectorAll('.region').forEach(r => r.classList.remove('active'));
+});
+
+function exportLayout() {
+  const sidebar = regions.find(r => r.id === 'sidebar');
+  const header = regions.find(r => r.id === 'header');
+  const tabs = regions.find(r => r.id === 'tabs');
+  const viz = regions.find(r => r.id === 'viz');
+  const config = regions.find(r => r.id === 'config');
+
+  const data = {
+    viewport: { width: window.innerWidth, height: window.innerHeight },
+    regions: regions.map(r => ({
+      id: r.id,
+      label: r.label,
+      x: Math.round(r.x),
+      y: Math.round(r.y),
+      width: Math.round(r.w),
+      height: Math.round(r.h),
+    })),
+    cssValues: {
+      sidebarWidth: `${Math.round(sidebar.w)}px`,
+      headerHeight: `${Math.round(header.h)}px`,
+      tabsHeight: `${Math.round(tabs.h)}px`,
+      configWidth: `${Math.round(config.w)}px`,
+      vizWidth: `calc(100% - ${Math.round(sidebar.w)}px - ${Math.round(config.w)}px - gaps)`,
+      gridTemplateColumns: `${Math.round(sidebar.w)}px 1fr`,
+      vizGridColumns: `1fr ${Math.round(config.w)}px`,
+      gap: `${Math.round(sidebar.x > 0 ? header.x - sidebar.w : 10)}px`,
+    },
+    cardCount: BENCHMARK_CARDS.length,
+    notes: 'Copie os cssValues e aplique no código StabilityPanel.tsx'
+  };
+
+  document.getElementById('exportData').textContent = JSON.stringify(data, null, 2);
+  document.getElementById('exportOverlay').classList.add('visible');
+}
+
+function copyExport() {
+  const text = document.getElementById('exportData').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.btn-copy');
+    btn.textContent = '✅ Copiado!';
+    setTimeout(() => btn.textContent = '📋 Copiar', 2000);
+  });
+}
+
+function resetLayout() {
+  regions = JSON.parse(JSON.stringify(DEFAULT_REGIONS));
+  renderRegions();
+}
+
+renderRegions();
+</script>
+</body>
+</html>

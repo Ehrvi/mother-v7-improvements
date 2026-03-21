@@ -261,52 +261,61 @@ export default function SHMSPage() {
         </div>
       </div>
 
-      {/* ─── Floating Chat Bar (DECOUPLED from dock) ─── */}
-      <div className="shms-chat-bar">
-        <span
-          className="shms-chat-bar__icon"
-          onClick={() => setChatOpen(o => !o)}
-          title="Toggle MOTHER AI"
-        >🧠</span>
-        <input
-          type="text"
-          value={chatInput}
-          onChange={e => setChatInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && sendChat()}
-          placeholder="Pergunte à MOTHER sobre análises, estruturas, sensores..."
-          aria-label="Chat com MOTHER AI"
-          onFocus={() => { if (!chatOpen) setChatOpen(true); }}
-        />
-        <button
-          className="shms-btn shms-btn--accent shms-chat-bar__send"
-          onClick={sendChat}
-          disabled={chatLoading}
-        >
-          {chatLoading ? '⏳' : '↗'}
-        </button>
-      </div>
-
-      {/* ─── Floating Dock (macOS style — NAV ONLY) ─── */}
+      {/* ─── Unified Floating Dock (Intelltech logo → expands to nav + chat) ─── */}
       <div className="shms-dock">
-        <nav className="shms-dock__nav" aria-label="SHMS Navigation">
-          {SECTIONS.map((section, si) => (
-            <>
-              {si > 0 && <div key={`sep-${si}`} className="shms-dock__separator" />}
-              {section.items.map(item => (
-                <button
-                  key={item.id}
-                  className={`shms-dock__item ${activeView === item.id ? 'shms-dock__item--active' : ''}`}
-                  onClick={() => navigate(item.id)}
-                  aria-current={activeView === item.id ? 'page' : undefined}
-                  title={item.label}
-                >
-                  <span className="shms-dock__item-icon">{item.icon}</span>
-                  {item.label}
-                </button>
-              ))}
-            </>
-          ))}
-        </nav>
+        {/* Collapsed: Intelltech logo */}
+        <div className="shms-dock__collapsed-icon">
+          <img src="/intelltech-logo.webp" alt="Menu" className="shms-dock__logo-img" />
+        </div>
+
+        {/* Expanded content */}
+        <div className="shms-dock__expanded">
+          {/* Nav row */}
+          <nav className="shms-dock__nav" aria-label="SHMS Navigation">
+            {SECTIONS.map((section, si) => (
+              <>
+                {si > 0 && <div key={`sep-${si}`} className="shms-dock__separator" />}
+                {section.items.map(item => (
+                  <button
+                    key={item.id}
+                    className={`shms-dock__item ${activeView === item.id ? 'shms-dock__item--active' : ''}`}
+                    onClick={() => navigate(item.id)}
+                    aria-current={activeView === item.id ? 'page' : undefined}
+                    title={item.label}
+                  >
+                    <span className="shms-dock__item-icon">{item.icon}</span>
+                    {item.label}
+                  </button>
+                ))}
+              </>
+            ))}
+          </nav>
+
+          {/* Chat input row (integrated) */}
+          <div className="shms-dock__chat">
+            <span
+              className="shms-dock__chat-toggle"
+              onClick={() => setChatOpen(o => !o)}
+              title="Toggle MOTHER AI"
+            >🧠</span>
+            <input
+              type="text"
+              value={chatInput}
+              onChange={e => setChatInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && sendChat()}
+              placeholder="Pergunte à MOTHER..."
+              aria-label="Chat com MOTHER AI"
+              onFocus={() => { if (!chatOpen) setChatOpen(true); }}
+            />
+            <button
+              className="shms-btn shms-btn--accent shms-dock__chat-send"
+              onClick={sendChat}
+              disabled={chatLoading}
+            >
+              {chatLoading ? '⏳' : '↗'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -23,6 +23,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { useShmsDashboardAll } from '@/hooks/useShmsApi';
 import { useDynamicFOS } from '@/hooks/useDynamicFOS';
 import {
@@ -420,33 +422,61 @@ function createPSPoints(
   return psGroup;
 }
 
-// ─── Model paths ─────────────────────────────────────────────────────────────
+// ─── Model paths (defaults — can be overridden via prop) ─────────────────────
+// Default: GLB (binary, fast loading). OBJ fallback available via modelUrl prop.
+const DEFAULT_MODEL_URL = '/models/mine/Silver_Bow_Creek.glb';
 const MODEL_BASE = '/models/mine/';
 const MTL_FILE = 'Silver Bow Creek_V2_obj.mtl';
-const OBJ_FILE = 'Silver Bow Creek_V2_obj.obj';
 
-// ─── Load real mine model + add instruments ──────────────────────────────────
+// ─── Smart Model Loader: GLB/glTF (recommended) or OBJ (legacy fallback) ────
+// Both loaders return THREE.Group → all downstream code works unchanged
+// Scientific: Khronos Group (2015) glTF 2.0 spec — "JPEG of 3D"
 async function loadMineScene(
   scene: THREE.Scene,
   onProgress: (pct: number) => void,
+  modelUrl?: string,
 ): Promise<{ water: THREE.Mesh; sensorMeshes: THREE.Mesh[]; sensorData: InstrumentDef[]; modelGroup: THREE.Group; psGroup: THREE.Group; modelCenter: THREE.Vector3; pitRadius: number; originalMaterials: Map<THREE.Mesh, THREE.Material | THREE.Material[]> }> {
-  // Load MTL → OBJ
-  const mtlLoader = new MTLLoader();
-  mtlLoader.setPath(MODEL_BASE);
-  const materials = await mtlLoader.loadAsync(MTL_FILE);
-  materials.preload();
+  const url = modelUrl || DEFAULT_MODEL_URL;
+  const ext = url.split('.').pop()?.toLowerCase() || 'obj';
 
-  const objLoader = new OBJLoader();
-  objLoader.setMaterials(materials);
-  objLoader.setPath(MODEL_BASE);
-  const obj = await new Promise<THREE.Group>((resolve, reject) => {
-    objLoader.load(
-      OBJ_FILE,
-      (group) => resolve(group),
-      (xhr) => { if (xhr.total > 0) onProgress(Math.round((xhr.loaded / xhr.total) * 100)); },
-      (err) => reject(err),
-    );
-  });
+  let obj: THREE.Group;
+
+  if (ext === 'glb' || ext === 'gltf') {
+    // ── GLB/glTF path (recommended, Draco-compressed) ──
+    const gltfLoader = new GLTFLoader();
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+    gltfLoader.setDRACOLoader(dracoLoader);
+
+    const gltf = await new Promise<{ scene: THREE.Group }>((resolve, reject) => {
+      gltfLoader.load(
+        url,
+        (result) => resolve(result),
+        (xhr) => { if (xhr.total > 0) onProgress(Math.round((xhr.loaded / xhr.total) * 100)); },
+        (err) => reject(err),
+      );
+    });
+    obj = gltf.scene;
+    dracoLoader.dispose();
+  } else {
+    // ── OBJ path (legacy fallback — current model) ──
+    const mtlLoader = new MTLLoader();
+    mtlLoader.setPath(MODEL_BASE);
+    const materials = await mtlLoader.loadAsync(MTL_FILE);
+    materials.preload();
+
+    const objLoader = new OBJLoader();
+    objLoader.setMaterials(materials);
+    objLoader.setPath(MODEL_BASE);
+    obj = await new Promise<THREE.Group>((resolve, reject) => {
+      objLoader.load(
+        url.includes('/') ? url.split('/').pop()! : url,
+        (group) => resolve(group),
+        (xhr) => { if (xhr.total > 0) onProgress(Math.round((xhr.loaded / xhr.total) * 100)); },
+        (err) => reject(err),
+      );
+    });
+  }
 
   // Auto-center and scale the model
   const box = new THREE.Box3().setFromObject(obj);
@@ -557,7 +587,7 @@ const glass: React.CSSProperties = {
 };
 
 // ─── Component ───────────────────────────────────────────────────────────────
-export default function DigitalTwin3DViewer({ structureId, minimal = false }: { structureId: string; minimal?: boolean }) {
+export default function DigitalTwin3DViewer({ structureId, minimal = false, modelUrl }: { structureId: string; minimal?: boolean; modelUrl?: string }) {
   const fosResult = useDynamicFOS(structureId);
   const containerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -653,7 +683,7 @@ export default function DigitalTwin3DViewer({ structureId, minimal = false }: { 
     let sensorMeshes: THREE.Mesh[] = [];
     let sensorData: InstrumentDef[] = [];
 
-    loadMineScene(scene, (pct) => setLoadProgress(pct))
+    loadMineScene(scene, (pct) => setLoadProgress(pct), modelUrl)
       .then((result) => {
         water = result.water;
         sensorMeshes = result.sensorMeshes;
